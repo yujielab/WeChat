@@ -1,0 +1,183 @@
+/* Liquid Glass, approximated for the web.
+ *
+ * Only the floating functional layer uses it: top controls, the composer, the
+ * search field, floating buttons, menus and sheets. Message content never sits
+ * on glass. Layers, back to front:
+ *   tint + vertical sheen      (background)
+ *   backdrop blur + saturation (the "glass")
+ *   inner reflection           (::before, behind content)
+ *   specular top edge, rim, inner lower edge, lift shadow (box-shadow)
+ *   touch glow                 (::after, follows the finger while pressed)
+ *
+ * Falls back to a clean solid surface when transparency is reduced, contrast is
+ * increased, backdrop-filter is unsupported, or the device proves too slow
+ * (js/ui/glass.js sets data-glass="solid").
+ */
+
+.glass {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, var(--glass-sheen-top) 0%, var(--glass-sheen-mid) 45%, transparent 62%),
+    var(--glass-tint);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0.5px -0.5px var(--glass-rim),
+    inset 0 0 0 var(--hairline) var(--glass-rim-low),
+    inset 0 -1px 1.5px -1px var(--glass-edge-dark),
+    var(--glass-shadow);
+}
+
+/* Inner reflection: light entering from the upper left, a faint caustic low right. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(130% 95% at 15% -10%, rgb(255 255 255 / 0.26), transparent 52%),
+    radial-gradient(70% 55% at 90% 115%, rgb(255 255 255 / 0.12), transparent 62%);
+}
+
+/* Touch glow, positioned by js/ui/press.js through --gx/--gy. */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%), var(--glass-glow), transparent 62%);
+  opacity: 0;
+  transition: opacity 280ms ease-out;
+}
+.glass.is-pressed::after { opacity: 1; transition-duration: 60ms; }
+
+/* Thicker material for larger surfaces (sheets, menus, panels). */
+.glass-thick {
+  --glass-tint: var(--glass-tint-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0.5px -0.5px var(--glass-rim),
+    inset 0 0 0 var(--hairline) var(--glass-rim-low),
+    var(--glass-shadow-lg);
+}
+
+/* Clear variant over photos and video, with the HIG's 35% dimming layer. */
+.glass-clear,
+.glass-clear.glass-btn {
+  --glass-tint: rgb(0 0 0 / 0.22);
+  --glass-sheen-top: rgb(255 255 255 / 0.2);
+  --glass-rim: rgb(255 255 255 / 0.4);
+  --glass-rim-low: rgb(255 255 255 / 0.18);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.glass-btn {
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--label);
+  flex: none;
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+}
+.glass-btn .icon { width: 22px; height: 22px; }
+.glass-btn.tint { color: var(--blue); }
+
+.glass-pill {
+  min-height: var(--hit);
+  border-radius: calc(var(--hit) / 2);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+}
+
+/* Liquid Glass controls swell slightly toward the finger instead of sinking. */
+.glass-btn.is-pressed,
+.glass-pill.is-pressed { transform: scale(1.07); transition-duration: 140ms; }
+
+/* Solid, opaque controls (send button, primary buttons) sink a little. */
+.solid-press { transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+.solid-press.is-pressed { transform: scale(0.96); transition-duration: var(--press-dur); }
+
+/* ---------------------------------------------------------------- scroll edge effect */
+
+/* Where content scrolls under floating chrome, blur and fade it instead of
+   drawing a divider. Only visible once something is underneath. */
+.edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: var(--z-chrome);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+.edge.on { opacity: 1; }
+.edge-top {
+  top: 0;
+  height: calc(var(--safe-top) + var(--edge-h, 64px));
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 78%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 55%, transparent);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+.edge-bottom {
+  bottom: 0;
+  height: calc(var(--safe-bottom) + var(--edge-h, 72px));
+  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 78%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 55%, transparent);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
+  mask-image: linear-gradient(to top, #000 55%, transparent);
+}
+
+/* ---------------------------------------------------------------- fallbacks */
+
+:root[data-glass="solid"] .glass {
+  background: var(--glass-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 0 0 var(--hairline) var(--separator), var(--glass-shadow);
+}
+:root[data-glass="solid"] .glass::before { display: none; }
+:root[data-glass="solid"] .glass-clear { background: rgb(28 28 30 / 0.92); }
+:root[data-glass="solid"] .edge { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-glass="glass"]) .glass {
+    background: var(--glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: inset 0 0 0 var(--hairline) var(--separator), var(--glass-shadow);
+  }
+  :root:not([data-glass="glass"]) .glass::before { display: none; }
+  :root:not([data-glass="glass"]) .glass-clear { background: rgb(28 28 30 / 0.92); }
+  :root:not([data-glass="glass"]) .edge { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--glass-solid); box-shadow: inset 0 0 0 var(--hairline) var(--separator), var(--glass-shadow); }
+  .glass::before { display: none; }
+  .glass-clear { background: rgb(28 28 30 / 0.92); }
+}
+
+@media (prefers-contrast: more) {
+  .glass {
+    background: var(--glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: inset 0 0 0 1px var(--label-3), var(--glass-shadow);
+  }
+  .glass::before { display: none; }
+}

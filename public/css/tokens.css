@@ -1,0 +1,241 @@
+/* Design tokens.
+ * Colors follow Apple's iOS system palette (light / dark). Sizes are in rem so
+ * the whole interface scales with the iPhone's Dynamic Type setting (base.css
+ * sets the root to -apple-system-body). Springs are sampled from
+ * damping/response pairs by tools/gen-springs.mjs.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- color: light */
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-grouped: #f2f2f7;
+  --bg-grouped-2: #ffffff;
+  --label: #000000;
+  --label-2: rgb(60 60 67 / 0.6);
+  --label-3: rgb(60 60 67 / 0.3);
+  --label-4: rgb(60 60 67 / 0.18);
+  --separator: rgb(60 60 67 / 0.29);
+  --separator-opaque: #c6c6c8;
+  --fill: rgb(120 120 128 / 0.2);
+  --fill-2: rgb(120 120 128 / 0.16);
+  --fill-3: rgb(118 118 128 / 0.12);
+  --fill-4: rgb(116 116 128 / 0.08);
+
+  --blue: #007aff;
+  --blue-press: #0062cc;
+  --red: #ff3b30;
+  --orange: #ff9500;
+  --yellow: #ffcc00;
+  --green: #34c759;
+  --indigo: #5856d6;
+  --gray: #8e8e93;
+
+  --bubble-out: #0a7cff;
+  --bubble-out-text: #ffffff;
+  --bubble-in: #e9e9eb;
+  --bubble-in-text: #000000;
+  --bubble-card: #f2f2f7;
+  --link-in: #0062cc;
+
+  --scrim: rgb(0 0 0 / 0.32);
+  --image-outline: rgb(0 0 0 / 0.1);
+
+  /* ---- glass: light */
+  --glass-tint: rgb(255 255 255 / 0.56);
+  --glass-tint-strong: rgb(250 250 252 / 0.78);
+  --glass-solid: #f9f9fb;
+  --glass-sheen-top: rgb(255 255 255 / 0.55);
+  --glass-sheen-mid: rgb(255 255 255 / 0.06);
+  --glass-rim: rgb(255 255 255 / 0.75);
+  --glass-rim-low: rgb(255 255 255 / 0.25);
+  --glass-edge-dark: rgb(0 0 0 / 0.07);
+  --glass-shadow: 0 8px 28px -10px rgb(0 0 0 / 0.22), 0 2px 6px -2px rgb(0 0 0 / 0.08);
+  --glass-shadow-lg: 0 24px 60px -18px rgb(0 0 0 / 0.32), 0 6px 16px -6px rgb(0 0 0 / 0.12);
+  --glass-glow: rgb(255 255 255 / 0.65);
+  --glass-blur: 16px;
+  --glass-blur-lg: 28px;
+  --glass-saturate: 1.8;
+
+  /* ---- type (rem = Dynamic Type body, 17px by default) */
+  --t-large-title: 2rem;         /* 34 */
+  --t-title-1: 1.647rem;         /* 28 */
+  --t-title-2: 1.294rem;         /* 22 */
+  --t-title-3: 1.176rem;         /* 20 */
+  --t-headline: 1rem;            /* 17 semibold */
+  --t-body: 1rem;                /* 17 */
+  --t-callout: 0.941rem;         /* 16 */
+  --t-subhead: 0.882rem;         /* 15 */
+  --t-footnote: 0.765rem;        /* 13 */
+  --t-caption: 0.706rem;         /* 12 */
+  --t-caption-2: 0.647rem;       /* 11 */
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-semibold: 600;
+  --w-bold: 700;
+
+  /* ---- space & shape */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --margin: 16px;
+  --hit: 44px;
+  --r-bubble: 18px;
+  --r-card: 14px;
+  --r-menu: 22px;
+  --r-sheet: 34px;
+  --hairline: 1px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ---- motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --press-dur: 110ms;
+
+  /* Sampled springs (npm run springs). Fallbacks for engines without linear(). */
+  --spring-smooth: var(--ease-out);
+  --spring-smooth-dur: 360ms;
+  --spring-snappy: var(--ease-out);
+  --spring-snappy-dur: 260ms;
+  --spring-bouncy: var(--ease-out);
+  --spring-bouncy-dur: 400ms;
+  --spring-gentle: var(--ease-out);
+  --spring-gentle-dur: 480ms;
+
+  /* z layers */
+  --z-pane: 1;
+  --z-chrome: 10;
+  --z-overlay: 100;
+  --z-menu: 200;
+  --z-viewer: 300;
+  --z-toast: 400;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-smooth: linear(0, 0.0163, 0.0574, 0.1142, 0.18, 0.2498, 0.3203, 0.3891, 0.4546, 0.5158, 0.5724, 0.6239, 0.6705, 0.7123, 0.7496, 0.7826, 0.8117, 0.8373, 0.8597, 0.8792, 0.8962, 0.911, 0.9237, 0.9348, 0.9443, 0.9524, 0.9594, 0.9655, 0.9706, 0.975, 0.9788, 0.982, 0.9847, 0.9871, 0.989, 0.9907, 0.9922, 0.9934, 0.9944, 0.9953, 1);
+    --spring-smooth-dur: 367ms;
+    --spring-snappy: linear(0, 0.0137, 0.0496, 0.1011, 0.1627, 0.2303, 0.3005, 0.3708, 0.4393, 0.5048, 0.5662, 0.6231, 0.6751, 0.7222, 0.7643, 0.8017, 0.8346, 0.8633, 0.8881, 0.9095, 0.9277, 0.943, 0.9559, 0.9666, 0.9754, 0.9826, 0.9883, 0.9929, 0.9965, 0.9992, 1.0013, 1.0028, 1.0038, 1.0045, 1.0049, 1.005, 1.005, 1.0048, 1.0046, 1.0043, 1);
+    --spring-snappy-dur: 266ms;
+    --spring-bouncy: linear(0, 0.0157, 0.0568, 0.1154, 0.1854, 0.2618, 0.3405, 0.4187, 0.4941, 0.5652, 0.6309, 0.6908, 0.7445, 0.792, 0.8335, 0.8692, 0.8997, 0.9253, 0.9466, 0.9639, 0.9779, 0.9889, 0.9975, 1.0039, 1.0085, 1.0117, 1.0137, 1.0148, 1.0152, 1.015, 1.0144, 1.0135, 1.0125, 1.0113, 1.0101, 1.009, 1.0078, 1.0067, 1.0057, 1.0048, 1);
+    --spring-bouncy-dur: 403ms;
+    --spring-gentle: linear(0, 0.0163, 0.0575, 0.1145, 0.1804, 0.2503, 0.3209, 0.3897, 0.4553, 0.5166, 0.5731, 0.6246, 0.6712, 0.713, 0.7502, 0.7832, 0.8123, 0.8379, 0.8602, 0.8797, 0.8967, 0.9114, 0.9241, 0.9351, 0.9445, 0.9527, 0.9597, 0.9657, 0.9708, 0.9752, 0.9789, 0.9821, 0.9848, 0.9872, 0.9891, 0.9908, 0.9922, 0.9934, 0.9945, 0.9953, 1);
+    --spring-gentle-dur: 490ms;
+  }
+}
+
+/* Retina hairlines. */
+@media (min-resolution: 2dppx) {
+  :root { --hairline: 0.5px; }
+}
+
+/* Wider phones (iPhone Duo folded is ~466pt wide) get the Pro Max margin. */
+@media (min-width: 430px) {
+  :root { --margin: 20px; }
+}
+
+/* Wide-gamut Apple blue where the display can show it. */
+@media (color-gamut: p3) {
+  :root {
+    --blue: color(display-p3 0.08 0.48 1);
+    --bubble-out: color(display-p3 0.12 0.49 1);
+  }
+}
+
+/* ---- color: dark */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --bg-elevated: #1c1c1e;
+    --bg-grouped: #000000;
+    --bg-grouped-2: #1c1c1e;
+    --label: #ffffff;
+    --label-2: rgb(235 235 245 / 0.6);
+    --label-3: rgb(235 235 245 / 0.3);
+    --label-4: rgb(235 235 245 / 0.16);
+    --separator: rgb(84 84 88 / 0.65);
+    --separator-opaque: #38383a;
+    --fill: rgb(120 120 128 / 0.36);
+    --fill-2: rgb(120 120 128 / 0.32);
+    --fill-3: rgb(118 118 128 / 0.24);
+    --fill-4: rgb(118 118 128 / 0.18);
+    --blue: #0a84ff;
+    --blue-press: #409cff;
+    --red: #ff453a;
+    --orange: #ff9f0a;
+    --yellow: #ffd60a;
+    --green: #30d158;
+    --indigo: #5e5ce6;
+    --bubble-out: #0a84ff;
+    --bubble-in: #262628;
+    --bubble-in-text: #ffffff;
+    --bubble-card: #1c1c1e;
+    --link-in: #5eb0ff;
+    --scrim: rgb(0 0 0 / 0.5);
+    --image-outline: rgb(255 255 255 / 0.1);
+    --glass-tint: rgb(36 36 40 / 0.5);
+    --glass-tint-strong: rgb(30 30 34 / 0.78);
+    --glass-solid: #1c1c1e;
+    --glass-sheen-top: rgb(255 255 255 / 0.16);
+    --glass-sheen-mid: rgb(255 255 255 / 0.02);
+    --glass-rim: rgb(255 255 255 / 0.22);
+    --glass-rim-low: rgb(255 255 255 / 0.08);
+    --glass-edge-dark: rgb(0 0 0 / 0.4);
+    --glass-shadow: 0 8px 28px -10px rgb(0 0 0 / 0.6), 0 0 0 0.5px rgb(255 255 255 / 0.06);
+    --glass-shadow-lg: 0 24px 60px -18px rgb(0 0 0 / 0.75), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+    --glass-glow: rgb(255 255 255 / 0.28);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --bg-elevated: #1c1c1e;
+  --bg-grouped: #000000;
+  --bg-grouped-2: #1c1c1e;
+  --label: #ffffff;
+  --label-2: rgb(235 235 245 / 0.6);
+  --label-3: rgb(235 235 245 / 0.3);
+  --label-4: rgb(235 235 245 / 0.16);
+  --separator: rgb(84 84 88 / 0.65);
+  --separator-opaque: #38383a;
+  --fill: rgb(120 120 128 / 0.36);
+  --fill-2: rgb(120 120 128 / 0.32);
+  --fill-3: rgb(118 118 128 / 0.24);
+  --fill-4: rgb(118 118 128 / 0.18);
+  --blue: #0a84ff;
+  --blue-press: #409cff;
+  --red: #ff453a;
+  --orange: #ff9f0a;
+  --yellow: #ffd60a;
+  --green: #30d158;
+  --indigo: #5e5ce6;
+  --bubble-out: #0a84ff;
+  --bubble-in: #262628;
+  --bubble-in-text: #ffffff;
+  --bubble-card: #1c1c1e;
+  --link-in: #5eb0ff;
+  --scrim: rgb(0 0 0 / 0.5);
+  --image-outline: rgb(255 255 255 / 0.1);
+  --glass-tint: rgb(36 36 40 / 0.5);
+  --glass-tint-strong: rgb(30 30 34 / 0.78);
+  --glass-solid: #1c1c1e;
+  --glass-sheen-top: rgb(255 255 255 / 0.16);
+  --glass-sheen-mid: rgb(255 255 255 / 0.02);
+  --glass-rim: rgb(255 255 255 / 0.22);
+  --glass-rim-low: rgb(255 255 255 / 0.08);
+  --glass-edge-dark: rgb(0 0 0 / 0.4);
+  --glass-shadow: 0 8px 28px -10px rgb(0 0 0 / 0.6), 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --glass-shadow-lg: 0 24px 60px -18px rgb(0 0 0 / 0.75), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --glass-glow: rgb(255 255 255 / 0.28);
+}

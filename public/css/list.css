@@ -1,0 +1,378 @@
+/* Chat list — modeled on the iOS Messages conversation list. */
+
+.list-scroll {
+  padding-bottom: calc(var(--safe-bottom) + 88px);
+  /* Rows reorder as messages arrive; keep the top pinned like iOS (and like
+     Safari, which has no scroll anchoring) instead of chasing the old row. */
+  overflow-anchor: none;
+}
+
+/* Floating top controls (glass), over the large title area. */
+.list-topbar {
+  position: absolute;
+  z-index: var(--z-chrome);
+  top: calc(var(--safe-top) + 6px);
+  left: calc(var(--margin) + var(--safe-left) - 4px);
+  right: calc(var(--margin) + var(--safe-right) - 4px);
+  height: var(--hit);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  pointer-events: none;
+}
+.list-topbar > * { pointer-events: auto; }
+.list-topbar .spacer { flex: 1; pointer-events: none; }
+.list-topbar .me-btn { padding: 0; overflow: hidden; }
+.list-topbar .me-btn .avatar { --size: 36px; }
+/* iOS 26 groups related toolbar actions in one glass capsule. */
+.bar-group {
+  display: flex;
+  align-items: center;
+  height: var(--hit);
+  padding: 0 4px;
+  border-radius: calc(var(--hit) / 2);
+}
+.bar-btn {
+  position: relative;
+  width: var(--hit);
+  height: var(--hit);
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  color: var(--label);
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color 200ms ease-out;
+}
+.bar-btn.tint { color: var(--blue); }
+.bar-btn .icon { width: 22px; height: 22px; }
+.bar-btn.is-pressed { transform: scale(1.1); background: radial-gradient(circle, var(--glass-glow), transparent 70%); transition-duration: 120ms; }
+
+/* Small centered title that fades in once the large title scrolls away. */
+.list-inline-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  font-size: var(--t-headline);
+  font-weight: var(--w-semibold);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+  pointer-events: none;
+}
+.pane-list.collapsed .list-inline-title { opacity: 1; }
+
+.list-head {
+  padding: calc(var(--safe-top) + 6px + var(--hit) + 2px) calc(var(--margin) + var(--safe-right)) 6px calc(var(--margin) + var(--safe-left));
+}
+.large-title {
+  margin: 0;
+  font-size: var(--t-large-title);
+  line-height: 1.2;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  transform-origin: left center;
+}
+.conn-status {
+  font-size: var(--t-subhead);
+  font-weight: var(--w-regular);
+  letter-spacing: 0;
+  color: var(--label-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.conn-status .spinner { width: 13px; height: 13px; border-width: 1.5px; }
+.conn-status.warn { color: var(--orange); }
+
+/* Filter chips (全部 / 未读 / 群聊 / 私聊) live in the filter menu; the active one shows here. */
+.filter-note {
+  margin: 2px calc(var(--margin) + var(--safe-right)) 6px calc(var(--margin) + var(--safe-left));
+  font-size: var(--t-footnote);
+  color: var(--label-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-note button { color: var(--blue); }
+
+/* ---------------------------------------------------------------- pinned */
+
+.pinned {
+  display: grid;
+  grid-template-columns: repeat(var(--pin-cols, 4), 1fr);
+  gap: 10px 4px;
+  padding: 8px calc(var(--margin) + var(--safe-right) - 6px) 14px calc(var(--margin) + var(--safe-left) - 6px);
+}
+.pane-list[data-width="narrow"] .pinned { --pin-cols: 3; }
+.pin {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border-radius: 16px;
+  min-width: 0;
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+}
+.pin.is-pressed { transform: scale(0.95); transition-duration: var(--press-dur); }
+.pin .avatar { --size: 64px; }
+.pin-name {
+  max-width: 100%;
+  font-size: var(--t-caption);
+  color: var(--label-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pin.unread .pin-name { color: var(--label); font-weight: var(--w-semibold); }
+.pin .badge { position: absolute; top: 2px; right: calc(50% - 38px); box-shadow: 0 0 0 2.5px var(--bg); }
+.pin.selected .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--blue); }
+
+/* ---------------------------------------------------------------- rows */
+
+.rows { list-style: none; margin: 0; padding: 0; }
+
+.row {
+  position: relative;
+  overflow: hidden;
+  contain: layout paint;
+}
+.row-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 10px calc(var(--margin) + var(--safe-right)) 10px calc(var(--safe-left) + 6px);
+  background: var(--bg);
+  transition: background-color 160ms ease-out;
+  will-change: transform;
+}
+.row.is-pressed .row-inner { background: var(--fill-3); transition-duration: 0ms; }
+.pane-list[data-layout="split"] .row.selected .row-inner {
+  background: var(--fill-3);
+}
+.pane-list[data-layout="split"] .row-inner { border-radius: 14px; margin: 0 8px; padding-left: 0; padding-right: 10px; }
+.pane-list[data-layout="split"] .rows { padding-top: 2px; }
+
+.row-dot {
+  width: 10px;
+  height: 10px;
+  margin-left: 4px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--blue);
+  transform: scale(0);
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+}
+.row.unread .row-dot { transform: scale(1); }
+.row.unread.muted .row-dot { background: var(--label-3); }
+
+.row .avatar { --size: 50px; }
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+/* Hairline separator, inset to the text column like iOS. */
+.row-main::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--safe-left) + 6px + 10px + 12px + 50px + 12px);
+  right: 0;
+  bottom: 0;
+  border-bottom: var(--hairline) solid var(--separator);
+}
+.row:last-child .row-main::after,
+.pane-list[data-layout="split"] .row-main::after { display: none; }
+
+.row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.row-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--t-headline);
+  font-weight: var(--w-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-flag { color: var(--label-3); display: inline-flex; }
+.row-flag .icon { width: 14px; height: 14px; }
+.row-top .grow { flex: 1; }
+.row-time {
+  flex: none;
+  font-size: var(--t-subhead);
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.row-chevron { color: var(--label-3); display: inline-flex; margin-left: -2px; }
+.row-chevron .icon { width: 13px; height: 13px; }
+.pane-list[data-layout="split"] .row-chevron { display: none; }
+.row-preview {
+  font-size: var(--t-subhead);
+  line-height: 1.33;
+  color: var(--label-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-height: 2.66em;
+}
+.row-preview .draft { color: var(--red); }
+.row-preview .failed { color: var(--red); }
+
+/* Swipe actions sit under the row and are revealed as it slides. */
+.row-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  z-index: 0;
+  visibility: hidden;
+}
+.row.swiping .row-actions { visibility: visible; }
+.row-actions.left { justify-content: flex-start; }
+.row-actions.right { justify-content: flex-end; }
+.row-action {
+  width: 78px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #fff;
+  font-size: var(--t-footnote);
+  font-weight: var(--w-medium);
+}
+.row-action .icon { width: 22px; height: 22px; }
+.row-action.blue { background: var(--blue); }
+.row-action.yellow { background: var(--orange); }
+.row-action.red { background: var(--red); }
+.row-action.gray { background: var(--gray); }
+
+/* Rows moving to the top when new messages arrive (FLIP). */
+.row.moving { z-index: 2; transition: transform var(--spring-smooth-dur) var(--spring-smooth); }
+
+/* ---------------------------------------------------------------- empty + search */
+
+.list-empty {
+  padding: 18vh 32px 0;
+  text-align: center;
+  color: var(--label-2);
+  font-size: var(--t-subhead);
+}
+.list-empty h2 { margin: 0 0 6px; font-size: var(--t-title-3); color: var(--label); font-weight: var(--w-semibold); }
+
+.list-bottombar {
+  position: absolute;
+  z-index: var(--z-chrome);
+  left: calc(var(--margin) + var(--safe-left));
+  right: calc(var(--margin) + var(--safe-right));
+  bottom: calc(max(var(--safe-bottom), 10px) + 6px);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  transition: bottom 0ms;
+}
+:root[data-kb="1"] .list-bottombar { bottom: 8px; }
+.search-pill {
+  flex: 1;
+  height: 48px;
+  border-radius: 24px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--label-2);
+  font-size: var(--t-body);
+  text-align: left;
+  cursor: text;
+}
+.search-pill .icon { width: 19px; height: 19px; }
+.search-pill input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: none;
+  font-size: max(16px, var(--t-body));
+  color: var(--label);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search-pill input::placeholder { color: var(--label-2); }
+.search-pill input::-webkit-search-cancel-button { display: none; }
+.search-cancel { opacity: 0; transform: scale(0.6); pointer-events: none; width: 0; margin-left: -8px; }
+.pane-list.searching .search-cancel {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  margin-left: 0;
+  transition: opacity 200ms ease-out, transform var(--spring-bouncy-dur) var(--spring-bouncy), width var(--spring-smooth-dur) var(--spring-smooth), margin var(--spring-smooth-dur) var(--spring-smooth);
+}
+
+.search-results { padding-top: calc(var(--safe-top) + 6px + var(--hit) + 8px); }
+.section-title {
+  margin: 14px calc(var(--margin) + var(--safe-right)) 4px calc(var(--margin) + var(--safe-left));
+  font-size: var(--t-footnote);
+  font-weight: var(--w-semibold);
+  color: var(--label-2);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.contact-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px calc(var(--margin) + var(--safe-right)) 6px calc(var(--margin) + var(--safe-left));
+  text-align: left;
+}
+.contact-row .avatar { --size: 40px; }
+.contact-row .name { font-size: var(--t-body); }
+.contact-row .sub { font-size: var(--t-footnote); color: var(--label-2); }
+.contact-row.is-pressed { background: var(--fill-3); }
+mark { background: none; color: var(--blue); }
+
+/* Shown when the WeChat session has ended but history is still readable. */
+.offline-banner {
+  position: absolute;
+  z-index: var(--z-chrome);
+  left: calc(var(--margin) + var(--safe-left));
+  right: calc(var(--margin) + var(--safe-right));
+  bottom: calc(max(var(--safe-bottom), 10px) + 66px);
+  border-radius: 20px;
+  padding: 10px 6px 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-footnote);
+  color: var(--label-2);
+  animation: card-in var(--spring-bouncy-dur) var(--spring-bouncy) both;
+}
+.offline-banner > .icon { width: 22px; height: 22px; color: var(--orange); }
+.offline-banner .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.offline-banner b { font-size: var(--t-subhead); color: var(--label); font-weight: var(--w-semibold); }
+.offline-banner .grow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.offline-banner .text-button { font-weight: var(--w-semibold); }
