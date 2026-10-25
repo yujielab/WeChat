@@ -422,3 +422,21 @@ mark { background: none; color: var(--blue); }
 :root[data-motion="reduce"] .offline-banner { animation: fade-in 160ms linear backwards; }
 :root[data-motion="reduce"] .row-in { animation: none; }
 :root[data-motion="reduce"] .sk::after { animation: none; }
+
+/* Presence: a green dot on a DM row's avatar when the peer is online. */
+.av-wrap { position: relative; flex: none; }
+.av-wrap .pres {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2.5px var(--bg);
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 180ms ease, transform var(--spring-bouncy-dur) var(--spring-bouncy);
+}
+.row.online .av-wrap .pres { opacity: 1; transform: none; }
+.pane-list[data-layout="split"] .row.online .av-wrap .pres { box-shadow: 0 0 0 2.5px var(--bg-elevated); }

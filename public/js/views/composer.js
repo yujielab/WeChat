@@ -5,8 +5,9 @@
 import { h, icon } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
+import { openMenu } from './overlay.js'
 
-export function createComposer({ onSend, onImages, onHeight }) {
+export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   const textarea = h('textarea', {
     rows: 1,
     placeholder: '消息',
@@ -18,7 +19,7 @@ export function createComposer({ onSend, onImages, onHeight }) {
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': '发送' }, icon('arrow-up'))
   const field = h('div', { class: 'field glass' }, textarea, send)
   const fileInput = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true })
-  const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '发送照片' }, icon('plus'))
+  const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '添加内容' }, icon('plus'))
   const form = h('form', { class: 'composer', autocomplete: 'off' }, attach, field, fileInput)
 
   let chat = null
@@ -53,6 +54,7 @@ export function createComposer({ onSend, onImages, onHeight }) {
   textarea.addEventListener('input', () => {
     autosize()
     saveDraftSoon()
+    if (textarea.value.trim()) onType?.()
   })
   textarea.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return
@@ -70,8 +72,10 @@ export function createComposer({ onSend, onImages, onHeight }) {
 
   attach.addEventListener('click', () => {
     if (readonly) return
-    fileInput.value = ''
-    fileInput.click()
+    openMenu(attach, [[
+      { label: '照片', icon: 'photo', onSelect: () => { fileInput.value = ''; fileInput.click() } },
+      { label: '画板', icon: 'brush', onSelect: () => onDraw?.() }
+    ]], { preferAbove: true })
   })
   fileInput.addEventListener('change', () => {
     const files = [...fileInput.files].filter(f => f.type.startsWith('image/'))
@@ -92,7 +96,7 @@ export function createComposer({ onSend, onImages, onHeight }) {
       form.classList.toggle('readonly', ro)
       textarea.disabled = ro
       attach.disabled = ro
-      textarea.placeholder = ro ? '此会话来自上次登录，只能查看' : '消息'
+      textarea.placeholder = '消息'
       textarea.value = id ? getDraft(id) : ''
       autosize()
     },

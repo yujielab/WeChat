@@ -6,12 +6,13 @@ import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
   state, on, thread, mergeMessages, upsertMessage, replaceMessage, removeMessage, chatInfo,
-  unreadTotal, newCid, upsertChats
+  unreadTotal, newCid, patchRoom, upsertRoom, normMsg, avatarOf, nameOf, setMembers
 } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { renderBubble, hasTail } from './bubbles.js'
 import { createComposer, prepareImage } from './composer.js'
+import { openDrawing } from './draw.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
 
@@ -29,12 +30,12 @@ const safeUrl = u => {
   }
 }
 
-const isRoom = id => typeof id === 'string' && (id.startsWith('@@') || id.endsWith('@chatroom'))
-const isSys = m => m.type === 'system' || m.type === 'recalled'
+const isGroup = id => chatInfo(id)?.kind === 'group'
+const isSys = m => m.type === 'system'
 const sameRun = (a, b) =>
   a && b && !isSys(a) && !isSys(b) && a.out === b.out && a.from === b.from && b.ts - a.ts < RUN_GAP
 
-export function createThread(pane, { onBack, onInfo, socketSend }) {
+export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   pane.classList.add('pane-thread')
   let current = null
   let newCount = 0
@@ -42,7 +43,7 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
   const nodes = new Map()
   const seps = new Map()
   const retryFiles = new Map()
-  const ctx = { maxMedia: 240, observeFull: img => fullObserver.observe(img) }
+  const ctx = { maxMedia: 240 }
 
   // ------------------------------------------------------------ skeleton
   const olderEl = h('div', { class: 'load-older', 'aria-live': 'polite' })
@@ -57,8 +58,11 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
   const titleSub = h('span', { class: 'sub' })
   const titleAvatar = h('span')
   const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
+  const audioCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '语音通话' }, icon('phone'))
+  const videoCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '视频通话' }, icon('video'))
   const infoBtn = h('button', { class: 'glass glass-btn info', type: 'button', 'aria-label': '聊天信息' }, icon('info'))
-  const nav = h('header', { class: 'thread-nav' }, back, titleBtn, infoBtn)
+  const navActions = h('div', { class: 'nav-actions' }, audioCall, videoCall, infoBtn)
+  const nav = h('header', { class: 'thread-nav' }, back, titleBtn, navActions)
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
@@ -66,7 +70,9 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
   const composer = createComposer({
     onSend: text => sendText(text),
     onImages: files => sendImages(files),
-    onHeight: px => root.style.setProperty('--composer-h', `${px}px`)
+    onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
+    onType: () => sendTyping(),
+    onDraw: () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
   })
 
   const edgeTop = edge('top')
@@ -79,27 +85,13 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
   titleBtn.addEventListener('click', () => current && onInfo(current))
   infoBtn.addEventListener('click', () => current && onInfo(current))
   jump.addEventListener('click', () => scrollToBottom(true))
+  audioCall.addEventListener('click', () => current && onCall?.(current, 'audio'))
+  videoCall.addEventListener('click', () => current && onCall?.(current, 'video'))
 
   new ResizeObserver(([e]) => {
     ctx.maxMedia = Math.round(Math.min(280, Math.max(180, e.contentRect.width * 0.6)))
   }).observe(pane)
 
-  const fullObserver = new IntersectionObserver(entries => {
-    for (const e of entries) {
-      if (!e.isIntersecting) continue
-      const img = e.target
-      fullObserver.unobserve(img)
-      const id = img.closest('.m')?.dataset.id
-      if (!id || !/^\d+$/.test(id)) continue
-      const full = new Image()
-      full.decoding = 'async'
-      full.onload = () => {
-        img.dataset.full = '1'
-        img.src = full.src
-      }
-      full.src = `/api/media/image/${id}`
-    }
-  }, { root: scroller, rootMargin: '200px' })
 
   // ------------------------------------------------------------ rendering
   function sepFor(m) {
@@ -114,10 +106,11 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
 
   function buildNode(m) {
     if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.recalled || m.text || '')
-    const room = isRoom(current)
+    const room = isGroup(current)
+    const who = m.fromName || nameOf(m.from, current)
     const bub = renderBubble(m, ctx)
-    const sender = room && !m.out ? h('div', { class: 'm-sender' }, m.fromName || '') : null
-    const av = h('span', { class: 'm-avatar' }, room && !m.out ? avatar(m.from, m.fromName, { size: 28, inRoom: current }) : null)
+    const sender = room && !m.out ? h('div', { class: 'm-sender' }, who) : null
+    const av = h('span', { class: 'm-avatar' }, room && !m.out ? avatar(avatarOf(m.from, current), who, { size: 28 }) : null)
     const status = m.status === 'failed'
       ? h('button', { class: 'm-status', type: 'button', 'aria-label': '发送失败，点按重试' }, icon('exclaim'))
       : null
@@ -204,8 +197,8 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     }
     decorate(list)
     placeMeta(list)
-    if (t.loaded && !list.length) olderEl.textContent = '暂无消息。登录网页版之后收到的消息会显示在这里。'
-    else if (t.loaded && !t.hasMore) olderEl.textContent = '更早的消息请在手机上查看'
+    if (t.loaded && !list.length) olderEl.textContent = '还没有消息，打个招呼吧'
+    else if (t.loaded && !t.hasMore) olderEl.textContent = '没有更早的消息了'
     else if (!t.loading) olderEl.textContent = ''
   }
 
@@ -262,8 +255,8 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     olderEl.replaceChildren(h('span', { class: 'spinner' }))
     try {
       const first = t.list[0]
-      const r = await api.get(`/api/messages?chat=${encodeURIComponent(chat)}&before=${first.ts + 1}&limit=${PAGE}`)
-      const added = mergeMessages(chat, r.messages, { older: true })
+      const r = await api.get(`/api/messages?room=${encodeURIComponent(chat)}&before=${first.ts}&limit=${PAGE}`)
+      const added = mergeMessages(chat, r.messages.map(normMsg), { older: true })
       t.hasMore = r.messages.length >= PAGE && added.length > 0
     } catch {
       t.hasMore = true
@@ -289,8 +282,8 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     root.hidden = false
     empty.hidden = true
     renderHeader()
-    const info = chatInfo(id)
-    composer.setChat(id, { readonly: Boolean(info?.stale) })
+    composer.setChat(id, { readonly: false })
+    ensureRoom(id)
     const t = thread(id)
     reconcile()
     scrollToBottom()
@@ -302,13 +295,12 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
         el.classList.add('swap')
       }
     }
-    focusReport()
     try {
       if (!t.loaded) {
         olderEl.replaceChildren(h('span', { class: 'spinner' }))
-        const r = await api.get(`/api/messages?chat=${encodeURIComponent(id)}&limit=${PAGE}`)
+        const r = await api.get(`/api/messages?room=${encodeURIComponent(id)}&limit=${PAGE}`)
         if (current !== id) return
-        mergeMessages(id, r.messages)
+        mergeMessages(id, r.messages.map(normMsg))
         t.loaded = true
         t.hasMore = r.messages.length >= PAGE
         olderEl.replaceChildren()
@@ -326,15 +318,25 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     markReadSoon(true)
   }
 
+  /** Pull room metadata + members (names/avatars for group bubbles). */
+  async function ensureRoom(id) {
+    try {
+      const r = await api.get(`/api/room/${encodeURIComponent(id)}`)
+      if (r.room) upsertRoom(r.room)
+      if (r.members) setMembers(id, r.members)
+      if (current === id) { renderHeader(); reconcile() }
+    } catch {}
+  }
+
   /** Fetch anything we may have missed while the socket was down. */
   async function catchUp(id = current) {
     if (!id) return
     const t = thread(id)
     if (!t.loaded) return
     const last = t.list.filter(m => !String(m.id).startsWith('local:')).pop()
-    const r = await api.get(`/api/messages?chat=${encodeURIComponent(id)}&after=${Math.max(0, (last?.ts || 0) - 120000)}&limit=200`)
+    const r = await api.get(`/api/messages?room=${encodeURIComponent(id)}&after=${Math.max(0, (last?.ts || 0) - 1)}&limit=200`)
     if (current !== id) return
-    const added = mergeMessages(id, r.messages)
+    const added = mergeMessages(id, r.messages.map(normMsg))
     if (added.length) keepPosition(reconcile)
   }
 
@@ -343,24 +345,20 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     composer.blur()
     stopVoice()
     current = null
-    focusReport()
   }
 
-  function focusReport() {
-    socketSend({ t: 'focus', visible: document.visibilityState === 'visible', chat: current })
-  }
   document.addEventListener('visibilitychange', () => {
-    focusReport()
     if (document.visibilityState === 'visible' && current) markReadSoon()
   })
 
+  let typingTimer = 0
   function renderHeader() {
     if (!current) return
-    const c = chatInfo(current) || state.contacts?.get(current) || { id: current, name: '聊天' }
-    const room = isRoom(current)
-    titleAvatar.replaceChildren(avatar(current, c.name, { room, size: 32 }))
+    const c = chatInfo(current) || { id: current, name: '聊天' }
+    const room = c.kind === 'group'
+    titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 32 }))
     titleName.textContent = c.name
-    titleSub.textContent = c.stale ? '上次登录的会话 · 只读' : room && c.count ? `${c.count} 位成员` : ''
+    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '') : (c.online ? '在线' : '')
     titleBtn.setAttribute('aria-label', `${c.name}，查看聊天信息`)
     const n = unreadTotal(current)
     backCount.textContent = n ? (n > 99 ? '99+' : String(n)) : ''
@@ -375,36 +373,46 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
       if (!current || document.visibilityState !== 'visible') return
       const c = state.chats.get(current)
       if (!force && !c?.unread) return
-      if (c?.unread) upsertChats([{ id: current, unread: 0 }])
-      api.post('/api/read', { chat: current }).catch(() => {})
+      if (c?.unread) patchRoom(current, { unread: 0 })
+      socketSend({ t: 'read', room: current, ts: Date.now() })
     }, 350)
   }
 
   // ------------------------------------------------------------ sending
+  const previewText = m => ({ image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' }[m.type] || m.text || '')
   function bumpList(m) {
-    const prev = state.chats.get(m.chat)
-    if (!prev) return
-    upsertChats([{
-      id: m.chat,
+    if (!state.chats.get(m.chat)) return
+    patchRoom(m.chat, {
       ts: m.ts,
       unread: 0,
-      last: { id: m.id, text: m.type === 'image' ? '[图片]' : m.text, out: true, type: m.type, status: m.status, ts: m.ts }
-    }])
+      last: { id: m.id, text: previewText(m), out: true, type: m.type, status: m.status, ts: m.ts }
+    })
+  }
+
+  async function uploadMedia(kind, file, info = {}) {
+    const qs = new URLSearchParams({ kind })
+    for (const k of ['room', 'name', 'w', 'h', 'dur']) if (info[k]) qs.set(k, info[k])
+    const res = await fetch(`/api/media/upload?${qs}`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'content-type': file.type || 'application/octet-stream' }, body: file
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data.ok) throw new Error(data.error || '上传失败')
+    return data
   }
 
   async function sendText(text, chat = current) {
     if (!chat) return
     const cid = newCid()
-    const local = { id: `local:${cid}`, cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'text', text, status: 'sending' }
+    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'text', text, status: 'sending' }
     upsertMessage(local)
     bumpList(local)
     if (chat === current) scrollToBottom()
     try {
-      const r = await api.post('/api/send', { chat, text, cid })
-      if (r.msg) replaceMessage(local.id, r.msg)
+      const r = await api.post('/api/messages', { room: chat, type: 'text', text, localId: cid })
+      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
     } catch (err) {
-      if (err.data?.msg) upsertMessage(err.data.msg)
-      else upsertMessage({ ...local, status: 'failed' })
+      upsertMessage({ ...local, status: 'failed' })
       toast(err.message || '发送失败', { type: 'error' })
     }
   }
@@ -420,31 +428,62 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
 
   async function sendPrepared(chat, { file, w, h: hh }) {
     const cid = newCid()
-    state.previews.set(cid, URL.createObjectURL(file))
+    const preview = URL.createObjectURL(file)
+    state.previews.set(cid, preview)
     retryFiles.set(cid, { file, w, h: hh })
-    const local = { id: `local:${cid}`, cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'image', w, h: hh, status: 'sending' }
+    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'image', w, h: hh, url: preview, status: 'sending' }
     upsertMessage(local)
     bumpList(local)
     scrollToBottom()
-    const fd = new FormData()
-    fd.append('file', file, file.name || 'photo.jpg')
-    fd.append('chat', chat)
-    fd.append('cid', cid)
-    fd.append('w', String(w || 0))
-    fd.append('h', String(hh || 0))
     try {
-      const r = await api.post('/api/send-image', fd)
-      if (r.msg) replaceMessage(local.id, r.msg)
+      const up = await uploadMedia('image', file, { room: chat, name: file.name || 'photo.jpg', w, h: hh })
+      const r = await api.post('/api/messages', { room: chat, type: 'image', meta: { ...up.meta, url: up.url }, localId: cid })
+      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
       retryFiles.delete(cid)
     } catch (err) {
-      if (err.data?.msg) upsertMessage(err.data.msg)
-      else upsertMessage({ ...local, status: 'failed' })
+      upsertMessage({ ...local, status: 'failed' })
       toast(err.message || '图片发送失败', { type: 'error' })
     }
   }
 
+  let typingSentAt = 0
+  function sendTyping() {
+    const now = Date.now()
+    if (current && now - typingSentAt > 2500) { typingSentAt = now; socketSend({ t: 'typing', room: current }) }
+  }
+
+  async function sendDrawing(blob, { w, h } = {}) {
+    const chat = current
+    if (!chat) return
+    const file = new File([blob], 'drawing.png', { type: 'image/png' })
+    const cid = newCid()
+    const preview = URL.createObjectURL(file)
+    state.previews.set(cid, preview)
+    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'drawing', w, h, url: preview, status: 'sending' }
+    upsertMessage(local)
+    bumpList(local)
+    scrollToBottom()
+    try {
+      const up = await uploadMedia('image', file, { room: chat, name: 'drawing.png', w, h })
+      const r = await api.post('/api/messages', { room: chat, type: 'drawing', meta: { ...up.meta, url: up.url }, localId: cid })
+      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
+    } catch (err) {
+      upsertMessage({ ...local, status: 'failed' })
+      toast(err.message || '发送失败', { type: 'error' })
+    }
+  }
+
+  function setTyping(room, uid) {
+    if (room !== current) return
+    clearTimeout(typingTimer)
+    const who = isGroup(current) ? `${nameOf(uid, current)} ` : ''
+    titleSub.textContent = `${who}正在输入…`
+    titleSub.classList.add('typing')
+    typingTimer = setTimeout(() => { typingTimer = 0; titleSub.classList.remove('typing'); renderHeader() }, 4000)
+  }
+
   async function retry(m) {
-    await deleteLocal(m, { quiet: true })
+    removeMessage(m.id, m.chat)
     if (m.type === 'image') {
       const f = retryFiles.get(m.cid)
       if (f) return sendPrepared(m.chat, f)
@@ -453,13 +492,8 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     if (m.text) await sendText(m.text, m.chat)
   }
 
-  async function deleteLocal(m, { quiet = false } = {}) {
+  function deleteLocal(m) {
     removeMessage(m.id, m.chat)
-    try {
-      await api.post('/api/delete', { id: m.id })
-    } catch (err) {
-      if (!quiet) toast(err.message, { type: 'error' })
-    }
   }
 
   // ------------------------------------------------------------ interactions
@@ -484,7 +518,7 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
         openViewer({
           thumb: img,
           src: img?.currentSrc || img?.src || preview,
-          fullSrc: preview || `/api/media/image/${m.id}`,
+          fullSrc: preview || m.url,
           w: m.w,
           h: m.h,
           findThumb: () => nodes.get(m.id)?.querySelector('.bubble img')
@@ -495,7 +529,7 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
         openViewer({
           kind: 'video',
           thumb: bub.querySelector('img'),
-          fullSrc: `/api/media/video/${m.id}`,
+          fullSrc: m.url,
           w: m.w || 720,
           h: m.h || 1280,
           label: '视频',
@@ -512,7 +546,7 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
         break
       }
       case 'file':
-        window.open(`/api/media/file/${m.id}`, '_blank', 'noopener')
+        if (m.url) window.open(m.url, '_blank', 'noopener')
         break
       case 'location':
         window.open(`https://maps.apple.com/?q=${encodeURIComponent(m.title || '')}`, '_blank', 'noopener')
@@ -599,9 +633,9 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
       main.push({ label: '复制链接', icon: 'copy', onSelect: () => copy(m.url) })
     }
     if (m.type === 'image') main.push({ label: '查看图片', icon: 'photo', onSelect: () => bub.click() })
-    if (m.type === 'file') main.push({ label: '下载文件', icon: 'download', onSelect: () => window.open(`/api/media/file/${m.id}`, '_blank', 'noopener') })
+    if (m.type === 'file') main.push({ label: '下载文件', icon: 'download', onSelect: () => m.url && window.open(m.url, '_blank', 'noopener') })
     items.push(main)
-    const canRevoke = m.out && m.cid && /^\d+$/.test(m.id) && Date.now() - m.ts < 2 * 60 * 1000
+    const canRevoke = m.out && !String(m.id).startsWith('local:') && Date.now() - m.ts < 2 * 60 * 1000
     const danger = []
     if (canRevoke) danger.push({ label: '撤回', icon: 'undo', onSelect: () => revoke(m) })
     danger.push({ label: '从本设备删除', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m) })
@@ -656,7 +690,7 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     if (playing === m.id) return stopVoice()
     stopVoice()
     playing = m.id
-    audio = new Audio(`/api/media/voice/${m.id}`)
+    audio = new Audio(m.url)
     const bars = [...bub.querySelectorAll('.wave i')]
     bub.querySelector('.voice-btn').replaceChildren(icon('pause'))
     audio.addEventListener('timeupdate', () => {
@@ -728,6 +762,7 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     open,
     close,
     catchUp,
+    setTyping,
     get current() {
       return current
     },

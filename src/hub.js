@@ -282,6 +282,7 @@ export class Hub {
     }
     if (path === '/api/push/unsubscribe' && method === 'POST') {
       if (body.id) this.store.removeSub(body.id)
+      else if (body.endpoint) this.store.removeSubByEndpoint(user.id, body.endpoint)
       return json({ ok: true })
     }
 
@@ -292,7 +293,7 @@ export class Hub {
   async postMessage(body, user) {
     const roomId = body.room
     if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权发送' }, 403)
-    const type = ['text', 'image', 'voice', 'video', 'file'].includes(body.type) ? body.type : 'text'
+    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing'].includes(body.type) ? body.type : 'text'
     if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: '不能发送空消息' }, 400)
     const msg = this.store.addMessage({
       room: roomId,
@@ -304,7 +305,12 @@ export class Hub {
       replyTo: body.replyTo || ''
     })
     this.markRead(roomId, user.id, msg.ts) // sending is reading
-    this.fanoutToRoom(roomId, { t: 'msg', msg }, user.id)
+    // Others get the message; the sender's own devices get it tagged with the
+    // localId so the optimistic bubble is replaced, not duplicated.
+    for (const uid of this.store.roomMembers(roomId)) {
+      if (uid === user.id) this.sendToUser(uid, { t: 'msg', msg, localId: body.localId || null })
+      else this.sendToUser(uid, { t: 'msg', msg })
+    }
     this.pushToOffline(roomId, user, msg)
     return json({ ok: true, msg, localId: body.localId || null })
   }
@@ -457,6 +463,6 @@ export class Hub {
 
   preview(msg) {
     if (msg.type === 'text') return msg.body.slice(0, 120)
-    return { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', system: msg.body }[msg.type] || '[消息]'
+    return { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', system: msg.body }[msg.type] || '[消息]'
   }
 }

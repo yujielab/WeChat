@@ -6,7 +6,7 @@ import { listTime } from '../ui/format.js'
 import { velocityTracker, project, rubberband, spring } from '../ui/spring.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
-import { state, on, sortedChats, getDraft } from '../store.js'
+import { state, on, sortedChats, getDraft, patchRoom, upsertRoom } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
@@ -28,7 +28,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', hidden: true })
-  const title = h('h1', { class: 'large-title' }, '微信', status)
+  const title = h('h1', { class: 'large-title' }, '消息', status)
   const head = h('header', { class: 'list-head' }, title)
   const filterNote = h('div', { class: 'filter-note', hidden: true })
   const pinned = h('div', { class: 'pinned', role: 'list', 'aria-label': '置顶聊天', hidden: true })
@@ -40,7 +40,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   const meBtn = h('button', { class: 'glass glass-btn me-btn', type: 'button', 'aria-label': '设置' })
   const filterBtn = h('button', { class: 'bar-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
   const composeBtn = h('button', { class: 'bar-btn tint', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
-  const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '微信')
+  const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
   const topbar = h('div', { class: 'list-topbar' }, meBtn, inlineTitle, h('div', { class: 'spacer' }), h('div', { class: 'bar-group glass' }, filterBtn, composeBtn))
 
   const input = h('input', {
@@ -122,10 +122,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     r.flag = h('span', { class: 'row-flag', 'aria-hidden': 'true' })
     r.time = h('span', { class: 'row-time' })
     r.preview = h('div', { class: 'row-preview' })
-    r.avatar = avatar(c.id, c.name, { room: c.room })
+    r.avatar = avatar(c.avatar, c.name, { room: c.room })
+    r.avWrap = h('span', { class: 'av-wrap' }, r.avatar, h('span', { class: 'pres' }))
     r.inner = h('div', { class: 'row-inner', role: 'button', tabindex: '0' },
       r.dot,
-      r.avatar,
+      r.avWrap,
       h('div', { class: 'row-main' },
         h('div', { class: 'row-top' }, r.name, r.flag, h('span', { class: 'grow' }), r.time, h('span', { class: 'row-chevron' }, icon('chevron-right'))),
         r.preview))
@@ -159,6 +160,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     li.classList.toggle('unread', c.unread > 0)
     li.classList.toggle('muted', Boolean(c.muted))
     li.classList.toggle('selected', c.id === selected)
+    li.classList.toggle('online', c.kind === 'dm' && Boolean(c.online))
+    if (r._avatar !== c.avatar || r._name !== c.name) {
+      r._avatar = c.avatar; r._name = c.name
+      r.avatar.replaceWith(r.avatar = avatar(c.avatar, c.name, { room: c.room }))
+    }
     r.name.textContent = c.name
     r.flag.replaceChildren(...(c.muted ? [icon('bell-slash')] : []))
     r.time.textContent = listTime(c.ts)
@@ -186,7 +192,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     const badge = c.unread ? h('span', { class: ['badge', c.muted && 'muted'] }, c.unread > 99 ? '99+' : String(c.unread)) : null
     if (b._name !== c.name || !b.firstChild) {
       b._name = c.name
-      b.replaceChildren(avatar(c.id, c.name, { room: c.room }), h('span', { class: 'pin-name' }, c.name))
+      b.replaceChildren(avatar(c.avatar, c.name, { room: c.room }), h('span', { class: 'pin-name' }, c.name))
     }
     b.querySelector('.badge')?.remove()
     if (badge) b.append(badge)
@@ -414,12 +420,10 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   async function actRead(id) {
     closeSwipe()
     const c = state.chats.get(id)
-    if (!c) return
-    const unread = c.unread ? 0 : 1
-    c.unread = unread
-    render()
+    if (!c || !c.unread) return
+    patchRoom(id, { unread: 0 })
     try {
-      await api.post('/api/read', { chat: id, unread: unread > 0 })
+      await api.post(`/api/room/${id}/read`, { ts: Date.now() })
     } catch (err) {
       toast(err.message, { type: 'error' })
     }
@@ -430,13 +434,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     const c = state.chats.get(id)
     if (!c) return
     const on = !c.pinned
-    c.pinned = on
-    render()
+    patchRoom(id, { pinned: on })
     try {
-      await api.post('/api/pin', { chat: id, on })
+      await api.post(`/api/room/${id}/flags`, { pinned: on ? 1 : 0 })
     } catch (err) {
-      c.pinned = !on
-      render()
+      patchRoom(id, { pinned: !on })
       toast(err.message, { type: 'error' })
     }
   }
@@ -454,7 +456,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     el?.remove()
     render()
     try {
-      await api.post('/api/hide', { chat: id })
+      await api.post(`/api/room/${id}/flags`, { hidden: 1 })
     } catch (err) {
       toast(err.message, { type: 'error' })
     }
@@ -468,10 +470,6 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     head.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
     renderResults()
-    if (!state.contacts) {
-      await loadContacts()
-      renderResults()
-    }
   })
   input.addEventListener('input', () => {
     query = input.value.trim()
@@ -495,65 +493,71 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     render()
   }
 
-  function match(c, q) {
-    const s = q.toLowerCase()
-    return [c.name, c.remark, c.nick, c.py, c.pyi, c.alias].some(v => v && String(v).toLowerCase().includes(s))
-  }
-
   function highlight(text, q) {
     const i = q ? text.toLowerCase().indexOf(q.toLowerCase()) : -1
     if (i < 0) return [text]
     return [text.slice(0, i), h('mark', {}, text.slice(i, i + q.length)), text.slice(i + q.length)]
   }
 
-  function contactRow(c, sub) {
-    const b = h('button', { class: 'contact-row', type: 'button', dataset: { id: c.id } },
-      avatar(c.id, c.name, { room: c.room, size: 40 }),
-      h('div', { class: 'grow' }, h('div', { class: 'name' }, highlight(c.name, query)), sub ? h('div', { class: 'sub' }, sub) : null))
-    b.addEventListener('click', () => {
-      const id = b.dataset.id
-      exitSearch()
-      onOpen(id, c)
-    })
+  function resultRow({ name, avatar: av, room, sub, onClick }) {
+    const b = h('button', { class: 'contact-row', type: 'button' },
+      avatar(av, name, { room, size: 40 }),
+      h('div', { class: 'grow' }, h('div', { class: 'name' }, highlight(name, query)), sub ? h('div', { class: 'sub' }, sub) : null))
+    b.addEventListener('click', () => { exitSearch(); onClick() })
     return b
   }
 
-  function renderResults() {
+  async function openDM(user) {
+    try {
+      const r = await api.post('/api/dm', { user: user.id })
+      upsertRoom(r.room)
+      onOpen(r.room.id)
+    } catch (err) {
+      toast(err.message, { type: 'error' })
+    }
+  }
+
+  let searchSeq = 0
+  async function renderResults() {
     clear(results)
     const q = query
-    const chats = sortedChats()
+    const rooms = sortedChats()
     if (!q) {
-      const recent = chats.slice(0, 8)
+      const recent = rooms.slice(0, 10)
       if (recent.length) {
         results.append(h('div', { class: 'section-title' }, '最近'))
-        for (const c of recent) results.append(contactRow(c, c.last?.text))
+        for (const c of recent) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: c.last?.text, onClick: () => onOpen(c.id) }))
       }
       return
     }
-    const chatHits = chats.filter(c => match({ ...c, ...(state.contacts?.get(c.id) || {}) }, q) || c.last?.text?.toLowerCase().includes(q.toLowerCase())).slice(0, 20)
-    const shown = new Set(chatHits.map(c => c.id))
-    const contacts = state.contacts ? [...state.contacts.values()].filter(c => !c.special && !shown.has(c.id) && match(c, q)) : []
-    const people = contacts.filter(c => !c.room && c.friend).slice(0, 30)
-    const groups = contacts.filter(c => c.room).slice(0, 20)
-    if (chatHits.length) {
-      results.append(h('div', { class: 'section-title' }, '聊天'))
-      for (const c of chatHits) results.append(contactRow(c, c.last?.text))
+    const lc = q.toLowerCase()
+    const roomHits = rooms.filter(c => c.name.toLowerCase().includes(lc) || c.last?.text?.toLowerCase().includes(lc)).slice(0, 20)
+    const contactHits = state.contacts.filter(c => c.display?.toLowerCase().includes(lc) || c.username?.toLowerCase().includes(lc))
+    if (roomHits.length) {
+      results.append(h('div', { class: 'section-title' }, '会话'))
+      for (const c of roomHits) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: c.last?.text, onClick: () => onOpen(c.id) }))
     }
-    if (people.length) {
+    if (contactHits.length) {
       results.append(h('div', { class: 'section-title' }, '联系人'))
-      for (const c of people) results.append(contactRow(c, c.remark && c.nick && c.remark !== c.nick ? `昵称：${c.nick}` : ''))
+      for (const c of contactHits) results.append(resultRow({ name: c.display, avatar: c.avatar, room: false, sub: '@' + c.username, onClick: () => openDM(c) }))
     }
-    if (groups.length) {
-      results.append(h('div', { class: 'section-title' }, '群聊'))
-      for (const c of groups) results.append(contactRow(c, c.count ? `${c.count} 位成员` : ''))
-    }
-    if (!chatHits.length && !people.length && !groups.length) {
-      results.append(h('div', { class: 'list-empty' }, h('h2', {}, '无结果'), `没有找到“${q}”`))
-    }
+    const seq = ++searchSeq
+    try {
+      const r = await api.get(`/api/users/search?q=${encodeURIComponent(q)}`)
+      if (seq !== searchSeq || query !== q) return
+      const known = new Set([...contactHits.map(c => c.id), state.me.id])
+      const others = r.users.filter(u => !known.has(u.id))
+      if (others.length) {
+        results.append(h('div', { class: 'section-title' }, '找人'))
+        for (const u of others) results.append(resultRow({ name: u.display, avatar: u.avatar, room: false, sub: '@' + u.username, onClick: () => openDM(u) }))
+      }
+    } catch {}
+    if (!results.children.length) results.append(h('div', { class: 'list-empty' }, h('h2', {}, '无结果'), `没有找到“${q}”`))
   }
 
   // ------------------------------------------------------------ public
   on('chats', () => render())
+  on('contacts', () => { if (searching) renderResults() })
 
   return {
     render,
@@ -566,7 +570,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       for (const el of pinned.children) el.classList.toggle('selected', el.dataset.id === id)
     },
     setMe(me) {
-      meBtn.replaceChildren(avatar(me?.id, me?.name || '我', { size: 36 }))
+      meBtn.replaceChildren(avatar(me?.avatar, me?.display || '我', { size: 36 }))
     },
     setStatus({ text, spinner = false, warn = false } = {}) {
       if (loading !== spinner) {
@@ -576,7 +580,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       status.hidden = !text
       status.classList.toggle('warn', warn)
       status.replaceChildren(...(spinner ? [h('span', { class: 'spinner' })] : []), text || '')
-      inlineTitle.textContent = text ? `微信（${text}）` : '微信'
+      inlineTitle.textContent = text ? `消息（${text}）` : '消息'
     },
     setLayout(layout) {
       pane.dataset.layout = layout

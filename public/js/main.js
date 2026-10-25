@@ -1,22 +1,22 @@
-// App entry: password gate → WeChat login → chats.
+// App entry: account gate → realtime messenger.
 
 import { initViewport } from './ui/viewport.js'
 import { initPress } from './ui/press.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
 import {
-  state, setWx, setChats, upsertChats, upsertMessage, replaceMessage, removeMessage, clearThread
+  state, setMe, setRooms, upsertRoom, patchRoom, setContacts, setPresence, markPresence,
+  normMsg, thread, upsertMessage, replaceMessage, removeMessage, chatInfo
 } from './store.js'
-import { renderGate, renderSetup, createConnect } from './views/auth.js'
+import { renderAuth } from './views/auth.js'
 import { createShell } from './views/shell.js'
+import { createCalls } from './views/call.js'
 import { toast, closeAllOverlays } from './views/overlay.js'
 
 const app = document.getElementById('app')
 let socket = null
 let shell = null
-let connect = null
-let screen = null
-let wantConnect = false
+let calls = null
 
 initViewport()
 initPress()
@@ -26,183 +26,165 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeC
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {})
   navigator.serviceWorker.addEventListener('message', e => {
-    if (e.data?.t === 'open' && e.data.chat && shell) shell.openChat(e.data.chat)
+    if (e.data?.t === 'open' && e.data.room && shell) shell.openChat(e.data.room)
   })
 }
 
-onApiEvent(evt => {
-  if (evt === 'unauthorized') location.reload()
-})
+onApiEvent(evt => { if (evt === 'unauthorized') location.reload() })
 
 boot()
 
 async function boot() {
-  let auth
+  let status
   try {
-    auth = await fetch('/auth/status', { credentials: 'same-origin' }).then(r => r.json())
+    status = await fetch('/auth/status', { credentials: 'same-origin' }).then(r => r.json())
   } catch {
     app.replaceChildren()
     toast('无法连接服务器，请检查网络', { type: 'error', duration: 6000 })
     setTimeout(boot, 4000)
     return
   }
-  if (!auth.configured) return renderSetup(app)
-  if (!auth.authed) return renderGate(app, { onSuccess: start })
-  start()
+  if (status.authed) return start(status.me)
+  renderAuth(app, { needsCode: status.needsCode, onSuccess: start })
 }
 
-async function start() {
+async function start(me) {
+  setMe(me)
   try {
     await refresh()
   } catch (err) {
     toast(err.message, { type: 'error' })
-    setTimeout(start, 3000)
-    return
+    return setTimeout(() => start(me), 3000)
   }
   socket?.close()
   socket = connectSocket({
     onMessage: handle,
-    onOpen: () => {
-      state.socket = true
-      updateStatus()
-      // Anything missed while the socket was down (iOS suspends it in the background).
-      refresh().then(() => shell?.thread.catchUp()).catch(() => {})
-    },
-    onClose: () => {
-      state.socket = false
-      updateStatus()
-    }
+    onOpen: () => { state.socket = true; shell?.setStatus({}); refresh().catch(() => {}) },
+    onClose: () => { state.socket = false; shell?.setStatus({ text: '连接中…', spinner: true }) }
   })
-  route()
+  mountShell()
 }
 
 async function refresh() {
   const boot = await api.get('/api/bootstrap')
-  state.me = boot.me
-  setWx(boot.state)
-  setChats(boot.chats)
+  setMe(boot.me)
+  setPresence(boot.presence)
+  setRooms(boot.rooms)
+  setContacts(boot.contacts)
+  state.calls = boot.calls || { enabled: false }
+  state.vapid = boot.vapid || null
   shell?.setMe(state.me)
-  updateStatus()
-  route()
 }
 
+function mountShell() {
+  if (shell) { shell.setMe(state.me); return }
+  calls = createCalls({ socketSend: obj => socket?.send(obj) })
+  shell = createShell(app, {
+    socketSend: obj => socket?.send(obj),
+    loadContacts,
+    onCall: (room, media) => calls.start(room, media),
+    onLogout: logout
+  })
+  shell.setMe(state.me)
+  startPerfProbe()
+}
+
+// ---------------------------------------------------------------- realtime events
 function handle(msg) {
   switch (msg.t) {
-    case 'state': {
-      const prev = state.wx?.phase
-      setWx(msg.state)
-      updateStatus()
-      if (prev !== msg.state.phase) {
-        if (msg.state.phase === 'online') {
-          wantConnect = false
-          refresh().catch(() => {})
-        }
-        route()
+    case 'hello':
+      setMe(msg.me)
+      setPresence(msg.presence)
+      break
+    case 'msg': {
+      const m = normMsg(msg.msg)
+      // Replace our own optimistic bubble when the server echoes it back.
+      if (msg.localId) {
+        const t = state.threads.get(m.chat)
+        if (t?.byId.has(`local:${msg.localId}`)) { replaceMessage(`local:${msg.localId}`, m); bumpRoom(m, msg.msg); break }
       }
-      connect?.update(msg.state)
-      shell?.setBanner(msg.state)
+      // Only materialize into a thread that exists (open or previously opened);
+      // otherwise the room row preview is enough until it's opened.
+      if (state.threads.has(m.chat) || state.open === m.chat) upsertMessage(m)
+      bumpRoom(m, msg.msg)
       break
     }
-    case 'msg':
-      upsertMessage(msg.msg)
+    case 'read':
+      // Peer read our messages in this DM.
+      markThreadRead(msg.room, msg.by)
       break
-    case 'replace':
-      replaceMessage(msg.from, msg.msg)
+    case 'presence':
+      markPresence(msg.uid, msg.online)
       break
-    case 'remove':
-      removeMessage(msg.id, msg.chat)
+    case 'typing':
+      shell?.thread.setTyping(msg.room, msg.uid)
       break
-    case 'chats':
-      upsertChats(msg.chats || [])
+    case 'profile':
+      patchPeer(msg.user)
       break
-    case 'cleared':
-      clearThread(msg.chat)
-      break
-    case 'contacts':
-      state.contacts = null
-      break
-    case 'reload':
+    case 'rooms-dirty':
       refresh().catch(() => {})
       break
+    case 'contacts-dirty':
+      loadContacts(true).catch(() => {})
+      break
+    case 'call':
+      calls?.onSignal(msg)
+      break
   }
 }
 
-function route() {
-  const wx = state.wx
-  if (!wx) return
-  const live = wx.phase === 'online'
-  const hasHistory = state.chats.size > 0
-  const showMain = live || (hasHistory && !wantConnect && !['qr', 'scanned', 'connecting'].includes(wx.phase))
-  if (showMain) {
-    if (screen !== 'main') {
-      screen = 'main'
-      connect = null
-      closeAllOverlays()
-      shell = createShell(app, {
-        socketSend: obj => socket?.send(obj),
-        loadContacts,
-        onLogoutWx: logoutWx,
-        onLock: lock,
-        onReconnect: () => {
-          wantConnect = true
-          route()
-          // Straight to a fresh QR code; no second "重新登录" tap.
-          if (['offline', 'expired', 'idle'].includes(state.wx?.phase)) connect?.start()
-        }
-      })
-      shell.setMe(state.me)
-      startPerfProbe()
-    }
-    shell.setBanner(wx)
-    updateStatus()
+function bumpRoom(m, raw) {
+  const existing = state.chats.get(m.chat)
+  if (existing) {
+    const incUnread = !m.out && state.open !== m.chat && raw.type !== 'system'
+    patchRoom(m.chat, {
+      ts: m.ts,
+      last: { id: m.id, ts: m.ts, out: m.out, type: m.type, status: m.status, text: previewOf(raw) },
+      unread: incUnread ? (existing.unread || 0) + 1 : (state.open === m.chat ? 0 : existing.unread)
+    })
   } else {
-    if (screen !== 'connect') {
-      screen = 'connect'
-      shell = null
-      closeAllOverlays()
-      connect = createConnect(app, { onLock: lock })
-    }
-    connect.update(wx)
+    // A brand-new room (first message of a fresh DM/group) — fetch it in.
+    refresh().catch(() => {})
   }
+  if (!m.out && state.open !== m.chat && raw.type !== 'system') shell?.list?.render()
 }
 
-function updateStatus() {
-  if (!shell) return
-  const wx = state.wx || {}
-  let s = {}
-  if (!state.socket) s = { text: '连接中…', spinner: true }
-  else if (wx.phase === 'connecting') s = { text: '登录中…', spinner: true }
-  else if (wx.phase === 'online' && !wx.contactsLoaded) s = { text: '收取中…', spinner: true }
-  else if (wx.phase !== 'online') s = { text: '未连接', warn: true }
-  shell.setStatus(s)
+function previewOf(raw) {
+  const room = state.chats.get(raw.room)
+  return (room ? state.chats.get(raw.room) : null) && raw.type === 'text'
+    ? raw.body.slice(0, 120)
+    : { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]', call: raw.body, system: raw.body }[raw.type] || raw.body?.slice?.(0, 120) || '[消息]'
+}
+
+function markThreadRead(roomId, by) {
+  const t = state.threads.get(roomId)
+  if (!t) return
+  for (const m of t.list) if (m.out && m.status !== 'read') { m.status = 'read'; upsertMessage(m) }
+}
+
+function patchPeer(user) {
+  for (const [id, c] of state.chats) {
+    if (c.kind === 'dm' && c.peer?.id === user.id) {
+      c.peer = user; c.name = user.display; c.avatar = user.avatar
+      patchRoom(id, { name: user.display, avatar: user.avatar, peer: user })
+    }
+  }
+  const mem = state.members
+  for (const map of mem.values()) if (map.has(user.id)) map.set(user.id, user)
 }
 
 let contactsLoading = null
-async function loadContacts() {
-  if (state.contacts) return state.contacts
+async function loadContacts(force) {
+  if (state.contacts.length && !force) return state.contacts
   contactsLoading ||= api.get('/api/contacts')
-    .then(list => {
-      state.contacts = new Map(list.map(c => [c.id, c]))
-      return state.contacts
-    })
-    .catch(err => {
-      toast(err.message, { type: 'error' })
-      return null
-    })
+    .then(r => { setContacts(r.contacts); return state.contacts })
+    .catch(err => { toast(err.message, { type: 'error' }); return [] })
     .finally(() => { contactsLoading = null })
   return contactsLoading
 }
 
-async function logoutWx() {
-  try {
-    await api.post('/api/logout')
-    wantConnect = true
-  } catch (err) {
-    toast(err.message, { type: 'error' })
-  }
-}
-
-async function lock() {
+async function logout() {
   await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
   location.reload()
 }

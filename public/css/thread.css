@@ -478,3 +478,30 @@
 }
 :root[data-motion="reduce"] .m.enter { animation: fade-in 140ms linear both; }
 
+
+/* ---------------------------------------------------------------- new-model additions */
+
+/* Call buttons grouped at the trailing edge of the nav. */
+.thread-nav .nav-actions { justify-self: end; display: flex; align-items: center; gap: 4px; }
+.thread-nav .nav-actions .glass-btn { width: 40px; height: 40px; }
+.pane-thread[data-layout="split"] .thread-nav { grid-template-columns: auto 1fr auto; }
+
+.thread-title .sub.typing { color: var(--blue); }
+
+/* Call message: a centered, quiet capsule. */
+.bubble.call {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bubble-in);
+  color: var(--label-2);
+  font-size: var(--t-subhead);
+  padding: 8px 14px;
+}
+.m.out .bubble.call { background: var(--bubble-out); color: rgb(255 255 255 / 0.92); }
+.bubble.call .icon { width: 17px; height: 17px; }
+.bubble.call.missed { color: var(--red); }
+
+/* A drawing reads as ink on white paper, not a cropped photo. */
+.bubble.media.drawing { background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
+.bubble.media.drawing img { object-fit: contain; }

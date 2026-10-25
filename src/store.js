@@ -352,4 +352,7 @@ export class Store {
   removeSub(id) {
     this.exec(`DELETE FROM push_subs WHERE id=?`, id)
   }
+  removeSubByEndpoint(user, endpoint) {
+    this.exec(`DELETE FROM push_subs WHERE user=? AND json_extract(data,'$.endpoint')=?`, user, endpoint)
+  }
 }
