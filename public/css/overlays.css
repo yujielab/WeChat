@@ -29,19 +29,25 @@
   left: max(8px, var(--safe-left));
   right: max(8px, var(--safe-right));
   bottom: max(8px, calc(var(--safe-bottom) - 18px));
-  max-height: calc(100% - var(--safe-top) - 24px);
+  max-height: calc(100% - var(--safe-top) - 34px);
   border-radius: var(--r-sheet);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transform: translate3d(0, calc(100% + 40px), 0);
-  transition: transform var(--spring-smooth-dur) var(--spring-smooth);
+  /* Leaving accelerates away; arriving is the bouncy spring below. */
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.9, 0.6);
   will-change: transform;
   outline: none;
 }
 .sheet.on { transform: none; transition: transform var(--spring-bouncy-dur) var(--spring-bouncy); }
 .sheet.dragging { transition: none; }
-.sheet.tall { height: calc(100% - var(--safe-top) - 24px); }
+.sheet.tall { height: calc(100% - var(--safe-top) - 34px); }
+
+/* Sections inside settle one after another as the sheet lands. */
+.sheet.on .sheet-reveal {
+  animation: reveal 420ms var(--ease-out) calc(70ms + var(--s, 0) * 40ms) backwards;
+}
 :root[data-kb="1"] .sheet { bottom: 8px; }
 
 /* Unfolded: a centered form sheet that materializes in place. */
@@ -52,17 +58,17 @@
   bottom: auto;
   width: min(540px, calc(100% - 64px));
   max-height: min(680px, calc(100% - var(--safe-top) - 48px));
-  transform: translate(-50%, -46%) scale(0.94);
+  transform: translate(-50%, -48%) scale(0.96);
   opacity: 0;
-  filter: blur(6px);
-  transition: transform var(--spring-smooth-dur) var(--spring-smooth), opacity 180ms ease-out, filter 180ms ease-out;
+  filter: blur(8px);
+  transition: transform 200ms var(--ease-exit), opacity 160ms var(--ease-exit), filter 170ms var(--ease-exit);
 }
 .overlays[data-layout="split"] .sheet.tall { height: min(680px, calc(100% - var(--safe-top) - 48px)); }
 .overlays[data-layout="split"] .sheet.on {
   transform: translate(-50%, -50%);
   opacity: 1;
   filter: none;
-  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy), opacity 160ms ease-out, filter 200ms ease-out;
+  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy), opacity 180ms ease-out, filter 240ms ease-out;
 }
 
 .grabber {
@@ -114,13 +120,14 @@
   font-size: var(--t-footnote);
   color: var(--label-2);
 }
+/* Cards: a white face and a 1px hairline instead of a tinted fill. */
 .group {
   margin: 0 16px;
-  border-radius: 14px;
+  border-radius: 18px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--bg-elevated) 86%, transparent);
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
-:root[data-glass="solid"] .group { background: var(--bg-elevated); }
 .group-foot {
   margin: 6px calc(16px + 16px) 0;
   font-size: var(--t-footnote);
@@ -146,6 +153,7 @@
   left: 16px;
   right: 0;
   border-top: var(--hairline) solid var(--separator);
+  opacity: 0.7;
 }
 .cell.icon-left + .cell.icon-left::before { left: 56px; }
 button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
@@ -235,6 +243,8 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   font-weight: var(--w-medium);
   border-radius: 8px;
 }
+.seg button { color: var(--label-2); transition: color 200ms ease; }
+.seg button[aria-checked="true"] { color: var(--label); font-weight: var(--w-semibold); }
 .seg .thumb {
   position: absolute;
   top: 2px;
@@ -243,41 +253,44 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   width: calc((100% - 4px) / var(--n));
   border-radius: 8px;
   background: var(--bg-elevated);
-  box-shadow: 0 3px 8px rgb(0 0 0 / 0.12), 0 0 0 var(--hairline) rgb(0 0 0 / 0.04);
+  box-shadow: 0 1px 2px rgb(18 18 28 / 0.1), 0 4px 10px rgb(18 18 28 / 0.06), 0 0 0 0.5px rgb(0 0 0 / 0.04);
   transform: translateX(calc(100% * var(--i)));
-  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy);
+  transition: transform 420ms var(--ease-morph);
 }
 
 /* ---------------------------------------------------------------- menus */
 
+/* Menus materialize out of their button (scale, blur and opacity resolve
+   together) and get out of the way faster than they arrived. */
 .menu {
   position: absolute;
   min-width: 230px;
   max-width: min(290px, calc(100vw - 32px));
-  padding: 6px 0;
+  padding: 6px;
   border-radius: var(--r-menu);
   transform-origin: var(--ox, 50%) var(--oy, 0%);
   opacity: 0;
-  transform: scale(0.8);
+  transform: scale(0.82);
   filter: blur(6px);
   transition:
-    opacity 150ms ease-out,
-    transform var(--spring-smooth-dur) var(--spring-smooth),
-    filter 150ms ease-out;
+    opacity 100ms var(--ease-exit),
+    transform 150ms var(--ease-exit),
+    filter 110ms var(--ease-exit);
 }
 .menu.on {
   opacity: 1;
   transform: none;
   filter: none;
   transition:
-    opacity 180ms ease-out,
+    opacity 160ms ease-out,
     transform var(--spring-bouncy-dur) var(--spring-bouncy),
-    filter 200ms ease-out;
+    filter 190ms ease-out;
 }
 .menu-item {
   width: 100%;
   min-height: 44px;
-  padding: 10px 18px;
+  padding: 10px 12px;
+  border-radius: calc(var(--r-menu) - 6px);
   display: flex;
   align-items: center;
   gap: 14px;
@@ -289,11 +302,12 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 .menu-item .icon { width: 20px; height: 20px; }
 .menu-item .check { width: 18px; height: 18px; color: var(--label); }
 .menu-item.destructive { color: var(--red); }
-.menu-item.is-pressed { background: var(--fill-3); }
+.menu-item { transition: background-color 140ms ease; }
+.menu-item.is-pressed { background: var(--fill-3); transition-duration: 50ms; }
 .menu-item:disabled { color: var(--label-3); }
-.menu-sep { height: 8px; margin: 2px 0; background: var(--fill-4); }
+.menu-sep { height: var(--hairline); margin: 5px 12px; background: var(--separator); opacity: 0.6; }
 .menu-title {
-  padding: 8px 18px 6px;
+  padding: 8px 12px 6px;
   font-size: var(--t-footnote);
   color: var(--label-2);
 }
@@ -316,7 +330,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   transition: transform var(--spring-bouncy-dur) var(--spring-bouncy);
   pointer-events: none;
 }
-.ctx-preview .bubble { box-shadow: 0 10px 30px -8px rgb(0 0 0 / 0.3); }
+.ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.28), 0 2px 6px rgb(15 15 25 / 0.06); }
 .ctx-preview .bubble.tail::after, .ctx-preview .bubble.tail::before { display: none; }
 
 /* ---------------------------------------------------------------- media viewer */
@@ -371,12 +385,22 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   gap: 8px;
   font-size: var(--t-subhead);
   font-weight: var(--w-medium);
-  transform: translate(-50%, -140%) scale(0.9);
+  transform: translate(-50%, 0);
   opacity: 0;
-  transition: transform var(--spring-smooth-dur) var(--spring-smooth), opacity 160ms ease-out;
   pointer-events: none;
 }
-.toast.on { transform: translate(-50%, 0); opacity: 1; transition: transform var(--spring-bouncy-dur) var(--spring-bouncy), opacity 160ms ease-out; }
+/* In: resolves out of blur and settles down into place. Out: spreads a
+   little, defocuses and fades — shorter, on an accelerating curve. */
+.toast.on { animation: toast-in 400ms var(--ease-out) both; }
+.toast.out { animation: toast-out 260ms var(--ease-exit) both; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -14px) scale(0.94); filter: blur(14px); }
+  to { opacity: 1; transform: translate(-50%, 0); filter: blur(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translate(-50%, 0); filter: blur(0); }
+  to { opacity: 0; transform: translate(-50%, 0) scale(1.045); filter: blur(18px); }
+}
 .toast .icon { width: 18px; height: 18px; }
 .toast.error .icon { color: var(--red); }
 .toast.ok .icon { color: var(--green); }
@@ -389,8 +413,10 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   :root:not([data-motion="full"]) .overlays[data-layout="split"] .sheet { transform: translate(-50%, -50%) !important; }
   :root:not([data-motion="full"]) .toast { transform: translate(-50%, 0) !important; }
   :root:not([data-motion="full"]) .sheet.on,
-  :root:not([data-motion="full"]) .menu.on,
-  :root:not([data-motion="full"]) .toast.on { opacity: 1; }
+  :root:not([data-motion="full"]) .menu.on { opacity: 1; }
+  :root:not([data-motion="full"]) .toast.on { animation: fade-in 160ms linear both; opacity: 1; }
+  :root:not([data-motion="full"]) .toast.out { animation: fade-out 120ms linear both; }
+  :root:not([data-motion="full"]) .sheet.on .sheet-reveal { animation: none; }
 }
 :root[data-motion="reduce"] .sheet,
 :root[data-motion="reduce"] .menu,
@@ -398,5 +424,8 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 :root[data-motion="reduce"] .overlays[data-layout="split"] .sheet { transform: translate(-50%, -50%) !important; }
 :root[data-motion="reduce"] .toast { transform: translate(-50%, 0) !important; }
 :root[data-motion="reduce"] .sheet.on,
-:root[data-motion="reduce"] .menu.on,
-:root[data-motion="reduce"] .toast.on { opacity: 1; }
+:root[data-motion="reduce"] .menu.on { opacity: 1; }
+:root[data-motion="reduce"] .toast.on { animation: fade-in 160ms linear both; opacity: 1; }
+:root[data-motion="reduce"] .toast.out { animation: fade-out 120ms linear both; }
+:root[data-motion="reduce"] .sheet.on .sheet-reveal { animation: none; }
+

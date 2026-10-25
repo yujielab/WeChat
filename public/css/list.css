@@ -294,6 +294,7 @@
 :root[data-kb="1"] .list-bottombar { bottom: 8px; }
 .search-pill {
   flex: 1;
+  min-width: 0;
   height: 48px;
   border-radius: 24px;
   padding: 0 16px;
@@ -309,6 +310,7 @@
 .search-pill input {
   flex: 1;
   min-width: 0;
+  width: 0; /* let flex size it; an input's intrinsic width would push the pill past a narrow pane */
   height: 100%;
   border: 0;
   background: none;
@@ -369,10 +371,54 @@ mark { background: none; color: var(--blue); }
   gap: 10px;
   font-size: var(--t-footnote);
   color: var(--label-2);
-  animation: card-in var(--spring-bouncy-dur) var(--spring-bouncy) both;
+  animation: materialize 400ms var(--ease-out) backwards;
 }
 .offline-banner > .icon { width: 22px; height: 22px; color: var(--orange); }
 .offline-banner .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .offline-banner b { font-size: var(--t-subhead); color: var(--label); font-weight: var(--w-semibold); }
 .offline-banner .grow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .offline-banner .text-button { font-weight: var(--w-semibold); }
+
+/* ---------------------------------------------------------------- entrance + skeleton */
+
+/* First screenful of rows (and pinned avatars) rise in one after another. */
+.row-in { animation: row-in 340ms var(--ease-out) calc(var(--s, 0) * 26ms) backwards; }
+@keyframes row-in { from { opacity: 0; transform: translateY(7px); } }
+
+/* While chats are still arriving: placeholder rows with a soft sheen. */
+.list-empty.skeleton { padding: 0; }
+.sk-row { pointer-events: none; }
+.sk {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  background: var(--fill-4);
+  border-radius: 7px;
+}
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+  animation: sk-shine 1.3s cubic-bezier(0.33, 0, 0.2, 1) infinite;
+}
+:root[data-theme="dark"] .sk::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .sk::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent); }
+}
+@keyframes sk-shine { to { transform: translateX(100%); } }
+.sk-row .avatar.sk { --size: 50px; border-radius: 50%; }
+.sk-row .avatar.sk::after { box-shadow: none; }
+.sk-row .row-main { gap: 9px; }
+.sk-line { height: 12px; }
+.sk-line:first-child { height: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .row-in { animation: none; }
+  :root:not([data-motion="full"]) .sk::after { animation: none; }
+  :root:not([data-motion="full"]) .offline-banner { animation: fade-in 160ms linear backwards; }
+}
+:root[data-motion="reduce"] .offline-banner { animation: fade-in 160ms linear backwards; }
+:root[data-motion="reduce"] .row-in { animation: none; }
+:root[data-motion="reduce"] .sk::after { animation: none; }

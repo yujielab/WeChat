@@ -69,9 +69,9 @@ export function openSettings({ onLogoutWx, onLock }) {
     h('div', { class: 'group-title' }, '显示与交互'),
     h('div', { class: 'group' },
       cell('外观', segmented([
-        { label: '自动', value: 'system' },
         { label: '浅色', value: 'light' },
-        { label: '深色', value: 'dark' }
+        { label: '深色', value: 'dark' },
+        { label: '自动', value: 'system' }
       ], prefs.theme, setTheme, '外观')),
       cell('降低透明度', toggle(prefs.glass === 'solid' || autoSolid, on => setGlass(on ? 'solid' : 'auto'), '降低透明度'), {
         sub: autoSolid ? '检测到滚动掉帧，已自动改为实色界面' : '用实色代替玻璃材质'

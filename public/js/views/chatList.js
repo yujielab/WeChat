@@ -1,7 +1,7 @@
 // Conversation list: large collapsing title, pinned avatars, rows with swipe
 // actions, a filter menu and live search (names, remarks and pinyin).
 
-import { h, icon, clear, reducedMotion } from '../ui/dom.js'
+import { h, icon, clear, reducedMotion, edge, stagger } from '../ui/dom.js'
 import { listTime } from '../ui/format.js'
 import { velocityTracker, project, rubberband, spring } from '../ui/spring.js'
 import { haptic } from '../ui/haptics.js'
@@ -24,6 +24,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   let searching = false
   let query = ''
   let openSwipe = null
+  let loading = false // connecting / fetching chats: show a skeleton, not "no chats"
 
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', hidden: true })
@@ -56,8 +57,8 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': '取消搜索' }, icon('xmark'))
   const bottombar = h('div', { class: 'list-bottombar' }, pill, cancel)
 
-  const edgeTop = h('div', { class: 'edge edge-top' })
-  const edgeBottom = h('div', { class: 'edge edge-bottom on' })
+  const edgeTop = edge('top')
+  const edgeBottom = edge('bottom', true)
   pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar)
 
   meBtn.addEventListener('click', () => onSettings())
@@ -222,8 +223,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     // Pinned grid
     pinned.hidden = pins.length === 0
     const pinEls = new Map([...pinned.children].map(el => [el.dataset.id, el]))
-    const pinOrder = pins.map(c => {
+    const firstPins = pinned.children.length === 0 && rowEls.size === 0 && !reducedMotion()
+    const pinOrder = pins.map((c, i) => {
+      const fresh = !pinEls.has(c.id)
       const el = pinEls.get(c.id) || buildPin(c)
+      if (fresh && firstPins) enter(el, i)
       pinEls.delete(c.id)
       updatePin(el, c)
       return el
@@ -235,6 +239,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
     // Rows with FLIP reordering
     const before = new Map()
+    const firstFill = rowEls.size === 0 && !reducedMotion()
     const animate = !reducedMotion() && rowEls.size > 0
     if (animate) {
       const top = scroll.getBoundingClientRect().top
@@ -256,6 +261,8 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       if (!el) {
         el = buildRow(c)
         rowEls.set(c.id, el)
+        // The first screenful rises in one row after another.
+        if (firstFill && i < 14) enter(el, i + pins.length)
       }
       updateRow(el, c)
       if (rows.children[i] !== el) rows.insertBefore(el, rows.children[i] || null)
@@ -278,12 +285,39 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
     const noChats = list.length === 0 && pins.length === 0
     empty.hidden = !noChats
-    if (noChats) {
+    empty.classList.toggle('skeleton', noChats && loading)
+    if (noChats && loading) {
+      if (!empty.querySelector('.sk-row')) empty.replaceChildren(skeleton())
+    } else if (noChats) {
       empty.replaceChildren(
         h('h2', {}, state.filter === 'all' ? '还没有聊天' : `没有${filter.label}`),
         state.filter === 'all' ? '新消息会出现在这里。点右上角的按钮给联系人发消息。' : ''
       )
     }
+  }
+
+  function enter(el, i) {
+    el.style.setProperty('--s', String(i))
+    el.classList.add('row-in')
+    el.addEventListener('animationend', function done(e) {
+      if (e.target !== el) return
+      el.classList.remove('row-in')
+      el.removeEventListener('animationend', done)
+    })
+  }
+
+  // Placeholder rows built from the real row classes, so they always match
+  // the list's geometry.
+  function skeleton() {
+    const widths = [[34, 78], [46, 62], [28, 84], [40, 54], [32, 70], [44, 66]]
+    return h('ul', { class: 'rows', 'aria-hidden': 'true' }, widths.map(([a, b]) =>
+      h('li', { class: 'row sk-row' },
+        h('div', { class: 'row-inner' },
+          h('span', { class: 'row-dot' }),
+          h('span', { class: 'avatar sk' }),
+          h('div', { class: 'row-main' },
+            h('span', { class: 'sk sk-line', style: { width: `${a}%` } }),
+            h('span', { class: 'sk sk-line', style: { width: `${b}%` } }))))))
   }
 
   // ------------------------------------------------------------ swipe actions
@@ -535,6 +569,10 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       meBtn.replaceChildren(avatar(me?.id, me?.name || '我', { size: 36 }))
     },
     setStatus({ text, spinner = false, warn = false } = {}) {
+      if (loading !== spinner) {
+        loading = spinner
+        if (!searching) render()
+      }
       status.hidden = !text
       status.classList.toggle('warn', warn)
       status.replaceChildren(...(spinner ? [h('span', { class: 'spinner' })] : []), text || '')

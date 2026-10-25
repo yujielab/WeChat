@@ -1,6 +1,6 @@
 // Sheets, anchored menus, confirmations and toasts.
 
-import { h, icon, transitionEnd, reducedMotion } from '../ui/dom.js'
+import { h, icon, transitionEnd, reducedMotion, stagger } from '../ui/dom.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { getLayout } from '../ui/viewport.js'
 import { haptic } from '../ui/haptics.js'
@@ -22,6 +22,22 @@ function unlockApp() {
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
+// The app recedes behind sheets on the folded screen (see .app.sheeted).
+let receding = 0
+function recede(on) {
+  receding = Math.max(0, receding + (on ? 1 : -1))
+  app().classList.toggle('sheeted', receding > 0)
+  if (!receding) setPresence(null)
+}
+function setPresence(p) {
+  if (p === null) {
+    app().style.removeProperty('--sp')
+    app().classList.remove('sheet-drag')
+  } else {
+    app().style.setProperty('--sp', String(Math.min(1, Math.max(0, p)).toFixed(4)))
+  }
+}
+
 // ---------------------------------------------------------------- sheets
 
 export function openSheet({ title, content, tall = false, start = null, end = null, label, onClose }) {
@@ -35,6 +51,10 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     h('div', { class: 'end' }, closeBtn)
   )
   const body = h('div', { class: 'sheet-body' }, content)
+  // Sections settle in one after another once the sheet lands.
+  const sections = content instanceof Element && content.children.length > 1 ? [...content.children] : [content].filter(n => n instanceof Element)
+  for (const el of sections.slice(0, 12)) el.classList.add('sheet-reveal')
+  stagger(sections.slice(0, 12))
   const sheet = h('div', {
     class: ['sheet', 'glass', 'glass-thick', tall && 'tall'],
     role: 'dialog',
@@ -48,25 +68,46 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   const prevFocus = document.activeElement
   root.append(scrim, sheet)
   lockApp()
+  const recedes = getLayout() === 'stack' && !reducedMotion()
+  let receded = false
   nextFrame().then(() => {
+    if (ctl.closed) return
     scrim.classList.add('on')
     sheet.classList.add('on')
+    if (recedes) {
+      receded = true
+      recede(true)
+    }
     sheet.focus({ preventScroll: true })
   })
+  const unrecede = () => {
+    if (!receded) return
+    receded = false
+    recede(false)
+  }
+  // Sheet travel → app presence, while the finger or a spring moves it.
+  const track = y => {
+    if (receded) setPresence(1 - y / Math.max(1, sheet.offsetHeight))
+  }
 
   async function close(velocity = 0) {
     if (ctl.closed) return
     ctl.closed = true
     document.removeEventListener('keydown', onKey)
     scrim.classList.remove('on')
-    if (velocity && getLayout() === 'stack' && !reducedMotion()) {
+    // A sheet let go mid-drag keeps its momentum (even none) via a spring.
+    if ((velocity || sheet.classList.contains('dragging')) && getLayout() === 'stack' && !reducedMotion()) {
       const from = currentY()
       const to = sheet.offsetHeight + 60
       sheet.classList.add('dragging')
-      await spring({ from, to, velocity, damping: 1, response: 0.3, onUpdate: y => { sheet.style.transform = `translate3d(0, ${y}px, 0)` } }).done
+      const run = spring({ from, to, velocity, damping: 1, response: 0.3, onUpdate: y => { sheet.style.transform = `translate3d(0, ${y}px, 0)`; track(y) } })
+      await run.done
+      unrecede()
     } else {
       sheet.classList.remove('on')
-      await transitionEnd(sheet, 'transform', 520)
+      unrecede()
+      // Leaving is quicker than arriving: don't wait out the whole spring.
+      await transitionEnd(sheet, 'transform', 420)
     }
     scrim.remove()
     sheet.remove()
@@ -111,11 +152,13 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
       drag.y0 = e.clientY
       try { sheet.setPointerCapture(e.pointerId) } catch {}
       sheet.classList.add('dragging')
+      if (receded) app().classList.add('sheet-drag')
     }
     const d = e.clientY - drag.y0
     const y = d >= 0 ? d : rubberband(d, sheet.offsetHeight)
     drag.vt.add(0, e.clientY)
     sheet.style.transform = `translate3d(0, ${y}px, 0)`
+    track(Math.max(0, y))
   })
   const onDragEnd = e => {
     if (!drag || e.pointerId !== drag.id) return
@@ -128,10 +171,14 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
       close(v)
       return
     }
-    spring({ from: y, to: 0, velocity: v, damping: 0.86, response: 0.32, onUpdate: val => { sheet.style.transform = `translate3d(0, ${val}px, 0)` } })
+    spring({ from: y, to: 0, velocity: v, damping: 0.86, response: 0.32, onUpdate: val => { sheet.style.transform = `translate3d(0, ${val}px, 0)`; track(Math.max(0, val)) } })
       .done.then(() => {
         sheet.classList.remove('dragging')
         sheet.style.transform = ''
+        if (receded && !ctl.closed) {
+          app().classList.remove('sheet-drag')
+          setPresence(1)
+        }
       })
   }
   sheet.addEventListener('pointerup', onDragEnd)
@@ -261,8 +308,13 @@ export function toast(text, { type = '', iconName, duration = 2400 } = {}) {
   async function dismiss() {
     clearTimeout(timer)
     if (current === t) current = null
+    if (el.classList.contains('out')) return
     el.classList.remove('on')
-    await transitionEnd(el, 'opacity', 400)
+    el.classList.add('out')
+    await new Promise(resolve => {
+      el.addEventListener('animationend', resolve, { once: true })
+      setTimeout(resolve, 360)
+    })
     el.remove()
   }
   return t

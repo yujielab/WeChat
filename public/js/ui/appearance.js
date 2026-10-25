@@ -7,7 +7,8 @@ const root = document.documentElement
 
 export function getPrefs() {
   return {
-    theme: storage('ui:theme') || 'system', // system | light | dark
+    // White is the default look; 跟随系统 and 深色 remain a choice in Settings.
+    theme: storage('ui:theme') || 'light', // light | system | dark
     glass: storage('ui:glass') || 'auto', // auto | solid
     glassAuto: storage('ui:glass-auto') === 'solid',
     motion: storage('ui:motion') || 'system', // system | reduce
@@ -21,7 +22,7 @@ function applyAttr(name, value) {
 }
 
 export function setTheme(theme) {
-  storage('ui:theme', theme === 'system' ? null : theme)
+  storage('ui:theme', theme === 'light' ? null : theme)
   // Don't let every color transition fire during the swap.
   root.classList.add('no-anim')
   applyAttr('data-theme', theme === 'system' ? null : theme)

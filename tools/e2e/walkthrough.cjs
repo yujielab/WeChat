@@ -140,8 +140,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
   await sleep(900)
   await shot('18-folded-again')
 
-  // Dark mode
-  await page.emulateMedia({ colorScheme: 'dark' })
+  // Dark mode (the default theme is light; 深色 is a choice in Settings)
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
   await sleep(600)
   await shot('19-dark-thread')
   await page.click('.thread-nav .back')

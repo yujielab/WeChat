@@ -24,6 +24,10 @@
     // Where the Durable Object is created on first use. WeChat's servers are in
     // mainland China, so Asia-Pacific keeps polling latency low.
     "DO_LOCATION_HINT": "apac"
+    // Optional login overrides (see README › 配置项):
+    //   "WX_LOGIN_MODE": "web"          only one login route: "desktop" (UOS) or "web"
+    //   "WX_CLIENT_VERSION": "2.0.0"    UOS client-version header
+    //   "WX_EXTSPAM": "…"               UOS extspam header
   }
 
   // Secrets (set with `npx wrangler secret put <NAME>`):

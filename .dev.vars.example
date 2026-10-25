@@ -4,3 +4,7 @@ APP_PASSWORD=change-me
 # VAPID_PUBLIC_KEY=
 # VAPID_PRIVATE_KEY=
 # VAPID_SUBJECT=mailto:you@example.com
+# Optional login overrides (README › 配置项):
+# WX_LOGIN_MODE=web
+# WX_CLIENT_VERSION=2.0.0
+# WX_EXTSPAM=
