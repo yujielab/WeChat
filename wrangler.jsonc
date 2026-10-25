@@ -1,38 +1,38 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "wechat-glass",
+  "name": "cf-messenger",
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
 
-  // The UI is plain static files; only /api and /auth run the Worker first.
+  // The UI is plain static files; only /api, /auth and /rtc run the Worker.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*"]
+    "run_worker_first": ["/api/*", "/auth/*", "/rtc/*"]
   },
 
-  // One Durable Object instance holds the WeChat web session, polls for
-  // messages and stores them, so nothing is lost while the phone sleeps.
+  // One Durable Object is the whole backend hub: accounts, contacts, rooms,
+  // messages, presence, the realtime WebSocket fan-out and call signaling.
   "durable_objects": {
-    "bindings": [{ "name": "WX", "class_name": "WeChatSession" }]
+    "bindings": [{ "name": "HUB", "class_name": "Hub" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WeChatSession"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }],
+
+  // Images, voice clips, files and avatars live in R2.
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cf-messenger-media" }],
 
   "vars": {
-    // Where the Durable Object is created on first use. WeChat's servers are in
-    // mainland China, so Asia-Pacific keeps polling latency low.
+    // Where the Durable Object is created on first use.
     "DO_LOCATION_HINT": "apac"
-    // Optional login overrides (see README › 配置项):
-    //   "WX_LOGIN_MODE": "web"          only one login route: "desktop" (UOS) or "web"
-    //   "WX_CLIENT_VERSION": "2.0.0"    UOS client-version header
-    //   "WX_EXTSPAM": "…"               UOS extspam header
   }
 
   // Secrets (set with `npx wrangler secret put <NAME>`):
-  //   APP_PASSWORD       required — password for this web app
-  //   VAPID_PUBLIC_KEY   optional — Web Push (generate with `npm run vapid`)
-  //   VAPID_PRIVATE_KEY  optional
-  //   VAPID_SUBJECT      optional — e.g. mailto:you@example.com
+  //   SIGNUP_CODE          optional — required invite code to register
+  //   REALTIME_APP_ID      Cloudflare Realtime (Calls) SFU app id, for calls
+  //   REALTIME_APP_SECRET  Cloudflare Realtime app secret
+  //   REALTIME_TURN_KEY_ID      optional — Realtime TURN key id (NAT traversal)
+  //   REALTIME_TURN_KEY_TOKEN   optional — Realtime TURN key token
+  //   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT  optional — Web Push
 }
