@@ -6,7 +6,7 @@ import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
 import {
   state, setMe, setRooms, upsertRoom, patchRoom, setContacts, setPresence, markPresence,
-  normMsg, thread, upsertMessage, replaceMessage, removeMessage, chatInfo
+  normMsg, previewText, thread, upsertMessage, replaceMessage, removeMessage, chatInfo
 } from './store.js'
 import { renderAuth } from './views/auth.js'
 import { createShell } from './views/shell.js'
@@ -117,7 +117,7 @@ function handle(msg) {
       markPresence(msg.uid, msg.online)
       break
     case 'typing':
-      shell?.thread.setTyping(msg.room, msg.uid)
+      shell?.thread.setTyping(msg.room, msg.uid, msg.text || '')
       break
     case 'profile':
       patchPeer(msg.user)
@@ -140,7 +140,7 @@ function bumpRoom(m, raw) {
     const incUnread = !m.out && state.open !== m.chat && raw.type !== 'system'
     patchRoom(m.chat, {
       ts: m.ts,
-      last: { id: m.id, ts: m.ts, out: m.out, type: m.type, status: m.status, text: previewOf(raw) },
+      last: { id: m.id, ts: m.ts, out: m.out, type: m.type, status: m.status, text: previewText(raw, existing) },
       unread: incUnread ? (existing.unread || 0) + 1 : (state.open === m.chat ? 0 : existing.unread)
     })
   } else {
@@ -150,12 +150,6 @@ function bumpRoom(m, raw) {
   if (!m.out && state.open !== m.chat && raw.type !== 'system') shell?.list?.render()
 }
 
-function previewOf(raw) {
-  const room = state.chats.get(raw.room)
-  return (room ? state.chats.get(raw.room) : null) && raw.type === 'text'
-    ? raw.body.slice(0, 120)
-    : { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]', call: raw.body, system: raw.body }[raw.type] || raw.body?.slice?.(0, 120) || '[消息]'
-}
 
 function markThreadRead(roomId, by) {
   const t = state.threads.get(roomId)

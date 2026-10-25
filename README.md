@@ -1,158 +1,155 @@
-# 微信 · 个人网页客户端（Cloudflare Workers）
+# Duo · Cloudflare 自建即时通讯
 
-在 Cloudflare Worker 上运行的个人微信客户端：登录你自己的微信，查看并回复好友和群聊消息。界面参考 iOS“信息”，使用 Liquid Glass（液态玻璃）风格，专门为 **iPhone Duo** 的外屏（折叠）和内屏（展开）设计。
+一个完全跑在 **Cloudflare** 上的自建即时通讯 App：注册账号、加好友、单聊和群聊、
+发图片和手绘、语音 / 视频通话。没有第三方服务，消息和媒体都存在你自己的
+Cloudflare 账号里。界面参考 iOS“信息”，并借鉴 Benji Taylor（Family / Honk /
+drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）与内屏（展开）打磨。
 
-| 折叠（外屏 466×678） | 展开（内屏 890×626） | 深色 |
-| --- | --- | --- |
-| <img src="docs/screenshots/folded-list.png" width="240"> | <img src="docs/screenshots/unfolded-thread.png" width="400"> | <img src="docs/screenshots/folded-dark.png" width="240"> |
-| <img src="docs/screenshots/folded-thread.png" width="240"> | <img src="docs/screenshots/unfolded-qr.png" width="400"> | <img src="docs/screenshots/folded-menu.png" width="240"> |
+| 折叠（外屏 466×678） | 展开（内屏 890×626） |
+| --- | --- |
+| <img src="docs/screenshots/04-thread.png" width="240"> | <img src="docs/screenshots/09-unfolded.png" width="420"> |
+| <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/10-unfolded-dark.png" width="420"> |
+| <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/08-incoming-call.png" width="240"> |
+| <img src="docs/screenshots/07-settings.png" width="240"> | <img src="docs/screenshots/01-auth.png" width="240"> |
 
-> 截图来自本地模拟服务器（`npm run dev:mock`），联系人和消息都是演示数据。
-
-## 先读这一段：协议风险
-
-- 这是**非官方**客户端，基于微信网页版协议（UOS 桌面模式），协议实现参考 [wechat4u](https://github.com/nodeWechat/wechat4u)（MIT）。wechat4u 最后一次更新是 2023 年 12 月，**这条协议在今天是否仍可用，我没能验证**：开发环境无法访问微信服务器，所以登录、同步、发送都只在模拟服务器上跑通过。
-- 微信可能拒绝网页登录（常见提示：“为了你的帐号安全，此微信号不能登录网页微信”，错误码 1203），也可能随时调整接口。遇到问题时，到“设置 › 连接 › 诊断信息”查看具体失败在哪一步、返回了什么错误码。
-- **2025 年起的新拒绝：“当前微信版本过低，暂无法登录，请前往微信官网下载最新的微信 Linux 版后重新登录”（newloginpage 1203）。** 本应用默认模拟旧的 UOS（Linux，Electron）桌面版微信登录，微信正在停用这个客户端，所以会拒绝它；openwechat、wechat4u 等同类项目遇到的是同一个问题，社区目前没有公开、可靠的解决办法。本应用的处理：
-  - 同一次扫码里，桌面版被拒后**自动改用经典网页版登录再试一次**（不用重新扫码）；网页版能登录的账号（通常是较早注册、曾经登录过网页版的账号）就能进入，并记住这种方式，下次直接用。
-  - 两种方式都被拒时，页面会说明原因；这是微信服务器的限制，代码无法绕过。
-  - 如果之后有人找到新的可用请求头，不用改代码：设置变量 `WX_CLIENT_VERSION` / `WX_EXTSPAM` 后重新部署即可；`WX_LOGIN_MODE` 可固定只用 `desktop` 或 `web` 一种方式。
-- 非官方客户端存在账号被限制的风险。请只用于自己的账号，不要用于群发、营销或自动化。
-- 网页协议**拿不到登录之前的聊天记录**：列表会显示最近会话，但消息从你登录这一刻开始收集。
+> 截图来自本地 `wrangler dev`，账号和消息都是演示数据。
 
 ## 功能
 
-- 扫码登录（二维码、已扫码待确认、过期刷新、登录失败原因），登录状态保存在服务器端，关闭页面不掉线
-- 私聊、群聊收发文字；发送照片（手机上先压缩为 JPEG）；撤回 2 分钟内自己发出的消息
-- 接收文字、表情符号、图片、动画表情、语音（可播放）、视频、链接卡片、文件（可下载）、位置、名片、引用回复、转账/红包提示、撤回提示和系统消息
-- 群聊显示群昵称和成员头像；群信息页显示成员
-- 置顶（同步到手机）、标为已读/未读、从列表删除会话、清空本设备记录
-- 未读数与手机同步：在手机上看过的会话，这里的未读也会清除
-- 搜索会话和联系人，支持拼音和首字母（如 `zk` → 周可）
-- 发起新聊天（通讯录按拼音分组）
-- 新消息通知（Web Push，需添加到主屏幕并配置 VAPID 密钥）
-- 默认白色浅色界面，可在“设置 › 外观”切换深色或跟随系统；降低透明度；减少动态效果；触感反馈
-- 动效：进场是“模糊 → 清晰”的轻微上浮（分段依次出现），离场更短、加速离开；底部面板弹出时主界面后退缩小，下拉面板时跟手放大回来；滚动内容进入顶栏和输入栏区域时被分层渐进模糊洗淡，而不是撞上一条硬线
+- **账号**：用户名 + 密码注册 / 登录（PBKDF2 哈希），可选邀请码 `SIGNUP_CODE`
+- **实时聊天**：单聊、群聊；消息经 WebSocket 实时送达，掉线自动重连补收
+- **在线状态**与**已读回执**；**“正在输入”实时预览**（Honk 式：对方能看到你正在打的字）
+- **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
+- **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
+- **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
+- **通知**：新消息 Web Push（需加到主屏幕并配置 VAPID）
+- **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
+- **iPhone Duo**：折叠单栏推入 / 返回，展开列表 + 对话双栏；折叠态保持当前对话
 
 ## 架构
 
 ```
-iPhone (PWA)  ──HTTPS / WebSocket──▶  Worker  ──▶  Durable Object "main"  ──▶  微信网页版服务器
-  静态页面 public/                    密码校验         · 扫码登录轮询（alarm）
-  Service Worker：离线壳 + 推送        转发 /api/*      · synccheck / webwxsync 循环（alarm）
-                                                       · SQLite：联系人、会话、消息
-                                                       · 媒体代理（带会话 Cookie）
-                                                       · WebSocket 实时推送 + Web Push
+iPhone (PWA)  ──HTTPS / WebSocket──▶  Worker（瘦代理）  ──▶  Hub Durable Object "main"
+  静态页面 public/                     /api /auth /rtc        · 账号 / 联系人 / 房间 / 消息（SQLite）
+  Service Worker：离线壳 + 推送          转发到 Hub            · 可休眠 WebSocket 实时收发 + 在线状态
+                                                             · 媒体校验后读写 R2
+                        WebRTC 媒体 ◀──▶ Cloudflare Realtime  · 通话信令中转 + /rtc 代理（App Secret 只在服务端）
+                        离线成员 ◀────── Web Push（VAPID）
 ```
 
-- **为什么用 Durable Object**：消息只会通过 `webwxsync` 下发一次，必须有一个常驻的地方持续接收并保存。Durable Object 用 alarm 驱动长轮询，手机锁屏、页面关闭都不会漏消息。重新部署或对象重启后，会用保存的 Cookie 继续会话，无需重新扫码。
-- **从 wechat4u 移植到 Workers 时的改动**（`src/wx/`）：不用 `eval` 解析 `window.QRLogin…` 等响应（Workers 禁止 eval，逐个用正则解析）；自己维护 Cookie（Workers 的 fetch 没有 Cookie 罐）；登录跳转用 `redirect: 'manual'` 读取 301 响应体里的票据；保留 UOS 登录需要的 `extspam`/`client-version` 请求头；按每次 alarm 的子请求预算（默认 40，见 `ALARM_SUBREQUESTS`）分段运行，适配免费版每次调用 50 个子请求的限制。
-- **重新登录后保留记录**：微信每次登录都会给联系人分配新的 UserName。同一账号重新登录后，会按“备注 + 昵称”把旧会话迁移到新联系人上；无法唯一匹配的旧会话保留为只读。
-- **安全**：整个应用由 `APP_PASSWORD` 保护（HttpOnly + SameSite=Strict 签名 Cookie，失败 6 次锁定 10 分钟）；所有写操作和 WebSocket 都校验 Origin；消息内容只以文本节点渲染，链接只允许 http(s)；媒体代理的响应带 `sandbox` CSP，静态页面有严格的 CSP。
-
-## 为 iPhone Duo 做的设计
-
-| 形态 | 视口（CSS 像素） | 布局 |
-| --- | --- | --- |
-| 折叠，外屏竖握 | ≈ 466 × 678 @3x | 单栏：会话列表 → 推入对话 |
-| 折叠，外屏横握 | ≈ 678 × 466 | 单栏，紧凑导航 |
-| 展开，内屏 | ≈ 890 × 626 @3x | 双栏：左侧列表（约 320pt）+ 右侧对话 |
-| 内屏 50/50 分屏 | ≈ 445 × 626 | 单栏 |
-
-（视口数值来自第三方设备数据库的估算，代码不依赖具体数值，只在 700px 宽度处切换布局。）
-
-- **折叠/展开不丢位置**：展开时正在看的对话直接出现在右栏，列表出现在左侧；折回时对话保持在最前面，返回键回到列表。切换瞬间关闭过渡动画，避免界面“甩”一下。
-- **外屏又短又宽**：对话页顶部是悬浮的玻璃按钮而不是整条导航栏，底部输入栏贴合键盘，最大化正文高度；搜索框放在底部，单手可达。
-- **展开时的面板**：设置、群信息等在外屏是从底部升起、可下拉关闭的浮动面板；在内屏变成居中的表单面板，就地“凝结”出现。
-- **铰链**：如果浏览器把屏幕报告为两个视口分段（`horizontal-viewport-segments: 2`），分栏会对齐到折痕。
-- **Liquid Glass 只用在功能层**：顶部按钮、输入栏、搜索框、菜单、面板。玻璃由透色、背景模糊与饱和、竖向光泽、内反光、高光边缘、内侧暗边、悬浮阴影叠成，按下时会朝手指微微鼓起并在触点泛光。正文区域保持纯色，内容滚到悬浮控件下方时，用模糊渐隐代替分割线。
-- **动效**：iOS 式弹簧（阻尼比 + 响应时间），由 `tools/gen-springs.mjs` 采样为 CSS `linear()`，感知时长约 200–300ms。返回手势 1:1 跟手，松手时按速度预测落点并把速度交给弹簧；面板下拉关闭、图片查看器的缩放和下滑关闭同理，动画随时可被手指打断。新消息轻弹出现，自己发送的消息从输入栏升起。
-- **可访问性和降级**：
-  - 跟随“减弱动态效果”（改为淡入淡出）、“降低透明度”和“增强对比度”；
-  - 浏览器不支持 `backdrop-filter` 时，自动换成实色界面；
-  - 滚动时持续掉帧，也会自动换成实色界面，可在设置里改回；
-  - 字号跟随 iOS“动态字体”；所有图标按钮都有无障碍标签；点击区域不小于 44pt。
+- **Worker（`src/index.js`）**：只做转发与同源校验，所有状态都在一个 Durable Object 里。
+- **Hub（`src/hub.js`）**：账号、联系人、房间、消息、在线状态、WebSocket 广播、通话信令，
+  全部集中在一个 DO，SQLite 强一致，推理简单。
+- **数据层（`src/store.js`）**：users / contacts / rooms / room_members / messages / push_subs。
+- **媒体（`src/media.js`）**：上传按会话成员与大小校验后流式写入 **R2**；下载带 sandbox CSP + nosniff，
+  按会话成员鉴权。
+- **通话（`src/call.js`）**：信令走 WebSocket；媒体经 `/rtc/*` 代理到 **Cloudflare Realtime SFU**，
+  App Secret 不下发浏览器；TURN 凭证由 Realtime TURN key 下发。
+- **账号加密（`src/auth.js`）**：PBKDF2-HMAC-SHA256（310k 轮）哈希密码；HMAC 签名会话令牌，
+  携带 epoch，可“全端退出”。
 
 ## 部署
 
-需要：Cloudflare 账号、Node.js 20+。
+需要一个 Cloudflare 账号。Durable Objects 的 SQLite 存储需要 Workers 付费版（$5/月）。
 
 ```bash
 npm install
-npx wrangler login
-npx wrangler secret put APP_PASSWORD      # 本应用的访问密码
-npm run deploy
+
+# 1) 创建 R2 存储桶（媒体文件）
+npx wrangler r2 bucket create cf-messenger-media
+
+# 2) 可选：设置邀请码，避免任何人都能注册
+npx wrangler secret put SIGNUP_CODE
+
+# 3) 部署
+npx wrangler deploy
 ```
 
-部署完成后，在 iPhone 的 Safari 打开 Worker 地址，点“分享 › 添加到主屏幕”，再从主屏幕打开（独立窗口、通知和返回手势都需要这一步）。输入访问密码后进入扫码页：
+打开部署后的地址，点“创建账号”注册第一个用户即可。把地址发给朋友，各自注册、互相添加。
 
-- 二维码在这台 iPhone 上，没法用同一台手机扫。可以在电脑或平板上打开同一地址扫码，会话在服务器端，扫完后 iPhone 上直接可用；
-- 也可以点“保存二维码”，在微信“扫一扫 › 相册”里选它，但部分微信版本可能不支持。
+### 开启语音 / 视频通话（Cloudflare Realtime）
 
-### 新消息通知（可选）
+1. 在 Cloudflare 仪表盘创建一个 **Realtime（Calls）** 应用，拿到 App ID 和 App Secret。
+2. 设置密钥并重新部署：
+
+   ```bash
+   npx wrangler secret put REALTIME_APP_ID
+   npx wrangler secret put REALTIME_APP_SECRET
+   # 可选：更好的 NAT 穿透（Realtime 的 TURN key）
+   npx wrangler secret put REALTIME_TURN_KEY_ID
+   npx wrangler secret put REALTIME_TURN_KEY_TOKEN
+   ```
+
+未配置时，通话入口会提示“通话服务未配置”，其余功能照常。
+
+### 开启新消息通知（可选）
 
 ```bash
-npm run vapid                              # 生成密钥对
+npm run vapid                          # 生成一对 VAPID 密钥
 npx wrangler secret put VAPID_PUBLIC_KEY
 npx wrangler secret put VAPID_PRIVATE_KEY
-npx wrangler secret put VAPID_SUBJECT     # 例如 mailto:you@example.com
+npx wrangler secret put VAPID_SUBJECT   # 例如 mailto:you@example.com
 ```
 
-然后在 App 内“设置 › 通知”打开。只有在没有窗口处于前台时才会推送，免打扰的会话和公众号不推送。
+iOS 需先用 Safari“添加到主屏幕”，再从主屏幕打开，在“设置 › 通知”里开启。
 
 ### 配置项
 
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `APP_PASSWORD` | secret，必填 | 访问密码；修改后所有设备需重新输入 |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push |
-| `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的位置，离微信服务器近一些 |
-| `ALARM_SUBREQUESTS` | var，默认 40 | 每次 alarm 的子请求预算；付费版可调大 |
-| `WX_LOGIN_MODE` | var，默认自动 | `desktop`（只用 UOS 桌面版登录）、`web`（只用经典网页版登录）；不设置时先用上次成功的方式，被拒后在同一次扫码里换另一种 |
-| `WX_CLIENT_VERSION` / `WX_EXTSPAM` | var，可选 | 覆盖 UOS 桌面版登录的 `client-version`（默认 `2.0.0`）和 `extspam` 请求头 |
-
-### 费用
-
-登录后 Durable Object 会一直在线做长轮询。按 128MB 内存全天在线估算，约 10,800 GB-s/天。Workers 免费版包含 SQLite 版 Durable Objects，但有每日用量上限，这个用量接近上限；Workers 付费版（$5/月）的包含额度足够一个账号使用。以 [Cloudflare 定价页](https://developers.cloudflare.com/durable-objects/platform/pricing/) 为准。
+| `SIGNUP_CODE` | secret，可选 | 注册邀请码；不设置则任何人都能注册 |
+| `REALTIME_APP_ID` / `REALTIME_APP_SECRET` | secret | 语音 / 视频通话（Cloudflare Realtime SFU） |
+| `REALTIME_TURN_KEY_ID` / `REALTIME_TURN_KEY_TOKEN` | secret，可选 | Realtime TURN，改善 NAT 穿透 |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push 通知 |
+| `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的大致位置 |
 
 ## 本地开发
 
 ```bash
-npm run dev:mock     # 模拟微信服务器 + wrangler dev，打开 http://127.0.0.1:8787 ，密码 demo
-npm test             # 协议解析、消息规范化、存储、Web Push 加密（RFC 8291 测试向量）
+npm run dev          # wrangler dev，打开 http://127.0.0.1:8787 ，点“创建账号”
+npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量）
 ```
 
-- 模拟服务器（`tools/mock-wx.mjs`）实现了登录、通讯录、同步、发送、上传、撤回和媒体接口。扫码用 `curl -X POST 127.0.0.1:8790/__ctl/scan`，确认登录用 `.../__ctl/confirm`，`MOCK_AUTO=1` 时自动完成。`MOCK_UOS=reject` 模拟“微信版本过低”（桌面版被拒、网页版可登录），`MOCK_UOS=reject-all` 模拟两种方式都被拒。模拟来消息用 `.../__ctl/incoming -d '{"from":3,"text":"你好"}'`。
-- 界面走查脚本 `tools/e2e/*.cjs` 用 Playwright（Chromium）按 iPhone Duo 尺寸截图。
-- 想连真实微信：复制 `.dev.vars.example` 为 `.dev.vars`，然后 `npm run dev`。
+- 本地 `wrangler dev` 自带内存版 Durable Object SQLite 和 R2，无需额外配置即可跑通聊天与媒体。
+- 想本地试通话 UI：`npx wrangler dev --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy`
+  （信令与来电界面可用；真正接通需要真实的 Realtime 应用）。
+- 界面走查脚本：`node tools/e2e/walkthrough.cjs docs/screenshots` 用 Playwright（Chromium）
+  注册两个账号，跑一遍登录 → 找人 → 实时收发 → 手绘 → 通话界面 → 展开 / 深色，并截图。
+
+## 安全
+
+- 密码用 PBKDF2-HMAC-SHA256（310k 轮）加随机盐哈希；会话是 HMAC 签名令牌（HttpOnly、SameSite=Strict）。
+- 改密码会提升 epoch，使旧令牌失效（相当于全端退出）。
+- 改状态的请求与 WebSocket 升级都做同源校验。
+- 媒体下载响应带 `sandbox` CSP 与 `nosniff`，并按会话成员鉴权；上传限制大小与成员。
+- 通话的 Realtime App Secret 只在服务端，浏览器只通过 `/rtc/*` 代理访问。
+
+## 已知限制
+
+- 语音 / 视频通话需要配置 Cloudflare Realtime 应用；未配置时入口会提示。
+- 暂不支持录制语音消息（可发文字、图片、手绘；可打语音 / 视频通话）。
+- 单个 Durable Object 承载全部状态，适合个人与中小群体自建；超大规模需要分片。
+- 非端到端加密：消息在服务端（你自己的 Cloudflare 账号）以明文存储。
+- 无法在真机上验证的部分：iOS 键盘动画、`<input switch>` 触感、`viewport-segments`、Apple 推送送达、
+  真实 Realtime SFU 接通质量（开发环境无法访问 Realtime 服务）。
 
 ## 目录
 
 ```
-src/
-  index.js          Worker 入口：密码校验、静态资源、转发 /api
-  auth.js           访问密码与签名 Cookie
-  session.js        Durable Object：登录、同步循环、API、媒体代理、WebSocket、推送
-  store.js          SQLite 存储（会话、消息、联系人、重新登录迁移）
-  wx/               微信网页协议（client / parse / normalize / conf）
-  push/webpush.js   VAPID + aes128gcm
-public/             前端（无构建步骤的原生 ES 模块）
-  css/              tokens / base / glass / list / thread / overlays / auth
-  js/ui/            视口与折叠、弹簧、手势导航、按压反馈、外观
-  js/views/         列表、对话、气泡、输入栏、查看器、面板、登录
-tools/              模拟服务器、本地开发、弹簧采样、VAPID、界面走查
-test/               node:test 单元测试
+src/            index.js（瘦代理）· hub.js（Durable Object）· store.js（SQLite）
+                auth.js（账号加密）· media.js（R2）· call.js（Realtime 信令/代理）· push/
+public/         index.html · manifest · sw.js · css/ · icons/
+  js/           main.js · api.js · store.js
+    ui/         视口与折叠、弹簧、手势、按压、外观、格式、触感
+    views/      auth · chatList · thread · bubbles · composer · overlay · sheets · shell
+                viewer · call（通话）· draw（画板）· avatar
+tools/          gen-vapid.mjs · gen-springs.mjs · e2e/walkthrough.cjs
+test/           store · auth · webpush
 ```
-
-## 已知限制
-
-- 看不到登录前的历史消息（网页协议限制），也不能修改“消息免打扰”。
-- 不能发送语音、视频、文件和表情包，只能发文字和图片；语音/视频通话、红包、转账只显示提示。
-- 没有对方已读回执，“已发送”表示服务器已接收。
-- 无法在真机上验证的部分：iOS 键盘弹出时的具体动画、`<input switch>` 触感反馈（需要 iOS 18 及以上）、iPhone Duo 上 `viewport-segments` 的实际支持情况。
-- 同一时间只支持一个微信账号。
 
 ## 致谢
 
-- [wechat4u](https://github.com/nodeWechat/wechat4u)（MIT）：网页协议流程、请求格式和 UOS 登录参数
-- [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)（MIT）：二维码 SVG
+- 交互与视觉参考 iOS“信息”，并借鉴 **Benji Taylor** 的 Family（弹性物理与触感）、
+  Honk（实时打字、无发送键）与 drawesome（手绘）。
+- 语音 / 视频通话基于 [Cloudflare Realtime](https://developers.cloudflare.com/realtime/)（SFU）。
+- Web Push 按 RFC 8291 / 8292 用 WebCrypto 实现。

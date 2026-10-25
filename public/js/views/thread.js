@@ -71,7 +71,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     onSend: text => sendText(text),
     onImages: files => sendImages(files),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
-    onType: () => sendTyping(),
+    onType: text => sendTyping(text),
     onDraw: () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
   })
 
@@ -379,7 +379,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   }
 
   // ------------------------------------------------------------ sending
-  const previewText = m => ({ image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' }[m.type] || m.text || '')
+  const previewText = m => ({ image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]' }[m.type] || m.text || '')
   function bumpList(m) {
     if (!state.chats.get(m.chat)) return
     patchRoom(m.chat, {
@@ -447,9 +447,14 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   }
 
   let typingSentAt = 0
-  function sendTyping() {
+  function sendTyping(text = '') {
     const now = Date.now()
-    if (current && now - typingSentAt > 2500) { typingSentAt = now; socketSend({ t: 'typing', room: current }) }
+    // Honk-style live typing: stream the in-progress text so the peer sees it
+    // as it is typed. Throttled; empty text clears the peer's ghost bubble.
+    if (current && (now - typingSentAt > 180 || !text)) {
+      typingSentAt = now
+      socketSend({ t: 'typing', room: current, text: text.slice(0, 500) })
+    }
   }
 
   async function sendDrawing(blob, { w, h } = {}) {
@@ -473,13 +478,28 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     }
   }
 
-  function setTyping(room, uid) {
+  let ghostEl = null
+  function clearGhost() { ghostEl?.remove(); ghostEl = null }
+  function setTyping(room, uid, text = '') {
     if (room !== current) return
     clearTimeout(typingTimer)
+    if (text) {
+      // Live text: a ghost incoming bubble that updates as the peer types.
+      if (!ghostEl) {
+        const who = isGroup(current) ? h('div', { class: 'm-sender' }, nameOf(uid, current)) : null
+        const bub = h('div', { class: 'bubble text ghost' })
+        ghostEl = h('div', { class: 'm in ghost-row' }, h('span', { class: 'm-avatar' }), h('div', { class: 'm-col' }, who, bub))
+        msgs.append(ghostEl)
+      }
+      ghostEl.querySelector('.bubble').textContent = text
+      if (atBottom()) scrollToBottom()
+    } else {
+      clearGhost()
+    }
     const who = isGroup(current) ? `${nameOf(uid, current)} ` : ''
     titleSub.textContent = `${who}正在输入…`
     titleSub.classList.add('typing')
-    typingTimer = setTimeout(() => { typingTimer = 0; titleSub.classList.remove('typing'); renderHeader() }, 4000)
+    typingTimer = setTimeout(() => { typingTimer = 0; titleSub.classList.remove('typing'); renderHeader(); clearGhost() }, 4500)
   }
 
   async function retry(m) {
@@ -707,6 +727,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   // ------------------------------------------------------------ live updates
   on('msg', (m, kind) => {
     if (m.chat !== current) return
+    if (!m.out) clearGhost()
     if (kind === 'update') {
       refreshNode(m)
       reconcile()

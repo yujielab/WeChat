@@ -54,7 +54,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   textarea.addEventListener('input', () => {
     autosize()
     saveDraftSoon()
-    if (textarea.value.trim()) onType?.()
+    onType?.(textarea.value)
   })
   textarea.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return

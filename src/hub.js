@@ -374,7 +374,9 @@ export class Hub {
       return
     }
     if (msg.t === 'typing' && msg.room && this.store.isMember(msg.room, uid)) {
-      this.fanoutToRoom(msg.room, { t: 'typing', room: msg.room, uid }, uid)
+      const text = typeof msg.text === 'string' ? msg.text.slice(0, 500) : ''
+      // relay only to others, not back to the sender
+      for (const u of this.store.roomMembers(msg.room)) if (u !== uid) this.sendToUser(u, { t: 'typing', room: msg.room, uid, text })
       return
     }
     if (msg.t === 'call') { this.calls.signal(uid, msg); return }
