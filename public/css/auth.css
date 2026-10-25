@@ -1,0 +1,200 @@
+/* Password gate and the WeChat QR login. These screens sit on a soft color
+   field so the glass card has something to refract. */
+
+.auth {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-top) + 16px) calc(16px + var(--safe-right)) calc(var(--safe-bottom) + 16px) calc(16px + var(--safe-left));
+  overflow-y: auto;
+  background:
+    radial-gradient(60% 50% at 12% 8%, rgb(120 180 255 / 0.55), transparent 70%),
+    radial-gradient(55% 45% at 92% 18%, rgb(150 120 255 / 0.35), transparent 70%),
+    radial-gradient(70% 55% at 70% 100%, rgb(90 210 200 / 0.38), transparent 70%),
+    linear-gradient(180deg, #f4f6fb, #eef1f7);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth {
+    background:
+      radial-gradient(60% 50% at 12% 8%, rgb(40 90 200 / 0.55), transparent 70%),
+      radial-gradient(55% 45% at 92% 18%, rgb(90 60 190 / 0.4), transparent 70%),
+      radial-gradient(70% 55% at 70% 100%, rgb(20 120 120 / 0.42), transparent 70%),
+      linear-gradient(180deg, #05070c, #0a0d14);
+  }
+}
+:root[data-theme="dark"] .auth {
+  background:
+    radial-gradient(60% 50% at 12% 8%, rgb(40 90 200 / 0.55), transparent 70%),
+    radial-gradient(55% 45% at 92% 18%, rgb(90 60 190 / 0.4), transparent 70%),
+    radial-gradient(70% 55% at 70% 100%, rgb(20 120 120 / 0.42), transparent 70%),
+    linear-gradient(180deg, #05070c, #0a0d14);
+}
+
+.auth-card {
+  width: min(380px, 100%);
+  border-radius: 32px;
+  padding: 26px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  animation: card-in var(--spring-bouncy-dur) var(--spring-bouncy) both;
+}
+@keyframes card-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .auth-card { animation: fade-in 160ms linear both; }
+}
+
+.app-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(160deg, #5ac8fa, #007aff 55%, #3a4bd8);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 8px 20px -8px rgb(0 80 200 / 0.6);
+}
+.app-icon .icon { width: 34px; height: 34px; }
+
+.auth-card h1 {
+  margin: 2px 0 0;
+  font-size: var(--t-title-2);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.auth-card p.lead {
+  margin: -6px 0 0;
+  font-size: var(--t-subhead);
+  color: var(--label-2);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.auth-form { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.input {
+  width: 100%;
+  height: 50px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 0;
+  background: var(--fill-3);
+  font-size: max(16px, var(--t-body));
+  color: var(--label);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: box-shadow 160ms ease-out;
+}
+.input:focus-visible { box-shadow: 0 0 0 2px var(--label-2); }
+.input[aria-invalid="true"] { box-shadow: 0 0 0 1.5px var(--red); }
+.field-error { min-height: 1.2em; margin: -2px 4px 0; font-size: var(--t-footnote); color: var(--red); text-align: left; }
+
+.btn {
+  height: 50px;
+  border-radius: 25px;
+  padding: 0 22px;
+  font-size: var(--t-body);
+  font-weight: var(--w-semibold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn.primary { background: var(--blue); color: #fff; }
+.btn.primary:disabled { opacity: 0.5; }
+.btn .spinner { width: 18px; height: 18px; border-color: rgb(255 255 255 / 0.35); border-top-color: #fff; }
+
+/* ---------------------------------------------------------------- QR */
+
+.qr-wrap {
+  position: relative;
+  width: min(212px, 56vw);
+  aspect-ratio: 1;
+  border-radius: 22px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 0 0 var(--hairline) rgb(0 0 0 / 0.08), 0 10px 30px -14px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+}
+.qr-wrap img { width: 100%; height: 100%; image-rendering: pixelated; transition: filter 260ms ease-out, opacity 260ms ease-out; }
+.qr-wrap .spinner { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
+.qr-wrap.scanned img, .qr-wrap.expired img { filter: blur(6px); opacity: 0.35; }
+.qr-over {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: #1c1c1e;
+  font-size: var(--t-subhead);
+  font-weight: var(--w-medium);
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 200ms ease-out, transform var(--spring-bouncy-dur) var(--spring-bouncy);
+  pointer-events: none;
+}
+.qr-wrap.scanned .qr-over.scanned,
+.qr-wrap.expired .qr-over.expired,
+.qr-wrap.connecting .qr-over.connecting { opacity: 1; transform: none; pointer-events: auto; }
+.qr-over .avatar { --size: 64px; box-shadow: 0 6px 18px -6px rgb(0 0 0 / 0.4); }
+.qr-over .btn { height: 40px; font-size: var(--t-subhead); }
+.qr-wrap.connecting img { filter: blur(6px); opacity: 0.25; }
+
+.qr-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.qr-actions .glass-pill { font-size: var(--t-subhead); font-weight: var(--w-medium); color: var(--label); }
+.qr-actions .icon { width: 18px; height: 18px; }
+
+.tips {
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-size: var(--t-footnote);
+  color: var(--label-2);
+  line-height: 1.45;
+  display: grid;
+  gap: 4px;
+}
+.tips li { display: grid; grid-template-columns: 16px 1fr; gap: 6px; }
+.tips li::before { content: "•"; text-align: center; }
+
+.auth-error {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+  font-size: var(--t-footnote);
+  text-align: left;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.auth-error code { font-size: 0.95em; opacity: 0.8; }
+
+.auth-foot { font-size: var(--t-footnote); color: var(--label-2); }
+.auth-foot button { color: var(--blue); font-size: inherit; }
+
+/* Unfolded iPhone Duo: QR on the left, guidance on the right. */
+@media (min-width: 700px) and (min-aspect-ratio: 1/1) {
+  .auth-card.wide {
+    width: min(720px, 100%);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "qr text";
+    align-items: center;
+    text-align: left;
+    gap: 8px 32px;
+    padding: 30px 32px;
+  }
+  .auth-card.wide .qr-col { grid-area: qr; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .auth-card.wide .text-col { grid-area: text; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .auth-card.wide .qr-wrap { width: 236px; }
+  .auth-card.wide .qr-actions { justify-content: flex-start; }
+}
+.qr-col, .text-col { display: contents; }

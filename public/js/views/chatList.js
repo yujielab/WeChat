@@ -1,0 +1,550 @@
+// Conversation list: large collapsing title, pinned avatars, rows with swipe
+// actions, a filter menu and live search (names, remarks and pinyin).
+
+import { h, icon, clear, reducedMotion } from '../ui/dom.js'
+import { listTime } from '../ui/format.js'
+import { velocityTracker, project, rubberband, spring } from '../ui/spring.js'
+import { haptic } from '../ui/haptics.js'
+import { cancelPress } from '../ui/press.js'
+import { state, on, sortedChats, getDraft } from '../store.js'
+import { api } from '../api.js'
+import { avatar } from './avatar.js'
+import { openMenu, toast } from './overlay.js'
+
+const FILTERS = {
+  all: { label: '全部聊天', test: () => true },
+  unread: { label: '未读', test: c => c.unread > 0 },
+  people: { label: '私聊', test: c => !c.room },
+  groups: { label: '群聊', test: c => c.room }
+}
+
+export function createChatList(pane, { onOpen, onSettings, onCompose, loadContacts }) {
+  pane.classList.add('pane-list')
+  let selected = null
+  let searching = false
+  let query = ''
+  let openSwipe = null
+
+  // ------------------------------------------------------------ skeleton
+  const status = h('span', { class: 'conn-status', hidden: true })
+  const title = h('h1', { class: 'large-title' }, '微信', status)
+  const head = h('header', { class: 'list-head' }, title)
+  const filterNote = h('div', { class: 'filter-note', hidden: true })
+  const pinned = h('div', { class: 'pinned', role: 'list', 'aria-label': '置顶聊天', hidden: true })
+  const rows = h('ul', { class: 'rows', 'aria-label': '聊天' })
+  const empty = h('div', { class: 'list-empty', hidden: true })
+  const results = h('div', { class: 'search-results', hidden: true })
+  const scroll = h('div', { class: 'scroll list-scroll' }, head, filterNote, pinned, rows, empty, results)
+
+  const meBtn = h('button', { class: 'glass glass-btn me-btn', type: 'button', 'aria-label': '设置' })
+  const filterBtn = h('button', { class: 'bar-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
+  const composeBtn = h('button', { class: 'bar-btn tint', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
+  const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '微信')
+  const topbar = h('div', { class: 'list-topbar' }, meBtn, inlineTitle, h('div', { class: 'spacer' }), h('div', { class: 'bar-group glass' }, filterBtn, composeBtn))
+
+  const input = h('input', {
+    type: 'search',
+    placeholder: '搜索',
+    'aria-label': '搜索聊天和联系人',
+    enterkeyhint: 'search',
+    autocomplete: 'off',
+    autocorrect: 'off',
+    autocapitalize: 'off',
+    spellcheck: false
+  })
+  const pill = h('label', { class: 'glass search-pill' }, icon('search'), input)
+  const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': '取消搜索' }, icon('xmark'))
+  const bottombar = h('div', { class: 'list-bottombar' }, pill, cancel)
+
+  const edgeTop = h('div', { class: 'edge edge-top' })
+  const edgeBottom = h('div', { class: 'edge edge-bottom on' })
+  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar)
+
+  meBtn.addEventListener('click', () => onSettings())
+  composeBtn.addEventListener('click', () => onCompose())
+  filterBtn.addEventListener('click', () => {
+    openMenu(filterBtn, [
+      Object.entries(FILTERS).map(([key, f]) => ({
+        label: f.label,
+        checked: state.filter === key,
+        onSelect: () => {
+          state.filter = key
+          render()
+        }
+      }))
+    ])
+  })
+
+  // ------------------------------------------------------------ scroll chrome
+  let ticking = false
+  scroll.addEventListener('scroll', () => {
+    if (ticking) return
+    ticking = true
+    requestAnimationFrame(() => {
+      ticking = false
+      const y = scroll.scrollTop
+      pane.classList.toggle('collapsed', y > 40)
+      edgeTop.classList.toggle('on', y > 2)
+      closeSwipe()
+    })
+  }, { passive: true })
+
+  new ResizeObserver(([entry]) => {
+    pane.dataset.width = entry.contentRect.width < 380 ? 'narrow' : 'wide'
+  }).observe(pane)
+
+  // ------------------------------------------------------------ rows
+  const rowEls = new Map()
+
+  function preview(c) {
+    const draft = state.open === c.id ? '' : getDraft(c.id)
+    if (draft) return [h('span', { class: 'draft' }, '[草稿] '), draft.replace(/\s+/g, ' ')]
+    const last = c.last
+    if (!last) return [c.room ? `${c.count || ''}${c.count ? ' 位成员' : ''}` : '']
+    if (last.status === 'failed') return [h('span', { class: 'failed' }, '[未发送] '), last.text]
+    if (last.status === 'sending') return ['发送中… ', last.text]
+    return [last.text || '']
+  }
+
+  function label(c) {
+    const parts = [c.name]
+    if (c.unread) parts.push(`${c.unread} 条未读`)
+    if (c.last?.text) parts.push(c.last.text)
+    if (c.ts) parts.push(listTime(c.ts))
+    return parts.join('，')
+  }
+
+  function buildRow(c) {
+    const r = {}
+    r.dot = h('span', { class: 'row-dot', 'aria-hidden': 'true' })
+    r.name = h('span', { class: 'row-name' })
+    r.flag = h('span', { class: 'row-flag', 'aria-hidden': 'true' })
+    r.time = h('span', { class: 'row-time' })
+    r.preview = h('div', { class: 'row-preview' })
+    r.avatar = avatar(c.id, c.name, { room: c.room })
+    r.inner = h('div', { class: 'row-inner', role: 'button', tabindex: '0' },
+      r.dot,
+      r.avatar,
+      h('div', { class: 'row-main' },
+        h('div', { class: 'row-top' }, r.name, r.flag, h('span', { class: 'grow' }), r.time, h('span', { class: 'row-chevron' }, icon('chevron-right'))),
+        r.preview))
+    r.readBtn = h('button', { class: 'row-action blue', type: 'button' })
+    r.pinBtn = h('button', { class: 'row-action yellow', type: 'button' })
+    r.hideBtn = h('button', { class: 'row-action red', type: 'button' }, icon('trash'), '删除')
+    const li = h('li', { class: 'row', dataset: { id: c.id } },
+      h('div', { class: 'row-actions left' }, r.readBtn, r.pinBtn),
+      h('div', { class: 'row-actions right' }, r.hideBtn),
+      r.inner)
+    li._r = r
+    r.inner.addEventListener('click', () => {
+      if (li._swiped) return
+      onOpen(li.dataset.id)
+    })
+    r.inner.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        onOpen(li.dataset.id)
+      }
+    })
+    r.readBtn.addEventListener('click', () => actRead(li.dataset.id))
+    r.pinBtn.addEventListener('click', () => actPin(li.dataset.id))
+    r.hideBtn.addEventListener('click', () => actHide(li.dataset.id))
+    attachSwipe(li)
+    return li
+  }
+
+  function updateRow(li, c) {
+    const r = li._r
+    li.classList.toggle('unread', c.unread > 0)
+    li.classList.toggle('muted', Boolean(c.muted))
+    li.classList.toggle('selected', c.id === selected)
+    r.name.textContent = c.name
+    r.flag.replaceChildren(...(c.muted ? [icon('bell-slash')] : []))
+    r.time.textContent = listTime(c.ts)
+    r.preview.replaceChildren(...preview(c))
+    r.inner.setAttribute('aria-label', label(c))
+    r.inner.setAttribute('aria-current', c.id === selected ? 'true' : 'false')
+    r.readBtn.replaceChildren(icon(c.unread ? 'check' : 'unread'), c.unread ? '已读' : '未读')
+    r.pinBtn.replaceChildren(icon(c.pinned ? 'pin-slash' : 'pin'), c.pinned ? '取消置顶' : '置顶')
+  }
+
+  function buildPin(c) {
+    const b = h('button', { class: 'pin', type: 'button', role: 'listitem', dataset: { id: c.id } })
+    b.addEventListener('click', () => onOpen(b.dataset.id))
+    b.addEventListener('contextmenu', e => {
+      e.preventDefault()
+      pinMenu(b, b.dataset.id)
+    })
+    return b
+  }
+
+  function updatePin(b, c) {
+    b.classList.toggle('unread', c.unread > 0)
+    b.classList.toggle('selected', c.id === selected)
+    b.setAttribute('aria-label', label(c))
+    const badge = c.unread ? h('span', { class: ['badge', c.muted && 'muted'] }, c.unread > 99 ? '99+' : String(c.unread)) : null
+    if (b._name !== c.name || !b.firstChild) {
+      b._name = c.name
+      b.replaceChildren(avatar(c.id, c.name, { room: c.room }), h('span', { class: 'pin-name' }, c.name))
+    }
+    b.querySelector('.badge')?.remove()
+    if (badge) b.append(badge)
+  }
+
+  function pinMenu(anchor, id) {
+    const c = state.chats.get(id)
+    if (!c) return
+    openMenu(anchor, [[
+      { label: '取消置顶', icon: 'pin-slash', onSelect: () => actPin(id) },
+      { label: c.unread ? '标为已读' : '标为未读', icon: c.unread ? 'check' : 'unread', onSelect: () => actRead(id) }
+    ]])
+  }
+
+  // ------------------------------------------------------------ render
+  function render() {
+    if (searching) return renderResults()
+    const filter = FILTERS[state.filter] || FILTERS.all
+    const all = sortedChats().filter(filter.test)
+    const showPins = state.filter === 'all'
+    const pins = showPins ? all.filter(c => c.pinned).slice(0, 12) : []
+    const list = showPins ? all.filter(c => !c.pinned) : all
+
+    filterNote.hidden = state.filter === 'all'
+    if (!filterNote.hidden) {
+      const reset = h('button', { type: 'button' }, '显示全部')
+      reset.addEventListener('click', () => {
+        state.filter = 'all'
+        render()
+      })
+      filterNote.replaceChildren(`仅显示${filter.label}`, reset)
+    }
+
+    // Pinned grid
+    pinned.hidden = pins.length === 0
+    const pinEls = new Map([...pinned.children].map(el => [el.dataset.id, el]))
+    const pinOrder = pins.map(c => {
+      const el = pinEls.get(c.id) || buildPin(c)
+      pinEls.delete(c.id)
+      updatePin(el, c)
+      return el
+    })
+    pinEls.forEach(el => el.remove())
+    pinOrder.forEach((el, i) => {
+      if (pinned.children[i] !== el) pinned.insertBefore(el, pinned.children[i] || null)
+    })
+
+    // Rows with FLIP reordering
+    const before = new Map()
+    const animate = !reducedMotion() && rowEls.size > 0
+    if (animate) {
+      const top = scroll.getBoundingClientRect().top
+      const bottom = top + scroll.clientHeight
+      for (const [id, el] of rowEls) {
+        const r = el.getBoundingClientRect()
+        if (r.bottom > top && r.top < bottom) before.set(id, r.top)
+      }
+    }
+    const keep = new Set(list.map(c => c.id))
+    for (const [id, el] of rowEls) {
+      if (!keep.has(id)) {
+        el.remove()
+        rowEls.delete(id)
+      }
+    }
+    list.forEach((c, i) => {
+      let el = rowEls.get(c.id)
+      if (!el) {
+        el = buildRow(c)
+        rowEls.set(c.id, el)
+      }
+      updateRow(el, c)
+      if (rows.children[i] !== el) rows.insertBefore(el, rows.children[i] || null)
+    })
+    if (animate && before.size) {
+      for (const [id, oldTop] of before) {
+        const el = rowEls.get(id)
+        if (!el) continue
+        const dy = oldTop - el.getBoundingClientRect().top
+        if (Math.abs(dy) < 1) continue
+        el.classList.remove('moving')
+        el.style.transform = `translateY(${dy}px)`
+        requestAnimationFrame(() => {
+          el.classList.add('moving')
+          el.style.transform = ''
+          el.addEventListener('transitionend', () => el.classList.remove('moving'), { once: true })
+        })
+      }
+    }
+
+    const noChats = list.length === 0 && pins.length === 0
+    empty.hidden = !noChats
+    if (noChats) {
+      empty.replaceChildren(
+        h('h2', {}, state.filter === 'all' ? '还没有聊天' : `没有${filter.label}`),
+        state.filter === 'all' ? '新消息会出现在这里。点右上角的按钮给联系人发消息。' : ''
+      )
+    }
+  }
+
+  // ------------------------------------------------------------ swipe actions
+  function closeSwipe(except) {
+    if (openSwipe && openSwipe !== except) {
+      const li = openSwipe
+      openSwipe = null
+      settle(li, 0, 0)
+    }
+  }
+
+  function settle(li, target, velocity) {
+    const inner = li._r.inner
+    const from = li._x || 0
+    li._anim?.stop()
+    li._anim = spring({
+      from,
+      to: target,
+      velocity,
+      damping: target === 0 ? 1 : 0.86,
+      response: 0.32,
+      onUpdate: x => {
+        li._x = x
+        inner.style.transform = x ? `translate3d(${x}px,0,0)` : ''
+      }
+    })
+    if (target !== 0) openSwipe = li
+    else li._anim.done.then(done => { if (done && !li._x) li.classList.remove('swiping') })
+  }
+
+  function attachSwipe(li) {
+    const inner = li._r.inner
+    inner.style.touchAction = 'pan-y'
+    let g = null
+    inner.addEventListener('pointerdown', e => {
+      if (e.button > 0) return
+      closeSwipe(li)
+      li._anim?.stop()
+      g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, start: li._x || 0, active: false, vt: velocityTracker(), crossed: false }
+      li._swiped = false
+    })
+    inner.addEventListener('pointermove', e => {
+      if (!g || e.pointerId !== g.id) return
+      const dx = e.clientX - g.x0
+      const dy = e.clientY - g.y0
+      if (!g.active) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+          g = null
+          return
+        }
+        if (Math.abs(dx) < 10) return
+        g.active = true
+        li._swiped = true
+        li.classList.add('swiping')
+        cancelPress()
+        try { inner.setPointerCapture(e.pointerId) } catch {}
+      }
+      g.vt.add(e.clientX, 0)
+      const leftW = 156
+      const rightW = li.offsetWidth * 0.9
+      let x = g.start + dx
+      if (x > leftW) x = leftW + rubberband(x - leftW, li.offsetWidth)
+      if (x < -rightW) x = -rightW + rubberband(x + rightW, li.offsetWidth)
+      li._x = x
+      inner.style.transform = `translate3d(${x}px,0,0)`
+      const full = x < -li.offsetWidth * 0.55
+      if (full !== g.crossed) {
+        g.crossed = full
+        haptic()
+      }
+    })
+    const end = e => {
+      if (!g || e.pointerId !== g.id) return
+      const was = g
+      g = null
+      if (!was.active) return
+      setTimeout(() => { li._swiped = false }, 50)
+      const v = was.vt.velocity().x
+      const x = li._x || 0
+      const p = x + project(v)
+      if (x < -li.offsetWidth * 0.55) {
+        settle(li, -li.offsetWidth, v)
+        actHide(li.dataset.id)
+        return
+      }
+      if (p > 100) settle(li, 156, v)
+      else if (p < -60) settle(li, -78, v)
+      else settle(li, 0, v)
+    }
+    inner.addEventListener('pointerup', end)
+    inner.addEventListener('pointercancel', end)
+  }
+
+  async function actRead(id) {
+    closeSwipe()
+    const c = state.chats.get(id)
+    if (!c) return
+    const unread = c.unread ? 0 : 1
+    c.unread = unread
+    render()
+    try {
+      await api.post('/api/read', { chat: id, unread: unread > 0 })
+    } catch (err) {
+      toast(err.message, { type: 'error' })
+    }
+  }
+
+  async function actPin(id) {
+    closeSwipe()
+    const c = state.chats.get(id)
+    if (!c) return
+    const on = !c.pinned
+    c.pinned = on
+    render()
+    try {
+      await api.post('/api/pin', { chat: id, on })
+    } catch (err) {
+      c.pinned = !on
+      render()
+      toast(err.message, { type: 'error' })
+    }
+  }
+
+  async function actHide(id) {
+    openSwipe = null
+    const el = rowEls.get(id)
+    state.chats.delete(id)
+    if (el && !reducedMotion()) {
+      el.style.transition = 'opacity 180ms ease-out'
+      el.style.opacity = '0'
+      await new Promise(r => setTimeout(r, 180))
+    }
+    rowEls.delete(id)
+    el?.remove()
+    render()
+    try {
+      await api.post('/api/hide', { chat: id })
+    } catch (err) {
+      toast(err.message, { type: 'error' })
+    }
+  }
+
+  // ------------------------------------------------------------ search
+  input.addEventListener('focus', async () => {
+    if (searching) return
+    searching = true
+    pane.classList.add('searching')
+    head.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
+    results.hidden = false
+    renderResults()
+    if (!state.contacts) {
+      await loadContacts()
+      renderResults()
+    }
+  })
+  input.addEventListener('input', () => {
+    query = input.value.trim()
+    renderResults()
+  })
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') exitSearch()
+    if (e.key === 'Enter') results.querySelector('.contact-row')?.click()
+  })
+  cancel.addEventListener('click', exitSearch)
+
+  function exitSearch() {
+    searching = false
+    query = ''
+    input.value = ''
+    input.blur()
+    pane.classList.remove('searching')
+    head.hidden = rows.hidden = false
+    results.hidden = true
+    clear(results)
+    render()
+  }
+
+  function match(c, q) {
+    const s = q.toLowerCase()
+    return [c.name, c.remark, c.nick, c.py, c.pyi, c.alias].some(v => v && String(v).toLowerCase().includes(s))
+  }
+
+  function highlight(text, q) {
+    const i = q ? text.toLowerCase().indexOf(q.toLowerCase()) : -1
+    if (i < 0) return [text]
+    return [text.slice(0, i), h('mark', {}, text.slice(i, i + q.length)), text.slice(i + q.length)]
+  }
+
+  function contactRow(c, sub) {
+    const b = h('button', { class: 'contact-row', type: 'button', dataset: { id: c.id } },
+      avatar(c.id, c.name, { room: c.room, size: 40 }),
+      h('div', { class: 'grow' }, h('div', { class: 'name' }, highlight(c.name, query)), sub ? h('div', { class: 'sub' }, sub) : null))
+    b.addEventListener('click', () => {
+      const id = b.dataset.id
+      exitSearch()
+      onOpen(id, c)
+    })
+    return b
+  }
+
+  function renderResults() {
+    clear(results)
+    const q = query
+    const chats = sortedChats()
+    if (!q) {
+      const recent = chats.slice(0, 8)
+      if (recent.length) {
+        results.append(h('div', { class: 'section-title' }, '最近'))
+        for (const c of recent) results.append(contactRow(c, c.last?.text))
+      }
+      return
+    }
+    const chatHits = chats.filter(c => match({ ...c, ...(state.contacts?.get(c.id) || {}) }, q) || c.last?.text?.toLowerCase().includes(q.toLowerCase())).slice(0, 20)
+    const shown = new Set(chatHits.map(c => c.id))
+    const contacts = state.contacts ? [...state.contacts.values()].filter(c => !c.special && !shown.has(c.id) && match(c, q)) : []
+    const people = contacts.filter(c => !c.room && c.friend).slice(0, 30)
+    const groups = contacts.filter(c => c.room).slice(0, 20)
+    if (chatHits.length) {
+      results.append(h('div', { class: 'section-title' }, '聊天'))
+      for (const c of chatHits) results.append(contactRow(c, c.last?.text))
+    }
+    if (people.length) {
+      results.append(h('div', { class: 'section-title' }, '联系人'))
+      for (const c of people) results.append(contactRow(c, c.remark && c.nick && c.remark !== c.nick ? `昵称：${c.nick}` : ''))
+    }
+    if (groups.length) {
+      results.append(h('div', { class: 'section-title' }, '群聊'))
+      for (const c of groups) results.append(contactRow(c, c.count ? `${c.count} 位成员` : ''))
+    }
+    if (!chatHits.length && !people.length && !groups.length) {
+      results.append(h('div', { class: 'list-empty' }, h('h2', {}, '无结果'), `没有找到“${q}”`))
+    }
+  }
+
+  // ------------------------------------------------------------ public
+  on('chats', () => render())
+
+  return {
+    render,
+    setSelected(id) {
+      selected = id
+      for (const [cid, el] of rowEls) {
+        el.classList.toggle('selected', cid === id)
+        el._r.inner.setAttribute('aria-current', cid === id ? 'true' : 'false')
+      }
+      for (const el of pinned.children) el.classList.toggle('selected', el.dataset.id === id)
+    },
+    setMe(me) {
+      meBtn.replaceChildren(avatar(me?.id, me?.name || '我', { size: 36 }))
+    },
+    setStatus({ text, spinner = false, warn = false } = {}) {
+      status.hidden = !text
+      status.classList.toggle('warn', warn)
+      status.replaceChildren(...(spinner ? [h('span', { class: 'spinner' })] : []), text || '')
+      inlineTitle.textContent = text ? `微信（${text}）` : '微信'
+    },
+    setLayout(layout) {
+      pane.dataset.layout = layout
+    },
+    focusSearch() {
+      input.focus()
+    }
+  }
+}

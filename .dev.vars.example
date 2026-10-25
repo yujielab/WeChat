@@ -1,0 +1,6 @@
+# Copy to .dev.vars for `npm run dev` (talks to the real WeChat servers).
+APP_PASSWORD=change-me
+# Optional, for Web Push (npm run vapid):
+# VAPID_PUBLIC_KEY=
+# VAPID_PRIVATE_KEY=
+# VAPID_SUBJECT=mailto:you@example.com
