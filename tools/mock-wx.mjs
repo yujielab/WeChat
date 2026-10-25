@@ -15,6 +15,7 @@ import http from 'node:http'
 const PORT = Number(process.env.MOCK_PORT || 8790)
 const AUTO = process.env.MOCK_AUTO === '1'
 const HOLD_MS = Number(process.env.MOCK_HOLD_MS || 8000)
+const UOS = process.env.MOCK_UOS || 'ok' // ok | reject | reject-all
 
 const SID = 'MockSid0001'
 const UIN = '2088001234'
@@ -267,8 +268,15 @@ const server = http.createServer(async (req, res) => {
       'text/javascript')
   }
   if (path === '/cgi-bin/mmwebwx-bin/webwxnewloginpage') {
-    if (!req.headers.extspam || req.headers['client-version'] !== '2.0.0') {
-      return send(res, 200, '<error><ret>1203</ret><message>为了你的帐号安全，此微信号不能登录网页微信。</message></error>', 'text/plain')
+    // MOCK_UOS=reject: the 2025 behaviour, where the UOS desktop identity is
+    // "too old" and only accounts still allowed on web WeChat get in.
+    // MOCK_UOS=reject-all: both routes refused.
+    const desktop = Boolean(req.headers.extspam)
+    if (desktop && UOS !== 'ok') {
+      return send(res, 200, '<error><ret>1203</ret><message>当前微信版本过低，暂无法登录，请前往微信官网下载最新的微信 Linux 版后重新登录。</message></error>', 'text/plain')
+    }
+    if (desktop ? req.headers['client-version'] !== '2.0.0' : UOS !== 'reject' || q.get('fun') !== 'new') {
+      return send(res, 200, '<error><ret>1203</ret><message>为了你的帐号安全，此微信号不能登录网页微信。你可以使用Windows微信或Mac微信在电脑端登录。</message></error>', 'text/plain')
     }
     loggedIn = true
     forceLogout = false

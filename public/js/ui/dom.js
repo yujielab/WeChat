@@ -43,6 +43,16 @@ export function icon(name, cls = '') {
   return svg
 }
 
+/** Scroll-edge wash (see glass.css): four stacked blur layers. */
+export function edge(side, on = false) {
+  return h('div', { class: ['edge', `edge-${side}`, on && 'on'], 'aria-hidden': 'true' }, h('span'), h('span'), h('span'), h('span'))
+}
+
+/** Give each element a --s index so CSS can stagger its entrance. */
+export function stagger(els, from = 0) {
+  els.forEach((el, i) => el?.style.setProperty('--s', String(from + i)))
+}
+
 export function clear(el) {
   while (el.firstChild) el.firstChild.remove()
   return el

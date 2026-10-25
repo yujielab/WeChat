@@ -1,6 +1,6 @@
 // Conversation view.
 
-import { h, icon, clear, reducedMotion, announce } from '../ui/dom.js'
+import { h, icon, clear, reducedMotion, announce, edge } from '../ui/dom.js'
 import { threadTime } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
@@ -69,8 +69,8 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`)
   })
 
-  const edgeTop = h('div', { class: 'edge edge-top' })
-  const edgeBottom = h('div', { class: 'edge edge-bottom on' })
+  const edgeTop = edge('top')
+  const edgeBottom = edge('bottom', true)
   const root = h('div', { class: 'thread', hidden: true }, scroller, edgeTop, nav, edgeBottom, composer.el, jump)
   const empty = h('div', { class: 'thread-empty' }, h('div', {}, icon('bubble'), h('p', {}, '选择一个聊天')))
   pane.append(empty, root)
@@ -294,6 +294,14 @@ export function createThread(pane, { onBack, onInfo, socketSend }) {
     const t = thread(id)
     reconcile()
     scrollToBottom()
+    // Side by side there is no push; the new conversation settles in place.
+    if (pane.dataset.layout === 'split' && !reducedMotion()) {
+      for (const el of [msgs, titleBtn]) {
+        el.classList.remove('swap')
+        void el.offsetWidth
+        el.classList.add('swap')
+      }
+    }
     focusReport()
     try {
       if (!t.loaded) {

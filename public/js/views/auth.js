@@ -1,6 +1,6 @@
 // Password gate (protects this deployment) and the WeChat QR login screen.
 
-import { h, icon } from '../ui/dom.js'
+import { h, icon, stagger } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -10,13 +10,21 @@ function appIcon() {
   return h('div', { class: 'app-icon', 'aria-hidden': 'true' }, icon('bubble'))
 }
 
+/** Mark a screen's pieces for the staggered blur-up entrance. */
+function reveal(...els) {
+  for (const el of els) el.classList.add('reveal')
+  stagger(els)
+}
+
 export function renderSetup(app) {
-  app.replaceChildren(h('main', { class: 'auth' },
-    h('div', { class: 'auth-card glass glass-thick' },
-      appIcon(),
-      h('h1', {}, '还差一步'),
-      h('p', { class: 'lead' }, '这个部署还没有设置访问密码。在项目目录运行下面的命令，设置后刷新本页：'),
-      h('div', { class: 'auth-error' }, h('code', {}, 'npx wrangler secret put APP_PASSWORD')))))
+  const parts = [
+    appIcon(),
+    h('h1', {}, '还差一步'),
+    h('p', { class: 'lead' }, '这个部署还没有设置访问密码。在项目目录运行下面的命令，设置后刷新本页：'),
+    h('div', { class: 'auth-error' }, h('code', {}, 'npx wrangler secret put APP_PASSWORD'))
+  ]
+  reveal(...parts)
+  app.replaceChildren(h('main', { class: 'auth' }, h('div', { class: 'auth-card' }, parts)))
 }
 
 export function renderGate(app, { onSuccess }) {
@@ -35,11 +43,14 @@ export function renderGate(app, { onSuccess }) {
   const button = h('button', { class: 'btn primary solid-press', type: 'submit' }, '继续')
   const form = h('form', { class: 'auth-form' },
     h('label', { class: 'sr-only', for: 'pw' }, '访问密码'), input, error, button)
-  const card = h('div', { class: 'auth-card glass glass-thick' },
+  const parts = [
     appIcon(),
     h('h1', {}, '微信'),
     h('p', { class: 'lead' }, '这是你的私人客户端。输入访问密码继续。'),
-    form)
+    form
+  ]
+  reveal(...parts)
+  const card = h('div', { class: 'auth-card' }, parts)
   app.replaceChildren(h('main', { class: 'auth' }, card))
 
   input.addEventListener('input', () => {
@@ -81,7 +92,7 @@ export function renderGate(app, { onSuccess }) {
 
 /** WeChat QR login. `update(wx)` re-renders for each session state. */
 export function createConnect(app, { onLock }) {
-  const img = h('img', { alt: '微信登录二维码', width: 188, height: 188, hidden: true })
+  const img = h('img', { class: 'qr-img', alt: '微信登录二维码', width: 188, height: 188, hidden: true })
   const spinner = h('span', { class: 'spinner' })
   const scannedAvatar = h('span')
   const refresh = h('button', { class: 'btn primary solid-press', type: 'button' }, icon('refresh'), '刷新二维码')
@@ -91,8 +102,8 @@ export function createConnect(app, { onLock }) {
   const overConnecting = h('div', { class: 'qr-over connecting' }, h('span', { class: 'spinner' }), '正在登录…')
   const wrap = h('div', { class: 'qr-wrap', 'aria-live': 'polite' }, img, spinner, overScanned, overExpired, overConnecting)
 
-  const saveBtn = h('button', { class: 'glass glass-pill', type: 'button' }, icon('download'), '保存二维码')
-  const linkBtn = h('button', { class: 'glass glass-pill', type: 'button' }, icon('link'), '复制本页地址')
+  const saveBtn = h('button', { class: 'btn-outline', type: 'button' }, icon('download'), '保存二维码')
+  const linkBtn = h('button', { class: 'btn-outline', type: 'button' }, icon('link'), '复制本页地址')
   const actions = h('div', { class: 'qr-actions' }, saveBtn, linkBtn)
 
   const title = h('h1', {}, '登录微信')
@@ -105,7 +116,8 @@ export function createConnect(app, { onLock }) {
   const lock = h('button', { type: 'button' }, '锁定本应用')
   const foot = h('div', { class: 'auth-foot' }, '非官方客户端，基于微信网页版协议 · ', lock)
 
-  const card = h('div', { class: 'auth-card wide glass glass-thick' },
+  reveal(wrap, actions, title, lead, tips, foot)
+  const card = h('div', { class: 'auth-card wide' },
     h('div', { class: 'qr-col' }, wrap, actions),
     h('div', { class: 'text-col' }, title, lead, errorBox, tips, foot))
   const root = h('main', { class: 'auth' }, card)
@@ -133,7 +145,11 @@ export function createConnect(app, { onLock }) {
 
   function showError(message, detail) {
     errorBox.hidden = false
-    errorBox.replaceChildren(...[message || '登录失败', detail?.code ? h('code', {}, `（${detail.step || ''} ${detail.code}）`) : null].filter(Boolean))
+    errorBox.replaceChildren(...[
+      message || '登录失败',
+      detail?.code ? h('code', {}, `（${detail.step || ''} ${detail.code}）`) : null,
+      detail?.code === 1203 ? h('p', { class: 'auth-hint' }, refusalHint(detail)) : null
+    ].filter(Boolean))
   }
 
   refresh.addEventListener('click', start)
@@ -177,6 +193,9 @@ export function createConnect(app, { onLock }) {
           img.onload = () => {
             img.hidden = false
             spinner.hidden = true
+            img.classList.remove('fresh')
+            void img.offsetWidth
+            img.classList.add('fresh')
           }
           img.src = `/api/login/qr.svg?u=${encodeURIComponent(wx.uuid)}`
         }
@@ -206,6 +225,16 @@ export function createConnect(app, { onLock }) {
       }
     }
   }
+}
+
+/** ret 1203 is WeChat refusing this kind of login, not a bug here. */
+function refusalHint(detail) {
+  const both = detail.tried?.length > 1
+  return [
+    '这是微信服务器对网页 / UOS 协议登录的限制，不是本应用的故障。',
+    both ? '已用桌面版（UOS）和网页版两种方式各试了一次。' : '',
+    '可以过一段时间再扫码；如果有新的可用 client-version / extspam，可在 Cloudflare 变量 WX_CLIENT_VERSION、WX_EXTSPAM 中填入后重新部署（见 README）。'
+  ].join('')
 }
 
 async function qrPng(src) {

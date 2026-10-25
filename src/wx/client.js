@@ -7,11 +7,13 @@
 // plain object (`client.s`) the Durable Object can persist and restore.
 
 import {
-  APPID, UA, UOS_CLIENT_VERSION, UOS_EXTSPAM, LOGOUT_CODES, hostsFor
+  APPID, UA_WEB, UA_UOS, LOGIN_MODES, UOS_CLIENT_VERSION, UOS_EXTSPAM, LOGOUT_CODES, hostsFor
 } from './conf.js'
 import {
   parseJsLogin, parseLoginCheck, parseSyncCheck, parseLoginXml, cookiePairs
 } from './parse.js'
+
+const MODE_LABEL = { desktop: '桌面版（UOS）', web: '网页版' }
 
 export class WxError extends Error {
   constructor(message, { step, code, logout = false, detail } = {}) {
@@ -51,7 +53,8 @@ export function emptySession() {
     syncKey: null,
     syncCheckKey: '',
     deviceId: newDeviceId(),
-    user: null
+    user: null,
+    mode: '' // login that last worked: 'desktop' | 'web'
   }
 }
 
@@ -62,12 +65,30 @@ export class WxClient {
    *   fetch       fetch implementation (tests)
    *   rewrite     url => url, only used to point at the local mock server
    *   onRequest   called once per outbound request (subrequest budgeting)
+   *   loginMode   'desktop' | 'web' to use only that login; anything else = auto
+   *   clientVersion, extspam   override the UOS login headers
    */
   constructor(session, opts = {}) {
     this.s = { ...emptySession(), ...(session || {}) }
     this.fetchImpl = opts.fetch || ((...a) => fetch(...a))
     this.rewrite = opts.rewrite || null
     this.onRequest = opts.onRequest || null
+    this.forcedMode = LOGIN_MODES.includes(opts.loginMode) ? opts.loginMode : null
+    this.clientVersion = opts.clientVersion || UOS_CLIENT_VERSION
+    this.extspam = opts.extspam || UOS_EXTSPAM
+  }
+
+  /** The login this client tries first: forced, else whichever worked last. */
+  get mode() {
+    return this.forcedMode || (LOGIN_MODES.includes(this.s.mode) ? this.s.mode : 'desktop')
+  }
+
+  /** Same browser identity before and after login. */
+  get ua() {
+    // A session from before login modes were recorded logged in with the
+    // desktop-browser UA; don't change identity in the middle of it.
+    if (!this.forcedMode && !this.s.mode && this.s.sid) return UA_WEB
+    return this.mode === 'web' ? UA_WEB : UA_UOS
   }
 
   get hosts() {
@@ -124,7 +145,7 @@ export class WxClient {
 
   async request(url, { method = 'GET', json, body, headers = {}, redirect = 'follow', timeout = 30000, signal } = {}) {
     const h = new Headers({
-      'User-Agent': UA,
+      'User-Agent': this.ua,
       Accept: 'application/json, text/plain, */*',
       'Accept-Language': 'zh-CN,zh;q=0.9',
       Referer: `https://${this.s.host}/`,
@@ -180,7 +201,8 @@ export class WxClient {
   // ---------------------------------------------------------------- login
 
   async getUuid() {
-    const redirect = `https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxnewloginpage?mod=desktop`
+    const page = 'https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxnewloginpage'
+    const redirect = this.mode === 'desktop' ? `${page}?mod=desktop` : page
     const url = this.url(`https://${this.hosts.login}/jslogin`, {
       appid: APPID,
       fun: 'new',
@@ -218,20 +240,58 @@ export class WxClient {
     return out
   }
 
-  /** Exchanges the confirmed-login redirect for session credentials. */
+  /**
+   * Exchanges the confirmed-login redirect for session credentials.
+   *
+   * Tries the preferred login first. If WeChat refuses it (a non-zero ret,
+   * e.g. 1203 "当前微信版本过低" for the UOS desktop identity), the same scan
+   * is tried once with the other login before giving up, so a refusal of one
+   * route doesn't cost a second scan. The mode that worked is remembered.
+   */
   async completeLogin(redirectUri) {
     const host = (redirectUri.match(/^https?:\/\/([^/]+)/) || [])[1]
     if (host) this.s.host = host
+    const order = this.forcedMode ? [this.forcedMode] : [this.mode, ...LOGIN_MODES.filter(m => m !== this.mode)]
+    const refused = []
+    for (const mode of order) {
+      try {
+        await this.loginPage(redirectUri, mode)
+        this.s.mode = mode
+        return { mode, refused }
+      } catch (err) {
+        // Only a refusal from WeChat is worth retrying the other way; a network
+        // failure or a malformed answer would fail the same way again.
+        if (!(err instanceof WxError) || !Number.isFinite(err.code) || err.code === 0) throw err
+        err.mode = mode
+        refused.push(err)
+      }
+    }
+    const [first, second] = refused
+    const message = second
+      ? `${MODE_LABEL[first.mode]}登录被拒绝：${first.message}\n改用${MODE_LABEL[second.mode]}登录重试，也被拒绝：${second.message}`
+      : first.message
+    throw new WxError(message, {
+      step: 'newloginpage',
+      code: first.code,
+      detail: refused.map(e => ({ mode: e.mode, code: e.code, message: e.message }))
+    })
+  }
+
+  async loginPage(redirectUri, mode) {
+    const desktop = mode === 'desktop'
+    // The classic web client asks for the same page with fun=new&version=v2;
+    // the desktop one keeps the redirect verbatim and adds the UOS headers.
+    let url = redirectUri
+    if (!desktop) {
+      url = redirectUri.replace(/([?&])mod=desktop(&|$)/, (_, a, b) => (b ? a : ''))
+      url += `${url.includes('?') ? '&' : '?'}fun=new&version=v2`
+    }
+    const headers = desktop
+      ? { 'User-Agent': UA_UOS, 'client-version': this.clientVersion, extspam: this.extspam, Referer: 'https://wx.qq.com/?&lang=zh_CN&target=t' }
+      : { 'User-Agent': UA_WEB, Referer: `https://${this.s.host}/` }
     let res
     try {
-      res = await this.request(redirectUri, {
-        redirect: 'manual',
-        headers: {
-          'client-version': UOS_CLIENT_VERSION,
-          extspam: UOS_EXTSPAM,
-          Referer: 'https://wx.qq.com/?&lang=zh_CN&target=t'
-        }
-      })
+      res = await this.request(url, { redirect: 'manual', headers })
     } catch (err) {
       throw new WxError(`登录请求失败：${err.message || err}`, { step: 'newloginpage' })
     }
@@ -240,7 +300,7 @@ export class WxClient {
     if (x.ret !== 0) {
       throw new WxError(x.message || `登录被拒绝（ret ${Number.isNaN(x.ret) ? res.status : x.ret}）`, {
         step: 'newloginpage',
-        code: x.ret,
+        code: Number.isNaN(x.ret) ? res.status : x.ret,
         detail: text.slice(0, 500)
       })
     }

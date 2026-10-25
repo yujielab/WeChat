@@ -13,6 +13,10 @@
 
 - 这是**非官方**客户端，基于微信网页版协议（UOS 桌面模式），协议实现参考 [wechat4u](https://github.com/nodeWechat/wechat4u)（MIT）。wechat4u 最后一次更新是 2023 年 12 月，**这条协议在今天是否仍可用，我没能验证**：开发环境无法访问微信服务器，所以登录、同步、发送都只在模拟服务器上跑通过。
 - 微信可能拒绝网页登录（常见提示：“为了你的帐号安全，此微信号不能登录网页微信”，错误码 1203），也可能随时调整接口。遇到问题时，到“设置 › 连接 › 诊断信息”查看具体失败在哪一步、返回了什么错误码。
+- **2025 年起的新拒绝：“当前微信版本过低，暂无法登录，请前往微信官网下载最新的微信 Linux 版后重新登录”（newloginpage 1203）。** 本应用默认模拟旧的 UOS（Linux，Electron）桌面版微信登录，微信正在停用这个客户端，所以会拒绝它；openwechat、wechat4u 等同类项目遇到的是同一个问题，社区目前没有公开、可靠的解决办法。本应用的处理：
+  - 同一次扫码里，桌面版被拒后**自动改用经典网页版登录再试一次**（不用重新扫码）；网页版能登录的账号（通常是较早注册、曾经登录过网页版的账号）就能进入，并记住这种方式，下次直接用。
+  - 两种方式都被拒时，页面会说明原因；这是微信服务器的限制，代码无法绕过。
+  - 如果之后有人找到新的可用请求头，不用改代码：设置变量 `WX_CLIENT_VERSION` / `WX_EXTSPAM` 后重新部署即可；`WX_LOGIN_MODE` 可固定只用 `desktop` 或 `web` 一种方式。
 - 非官方客户端存在账号被限制的风险。请只用于自己的账号，不要用于群发、营销或自动化。
 - 网页协议**拿不到登录之前的聊天记录**：列表会显示最近会话，但消息从你登录这一刻开始收集。
 
@@ -27,7 +31,8 @@
 - 搜索会话和联系人，支持拼音和首字母（如 `zk` → 周可）
 - 发起新聊天（通讯录按拼音分组）
 - 新消息通知（Web Push，需添加到主屏幕并配置 VAPID 密钥）
-- 浅色/深色/跟随系统；降低透明度；减少动态效果；触感反馈
+- 默认白色浅色界面，可在“设置 › 外观”切换深色或跟随系统；降低透明度；减少动态效果；触感反馈
+- 动效：进场是“模糊 → 清晰”的轻微上浮（分段依次出现），离场更短、加速离开；底部面板弹出时主界面后退缩小，下拉面板时跟手放大回来；滚动内容进入顶栏和输入栏区域时被分层渐进模糊洗淡，而不是撞上一条硬线
 
 ## 架构
 
@@ -103,6 +108,8 @@ npx wrangler secret put VAPID_SUBJECT     # 例如 mailto:you@example.com
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push |
 | `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的位置，离微信服务器近一些 |
 | `ALARM_SUBREQUESTS` | var，默认 40 | 每次 alarm 的子请求预算；付费版可调大 |
+| `WX_LOGIN_MODE` | var，默认自动 | `desktop`（只用 UOS 桌面版登录）、`web`（只用经典网页版登录）；不设置时先用上次成功的方式，被拒后在同一次扫码里换另一种 |
+| `WX_CLIENT_VERSION` / `WX_EXTSPAM` | var，可选 | 覆盖 UOS 桌面版登录的 `client-version`（默认 `2.0.0`）和 `extspam` 请求头 |
 
 ### 费用
 
@@ -115,7 +122,7 @@ npm run dev:mock     # 模拟微信服务器 + wrangler dev，打开 http://127.
 npm test             # 协议解析、消息规范化、存储、Web Push 加密（RFC 8291 测试向量）
 ```
 
-- 模拟服务器（`tools/mock-wx.mjs`）实现了登录、通讯录、同步、发送、上传、撤回和媒体接口。扫码用 `curl -X POST 127.0.0.1:8790/__ctl/scan`，确认登录用 `.../__ctl/confirm`，`MOCK_AUTO=1` 时自动完成。模拟来消息用 `.../__ctl/incoming -d '{"from":3,"text":"你好"}'`。
+- 模拟服务器（`tools/mock-wx.mjs`）实现了登录、通讯录、同步、发送、上传、撤回和媒体接口。扫码用 `curl -X POST 127.0.0.1:8790/__ctl/scan`，确认登录用 `.../__ctl/confirm`，`MOCK_AUTO=1` 时自动完成。`MOCK_UOS=reject` 模拟“微信版本过低”（桌面版被拒、网页版可登录），`MOCK_UOS=reject-all` 模拟两种方式都被拒。模拟来消息用 `.../__ctl/incoming -d '{"from":3,"text":"你好"}'`。
 - 界面走查脚本 `tools/e2e/*.cjs` 用 Playwright（Chromium）按 iPhone Duo 尺寸截图。
 - 想连真实微信：复制 `.dev.vars.example` 为 `.dev.vars`，然后 `npm run dev`。
 

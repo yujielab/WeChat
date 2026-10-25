@@ -55,7 +55,13 @@ export class WeChatSession extends DurableObject {
     const rewrite = mock && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(mock)
       ? url => url.replace(/^https:\/\//, `${mock}/__host/`)
       : null
-    return new WxClient(session, { rewrite, onRequest: () => this.reqCount++ })
+    return new WxClient(session, {
+      rewrite,
+      onRequest: () => this.reqCount++,
+      loginMode: this.env.WX_LOGIN_MODE,
+      clientVersion: this.env.WX_CLIENT_VERSION,
+      extspam: this.env.WX_EXTSPAM
+    })
   }
 
   get budgetLeft() {
@@ -211,14 +217,17 @@ export class WeChatSession extends DurableObject {
 
   async finishLogin(redirect) {
     try {
-      await this.client.completeLogin(redirect)
+      const { mode, refused } = await this.client.completeLogin(redirect)
+      for (const err of refused) this.log('newloginpage', `${err.mode} refused: ${err.message}`, { code: err.code })
+      if (refused.length) this.log('login', `logged in via ${mode}`)
       this.saveSession()
       await this.initSession({ fresh: true })
     } catch (err) {
       this.log(err.step || 'login', err.message, { code: err.code })
+      const tried = Array.isArray(err.detail) ? err.detail.map(d => d.mode) : undefined
       this.setState({
         phase: 'offline',
-        error: { message: err.message, step: err.step, code: err.code, at: Date.now() }
+        error: { message: err.message, step: err.step, code: err.code, tried, at: Date.now() }
       })
     }
   }

@@ -18,7 +18,15 @@
     calc(var(--margin) + var(--safe-left) - 4px);
 }
 :root:not([data-kb="1"]) .thread-scroll { padding-bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 6px); }
+/* The wash covers only the composer's own band, so the newest message and its
+   status stay sharp at rest and only text sliding under the field is washed. */
+.thread .edge-bottom { height: calc(var(--composer-h, 56px) + 6px); }
 .msgs { display: flex; flex-direction: column; min-height: min-content; }
+/* Switching conversations side by side: the new one resolves out of a short
+   blur and rise rather than cutting. */
+.msgs.swap { animation: swap-in 300ms var(--ease-out) backwards; }
+.thread-title.swap .t, .thread-title.swap .avatar { animation: swap-in 260ms var(--ease-out) backwards; }
+@keyframes swap-in { from { opacity: 0; transform: translateY(8px); filter: blur(3px); } }
 
 /* ---------------------------------------------------------------- nav */
 
@@ -285,6 +293,7 @@
   padding: 0;
   width: min(17.5em, 100%);
   background: var(--bubble-card) !important;
+  box-shadow: inset 0 0 0 1px var(--bubble-card-line), var(--card-shadow);
   color: var(--label) !important;
   white-space: normal;
   overflow: hidden;
@@ -314,10 +323,10 @@
   width: 44px;
   height: 44px;
   flex: none;
-  border-radius: 10px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  background: var(--fill-3);
+  background: var(--field);
   color: var(--label-2);
 }
 .card-icon .icon { width: 24px; height: 24px; }
@@ -326,7 +335,7 @@
 .card-icon.loc { color: var(--red); }
 .card-foot {
   padding: 7px 13px 8px;
-  border-top: var(--hairline) solid var(--separator);
+  border-top: 1px solid var(--line);
   font-size: var(--t-caption);
   color: var(--label-2);
   display: flex;
@@ -350,12 +359,12 @@
 
 /* New message appearance: incoming rise; outgoing come up from the composer. */
 @keyframes m-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  from { opacity: 0; transform: translateY(10px) scale(0.96); filter: blur(3px); }
 }
 @keyframes m-out {
   from { opacity: 0; transform: translateY(36px) scale(0.9); }
 }
-.m.enter { animation: m-in var(--spring-bouncy-dur) var(--spring-bouncy) both; }
+.m.enter { animation: m-in var(--spring-bouncy-dur) var(--spring-bouncy) backwards; }
 .m.out.enter { animation-name: m-out; }
 .m.flash .bubble { animation: flash 900ms ease-out; }
 @keyframes flash { 30% { filter: brightness(0.8); } }
@@ -374,25 +383,25 @@
   padding: 6px calc(var(--margin) + var(--safe-right) - 4px) calc(max(var(--safe-bottom), 8px)) calc(var(--margin) + var(--safe-left) - 4px);
 }
 :root[data-kb="1"] .composer { padding-bottom: 8px; }
-.composer .attach { width: 40px; height: 40px; position: relative; }
-.composer .attach::before { content: ""; position: absolute; inset: -2px; }
+.composer .attach { width: 44px; height: 44px; position: relative; }
 .composer .attach .icon { width: 20px; height: 20px; }
+/* A white pill floating on a soft contact shadow (the glass recipe). */
 .field {
   flex: 1;
   min-width: 0;
-  min-height: 40px;
-  border-radius: 20px;
+  min-height: 44px;
+  border-radius: 22px;
   display: flex;
   align-items: flex-end;
-  padding: 4px 4px 4px 14px;
+  padding: 5px 5px 5px 16px;
   transition: border-radius var(--spring-smooth-dur) var(--spring-smooth);
 }
 .field textarea {
   flex: 1;
   min-width: 0;
-  height: 32px;
+  height: 34px;
   max-height: calc(1.32em * 6 + 10px);
-  padding: 5px 0;
+  padding: 6px 0;
   border: 0;
   background: none;
   resize: none;
@@ -405,8 +414,8 @@
 }
 .field textarea::placeholder { color: var(--label-3); }
 .send {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   margin-left: 6px;
   border-radius: 50%;
   display: grid;
@@ -425,9 +434,9 @@
 }
 .send .icon { width: 17px; height: 17px; }
 .send { position: relative; }
-.send::before { content: ""; position: absolute; inset: -6px; } /* 44pt hit area */
+.send::before { content: ""; position: absolute; inset: -5px; } /* 44pt hit area */
 .composer.has-text .send { opacity: 1; transform: none; filter: none; pointer-events: auto; }
-.composer.has-text .send.is-pressed { transform: scale(0.9); }
+.composer.has-text .send.is-pressed { transform: scale(0.9); transition-duration: var(--press-dur); }
 .composer.readonly .field { opacity: 0.6; }
 
 .jump {
@@ -468,4 +477,4 @@
   :root:not([data-motion="full"]) .m.enter { animation: fade-in 140ms linear both; }
 }
 :root[data-motion="reduce"] .m.enter { animation: fade-in 140ms linear both; }
-@keyframes fade-in { from { opacity: 0; } }
+

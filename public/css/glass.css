@@ -107,12 +107,16 @@
 
 /* Solid, opaque controls (send button, primary buttons) sink a little. */
 .solid-press { transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
-.solid-press.is-pressed { transform: scale(0.96); transition-duration: var(--press-dur); }
+.solid-press.is-pressed { transform: scale(0.97); transition-duration: var(--press-dur); }
 
 /* ---------------------------------------------------------------- scroll edge effect */
 
-/* Where content scrolls under floating chrome, blur and fade it instead of
-   drawing a divider. Only visible once something is underneath. */
+/* Where content scrolls under floating chrome it is washed out instead of
+   meeting a hard line: a white lift that fades with distance from the screen
+   edge, over four stacked backdrop blurs whose far edges are staggered and
+   whose radii step down (12 → 6 → 2.6 → 0.8px). A single masked blur would
+   stop dead at its box edge in WebKit (masks don't feather backdrop-filter),
+   so the last visible seam here is under a pixel. */
 .edge {
   position: absolute;
   left: 0;
@@ -123,24 +127,33 @@
   transition: opacity 220ms ease-out;
 }
 .edge.on { opacity: 1; }
+.edge > span { position: absolute; left: 0; right: 0; display: block; }
+.edge > span:nth-child(1) { height: 100%; -webkit-backdrop-filter: blur(0.8px); backdrop-filter: blur(0.8px); }
+.edge > span:nth-child(2) { height: 78%; -webkit-backdrop-filter: blur(2.6px); backdrop-filter: blur(2.6px); }
+.edge > span:nth-child(3) { height: 54%; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.edge > span:nth-child(4) { height: 30%; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .edge-top {
   top: 0;
   height: calc(var(--safe-top) + var(--edge-h, 64px));
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 78%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 55%, transparent);
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
-  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  /* Stops sit lower than the bottom edge's: the top controls sit right at
+     the screen edge, so the wash has to be denser there. */
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--bg) 80%, transparent) 28%,
+    color-mix(in srgb, var(--bg) 50%, transparent) 58%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 82%,
+    transparent);
 }
+.edge-top > span { top: 0; }
 .edge-bottom {
   bottom: 0;
-  height: calc(var(--safe-bottom) + var(--edge-h, 72px));
-  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 78%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 55%, transparent);
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
-  -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
-  mask-image: linear-gradient(to top, #000 55%, transparent);
+  height: calc(var(--safe-bottom) + var(--edge-h, 76px));
+  background: linear-gradient(to top,
+    color-mix(in srgb, var(--bg) 66%, transparent) 16%,
+    color-mix(in srgb, var(--bg) 40%, transparent) 48%,
+    color-mix(in srgb, var(--bg) 14%, transparent) 76%,
+    transparent);
 }
+.edge-bottom > span { bottom: 0; }
 
 /* ---------------------------------------------------------------- fallbacks */
 
@@ -148,26 +161,30 @@
   background: var(--glass-solid);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  box-shadow: inset 0 0 0 var(--hairline) var(--separator), var(--glass-shadow);
+  box-shadow: inset 0 0 0 1px var(--line), var(--glass-shadow);
 }
 :root[data-glass="solid"] .glass::before { display: none; }
 :root[data-glass="solid"] .glass-clear { background: rgb(28 28 30 / 0.92); }
-:root[data-glass="solid"] .edge { -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-glass="solid"] .edge > span { display: none; }
+:root[data-glass="solid"] .edge-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 95%, transparent) 40%, transparent); }
+:root[data-glass="solid"] .edge-bottom { background: linear-gradient(to top, color-mix(in srgb, var(--bg) 95%, transparent) 30%, transparent); }
 
 @media (prefers-reduced-transparency: reduce) {
   :root:not([data-glass="glass"]) .glass {
     background: var(--glass-solid);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    box-shadow: inset 0 0 0 var(--hairline) var(--separator), var(--glass-shadow);
+    box-shadow: inset 0 0 0 1px var(--line), var(--glass-shadow);
   }
   :root:not([data-glass="glass"]) .glass::before { display: none; }
   :root:not([data-glass="glass"]) .glass-clear { background: rgb(28 28 30 / 0.92); }
-  :root:not([data-glass="glass"]) .edge { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :root:not([data-glass="glass"]) .edge > span { display: none; }
+  :root:not([data-glass="glass"]) .edge-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 95%, transparent) 40%, transparent); }
+  :root:not([data-glass="glass"]) .edge-bottom { background: linear-gradient(to top, color-mix(in srgb, var(--bg) 95%, transparent) 30%, transparent); }
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass { background: var(--glass-solid); box-shadow: inset 0 0 0 var(--hairline) var(--separator), var(--glass-shadow); }
+  .glass { background: var(--glass-solid); box-shadow: inset 0 0 0 1px var(--line), var(--glass-shadow); }
   .glass::before { display: none; }
   .glass-clear { background: rgb(28 28 30 / 0.92); }
 }

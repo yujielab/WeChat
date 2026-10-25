@@ -3,11 +3,21 @@
 
 export const APPID = 'wx782c26e4c19acffb'
 
-// Desktop UA and the UOS ("desktop mode") login headers. Without `extspam`
-// and `client-version`, accounts registered after 2017 are refused by the
-// classic web login. Values are the ones wechat4u 0.7.14 ships.
-export const UA =
+// Two ways to finish a QR login:
+//   desktop  pretend to be the UOS (Linux, Electron) WeChat: a UOS browser UA
+//            plus the `client-version` and `extspam` headers. Without them,
+//            accounts registered after 2017 are refused by the web login.
+//            Values are the ones wechat4u 0.7.14 and openwechat ship.
+//   web      the classic wx.qq.com login, as a desktop browser.
+// Since 2025 WeChat has been retiring the UOS client and may answer the
+// desktop login with ret 1203 "当前微信版本过低…"; the client then retries the
+// same scan as a web login (see WxClient.completeLogin). The header values can
+// be overridden with WX_CLIENT_VERSION / WX_EXTSPAM without a code change.
+export const UA_WEB =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
+export const UA_UOS =
+  'Mozilla/5.0 (Linux; U; UOS x86_64; zh-cn) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 UOSBrowser/6.0.1.1001'
+export const LOGIN_MODES = ['desktop', 'web']
 export const UOS_CLIENT_VERSION = '2.0.0'
 export const UOS_EXTSPAM =
   'Go8FCIkFEokFCggwMDAwMDAwMRAGGvAESySibk50w5Wb3uTl2c2h64jVVrV7gNs06GFlWplHQbY/5FfiO++1yH4ykCyNPWKXmco+wfQzK5R98D3so7rJ5LmGFvBLjGceleySrc3SOf2Pc1gVehzJgODeS0lDL3/I/0S2SSE98YgKleq6Uqx6ndTy9yaL9qFxJL7eiA/R3SEfTaW1SBoSITIu+EEkXff+Pv8NHOk7N57rcGk1w0ZzRrQDkXTOXFN2iHYIzAAZPIOY45Lsh+A4slpgnDiaOvRtlQYCt97nmPLuTipOJ8Qc5pM7ZsOsAPPrCQL7nK0I7aPrFDF0q4ziUUKettzW8MrAaiVfmbD1/VkmLNVqqZVvBCtRblXb5FHmtS8FxnqCzYP4WFvz3T0TcrOqwLX1M/DQvcHaGGw0B0y4bZMs7lVScGBFxMj3vbFi2SRKbKhaitxHfYHAOAa0X7/MSS0RNAjdwoyGHeOepXOKY+h3iHeqCvgOH6LOifdHf/1aaZNwSkGotYnYScW8Yx63LnSwba7+hESrtPa/huRmB9KWvMCKbDThL/nne14hnL277EDCSocPu3rOSYjuB9gKSOdVmWsj9Dxb/iZIe+S6AiG29Esm+/eUacSba0k8wn5HhHg9d4tIcixrxveflc8vi2/wNQGVFNsGO6tB5WF0xf/plngOvQ1/ivGV/C1Qpdhzznh0ExAVJ6dwzNg7qIEBaw+BzTJTUuRcPk92Sn6QDn2Pu3mpONaEumacjW4w6ipPnPw+g2TfywJjeEcpSZaP4Q3YV5HG8D6UjWA4GSkBKculWpdCMadx0usMomsSS/74QgpYqcPkmamB4nVv1JxczYITIqItIKjD35IGKAUwAA=='
