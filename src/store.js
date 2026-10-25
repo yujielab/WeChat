@@ -1,298 +1,358 @@
-// SQLite persistence for the Durable Object. Takes a plain
-// `exec(sql, ...bindings) => rows[]` function so the same code runs on the
-// Durable Object's storage.sql and on node:sqlite in tests.
+// SQLite data layer for the messenger, running in the Hub Durable Object's
+// embedded SQLite. `exec(sql, ...binds)` runs a statement and returns the rows
+// as plain objects (empty for writes), so the same class is unit-testable
+// against node:sqlite.
 
-import { previewOf, isRoomId } from './wx/normalize.js'
-
-const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
-  `CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, data TEXT NOT NULL, epoch INTEGER NOT NULL DEFAULT 0)`,
-  `CREATE TABLE IF NOT EXISTS chats (
-     id TEXT PRIMARY KEY,
-     ts INTEGER NOT NULL DEFAULT 0,
-     unread INTEGER NOT NULL DEFAULT 0,
-     last TEXT,
-     rank INTEGER NOT NULL DEFAULT 0,
-     hidden INTEGER NOT NULL DEFAULT 0
-   )`,
-  `CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, chat TEXT NOT NULL, ts INTEGER NOT NULL, data TEXT NOT NULL)`,
-  `CREATE INDEX IF NOT EXISTS messages_chat_ts ON messages (chat, ts)`,
-  `CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, data TEXT NOT NULL, created INTEGER NOT NULL)`
-]
-
-const KEEP_PER_CHAT = 3000
+const now = () => Date.now()
+export const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 20)
 
 export class Store {
   constructor(exec) {
     this.exec = exec
-    for (const s of SCHEMA) exec(s)
-    this.inserts = 0
+    this.#schema()
   }
 
-  // ------------------------------------------------------------- kv
+  #schema() {
+    const s = this.exec
+    s(`CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)`)
+    s(`CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      uname_lc TEXT NOT NULL UNIQUE,
+      display TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      avatar TEXT DEFAULT '',
+      bio TEXT DEFAULT '',
+      epoch INTEGER NOT NULL DEFAULT 0,
+      created INTEGER NOT NULL
+    )`)
+    s(`CREATE TABLE IF NOT EXISTS contacts (
+      owner TEXT NOT NULL,
+      peer TEXT NOT NULL,
+      state TEXT NOT NULL,            -- pending_out | pending_in | accepted | blocked
+      created INTEGER NOT NULL,
+      PRIMARY KEY (owner, peer)
+    )`)
+    s(`CREATE TABLE IF NOT EXISTS rooms (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,            -- dm | group
+      name TEXT DEFAULT '',
+      avatar TEXT DEFAULT '',
+      creator TEXT DEFAULT '',
+      dm_key TEXT UNIQUE,            -- sorted "a|b" for dm dedupe, null for groups
+      created INTEGER NOT NULL
+    )`)
+    s(`CREATE TABLE IF NOT EXISTS room_members (
+      room TEXT NOT NULL,
+      user TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      muted INTEGER NOT NULL DEFAULT 0,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      hidden INTEGER NOT NULL DEFAULT 0,
+      last_read INTEGER NOT NULL DEFAULT 0,
+      joined INTEGER NOT NULL,
+      PRIMARY KEY (room, user)
+    )`)
+    s(`CREATE INDEX IF NOT EXISTS idx_members_user ON room_members (user)`)
+    s(`CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      room TEXT NOT NULL,
+      sender TEXT NOT NULL,
+      ts INTEGER NOT NULL,
+      type TEXT NOT NULL,            -- text | image | voice | video | file | call | system
+      body TEXT DEFAULT '',
+      meta TEXT DEFAULT '',          -- JSON for media/call payloads
+      reply_to TEXT DEFAULT '',
+      state TEXT NOT NULL DEFAULT 'sent',  -- sent | delivered | read | revoked
+      edited INTEGER NOT NULL DEFAULT 0
+    )`)
+    s(`CREATE INDEX IF NOT EXISTS idx_msg_room_ts ON messages (room, ts)`)
+    s(`CREATE TABLE IF NOT EXISTS push_subs (
+      id TEXT PRIMARY KEY,
+      user TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created INTEGER NOT NULL
+    )`)
+    s(`CREATE INDEX IF NOT EXISTS idx_push_user ON push_subs (user)`)
+  }
 
-  get(k, fallback = null) {
-    const row = this.exec('SELECT v FROM kv WHERE k = ?', k)[0]
+  // ---------------------------------------------------------------- kv
+  kvGet(k, fallback = null) {
+    const row = this.exec(`SELECT v FROM kv WHERE k=?`, k)[0]
     return row ? JSON.parse(row.v) : fallback
   }
-
-  set(k, v) {
-    if (v === undefined || v === null) this.exec('DELETE FROM kv WHERE k = ?', k)
-    else this.exec('INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v', k, JSON.stringify(v))
+  kvSet(k, v) {
+    this.exec(`INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, k, JSON.stringify(v))
   }
 
-  // ------------------------------------------------------------- contacts
-
-  loadContacts() {
-    const map = new Map()
-    for (const r of this.exec('SELECT data FROM contacts')) {
-      const c = JSON.parse(r.data)
-      map.set(c.id, c)
-    }
-    return map
-  }
-
-  putContact(c, epoch) {
+  // ---------------------------------------------------------------- users
+  createUser({ username, display, salt, hash }) {
+    const id = rid()
+    const lc = username.toLowerCase()
     this.exec(
-      'INSERT INTO contacts (id, data, epoch) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, epoch = excluded.epoch',
-      c.id, JSON.stringify(c), epoch
+      `INSERT INTO users (id, username, uname_lc, display, salt, hash, created) VALUES (?,?,?,?,?,?,?)`,
+      id, username, lc, display || username, salt, hash, now()
+    )
+    return this.getUser(id)
+  }
+  getUser(id) {
+    return this.exec(`SELECT * FROM users WHERE id=?`, id)[0] || null
+  }
+  getUserByUsername(username) {
+    return this.exec(`SELECT * FROM users WHERE uname_lc=?`, String(username).toLowerCase())[0] || null
+  }
+  userCount() {
+    return this.exec(`SELECT COUNT(*) AS n FROM users`)[0].n
+  }
+  searchUsers(q, exclude, limit = 20) {
+    const like = `%${String(q).toLowerCase()}%`
+    return this.exec(
+      `SELECT id, username, display, avatar, bio FROM users
+       WHERE id<>? AND (uname_lc LIKE ? OR LOWER(display) LIKE ?) ORDER BY uname_lc LIMIT ?`,
+      exclude || '', like, like, limit
     )
   }
-
-  deleteContact(id) {
-    this.exec('DELETE FROM contacts WHERE id = ?', id)
+  setProfile(id, { display, avatar, bio }) {
+    const u = this.getUser(id)
+    if (!u) return null
+    this.exec(`UPDATE users SET display=?, avatar=?, bio=? WHERE id=?`,
+      display ?? u.display, avatar ?? u.avatar, bio ?? u.bio, id)
+    return this.getUser(id)
+  }
+  setPassword(id, salt, hash) {
+    this.exec(`UPDATE users SET salt=?, hash=?, epoch=epoch+1 WHERE id=?`, salt, hash, id)
+  }
+  bumpEpoch(id) {
+    this.exec(`UPDATE users SET epoch=epoch+1 WHERE id=?`, id)
   }
 
-  // ------------------------------------------------------------- chats
-
-  chatRow(id) {
-    const r = this.exec('SELECT * FROM chats WHERE id = ?', id)[0]
-    return r ? rowToChat(r) : null
+  /** Public view of a user (no secrets). */
+  pub(u) {
+    if (!u) return null
+    return { id: u.id, username: u.username, display: u.display, avatar: u.avatar, bio: u.bio }
   }
 
-  listChats() {
-    return this.exec('SELECT * FROM chats WHERE hidden = 0 ORDER BY ts DESC, rank ASC').map(rowToChat)
+  // ---------------------------------------------------------------- contacts
+  contactState(owner, peer) {
+    const r = this.exec(`SELECT state FROM contacts WHERE owner=? AND peer=?`, owner, peer)[0]
+    return r?.state || null
   }
-
-  ensureChat(id, rank = 0) {
-    this.exec('INSERT INTO chats (id, rank) VALUES (?, ?) ON CONFLICT(id) DO NOTHING', id, rank)
+  requestContact(owner, peer) {
+    const existing = this.contactState(owner, peer)
+    if (existing === 'accepted' || existing === 'pending_out') return existing
+    const t = now()
+    this.#putContact(owner, peer, 'pending_out', t)
+    this.#putContact(peer, owner, 'pending_in', t)
+    return 'pending_out'
   }
-
-  setRank(id, rank) {
-    this.exec(
-      'INSERT INTO chats (id, rank) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET rank = excluded.rank',
-      id, rank
-    )
-  }
-
-  setUnread(id, n) {
-    this.exec('UPDATE chats SET unread = ? WHERE id = ?', n, id)
-  }
-
-  hideChat(id, hidden = true) {
-    this.exec('UPDATE chats SET hidden = ? WHERE id = ?', hidden ? 1 : 0, id)
-  }
-
-  /** Recompute the chat's last-message summary from stored messages. */
-  refreshChatLast(id) {
-    const last = this.exec('SELECT data FROM messages WHERE chat = ? ORDER BY ts DESC, rowid DESC LIMIT 1', id)[0]
-    const m = last ? JSON.parse(last.data) : null
-    this.exec(
-      'UPDATE chats SET last = ?, ts = ? WHERE id = ?',
-      m ? JSON.stringify(summaryOf(m)) : null,
-      m ? m.ts : 0,
-      id
-    )
-  }
-
-  // ------------------------------------------------------------- messages
-
-  hasMessage(id) {
-    return this.exec('SELECT 1 AS x FROM messages WHERE id = ?', id).length > 0
-  }
-
-  getMessage(id) {
-    const r = this.exec('SELECT data FROM messages WHERE id = ?', id)[0]
-    return r ? JSON.parse(r.data) : null
-  }
-
-  /**
-   * Store a new message and update its chat. Returns false if it was a duplicate.
-   * `countUnread` decides whether an incoming message bumps the unread badge.
-   */
-  addMessage(m, { countUnread = true } = {}) {
-    if (this.hasMessage(m.id)) return false
-    this.exec('INSERT INTO messages (id, chat, ts, data) VALUES (?, ?, ?, ?)', m.id, m.chat, m.ts, JSON.stringify(m))
-    const unreadDelta = !m.out && countUnread && m.type !== 'system' ? 1 : 0
-    this.exec(
-      `INSERT INTO chats (id, ts, unread, last, hidden) VALUES (?, ?, ?, ?, 0)
-       ON CONFLICT(id) DO UPDATE SET
-         ts = MAX(chats.ts, excluded.ts),
-         last = CASE WHEN excluded.ts >= chats.ts THEN excluded.last ELSE chats.last END,
-         unread = CASE WHEN ? THEN 0 ELSE chats.unread + excluded.unread END,
-         hidden = 0`,
-      m.chat, m.ts, unreadDelta, JSON.stringify(summaryOf(m)), m.out ? 1 : 0
-    )
-    if (++this.inserts % 200 === 0) this.prune(m.chat)
+  acceptContact(owner, peer) {
+    // owner accepts an incoming request from peer
+    if (this.contactState(owner, peer) !== 'pending_in') return false
+    const t = now()
+    this.#putContact(owner, peer, 'accepted', t)
+    this.#putContact(peer, owner, 'accepted', t)
     return true
   }
-
-  updateMessage(id, patch) {
-    const m = this.getMessage(id)
-    if (!m) return null
-    const next = { ...m, ...patch }
-    this.exec('UPDATE messages SET data = ? WHERE id = ?', JSON.stringify(next), id)
-    this.refreshChatLast(m.chat)
-    return next
+  removeContact(owner, peer) {
+    this.exec(`DELETE FROM contacts WHERE owner=? AND peer=?`, owner, peer)
+    this.exec(`DELETE FROM contacts WHERE owner=? AND peer=?`, peer, owner)
   }
-
-  /** Give a locally created message its server id. */
-  rekeyMessage(oldId, newId, patch = {}) {
-    const m = this.getMessage(oldId)
-    if (!m) return null
-    const next = { ...m, ...patch, id: newId }
-    this.exec('DELETE FROM messages WHERE id = ?', oldId)
-    this.exec('INSERT OR REPLACE INTO messages (id, chat, ts, data) VALUES (?, ?, ?, ?)', newId, next.chat, next.ts, JSON.stringify(next))
-    this.refreshChatLast(next.chat)
-    return next
-  }
-
-  deleteMessage(id) {
-    const m = this.getMessage(id)
-    if (!m) return null
-    this.exec('DELETE FROM messages WHERE id = ?', id)
-    this.refreshChatLast(m.chat)
-    return m
-  }
-
-  /** Page of messages, oldest first. `before` is exclusive (ms). */
-  listMessages(chat, { before = Number.MAX_SAFE_INTEGER, after = 0, limit = 60 } = {}) {
-    const rows = this.exec(
-      'SELECT data FROM messages WHERE chat = ? AND ts < ? AND ts > ? ORDER BY ts DESC, rowid DESC LIMIT ?',
-      chat, before, after, limit
-    )
-    return rows.map(r => JSON.parse(r.data)).reverse()
-  }
-
-  clearChat(chat) {
-    this.exec('DELETE FROM messages WHERE chat = ?', chat)
-    this.exec('UPDATE chats SET last = NULL, unread = 0 WHERE id = ?', chat)
-  }
-
-  prune(chat) {
+  #putContact(owner, peer, state, t) {
     this.exec(
-      `DELETE FROM messages WHERE chat = ? AND rowid NOT IN
-         (SELECT rowid FROM messages WHERE chat = ? ORDER BY ts DESC LIMIT ?)`,
-      chat, chat, KEEP_PER_CHAT
+      `INSERT INTO contacts (owner, peer, state, created) VALUES (?,?,?,?)
+       ON CONFLICT(owner,peer) DO UPDATE SET state=excluded.state`,
+      owner, peer, state, t
     )
   }
+  listContacts(owner, state) {
+    const rows = state
+      ? this.exec(`SELECT c.peer, c.state, c.created FROM contacts c WHERE c.owner=? AND c.state=?`, owner, state)
+      : this.exec(`SELECT c.peer, c.state, c.created FROM contacts c WHERE c.owner=?`, owner)
+    return rows.map(r => ({ ...this.pub(this.getUser(r.peer)), state: r.state, since: r.created })).filter(r => r.id)
+  }
 
-  // ------------------------------------------------------------- re-login
+  // ---------------------------------------------------------------- rooms
+  getRoom(id) {
+    return this.exec(`SELECT * FROM rooms WHERE id=?`, id)[0] || null
+  }
+  dmKey(a, b) {
+    return [a, b].sort().join('|')
+  }
+  getOrCreateDM(a, b) {
+    const key = this.dmKey(a, b)
+    const found = this.exec(`SELECT id FROM rooms WHERE dm_key=?`, key)[0]
+    if (found) {
+      // A hidden DM reappears for both when reused.
+      this.exec(`UPDATE room_members SET hidden=0 WHERE room=?`, found.id)
+      return found.id
+    }
+    const id = rid()
+    const t = now()
+    this.exec(`INSERT INTO rooms (id, kind, dm_key, created) VALUES (?,?,?,?)`, id, 'dm', key, t)
+    this.#addMember(id, a, 'member', t)
+    this.#addMember(id, b, 'member', t)
+    return id
+  }
+  createGroup({ name, creator, members }) {
+    const id = rid()
+    const t = now()
+    this.exec(`INSERT INTO rooms (id, kind, name, creator, created) VALUES (?,?,?,?,?)`, id, 'group', name || '群聊', creator, t)
+    const all = new Set([creator, ...(members || [])])
+    for (const u of all) this.#addMember(id, u, u === creator ? 'owner' : 'member', t)
+    return id
+  }
+  #addMember(room, user, role, t) {
+    this.exec(
+      `INSERT INTO room_members (room, user, role, joined) VALUES (?,?,?,?)
+       ON CONFLICT(room,user) DO UPDATE SET hidden=0`,
+      room, user, role, t
+    )
+  }
+  addMember(room, user) {
+    this.#addMember(room, user, 'member', now())
+  }
+  removeMember(room, user) {
+    this.exec(`DELETE FROM room_members WHERE room=? AND user=?`, room, user)
+  }
+  isMember(room, user) {
+    return Boolean(this.exec(`SELECT 1 FROM room_members WHERE room=? AND user=?`, room, user)[0])
+  }
+  roomMembers(room) {
+    return this.exec(`SELECT user FROM room_members WHERE room=?`, room).map(r => r.user)
+  }
+  roomMemberRows(room) {
+    const rows = this.exec(`SELECT user, role, joined FROM room_members WHERE room=? ORDER BY joined`, room)
+    return rows.map(r => ({ ...this.pub(this.getUser(r.user)), role: r.role, joined: r.joined })).filter(r => r.id)
+  }
+  membership(room, user) {
+    return this.exec(`SELECT * FROM room_members WHERE room=? AND user=?`, room, user)[0] || null
+  }
+  setMemberFlag(room, user, flags) {
+    const m = this.membership(room, user)
+    if (!m) return
+    this.exec(`UPDATE room_members SET muted=?, pinned=?, hidden=? WHERE room=? AND user=?`,
+      flags.muted ?? m.muted, flags.pinned ?? m.pinned, flags.hidden ?? m.hidden, room, user)
+  }
+  markRead(room, user, ts) {
+    this.exec(`UPDATE room_members SET last_read=MAX(last_read, ?) WHERE room=? AND user=?`, ts, room, user)
+  }
 
-  /**
-   * WeChat hands out new session-scoped user names on every login. Map the
-   * previous login's chats onto the new contacts by (kind, remark, nickname)
-   * when that match is unique, so history survives a re-scan.
-   * Returns the number of chats carried over.
-   */
-  remapAfterLogin(epoch) {
-    const rows = this.exec('SELECT id, data, epoch FROM contacts')
-    const fresh = new Map()
-    const stale = new Map()
-    for (const r of rows) {
-      const c = JSON.parse(r.data)
-      ;(r.epoch === epoch ? fresh : stale).set(c.id, c)
-    }
-    const keyOf = c => `${c.room ? 1 : 0}|${c.remark}|${c.nick}`
-    const byKey = new Map()
-    for (const c of fresh.values()) {
-      if (!c.remark && !c.nick) continue
-      const k = keyOf(c)
-      byKey.set(k, byKey.has(k) ? null : c)
-    }
-    let moved = 0
-    for (const chat of this.exec('SELECT id FROM chats').map(r => r.id)) {
-      if (fresh.has(chat)) continue
-      const old = stale.get(chat)
-      const target = old && (old.remark || old.nick) ? byKey.get(keyOf(old)) : null
-      if (!target) {
-        if (!this.exec('SELECT 1 AS x FROM messages WHERE chat = ? LIMIT 1', chat).length) {
-          this.exec('DELETE FROM chats WHERE id = ?', chat)
-        }
-        continue
+  /** Conversation list for a user: enriched rooms sorted by latest activity. */
+  listRoomsFor(user) {
+    const mem = this.exec(
+      `SELECT * FROM room_members WHERE user=? AND hidden=0`, user
+    )
+    const out = []
+    for (const m of mem) {
+      const room = this.getRoom(m.room)
+      if (!room) continue
+      const last = this.lastMessage(room.id)
+      const unread = this.exec(
+        `SELECT COUNT(*) AS n FROM messages WHERE room=? AND ts>? AND sender<>? AND type<>'system'`,
+        room.id, m.last_read, user
+      )[0].n
+      const row = {
+        id: room.id,
+        kind: room.kind,
+        name: room.name,
+        avatar: room.avatar,
+        pinned: Boolean(m.pinned),
+        muted: Boolean(m.muted),
+        lastRead: m.last_read,
+        unread,
+        last,
+        ts: last ? last.ts : room.created
       }
-      const prevRow = this.chatRow(chat)
-      const targetRow = this.chatRow(target.id)
-      if (targetRow) {
-        this.exec('DELETE FROM chats WHERE id = ?', chat)
-        this.exec('UPDATE chats SET unread = ? WHERE id = ?', targetRow.unread + (prevRow?.unread || 0), target.id)
+      if (room.kind === 'dm') {
+        const peerId = this.roomMembers(room.id).find(u => u !== user)
+        row.peer = this.pub(this.getUser(peerId))
+        if (row.peer) {
+          row.name = row.peer.display
+          row.avatar = row.peer.avatar
+        }
       } else {
-        this.exec('UPDATE chats SET id = ? WHERE id = ?', target.id, chat)
+        row.count = this.roomMembers(room.id).length
       }
-      for (const r of this.exec('SELECT id, data FROM messages WHERE chat = ?', chat)) {
-        const m = JSON.parse(r.data)
-        m.chat = target.id
-        if (!m.out && !isRoomId(chat)) m.from = target.id
-        if (isRoomId(chat) && !m.out && old.members && target.members) {
-          const was = old.members.find(x => x.id === m.from)
-          const now = was && target.members.filter(x => (x.dn || x.nick) === (was.dn || was.nick))
-          if (now?.length === 1) m.from = now[0].id
-        }
-        this.exec('UPDATE messages SET chat = ?, data = ? WHERE id = ?', target.id, JSON.stringify(m), r.id)
-      }
-      this.refreshChatLast(target.id)
-      moved++
+      out.push(row)
     }
-    // Contacts from the previous login: drop them unless a chat still shows
-    // their history, in which case keep the name but mark them read-only.
-    const referenced = new Set(this.exec('SELECT id FROM chats').map(r => r.id))
-    for (const [id, c] of stale) {
-      if (!referenced.has(id)) this.deleteContact(id)
-      else if (!c.stale) this.putContact({ ...c, stale: true }, -1)
-    }
-    return moved
+    out.sort((a, b) => (b.pinned - a.pinned) || (b.ts - a.ts))
+    return out
   }
 
-  wipe() {
-    for (const t of ['contacts', 'chats', 'messages']) this.exec(`DELETE FROM ${t}`)
-  }
-
-  // ------------------------------------------------------------- push
-
-  pushSubs() {
-    return this.exec('SELECT data FROM push_subs').map(r => JSON.parse(r.data))
-  }
-
-  addPushSub(sub) {
+  // ---------------------------------------------------------------- messages
+  addMessage(m) {
+    const id = m.id || rid()
     this.exec(
-      'INSERT INTO push_subs (endpoint, data, created) VALUES (?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET data = excluded.data',
-      sub.endpoint, JSON.stringify(sub), Date.now()
+      `INSERT INTO messages (id, room, sender, ts, type, body, meta, reply_to, state)
+       VALUES (?,?,?,?,?,?,?,?,?)
+       ON CONFLICT(id) DO NOTHING`,
+      id, m.room, m.sender, m.ts || now(), m.type || 'text', m.body || '',
+      m.meta ? JSON.stringify(m.meta) : '', m.replyTo || '', m.state || 'sent'
     )
+    return this.getMessage(id)
+  }
+  getMessage(id) {
+    const r = this.exec(`SELECT * FROM messages WHERE id=?`, id)[0]
+    return r ? this.#msg(r) : null
+  }
+  lastMessage(room) {
+    const r = this.exec(`SELECT * FROM messages WHERE room=? ORDER BY ts DESC, id DESC LIMIT 1`, room)[0]
+    return r ? this.#msg(r) : null
+  }
+  listMessages(room, { before, after, limit = 30 } = {}) {
+    let rows
+    if (before) {
+      rows = this.exec(`SELECT * FROM messages WHERE room=? AND ts<? ORDER BY ts DESC, id DESC LIMIT ?`, room, before, limit)
+      rows.reverse()
+    } else if (after) {
+      rows = this.exec(`SELECT * FROM messages WHERE room=? AND ts>? ORDER BY ts ASC, id ASC LIMIT ?`, room, after, limit)
+    } else {
+      rows = this.exec(`SELECT * FROM messages WHERE room=? ORDER BY ts DESC, id DESC LIMIT ?`, room, limit)
+      rows.reverse()
+    }
+    return rows.map(r => this.#msg(r))
+  }
+  setMessageState(id, state) {
+    this.exec(`UPDATE messages SET state=? WHERE id=?`, state, id)
+    return this.getMessage(id)
+  }
+  revokeMessage(id, by) {
+    const m = this.getMessage(id)
+    if (!m || m.sender !== by) return null
+    this.exec(`UPDATE messages SET state='revoked', body='', meta='' WHERE id=?`, id)
+    return this.getMessage(id)
+  }
+  #msg(r) {
+    return {
+      id: r.id,
+      room: r.room,
+      sender: r.sender,
+      ts: r.ts,
+      type: r.type,
+      body: r.body,
+      meta: r.meta ? JSON.parse(r.meta) : null,
+      replyTo: r.reply_to || null,
+      state: r.state,
+      edited: Boolean(r.edited)
+    }
   }
 
-  removePushSub(endpoint) {
-    this.exec('DELETE FROM push_subs WHERE endpoint = ?', endpoint)
+  // ---------------------------------------------------------------- push
+  addSub(user, sub) {
+    const id = rid()
+    // One row per endpoint per user.
+    this.exec(`DELETE FROM push_subs WHERE user=? AND json_extract(data,'$.endpoint')=?`, user, sub.endpoint)
+    this.exec(`INSERT INTO push_subs (id, user, data, created) VALUES (?,?,?,?)`, id, user, JSON.stringify(sub), now())
+    return id
   }
-}
-
-export function summaryOf(m) {
-  return {
-    id: m.id,
-    text: previewOf(m),
-    out: Boolean(m.out),
-    type: m.type,
-    status: m.status || 'sent',
-    ts: m.ts
+  listSubs(user) {
+    return this.exec(`SELECT id, data FROM push_subs WHERE user=?`, user).map(r => ({ id: r.id, sub: JSON.parse(r.data) }))
   }
-}
-
-function rowToChat(r) {
-  return {
-    id: r.id,
-    ts: r.ts,
-    unread: r.unread,
-    last: r.last ? JSON.parse(r.last) : null,
-    rank: r.rank,
-    hidden: Boolean(r.hidden)
+  removeSub(id) {
+    this.exec(`DELETE FROM push_subs WHERE id=?`, id)
+  }
+  removeSubByEndpoint(user, endpoint) {
+    this.exec(`DELETE FROM push_subs WHERE user=? AND json_extract(data,'$.endpoint')=?`, user, endpoint)
   }
 }

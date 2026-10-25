@@ -1,0 +1,115 @@
+/* Full-screen voice / video call. Dark, calm, big tactile controls. */
+
+.call {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-viewer);
+  display: flex;
+  flex-direction: column;
+  background: #0b0b0e;
+  color: #fff;
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 240ms var(--ease-out), transform 320ms var(--ease-morph);
+  pointer-events: auto;
+}
+.call.on { opacity: 1; transform: none; }
+
+.call-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.call-remote {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0b0b0e;
+  display: none;
+}
+.call.remote-video .call-remote { display: block; }
+
+.call-poster {
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  text-align: center;
+  z-index: 1;
+}
+.call-poster .avatar { box-shadow: 0 20px 60px -20px rgb(0 0 0 / 0.7); }
+.call.remote-video .call-poster { display: none; }
+
+.call-head {
+  position: absolute;
+  top: calc(var(--safe-top) + 28px);
+  left: 0; right: 0;
+  z-index: 2;
+  text-align: center;
+  display: grid;
+  gap: 6px;
+  pointer-events: none;
+  text-shadow: 0 1px 10px rgb(0 0 0 / 0.5);
+}
+.call-name { font-size: var(--t-title-1); font-weight: var(--w-bold); letter-spacing: -0.02em; }
+.call-status { font-size: var(--t-subhead); color: rgb(255 255 255 / 0.75); min-height: 1.2em; }
+
+/* Local self-view: small rounded tile, picture-in-picture top-right. */
+.call-local {
+  position: absolute;
+  top: calc(var(--safe-top) + 16px);
+  right: 16px;
+  width: 104px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 18px;
+  z-index: 3;
+  background: #18181b;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6);
+  transform: scaleX(-1); /* mirror self-view */
+  display: none;
+}
+.call.video .call-local { display: block; }
+
+.call-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 0 calc(max(var(--safe-bottom), 20px) + 10px);
+  z-index: 2;
+}
+.call-incoming {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  padding: 22px 0 calc(max(var(--safe-bottom), 20px) + 10px);
+  z-index: 2;
+}
+
+.call-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(255 255 255 / 0.16);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color 180ms ease;
+}
+.call-btn .icon { width: 26px; height: 26px; }
+.call-btn:active { transform: scale(0.9); transition-duration: var(--press-dur); }
+.call-btn.toggle.active { background: #fff; color: #18181b; }
+.call-btn.hang { background: var(--red); }
+.call-btn.accept { background: var(--green); }
+.call-incoming .call-btn { width: 72px; height: 72px; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .call { transition: opacity 160ms linear; transform: none; }
+}

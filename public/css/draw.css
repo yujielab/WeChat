@@ -1,0 +1,103 @@
+/* Drawing board: white paper canvas, floating tool bars, big tactile controls. */
+
+.draw {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-viewer);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  opacity: 0;
+  transform: translateY(2%);
+  transition: opacity 220ms var(--ease-out), transform 320ms var(--ease-morph);
+}
+.draw.on { opacity: 1; transform: none; }
+
+.draw-head {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: calc(var(--safe-top) + 10px) calc(var(--margin) + var(--safe-right)) 8px calc(var(--margin) + var(--safe-left));
+}
+.draw-head .draw-close { justify-self: start; width: 40px; height: 40px; }
+.draw-title { font-size: var(--t-headline); font-weight: var(--w-semibold); }
+.draw-send {
+  justify-self: end;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 20px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: var(--t-subhead);
+  font-weight: var(--w-semibold);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgb(17 17 20 / 0.18);
+}
+.draw-send .icon { width: 16px; height: 16px; }
+.draw-send:disabled { opacity: 0.4; }
+
+.draw-stage {
+  flex: 1;
+  min-height: 0;
+  margin: 0 calc(var(--margin) + var(--safe-left)) 0 calc(var(--margin) + var(--safe-right));
+  border-radius: var(--r-tile);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
+  touch-action: none;
+}
+.draw-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+
+.draw-bar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px calc(var(--margin) + var(--safe-right)) calc(max(var(--safe-bottom), 12px) + 8px) calc(var(--margin) + var(--safe-left));
+}
+.draw-palette, .draw-sizes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 22px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.draw-palette::-webkit-scrollbar, .draw-sizes::-webkit-scrollbar { display: none; }
+.draw-sizes { justify-content: center; }
+.draw-tools { display: flex; justify-content: center; gap: 12px; }
+
+.draw-color {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.1);
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+}
+.draw-color.on { transform: scale(1.18); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--blue); }
+.draw-color[style*="#ffffff"] { box-shadow: inset 0 0 0 1px var(--separator); }
+
+.draw-size {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color 160ms ease;
+}
+.draw-size span { background: var(--label); border-radius: 50%; display: block; }
+.draw-size.on { background: var(--fill-3); transform: scale(1.05); }
+
+.draw-tool { width: 44px; height: 44px; }
+.draw-tool .icon { width: 20px; height: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .draw { transition: opacity 160ms linear; transform: none; }
+}

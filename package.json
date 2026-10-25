@@ -1,20 +1,15 @@
 {
-  "name": "wechat-glass",
+  "name": "cf-messenger",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Personal WeChat web client on Cloudflare Workers, designed for iPhone Duo",
   "scripts": {
     "dev": "wrangler dev",
-    "dev:mock": "node tools/dev-mock.mjs",
-    "mock": "node tools/mock-wx.mjs",
     "deploy": "wrangler deploy",
     "test": "node --no-warnings --test \"test/*.test.js\"",
     "vapid": "node tools/gen-vapid.mjs",
     "springs": "node tools/gen-springs.mjs"
-  },
-  "dependencies": {
-    "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
     "wrangler": "4.152.0"

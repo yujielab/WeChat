@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v1'
+const SHELL = 'shell-v2'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -14,6 +14,8 @@ const SHELL_FILES = [
   '/css/thread.css',
   '/css/overlays.css',
   '/css/auth.css',
+  '/css/call.css',
+  '/css/draw.css',
   '/js/boot.js',
   '/js/main.js',
   '/js/api.js',
@@ -36,6 +38,8 @@ const SHELL_FILES = [
   '/js/views/auth.js',
   '/js/views/sheets.js',
   '/js/views/shell.js',
+  '/js/views/call.js',
+  '/js/views/draw.js',
   '/icons/icon.svg'
 ]
 
@@ -57,7 +61,7 @@ self.addEventListener('fetch', event => {
   if (url.origin !== location.origin) return
 
   // Photos and avatars never change for a given URL: cache first.
-  if (/^\/api\/(media\/(thumb|image|sticker)|avatar)\//.test(url.pathname)) {
+  if (/^\/api\/media\/(image|avatar)\//.test(url.pathname)) {
     event.respondWith(mediaFirst(req))
     return
   }
@@ -99,7 +103,7 @@ self.addEventListener('push', event => {
   try {
     data = event.data?.json() || {}
   } catch {
-    data = { title: '微信', body: event.data?.text() || '' }
+    data = { title: 'Duo', body: event.data?.text() || '' }
   }
   event.waitUntil((async () => {
     if (typeof data.count === 'number' && self.navigator.setAppBadge) {
@@ -107,29 +111,29 @@ self.addEventListener('push', event => {
     }
     // iOS revokes subscriptions whose pushes don't show a notification, so
     // always show one; the server only pushes while no window is in front.
-    await self.registration.showNotification(data.title || '微信', {
+    await self.registration.showNotification(data.title || 'Duo', {
       body: data.body || '',
-      tag: data.tag || 'wechat',
+      tag: data.tag || 'duo',
       renotify: true,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: { chat: data.chat || null }
+      data: { room: data.room || null }
     })
   })())
 })
 
 self.addEventListener('notificationclick', event => {
   event.notification.close()
-  const chat = event.notification.data?.chat
+  const room = event.notification.data?.room
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     for (const c of clients) {
       if ('focus' in c) {
         await c.focus()
-        if (chat) c.postMessage({ t: 'open', chat })
+        if (room) c.postMessage({ t: 'open', room })
         return
       }
     }
-    await self.clients.openWindow(chat ? `/?chat=${encodeURIComponent(chat)}` : '/')
+    await self.clients.openWindow(room ? `/?chat=${encodeURIComponent(room)}` : '/')
   })())
 })

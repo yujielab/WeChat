@@ -1,10 +1,17 @@
-# Copy to .dev.vars for `npm run dev` (talks to the real WeChat servers).
-APP_PASSWORD=change-me
-# Optional, for Web Push (npm run vapid):
+# Copy to .dev.vars for `npm run dev` (local wrangler dev with in-memory DO + R2).
+# Nothing here is required for local chat/media; all values are optional.
+
+# Require an invite code to register:
+# SIGNUP_CODE=let-me-in
+
+# Voice/video calls (Cloudflare Realtime SFU). Without these the call entry
+# points show "通话服务未配置":
+# REALTIME_APP_ID=
+# REALTIME_APP_SECRET=
+# REALTIME_TURN_KEY_ID=
+# REALTIME_TURN_KEY_TOKEN=
+
+# Web Push (npm run vapid):
 # VAPID_PUBLIC_KEY=
 # VAPID_PRIVATE_KEY=
 # VAPID_SUBJECT=mailto:you@example.com
-# Optional login overrides (README › 配置项):
-# WX_LOGIN_MODE=web
-# WX_CLIENT_VERSION=2.0.0
-# WX_EXTSPAM=

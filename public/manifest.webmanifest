@@ -1,7 +1,7 @@
 {
-  "name": "微信 · 个人客户端",
-  "short_name": "微信",
-  "description": "个人微信网页客户端，部署在 Cloudflare Workers。",
+  "name": "Duo · 即时通讯",
+  "short_name": "Duo",
+  "description": "Cloudflare 自建即时通讯，聊天、语音与视频通话，为 iPhone Duo 设计。",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",
@@ -10,8 +10,22 @@
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
   ]
 }

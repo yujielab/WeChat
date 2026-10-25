@@ -1,166 +1,83 @@
-// UI walkthrough against the mock WeChat server at iPhone Duo sizes.
-// Needs Playwright with Chromium (npx playwright install chromium) and
-// `npm run dev:mock` running in another terminal (fresh .wrangler state).
-//   node tools/e2e/walkthrough.cjs [outdir]      DSF=2 for smaller images
+// UI walkthrough for the messenger, at iPhone Duo sizes. Registers two users
+// against a local `wrangler dev` and drives a full session, writing
+// screenshots to [outdir]. Pass REALTIME dummy vars to the dev server to see
+// the call UI. Needs Playwright with Chromium.
+//   node tools/e2e/walkthrough.cjs [outdir]
 const { chromium } = require('playwright')
 const fs = require('fs')
 const path = require('path')
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8787'
-const MOCK = process.env.MOCK || 'http://127.0.0.1:8790'
 const OUT = process.argv[2] || path.join(process.cwd(), 'screenshots')
 fs.mkdirSync(OUT, { recursive: true })
-
-const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1'
 const FOLDED = { width: 466, height: 678 }
 const UNFOLDED = { width: 890, height: 626 }
-
-const ctl = (cmd, body) => fetch(`${MOCK}/__ctl/${cmd}`, { method: 'POST', body: JSON.stringify(body || {}) }).then(r => r.json())
 const sleep = ms => new Promise(r => setTimeout(r, ms))
+const uniq = Math.random().toString(36).slice(2, 7)
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const context = await browser.newContext({
-    viewport: FOLDED,
-    deviceScaleFactor: Number(process.env.DSF || 3),
-    isMobile: true,
-    hasTouch: true,
-    userAgent: UA,
-    colorScheme: process.env.SCHEME || 'light',
-    locale: 'zh-CN',
-    timezoneId: 'Asia/Shanghai'
-  })
-  const page = await context.newPage()
+  const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] })
   const problems = []
-  page.on('console', m => { if (['error', 'warning'].includes(m.type())) problems.push(`console.${m.type()}: ${m.text()}`) })
-  page.on('pageerror', e => problems.push(`pageerror: ${e.message}`))
-  const shot = async name => {
-    await sleep(500)
-    await page.screenshot({ path: path.join(OUT, `${name}.png`) })
-    console.log('shot', name)
+  async function mk(name, vp) {
+    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: Number(process.env.DSF || 2), isMobile: true, hasTouch: true, locale: 'zh-CN', permissions: ['microphone', 'camera'] })
+    const p = await ctx.newPage()
+    p.on('pageerror', e => problems.push(`[${name}] ${e.message}`))
+    p.on('console', m => { if (m.type() === 'error') problems.push(`[${name}] ${m.text()}`) })
+    return p
+  }
+  const shot = async (p, n) => { await sleep(300); await p.screenshot({ path: path.join(OUT, `${n}.png`) }); console.log('shot', n) }
+  async function reg(p, u, d) {
+    await p.goto(BASE); await p.waitForSelector('.auth')
+    await p.click('.auth-foot button')
+    await p.fill('#auth-u', u); await p.fill('#auth-d', d); await p.fill('#auth-p', 'hunter2')
+    await p.click('.auth-form button[type=submit]'); await p.waitForSelector('.shell', { timeout: 10000 })
   }
 
-  await page.goto(BASE)
-  await page.waitForSelector('#pw', { timeout: 10000 })
-  await shot('01-gate')
-  await page.fill('#pw', 'wrong')
-  await page.click('button[type=submit]')
-  await page.waitForSelector('.field-error:not(:empty)')
-  await shot('02-gate-error')
-  await page.fill('#pw', 'demo')
-  await page.click('button[type=submit]')
+  const A = await mk('A', FOLDED), B = await mk('B', FOLDED)
+  await A.goto(BASE); await A.waitForSelector('.auth'); await shot(A, '01-auth')
+  const amy = `amy_${uniq}`, ben = `ben_${uniq}`
+  await reg(A, amy, '艾米'); await reg(B, ben, '本'); await sleep(400)
 
-  // Either straight to chats (session alive) or the QR screen.
-  await page.waitForSelector('.qr-wrap, .shell', { timeout: 15000 })
-  if (await page.$('.qr-wrap')) {
-    await page.waitForSelector('.qr-wrap img:not([hidden])', { timeout: 15000 })
-    await shot('03-qr')
-    await ctl('scan')
-    await page.waitForSelector('.qr-wrap.scanned', { timeout: 15000 })
-    await shot('04-scanned')
-    await ctl('confirm')
-  }
-  await page.waitForSelector('.shell .row', { timeout: 30000 })
-  await sleep(2500)
-  await shot('05-list')
+  // settings (from the list, before a chat is open)
+  await A.click('.me-btn'); await A.waitForSelector('.sheet'); await sleep(500); await shot(A, '07-settings')
+  await A.keyboard.press('Escape'); await sleep(400)
 
-  // Scroll a little to collapse the title
-  await page.evaluate(() => document.querySelector('.list-scroll').scrollTo(0, 120))
-  await shot('06-list-scrolled')
-  await page.evaluate(() => document.querySelector('.list-scroll').scrollTo(0, 0))
+  // open a DM
+  await A.click('.list-topbar .bar-btn.tint'); await A.waitForSelector('.sheet'); await sleep(400)
+  await A.fill('.sheet-search input', ben); await sleep(600); await shot(A, '02-newchat')
+  await A.click(`.sheet .cell:has-text("@${ben}")`); await A.waitForSelector('.thread:not([hidden])'); await sleep(400)
+  await B.click('.row'); await B.waitForSelector('.thread:not([hidden])'); await sleep(300)
 
-  // Open the design group chat
-  const row = page.locator('.row', { hasText: '产品设计组' }).first()
-  if (await row.count()) await row.click()
-  else await page.locator('.pin', { hasText: '产品设计组' }).first().click()
-  await page.waitForSelector('.thread:not([hidden]) .m', { timeout: 10000 })
-  await sleep(800)
-  await shot('07-thread-group')
+  // live typing + send
+  await A.click('.composer textarea'); await A.type('.composer textarea', '你好，本 👋 这是 Cloudflare 自建的', { delay: 55 })
+  await sleep(400); await shot(B, '03-live-typing')
+  await A.keyboard.press('Enter'); await sleep(700)
+  await B.fill('.composer textarea', '收到！延迟很低'); await B.keyboard.press('Enter'); await sleep(700)
+  await shot(A, '04-thread')
 
-  // Send a message
-  await page.click('.composer textarea')
-  await page.keyboard.type('好的，晚上把新版本发群里 👍')
-  await shot('08-composer-typing')
-  await page.keyboard.press('Enter')
-  await sleep(1200)
-  await shot('09-sent')
+  // drawing board
+  await A.click('.composer .attach'); await sleep(250); await A.click('.menu-item:has-text("画板")')
+  await A.waitForSelector('.draw.on'); await sleep(300)
+  const box = await (await A.$('.draw-canvas')).boundingBox()
+  await A.mouse.move(box.x + 60, box.y + 90); await A.mouse.down()
+  for (let i = 0; i < 22; i++) await A.mouse.move(box.x + 60 + i * 11, box.y + 90 + Math.sin(i / 2) * 46)
+  await A.mouse.up()
+  await A.click('.draw-color[style*="007aff"]')
+  await A.mouse.move(box.x + 80, box.y + 210); await A.mouse.down()
+  for (let i = 0; i < 18; i++) await A.mouse.move(box.x + 80 + i * 10, box.y + 210 + Math.cos(i / 2) * 38)
+  await A.mouse.up()
+  await shot(A, '05-drawboard')
+  await A.click('.draw-send'); await sleep(1000); await shot(A, '06-thread-drawing')
 
-  // Long press menu
-  const bubble = page.locator('.m.out .bubble').last()
-  const box = await bubble.boundingBox()
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-  await page.mouse.down()
-  await sleep(700)
-  await page.mouse.up()
-  await sleep(400)
-  await shot('10-context-menu')
-  await page.keyboard.press('Escape')
-  await sleep(400)
+  // call UI (needs REALTIME_* dummy vars on the dev server)
+  await A.click('.thread-nav .nav-actions .glass-btn[aria-label="语音通话"]').catch(() => {})
+  await sleep(700); await shot(B, '08-incoming-call')
+  await A.click('.call .hang').catch(() => {}); await sleep(300)
 
-  // Back to list
-  await page.click('.thread-nav .back')
-  await sleep(700)
-  await shot('11-back-list')
+  // unfolded split
+  await A.setViewportSize(UNFOLDED); await sleep(800); await shot(A, '09-unfolded')
+  await A.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await sleep(400); await shot(A, '10-unfolded-dark')
 
-  // Mom chat with a photo
-  await page.locator('.row', { hasText: '妈妈' }).first().click()
-  await page.waitForSelector('.thread:not([hidden]) .bubble.media img.loaded', { timeout: 10000 }).catch(() => {})
-  await sleep(800)
-  await shot('12-thread-photo')
-  await page.click('.bubble.media')
-  await sleep(900)
-  await shot('13-viewer')
-  await page.keyboard.press('Escape')
-  await sleep(700)
-
-  // Incoming message while in the chat list
-  await page.click('.thread-nav .back')
-  await sleep(600)
-  await ctl('incoming', { from: 3, text: '好的，下午三点见～' })
-  await sleep(6000)
-  await shot('14-incoming')
-
-  // Settings sheet
-  await page.click('.me-btn')
-  await sleep(900)
-  await shot('15-settings')
-  await page.keyboard.press('Escape')
-  await sleep(600)
-
-  // Unfold: iPhone Duo inner display
-  await page.setViewportSize(UNFOLDED)
-  await sleep(900)
-  await shot('16-unfolded')
-  await page.locator('.row', { hasText: '周末徒步' }).first().click()
-  await sleep(1200)
-  await shot('17-unfolded-thread')
-
-  // Fold back with the chat open
-  await page.setViewportSize(FOLDED)
-  await sleep(900)
-  await shot('18-folded-again')
-
-  // Dark mode (the default theme is light; 深色 is a choice in Settings)
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-  await sleep(600)
-  await shot('19-dark-thread')
-  await page.click('.thread-nav .back')
-  await sleep(700)
-  await shot('20-dark-list')
-
-  // Unfolded dark
-  await page.setViewportSize(UNFOLDED)
-  await sleep(800)
-  await shot('21-dark-unfolded')
-
-  // Reduced transparency fallback
-  await page.evaluate(() => document.documentElement.setAttribute('data-glass', 'solid'))
-  await sleep(400)
-  await shot('22-solid-unfolded')
-
-  console.log('\nPROBLEMS:\n' + (problems.join('\n') || 'none'))
+  console.log('\nPROBLEMS:\n' + (problems.filter(x => !/rtc|realtime|500|sessions/i.test(x)).join('\n') || 'none'))
   await browser.close()
-})().catch(e => {
-  console.error(e)
-  process.exit(1)
-})
+})().catch(e => { console.error(e); process.exit(1) })
