@@ -5,6 +5,11 @@
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
 
+  // Preserve the existing production custom domain on Git-based deployments.
+  "routes": [
+    { "pattern": "wechat.cuven.us", "zone_name": "cuven.us", "custom_domain": true }
+  ],
+
   // The UI is plain static files; only /api, /auth and /rtc run the Worker.
   "assets": {
     "directory": "./public",

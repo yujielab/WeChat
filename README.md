@@ -72,6 +72,8 @@ npx wrangler deploy
 - 使用 Node.js 22 或更新版本（Wrangler 4.152.0 要求 Node.js ≥22，仓库的 `.node-version` 已指定 22）。
 - 当前连接的 Cloudflare Worker 是 `wechatduo`，与 `wrangler.jsonc` 的 `name` 保持一致。
   如果部署到另一个 Worker，先修改 `name`；设置 secret 时也应使用同一个配置。
+- `routes` 保留现有自定义域名 `wechat.cuven.us`，避免部署时清除仪表盘上的域名绑定。
+  自建到其他账号时，应改成自己的域名，或移除这项配置。
 - Workers Builds 的根目录使用仓库根目录，构建命令留空（静态文件无需编译），部署命令使用
   `npm run deploy`。首次部署前，在同一个 Cloudflare 账号创建 `cf-messenger-media` R2 桶。
 - 旧版已执行 `v1`（`WeChatSession`），升级由新增的 `v2` 创建 `Hub`。
