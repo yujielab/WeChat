@@ -12,9 +12,11 @@
     "springs": "node tools/gen-springs.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261019.2-beta",
     "wrangler": "4.152.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "cf-messenger",
+  "name": "wechatduo",
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
@@ -18,7 +18,12 @@
   "durable_objects": {
     "bindings": [{ "name": "HUB", "class_name": "Hub" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }],
+  // v1 was already deployed by the WeChat client. Never rewrite an applied
+  // migration: create the new hub separately and retain the old namespace.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["WeChatSession"] },
+    { "tag": "v2", "new_sqlite_classes": ["Hub"] }
+  ],
 
   // Images, voice clips, files and avatars live in R2.
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cf-messenger-media" }],

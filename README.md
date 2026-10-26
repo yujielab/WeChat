@@ -67,6 +67,21 @@ npx wrangler deploy
 
 打开部署后的地址，点“创建账号”注册第一个用户即可。把地址发给朋友，各自注册、互相添加。
 
+### 从旧版升级 / 使用 Workers Builds
+
+- 使用 Node.js 22 或更新版本（Wrangler 4.152.0 要求 Node.js ≥22，仓库的 `.node-version` 已指定 22）。
+- 当前连接的 Cloudflare Worker 是 `wechatduo`，与 `wrangler.jsonc` 的 `name` 保持一致。
+  如果部署到另一个 Worker，先修改 `name`；设置 secret 时也应使用同一个配置。
+- Workers Builds 的根目录使用仓库根目录，构建命令留空（静态文件无需编译），部署命令使用
+  `npm run deploy`。首次部署前，在同一个 Cloudflare 账号创建 `cf-messenger-media` R2 桶。
+- 旧版已执行 `v1`（`WeChatSession`），升级由新增的 `v2` 创建 `Hub`。
+  保留历史迁移和旧类导出，不要把 `v1` 改成 `Hub`，也不要删除旧 namespace。
+  旧微信存储保留但不再使用；Duo 的账号和消息从独立的 Hub 数据库开始。
+
+如果部署仍失败，打开 Cloudflare → Workers & Pages → `wechatduo` → Builds 中的失败构建，
+查看最后的错误：缺少 `Hub` 类 / namespace 通常与迁移链有关；R2 bucket 不存在则需先创建上述桶。
+`wrangler deploy --dry-run` 只验证本地打包，不验证线上迁移状态、账号权限或 R2 桶是否存在。
+
 ### 开启语音 / 视频通话（Cloudflare Realtime）
 
 1. 在 Cloudflare 仪表盘创建一个 **Realtime（Calls）** 应用，拿到 App ID 和 App Secret。

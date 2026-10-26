@@ -4,6 +4,7 @@
 import { Hub } from './hub.js'
 
 export { Hub }
+export { WeChatSession } from './legacy-session.js'
 
 const DYNAMIC = ['/api/', '/auth/', '/rtc/']
 
