@@ -45,7 +45,7 @@ iPhone (PWA)  ──HTTPS / WebSocket──▶  Worker（瘦代理）  ──▶
   按会话成员鉴权。
 - **通话（`src/call.js`）**：信令走 WebSocket；媒体经 `/rtc/*` 代理到 **Cloudflare Realtime SFU**，
   App Secret 不下发浏览器；TURN 凭证由 Realtime TURN key 下发。
-- **账号加密（`src/auth.js`）**：PBKDF2-HMAC-SHA256（310k 轮）哈希密码；HMAC 签名会话令牌，
+- **账号加密（`src/auth.js`）**：PBKDF2-HMAC-SHA256（100k 轮，Workers WebCrypto 的迭代上限）哈希密码；HMAC 签名会话令牌，
   携带 epoch，可“全端退出”。
 
 ## 部署
@@ -135,7 +135,7 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 
 ## 安全
 
-- 密码用 PBKDF2-HMAC-SHA256（310k 轮）加随机盐哈希；会话是 HMAC 签名令牌（HttpOnly、SameSite=Strict）。
+- 密码用 PBKDF2-HMAC-SHA256（100k 轮）加随机盐哈希；会话是 HMAC 签名令牌（HttpOnly、SameSite=Strict）。
 - 改密码会提升 epoch，使旧令牌失效（相当于全端退出）。
 - 改状态的请求与 WebSocket 升级都做同源校验。
 - 媒体下载响应带 `sandbox` CSP 与 `nosniff`，并按会话成员鉴权；上传限制大小与成员。

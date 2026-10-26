@@ -3,7 +3,9 @@
 // lives only inside the DO, so the Worker never needs it.
 
 const enc = new TextEncoder()
-const PBKDF2_ITERS = 310000
+// workerd caps WebCrypto PBKDF2 at 100,000 iterations. Node's WebCrypto does
+// not enforce that cap, so password flows must also be tested in workerd.
+const PBKDF2_ITERS = 100000
 const TOKEN_MAX_AGE = 30 * 24 * 3600 // seconds
 
 export function b64url(buf) {
