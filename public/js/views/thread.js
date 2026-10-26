@@ -60,8 +60,9 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
   const audioCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '语音通话' }, icon('phone'))
   const videoCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '视频通话' }, icon('video'))
-  const infoBtn = h('button', { class: 'glass glass-btn info', type: 'button', 'aria-label': '聊天信息' }, icon('info'))
-  const navActions = h('div', { class: 'nav-actions' }, audioCall, videoCall, infoBtn)
+  // The title pill is the way into chat info (as in Messages), which leaves
+  // room for both call buttons next to a readable name on the 382pt outer screen.
+  const navActions = h('div', { class: 'nav-actions' }, audioCall, videoCall)
   const nav = h('header', { class: 'thread-nav' }, back, titleBtn, navActions)
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
@@ -83,7 +84,6 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
 
   back.addEventListener('click', () => onBack())
   titleBtn.addEventListener('click', () => current && onInfo(current))
-  infoBtn.addEventListener('click', () => current && onInfo(current))
   jump.addEventListener('click', () => scrollToBottom(true))
   audioCall.addEventListener('click', () => current && onCall?.(current, 'audio'))
   videoCall.addEventListener('click', () => current && onCall?.(current, 'video'))
@@ -244,8 +244,39 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
         markReadSoon()
       }
       if (distTop() < 500) loadOlder()
+      captureAnchor()
     })
   }, { passive: true })
+
+  // Folding, unfolding and Split View change the width, which rewraps every
+  // bubble, so the same bottom-relative offset would land on other messages.
+  // Remember the message in the middle of the view and put it back afterwards.
+  let anchor = null
+  let lastWidth = 0
+  function captureAnchor() {
+    if (scroller.clientWidth !== lastWidth) return
+    if (atBottom()) { anchor = null; return }
+    const box = scroller.getBoundingClientRect()
+    const mid = box.top + box.height / 2
+    const rows = msgs.children
+    let lo = 0
+    let hi = rows.length - 1
+    while (lo < hi) {
+      const i = (lo + hi) >> 1
+      if (rows[i].getBoundingClientRect().bottom < mid) lo = i + 1
+      else hi = i
+    }
+    const el = rows[lo]
+    anchor = el ? { el, offset: el.getBoundingClientRect().top - box.top } : null
+  }
+  new ResizeObserver(() => {
+    const w = scroller.clientWidth
+    if (w === lastWidth) return
+    lastWidth = w
+    if (!w || !anchor?.el.isConnected) return
+    const box = scroller.getBoundingClientRect()
+    scroller.scrollTop += anchor.el.getBoundingClientRect().top - box.top - anchor.offset
+  }).observe(scroller)
 
   async function loadOlder() {
     const chat = current
@@ -485,10 +516,15 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     clearTimeout(typingTimer)
     if (text) {
       // Live text: a ghost incoming bubble that updates as the peer types.
-      if (!ghostEl) {
-        const who = isGroup(current) ? h('div', { class: 'm-sender' }, nameOf(uid, current)) : null
+      if (ghostEl?.dataset.uid !== uid) {
+        clearGhost()
+        // Same row shape as a real incoming message, so it lines up with them.
+        const room = isGroup(current)
+        const name = nameOf(uid, current)
+        const who = room ? h('div', { class: 'm-sender' }, name) : null
+        const av = h('span', { class: 'm-avatar' }, room ? avatar(avatarOf(uid, current), name, { size: 28 }) : null)
         const bub = h('div', { class: 'bubble text ghost' })
-        ghostEl = h('div', { class: 'm in ghost-row' }, h('span', { class: 'm-avatar' }), h('div', { class: 'm-col' }, who, bub))
+        ghostEl = h('div', { class: ['m', 'in', 'ghost-row', room ? 'room-in last' : 'dm'], dataset: { uid } }, av, h('div', { class: 'm-col' }, who, bub))
         msgs.append(ghostEl)
       }
       ghostEl.querySelector('.bubble').textContent = text

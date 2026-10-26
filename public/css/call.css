@@ -16,13 +16,20 @@
 .call.on { opacity: 1; transform: none; }
 
 .call-stage {
-  position: relative;
   flex: 1;
   min-height: 0;
-  display: grid;
-  place-items: center;
+  /* Name above the photo in one column, so neither can slide under the other
+     when the height runs short (outer screen in landscape is 368pt tall). */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px) 0 calc(var(--safe-left) + 16px);
   overflow: hidden;
 }
+/* Both videos are positioned against the whole call screen, so they run
+   under the controls as in FaceTime. */
 .call-remote {
   position: absolute;
   inset: 0;
@@ -45,9 +52,8 @@
 .call.remote-video .call-poster { display: none; }
 
 .call-head {
-  position: absolute;
-  top: calc(var(--safe-top) + 28px);
-  left: 0; right: 0;
+  order: -1;
+  max-width: 100%;
   z-index: 2;
   text-align: center;
   display: grid;
@@ -55,25 +61,48 @@
   pointer-events: none;
   text-shadow: 0 1px 10px rgb(0 0 0 / 0.5);
 }
-.call-name { font-size: var(--t-title-1); font-weight: var(--w-bold); letter-spacing: -0.02em; }
+.call.remote-video .call-head {
+  position: absolute;
+  top: calc(var(--safe-top) + 20px);
+  left: calc(var(--safe-left) + 20px);
+  right: calc(var(--safe-right) + 136px); /* clear of the self-view tile */
+  text-align: left;
+}
+.call-name { font-size: var(--t-title-1); font-weight: var(--w-bold); letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .call-status { font-size: var(--t-subhead); color: rgb(255 255 255 / 0.75); min-height: 1.2em; }
 
-/* Local self-view: small rounded tile, picture-in-picture top-right. */
+/* Local self-view. While it rings it fills the screen behind the name, so you
+   can check your framing; when the other side's video arrives the same tile
+   shrinks into the corner instead of a second view popping in. */
 .call-local {
   position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  z-index: 0;
+  filter: brightness(0.6);
+  transform: scaleX(-1); /* mirror self-view */
+  display: none;
+  transition:
+    top 460ms var(--ease-morph), right 460ms var(--ease-morph),
+    width 460ms var(--ease-morph), height 460ms var(--ease-morph),
+    border-radius 460ms var(--ease-morph), filter 300ms ease;
+}
+.call.video .call-local { display: block; }
+.call.remote-video .call-local {
   top: calc(var(--safe-top) + 16px);
-  right: 16px;
+  right: calc(var(--safe-right) + 16px);
   width: 104px;
   height: 150px;
-  object-fit: cover;
   border-radius: 18px;
   z-index: 3;
   background: #18181b;
+  filter: none;
   box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6);
-  transform: scaleX(-1); /* mirror self-view */
-  display: none;
 }
-.call.video .call-local { display: block; }
 
 .call-controls {
   display: flex;
@@ -110,6 +139,21 @@
 .call-btn.accept { background: var(--green); }
 .call-incoming .call-btn { width: 72px; height: 72px; }
 
+/* Short windows (outer screen in landscape): a smaller photo, tile and
+   controls so the name, photo and buttons all stay on screen. */
+@media (max-height: 480px) {
+  .call-stage { gap: 14px; padding-top: calc(var(--safe-top) + 10px); }
+  .call-poster .avatar { --size: 84px !important; }
+  .call-name { font-size: var(--t-title-2); }
+  .call.remote-video .call-head { top: calc(var(--safe-top) + 12px); right: calc(var(--safe-right) + 104px); }
+  .call.remote-video .call-local { width: 72px; height: 104px; top: calc(var(--safe-top) + 10px); border-radius: 14px; }
+  .call-controls, .call-incoming { padding-top: 12px; padding-bottom: calc(max(var(--safe-bottom), 12px) + 4px); }
+  .call-btn { width: 56px; height: 56px; }
+  .call-incoming .call-btn { width: 64px; height: 64px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .call { transition: opacity 160ms linear; transform: none; }
+  :root:not([data-motion="full"]) .call-local { transition: filter 160ms linear; }
 }
+:root[data-motion="reduce"] .call-local { transition: filter 160ms linear; }

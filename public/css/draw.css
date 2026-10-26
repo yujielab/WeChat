@@ -42,7 +42,7 @@
 .draw-stage {
   flex: 1;
   min-height: 0;
-  margin: 0 calc(var(--margin) + var(--safe-left)) 0 calc(var(--margin) + var(--safe-right));
+  margin: 0 calc(var(--margin) + var(--safe-right)) 0 calc(var(--margin) + var(--safe-left));
   border-radius: var(--r-tile);
   overflow: hidden;
   background: #fff;
@@ -55,37 +55,43 @@
   flex: none;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   padding: 12px calc(var(--margin) + var(--safe-right)) calc(max(var(--safe-bottom), 12px) + 8px) calc(var(--margin) + var(--safe-left));
 }
-.draw-palette, .draw-sizes {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 22px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.draw-palette::-webkit-scrollbar, .draw-sizes::-webkit-scrollbar { display: none; }
-.draw-sizes { justify-content: center; }
-.draw-tools { display: flex; justify-content: center; gap: 12px; }
+.draw-row { display: flex; align-items: center; justify-content: center; gap: 12px; max-width: 100%; }
+.draw-palette, .draw-sizes { border-radius: 22px; }
+.draw-sizes { display: flex; align-items: center; gap: 2px; padding: 2px 6px; }
+.draw-tools { display: flex; gap: 8px; }
 
+/* Nine swatches that always fit: each cell is a 44pt-tall hit area that
+   narrows with the window, the colour dot sits inside it. */
+.draw-palette {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 40px));
+  max-width: 100%;
+  padding: 0 8px;
+}
 .draw-color {
-  width: 30px;
-  height: 30px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+.draw-color::before {
+  content: "";
+  width: min(30px, calc(100% - 8px));
+  aspect-ratio: 1;
   border-radius: 50%;
-  flex: none;
   background: var(--c);
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.1);
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy), box-shadow 160ms ease;
 }
-.draw-color.on { transform: scale(1.18); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--blue); }
-.draw-color[style*="#ffffff"] { box-shadow: inset 0 0 0 1px var(--separator); }
+.draw-color[style*="#ffffff"]::before { box-shadow: inset 0 0 0 1px var(--separator); }
+.draw-color.on::before { transform: scale(1.08); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--blue); }
 
 .draw-size {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -93,10 +99,26 @@
   transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color 160ms ease;
 }
 .draw-size span { background: var(--label); border-radius: 50%; display: block; }
-.draw-size.on { background: var(--fill-3); transform: scale(1.05); }
+.draw-size.on { background: var(--fill-3); }
 
 .draw-tool { width: 44px; height: 44px; }
 .draw-tool .icon { width: 20px; height: 20px; }
+
+/* Short windows (outer screen in landscape): the tools move into a rail
+   beside the paper, so the canvas keeps the full height. */
+@media (max-height: 480px) and (min-aspect-ratio: 1/1) {
+  .draw { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); }
+  .draw-head { grid-column: 1 / -1; padding-top: calc(var(--safe-top) + 6px); padding-bottom: 6px; }
+  .draw-stage { margin-right: 0; margin-bottom: calc(max(var(--safe-bottom), 12px)); }
+  .draw-bar {
+    justify-content: center;
+    width: calc(232px + var(--margin) + var(--safe-right));
+    padding: 0 calc(var(--margin) + var(--safe-right)) calc(max(var(--safe-bottom), 12px)) 12px;
+    overflow-y: auto;
+  }
+  .draw-row { flex-direction: column; gap: 8px; }
+  .draw-palette { grid-template-columns: repeat(5, 40px); padding: 2px 8px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .draw { transition: opacity 160ms linear; transform: none; }

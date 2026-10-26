@@ -10,8 +10,10 @@ const path = require('path')
 const BASE = process.env.BASE || 'http://127.0.0.1:8787'
 const OUT = process.argv[2] || path.join(process.cwd(), 'screenshots')
 fs.mkdirSync(OUT, { recursive: true })
-const FOLDED = { width: 466, height: 678 }
-const UNFOLDED = { width: 890, height: 626 }
+// iPhone Duo viewports as Safari reports them (WebKit, Safari 27.1).
+const FOLDED = { width: 382, height: 618 }
+const UNFOLDED = { width: 951, height: 585 }
+const UNFOLDED_PORTRAIT = { width: 669, height: 867 }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const uniq = Math.random().toString(36).slice(2, 7)
 
@@ -77,6 +79,8 @@ const uniq = Math.random().toString(36).slice(2, 7)
   // unfolded split
   await A.setViewportSize(UNFOLDED); await sleep(800); await shot(A, '09-unfolded')
   await A.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await sleep(400); await shot(A, '10-unfolded-dark')
+  await A.evaluate(() => document.documentElement.removeAttribute('data-theme'))
+  await A.setViewportSize(UNFOLDED_PORTRAIT); await sleep(800); await shot(A, '11-unfolded-portrait')
 
   console.log('\nPROBLEMS:\n' + (problems.filter(x => !/rtc|realtime|500|sessions/i.test(x)).join('\n') || 'none'))
   await browser.close()

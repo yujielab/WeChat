@@ -5,14 +5,14 @@
 Cloudflare 账号里。界面参考 iOS“信息”，并借鉴 Benji Taylor（Family / Honk /
 drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）与内屏（展开）打磨。
 
-| 折叠（外屏 466×678） | 展开（内屏 890×626） |
+| 外屏（382×618） | 内屏（横 951×585 / 竖 669×867） |
 | --- | --- |
 | <img src="docs/screenshots/04-thread.png" width="240"> | <img src="docs/screenshots/09-unfolded.png" width="420"> |
 | <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/10-unfolded-dark.png" width="420"> |
-| <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/08-incoming-call.png" width="240"> |
-| <img src="docs/screenshots/07-settings.png" width="240"> | <img src="docs/screenshots/01-auth.png" width="240"> |
+| <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/11-unfolded-portrait.png" width="300"> |
+| <img src="docs/screenshots/08-incoming-call.png" width="240"> | <img src="docs/screenshots/07-settings.png" width="240"> |
 
-> 截图来自本地 `wrangler dev`，账号和消息都是演示数据。
+> 截图来自本地 `wrangler dev`，账号和消息都是演示数据；尺寸取自 WebKit 公布的 Safari 27.1 在 iPhone Duo 上的视口。
 
 ## 功能
 
@@ -24,7 +24,9 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
 - **通知**：新消息 Web Push（需加到主屏幕并配置 VAPID）
 - **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
-- **iPhone Duo**：折叠单栏推入 / 返回，展开列表 + 对话双栏；折叠态保持当前对话
+- **iPhone Duo**：外屏与系统分屏为单栏推入 / 返回；内屏横竖都是列表 + 对话双栏（按两栏各自所需宽度决定，
+  不按机型判断）。折叠、展开、进入分屏时保留当前对话、草稿、输入焦点和正在看的那条消息的位置；
+  外屏横放等低高度下，画板工具移到画布旁、通话界面自动收紧；拨视频时先全屏预览自己的画面，接通后缩成角落小窗
 
 ## 架构
 
@@ -130,8 +132,10 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 暂不支持录制语音消息（可发文字、图片、手绘；可打语音 / 视频通话）。
 - 单个 Durable Object 承载全部状态，适合个人与中小群体自建；超大规模需要分片。
 - 非端到端加密：消息在服务端（你自己的 Cloudflare 账号）以明文存储。
-- 无法在真机上验证的部分：iOS 键盘动画、`<input switch>` 触感、`viewport-segments`、Apple 推送送达、
-  真实 Realtime SFU 接通质量（开发环境无法访问 Realtime 服务）。
+- 界面在 Chromium 中按 Safari 27.1 的 iPhone Duo 视口（外屏 382×580 / 594×368、内屏 669×867 / 951×585、
+  分屏 385×571）、大字号与深色模式走查过；无法在真机上验证的部分：iOS 键盘动画、`<input switch>` 触感、
+  `viewport-segments`（Safari 中仍需实验开关）、Apple 推送送达、真实 Realtime SFU 接通质量
+  （开发环境无法访问 Realtime 服务）。
 
 ## 目录
 

@@ -3,14 +3,19 @@
 // * Pins the app to the visual viewport (--vvh / --vvt) so the keyboard
 //   shrinks the app instead of scrolling the page, and flags data-kb="1"
 //   while the keyboard is up.
-// * Decides the layout: "split" (unfolded inner display, ≥700px wide) or
-//   "stack" (folded outer display, Split View halves, narrow windows).
-//   Folding/unfolding changes the width without a rotation, so this listens
-//   to size, not orientation.
+// * Decides the layout: "split" (list + conversation) or "stack" (one pane).
+//   The threshold comes from what each column needs, not from a device
+//   width: a scannable list and a conversation at least as wide as the outer
+//   screen. In Safari that splits the inner display both ways (669 / 951
+//   wide) and stacks the outer screen (382 / 594) and Split View windows
+//   (385). Folding changes the width without a rotation, so this listens to
+//   size, not orientation.
 
 const root = document.documentElement
 const vv = window.visualViewport
-const SPLIT_MIN = 700
+const LIST_MIN = 280
+const THREAD_MIN = 380
+const SPLIT_MIN = LIST_MIN + THREAD_MIN
 const listeners = new Set()
 let layout = null
 

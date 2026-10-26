@@ -1,10 +1,11 @@
 /* Reset, typography and the app shell.
  *
- * iPhone Duo has two very different canvases:
- *   folded   – outer display, ~466 × 678 pt: one column, short and wide
- *   unfolded – inner display, ~890 × 626 pt: list + conversation side by side
- * The shell switches at 700px wide (see js/ui/viewport.js), which also covers
- * a 50/50 Split View on the inner display (~445 pt, single column).
+ * iPhone Duo as Safari reports it (CSS px, small viewport height):
+ *   outer display  382 × 580 portrait, 594 × 368 landscape → one column
+ *   inner display  669 × 867 portrait, 951 × 585 landscape → list + conversation
+ *   Split View     385 × 571 per window                     → one column
+ * The shell splits once both columns fit (see js/ui/viewport.js); the sizes
+ * above are test cases, nothing here detects a device.
  */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -150,7 +151,7 @@ img { -webkit-user-drag: none; }
 /* Split (unfolded): list on the left, conversation on the right. The list
    width is tuned so the conversation keeps a comfortable ~40em measure. */
 .shell[data-layout="split"] {
-  --list-w: clamp(300px, 36vw, 360px);
+  --list-w: clamp(280px, 36vw, 360px);
 }
 .shell[data-layout="split"] .pane-list {
   left: 0;
@@ -161,7 +162,8 @@ img { -webkit-user-drag: none; }
 
 /* If the browser reports the hinge as two viewport segments, put the split on it. */
 @media (horizontal-viewport-segments: 2) {
-  .shell[data-layout="split"] { --list-w: env(viewport-segment-width 0 0, clamp(300px, 36vw, 360px)); }
+  .shell[data-layout="split"] { --list-w: env(viewport-segment-width 0 0, clamp(280px, 36vw, 360px)); }
+  .shell[data-layout="split"] .pane-thread { left: env(viewport-segment-left 1 0, var(--list-w)); }
 }
 
 /* No transitions while folding/unfolding or rotating. */

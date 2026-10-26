@@ -163,7 +163,7 @@
   :root { --hairline: 0.5px; }
 }
 
-/* Wider phones (iPhone Duo folded is ~466pt wide) get the Pro Max margin. */
+/* Wider windows get the Pro Max margin; the 382pt outer screen keeps 16. */
 @media (min-width: 430px) {
   :root { --margin: 20px; }
 }

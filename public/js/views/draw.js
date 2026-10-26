@@ -31,8 +31,10 @@ export function openDrawing({ onSend }) {
   const palette = h('div', { class: 'draw-palette glass glass-thick' }, ...swatches)
   const sizes = h('div', { class: 'draw-sizes glass glass-thick' }, ...sizeBtns)
   const tools = h('div', { class: 'draw-tools' }, undoBtn, clearBtn)
+  // Brush sizes share a row with undo / clear, so the canvas keeps the height.
+  const row = h('div', { class: 'draw-row' }, sizes, tools)
   const head = h('div', { class: 'draw-head' }, closeBtn, h('div', { class: 'draw-title' }, '画板'), sendBtn)
-  const root = h('div', { class: 'draw', role: 'dialog', 'aria-modal': 'true', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, tools))
+  const root = h('div', { class: 'draw', role: 'dialog', 'aria-modal': 'true', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, row, palette))
 
   const overlays = document.getElementById('overlays')
   overlays.append(root)

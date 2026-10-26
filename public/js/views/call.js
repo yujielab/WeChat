@@ -179,7 +179,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
       root.classList.toggle('video', hasVideo)
       name.textContent = room?.name || '通话'
       status.textContent = media === 'video' ? '视频通话 · 正在呼叫…' : '正在呼叫…'
-      poster.append(avatar(room?.peer?.id, room?.name || '', { size: 112, room: room?.kind === 'group' }))
+      poster.append(avatar(room?.avatar, room?.name || '', { size: 112, room: room?.kind === 'group' }))
       camBtn.el.hidden = !hasVideo
       mount()
     },
@@ -188,7 +188,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
       root.classList.toggle('video', hasVideo)
       name.textContent = caller?.display || '来电'
       status.textContent = media === 'video' ? '邀请你视频通话' : '邀请你语音通话'
-      poster.append(avatar(caller?.id, caller?.display || '', { size: 112 }))
+      poster.append(avatar(caller?.avatar, caller?.display || '', { size: 112 }))
       const yes = h('button', { class: 'call-btn accept', type: 'button', 'aria-label': '接听' }, icon(media === 'video' ? 'video' : 'phone'))
       const no = h('button', { class: 'call-btn hang', type: 'button', 'aria-label': '拒绝' }, icon('phone-down'))
       yes.addEventListener('click', () => { incomingActions.remove(); controls.hidden = false; accept() })
