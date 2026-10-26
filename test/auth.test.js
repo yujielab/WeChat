@@ -5,6 +5,17 @@ import { hashPassword, verifyPassword, mintToken, readToken } from '../src/auth.
 
 globalThis.crypto ??= webcrypto
 
+test('password verification accepts the Workers-compatible 100k PBKDF2 format', async () => {
+  // Independent PBKDF2-HMAC-SHA256 fixture: 16-byte salt, 100,000 iterations,
+  // 32-byte output. Some local workerd versions accept higher counts than
+  // production, so this also guards the persisted credential format.
+  assert.equal(await verifyPassword(
+    'format compatibility password',
+    'ABEiM0RVZneImaq7zN3u_w',
+    'kK57MOY6z19rUlEBIKhOYNtdKTFpwh__8Ij0RhjU8B0'
+  ), true)
+})
+
 test('password hashing: verify round-trip, reject wrong, unique salt', async () => {
   const a = await hashPassword('correct horse')
   const b = await hashPassword('correct horse')
