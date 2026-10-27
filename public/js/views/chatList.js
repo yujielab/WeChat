@@ -12,7 +12,7 @@ import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
 
 const FILTERS = {
-  all: { label: '全部聊天', test: () => true },
+  all: { label: '全部', test: () => true },
   unread: { label: '未读', test: c => c.unread > 0 },
   people: { label: '私聊', test: c => !c.room },
   groups: { label: '群聊', test: c => c.room }
@@ -28,24 +28,45 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', hidden: true })
-  const title = h('h1', { class: 'large-title' }, '消息', status)
-  const head = h('header', { class: 'list-head' }, title)
+  const title = h('h1', { class: 'large-title' }, '消息', h('span', { class: 'title-period', 'aria-hidden': 'true' }, '.'))
+  const subtitle = h('p', { class: 'list-subtitle' }, '和在意的人，保持联系。')
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status), subtitle)
+  const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
+  const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
+  const filterButtons = new Map()
+  Object.entries(FILTERS).forEach(([key, f]) => {
+    const button = h('button', { class: 'filter-tab', type: 'button', 'aria-pressed': key === state.filter ? 'true' : 'false', dataset: { filter: key } }, f.label)
+    button.addEventListener('click', () => selectFilter(key))
+    button.addEventListener('keydown', e => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+      e.preventDefault()
+      const keys = [...filterButtons.keys()]
+      const i = keys.indexOf(key)
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? keys.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + keys.length) % keys.length
+      filterButtons.get(keys[next]).focus()
+      selectFilter(keys[next])
+    })
+    filterButtons.set(key, button)
+    filterTabs.append(button)
+  })
   const filterNote = h('div', { class: 'filter-note', hidden: true })
   const pinned = h('div', { class: 'pinned', role: 'list', 'aria-label': '置顶聊天', hidden: true })
   const rows = h('ul', { class: 'rows', 'aria-label': '聊天' })
   const empty = h('div', { class: 'list-empty', hidden: true })
   const results = h('div', { class: 'search-results', hidden: true })
-  const scroll = h('div', { class: 'scroll list-scroll' }, head, filterNote, pinned, rows, empty, results)
+  const pinLabel = h('div', { class: 'pinned-label', hidden: true }, icon('pin'), '留在身边')
+  const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, empty, results)
 
   const meBtn = h('button', { class: 'glass glass-btn me-btn', type: 'button', 'aria-label': '设置' })
   const filterBtn = h('button', { class: 'bar-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
   const composeBtn = h('button', { class: 'bar-btn tint', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
-  const topbar = h('div', { class: 'list-topbar' }, meBtn, inlineTitle, h('div', { class: 'spacer' }), h('div', { class: 'bar-group glass' }, filterBtn, composeBtn))
+  const brand = h('div', { class: 'list-brand', 'aria-label': 'Duo' }, h('span', { class: 'list-brand-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble')), h('span', { class: 'list-wordmark' }, 'Duo'), inlineTitle)
+  const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }), meBtn, h('div', { class: 'bar-group' }, filterBtn, composeBtn))
 
   const input = h('input', {
     type: 'search',
-    placeholder: '搜索',
+    placeholder: '搜索聊天、联系人',
     'aria-label': '搜索聊天和联系人',
     enterkeyhint: 'search',
     autocomplete: 'off',
@@ -69,12 +90,33 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
         label: f.label,
         checked: state.filter === key,
         onSelect: () => {
-          state.filter = key
-          render()
+          selectFilter(key)
         }
       }))
     ])
   })
+
+  function selectFilter(key) {
+    if (!FILTERS[key]) return
+    closeSwipe()
+    if (searching) exitSearch()
+    state.filter = key
+    render()
+  }
+
+  function positionFilterThumb() {
+    const current = filterButtons.get(state.filter) || filterButtons.get('all')
+    if (!current || !filterTabs.offsetWidth) return
+    filterThumb.style.width = `${current.offsetWidth}px`
+    filterThumb.style.transform = `translateX(${current.offsetLeft}px)`
+    filterTabs.classList.add('ready')
+  }
+
+  function updateFilters() {
+    for (const [key, button] of filterButtons) button.setAttribute('aria-pressed', key === state.filter ? 'true' : 'false')
+    positionFilterThumb()
+  }
+  new ResizeObserver(positionFilterThumb).observe(filterTabs)
 
   // ------------------------------------------------------------ scroll chrome
   let ticking = false
@@ -84,7 +126,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     requestAnimationFrame(() => {
       ticking = false
       const y = scroll.scrollTop
-      pane.classList.toggle('collapsed', y > 40)
+      pane.classList.toggle('collapsed', y > 76)
       edgeTop.classList.toggle('on', y > 2)
       closeSwipe()
     })
@@ -122,6 +164,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     r.flag = h('span', { class: 'row-flag', 'aria-hidden': 'true' })
     r.time = h('span', { class: 'row-time' })
     r.preview = h('div', { class: 'row-preview' })
+    r.unread = h('span', { class: 'row-count', hidden: true })
     r.avatar = avatar(c.avatar, c.name, { room: c.room })
     r.avWrap = h('span', { class: 'av-wrap' }, r.avatar, h('span', { class: 'pres' }))
     r.inner = h('div', { class: 'row-inner', role: 'button', tabindex: '0' },
@@ -129,7 +172,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       r.avWrap,
       h('div', { class: 'row-main' },
         h('div', { class: 'row-top' }, r.name, r.flag, h('span', { class: 'grow' }), r.time, h('span', { class: 'row-chevron' }, icon('chevron-right'))),
-        r.preview))
+        h('div', { class: 'row-bottom' }, r.preview, r.unread)))
     r.readBtn = h('button', { class: 'row-action blue', type: 'button' })
     r.pinBtn = h('button', { class: 'row-action yellow', type: 'button' })
     r.hideBtn = h('button', { class: 'row-action red', type: 'button' }, icon('trash'), '删除')
@@ -169,6 +212,8 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     r.flag.replaceChildren(...(c.muted ? [icon('bell-slash')] : []))
     r.time.textContent = listTime(c.ts)
     r.preview.replaceChildren(...preview(c))
+    r.unread.hidden = !c.unread
+    r.unread.textContent = c.unread > 99 ? '99+' : String(c.unread || '')
     r.inner.setAttribute('aria-label', label(c))
     r.inner.setAttribute('aria-current', c.id === selected ? 'true' : 'false')
     r.readBtn.replaceChildren(icon(c.unread ? 'check' : 'unread'), c.unread ? '已读' : '未读')
@@ -209,6 +254,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
   // ------------------------------------------------------------ render
   function render() {
+    updateFilters()
     if (searching) return renderResults()
     const filter = FILTERS[state.filter] || FILTERS.all
     const all = sortedChats().filter(filter.test)
@@ -216,18 +262,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     const pins = showPins ? all.filter(c => c.pinned).slice(0, 12) : []
     const list = showPins ? all.filter(c => !c.pinned) : all
 
-    filterNote.hidden = state.filter === 'all'
-    if (!filterNote.hidden) {
-      const reset = h('button', { type: 'button' }, '显示全部')
-      reset.addEventListener('click', () => {
-        state.filter = 'all'
-        render()
-      })
-      filterNote.replaceChildren(`仅显示${filter.label}`, reset)
-    }
+    filterNote.hidden = true
 
     // Pinned grid
     pinned.hidden = pins.length === 0
+    pinLabel.hidden = pinned.hidden
     const pinEls = new Map([...pinned.children].map(el => [el.dataset.id, el]))
     const firstPins = pinned.children.length === 0 && rowEls.size === 0 && !reducedMotion()
     const pinOrder = pins.map((c, i) => {
@@ -295,9 +334,13 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     if (noChats && loading) {
       if (!empty.querySelector('.sk-row')) empty.replaceChildren(skeleton())
     } else if (noChats) {
+      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, icon(state.filter === 'all' ? 'compose' : 'bubble'), state.filter === 'all' ? '发起新聊天' : '查看全部聊天')
+      action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
+      const emptyTitle = state.filter === 'all' ? '从一句你好开始' : state.filter === 'unread' ? '都看过了，真好' : `还没有${filter.label}`
+      const emptyCopy = state.filter === 'all' ? '找到朋友，分享今天的小事。\n文字、手绘，或一通电话。' : state.filter === 'unread' ? '没有未读消息，享受这一刻。' : '下一次相聚，可以从这里开始。'
       empty.replaceChildren(
-        h('h2', {}, state.filter === 'all' ? '还没有聊天' : `没有${filter.label}`),
-        state.filter === 'all' ? '新消息会出现在这里。点右上角的按钮给联系人发消息。' : ''
+        h('div', { class: 'empty-art', 'aria-hidden': 'true' }, h('span', { class: 'empty-bubble' }, icon('bubble')), h('span', { class: 'empty-spark' }, icon(state.filter === 'unread' ? 'check' : 'brush'))),
+        h('h2', {}, emptyTitle), h('p', {}, emptyCopy), action
       )
     }
   }
@@ -467,7 +510,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     if (searching) return
     searching = true
     pane.classList.add('searching')
-    head.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
+    head.hidden = filterTabs.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
     renderResults()
   })
@@ -487,7 +530,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     input.value = ''
     input.blur()
     pane.classList.remove('searching')
-    head.hidden = rows.hidden = false
+    head.hidden = filterTabs.hidden = rows.hidden = false
     results.hidden = true
     clear(results)
     render()
@@ -528,6 +571,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
         results.append(h('div', { class: 'section-title' }, '最近'))
         for (const c of recent) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: c.last?.text, onClick: () => onOpen(c.id) }))
       }
+      if (!recent.length) results.append(h('div', { class: 'search-intro' }, icon('search'), h('h2', {}, '找一位朋友，聊点什么'), h('p', {}, '输入用户名、昵称或消息内容')))
       return
     }
     const lc = q.toLowerCase()
@@ -571,6 +615,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     },
     setMe(me) {
       meBtn.replaceChildren(avatar(me?.avatar, me?.display || '我', { size: 36 }))
+      meBtn.setAttribute('aria-label', `${me?.display || '我的'}，设置`)
     },
     setStatus({ text, spinner = false, warn = false } = {}) {
       if (loading !== spinner) {

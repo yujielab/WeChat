@@ -25,7 +25,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
     p.on('console', m => { if (m.type() === 'error') problems.push(`[${name}] ${m.text()}`) })
     return p
   }
-  const shot = async (p, n) => { await sleep(300); await p.screenshot({ path: path.join(OUT, `${n}.png`) }); console.log('shot', n) }
+  const shot = async (p, n) => { await sleep(800); await p.screenshot({ path: path.join(OUT, `${n}.png`) }); console.log('shot', n) }
   async function reg(p, u, d) {
     await p.goto(BASE); await p.waitForSelector('.auth')
     await p.click('.auth-foot button')

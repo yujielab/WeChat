@@ -8,6 +8,37 @@ import { haptic } from '../ui/haptics.js'
 const layer = () => document.getElementById('overlays')
 const app = () => document.getElementById('app')
 const open = new Set()
+const topmost = () => [...open].at(-1)
+
+// Only the frontmost surface receives keyboard navigation. In particular,
+// Escape from an editor should return to Settings, rather than close both.
+function trapTab(event, surface) {
+  if (event.key !== 'Tab') return
+  const targets = [...surface.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')]
+    .filter(el => el.getClientRects().length && !el.closest('[hidden], [inert]'))
+  const first = targets[0]
+  const last = targets.at(-1)
+  if (!first) {
+    event.preventDefault()
+    surface.focus({ preventScroll: true })
+  } else if (event.shiftKey && (document.activeElement === first || !surface.contains(document.activeElement))) {
+    event.preventDefault()
+    last.focus({ preventScroll: true })
+  } else if (!event.shiftKey && (document.activeElement === last || !surface.contains(document.activeElement))) {
+    event.preventDefault()
+    first.focus({ preventScroll: true })
+  }
+}
+
+function restoreFocus(previous) {
+  const front = topmost()
+  if (front && !front.el.contains(previous)) {
+    if (!front.el.contains(document.activeElement)) front.el.focus?.({ preventScroll: true })
+    return
+  }
+  if (previous?.isConnected && !previous.closest?.('[inert]')) previous.focus?.({ preventScroll: true })
+  else front?.el.focus?.({ preventScroll: true })
+}
 
 function lockApp() {
   app().inert = true
@@ -64,6 +95,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   }, h('div', { class: 'grabber' }), head, body)
 
   const ctl = { el: sheet, body, closed: false, close }
+  let settleRun = null
   open.add(ctl)
   const prevFocus = document.activeElement
   root.append(scrim, sheet)
@@ -93,6 +125,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   async function close(velocity = 0) {
     if (ctl.closed) return
     ctl.closed = true
+    settleRun?.stop()
     document.removeEventListener('keydown', onKey)
     scrim.classList.remove('on')
     // A sheet let go mid-drag keeps its momentum (even none) via a spring.
@@ -107,18 +140,23 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
       sheet.classList.remove('on')
       unrecede()
       // Leaving is quicker than arriving: don't wait out the whole spring.
-      await transitionEnd(sheet, 'transform', 420)
+      if (!reducedMotion()) await transitionEnd(sheet, 'transform', 420)
     }
     scrim.remove()
     sheet.remove()
     open.delete(ctl)
     unlockApp()
-    if (prevFocus?.isConnected) prevFocus.focus?.({ preventScroll: true })
+    restoreFocus(prevFocus)
     onClose?.()
   }
 
   const onKey = e => {
-    if (e.key === 'Escape') close()
+    if (topmost() !== ctl || e.defaultPrevented) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      close()
+    } else trapTab(e, sheet)
   }
   document.addEventListener('keydown', onKey)
   scrim.addEventListener('click', () => close())
@@ -127,15 +165,15 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   // Drag down to dismiss (folded layout), with velocity projection.
   let drag = null
   const currentY = () => {
-    const m = /translate3d\(0px?, ([-\d.]+)px/.exec(sheet.style.transform)
-    return m ? Number(m[1]) : 0
+    const transform = getComputedStyle(sheet).transform
+    return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42
   }
   sheet.addEventListener('pointerdown', e => {
-    if (getLayout() !== 'stack' || e.button > 0) return
+    if (getLayout() !== 'stack' || e.button > 0 || ctl.closed || topmost() !== ctl) return
     const inBody = body.contains(e.target)
     if (inBody && body.scrollTop > 0) return
     if (e.target.closest('input, textarea, .switch, .seg')) return
-    drag = { id: e.pointerId, y0: e.clientY, x0: e.clientX, active: false, vt: velocityTracker(), inBody }
+    drag = { id: e.pointerId, y0: e.clientY, x0: e.clientX, active: false, vt: velocityTracker(), inBody, from: currentY() }
     drag.vt.add(0, e.clientY)
   })
   sheet.addEventListener('pointermove', e => {
@@ -148,13 +186,15 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
         drag = null
         return
       }
+      drag.from = currentY()
+      settleRun?.stop()
       drag.active = true
       drag.y0 = e.clientY
       try { sheet.setPointerCapture(e.pointerId) } catch {}
       sheet.classList.add('dragging')
       if (receded) app().classList.add('sheet-drag')
     }
-    const d = e.clientY - drag.y0
+    const d = e.clientY - drag.y0 + drag.from
     const y = d >= 0 ? d : rubberband(d, sheet.offsetHeight)
     drag.vt.add(0, e.clientY)
     sheet.style.transform = `translate3d(0, ${y}px, 0)`
@@ -171,8 +211,10 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
       close(v)
       return
     }
-    spring({ from: y, to: 0, velocity: v, damping: 0.86, response: 0.32, onUpdate: val => { sheet.style.transform = `translate3d(0, ${val}px, 0)`; track(Math.max(0, val)) } })
-      .done.then(() => {
+    const run = settleRun = spring({ from: y, to: 0, velocity: v, damping: 0.86, response: 0.32, onUpdate: val => { sheet.style.transform = `translate3d(0, ${val}px, 0)`; track(Math.max(0, val)) } })
+    run.done.then(finished => {
+        if (!finished || ctl.closed || settleRun !== run) return
+        settleRun = null
         sheet.classList.remove('dragging')
         sheet.style.transform = ''
         if (receded && !ctl.closed) {
@@ -201,7 +243,11 @@ export function closeAllOverlays() {
 export function openMenu(anchor, sections, { title, preferAbove = false, onClose } = {}) {
   const root = layer()
   const scrim = h('div', { class: 'scrim clear' })
-  const menu = h('div', { class: 'menu glass glass-thick', role: 'menu' })
+  const menu = h('div', { class: 'menu glass glass-thick', role: 'menu', tabindex: '-1', 'aria-label': title || '操作' })
+  const prevFocus = document.activeElement
+  const trigger = anchor instanceof Element ? anchor : null
+  const previousExpanded = trigger?.getAttribute('aria-expanded')
+  trigger?.setAttribute('aria-expanded', 'true')
   if (title) menu.append(h('div', { class: 'menu-title' }, title))
   const ctl = { el: menu, closed: false, close }
   sections.filter(s => s.length).forEach((items, i) => {
@@ -218,8 +264,9 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
       h('span', { class: 'label' }, it.label),
       it.icon ? icon(it.icon) : null)
       btn.addEventListener('click', async () => {
-        await close()
-        it.onSelect?.()
+        if (ctl.closed) return
+        await close(false)
+        try { it.onSelect?.() } finally { onClose?.() }
       })
       menu.append(btn)
     }
@@ -253,23 +300,46 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
   menu.style.top = `${top}px`
   menu.style.setProperty('--ox', `${Math.min(Math.max(anchorCenter - left, 0), mw)}px`)
   menu.style.setProperty('--oy', `${top >= r.y ? 0 : mh}px`)
+  menu.style.setProperty('--menu-lift', top >= r.y ? '-6px' : '6px')
   menu.style.visibility = ''
-  nextFrame().then(() => menu.classList.add('on'))
-  menu.querySelector('.menu-item:not(:disabled)')?.focus({ preventScroll: true })
+  nextFrame().then(() => {
+    if (ctl.closed) return
+    menu.classList.add('on')
+    ;(menu.querySelector('.menu-item:not(:disabled)') || menu).focus({ preventScroll: true })
+  })
 
-  async function close() {
+  async function close(notify = true) {
     if (ctl.closed) return
     ctl.closed = true
     document.removeEventListener('keydown', onKey)
     menu.classList.remove('on')
-    await transitionEnd(menu, 'opacity', 260)
+    // Release trigger ownership before waiting; a new menu may use it while
+    // this one finishes leaving.
+    if (trigger?.isConnected) {
+      if (previousExpanded === null) trigger.removeAttribute('aria-expanded')
+      else trigger.setAttribute('aria-expanded', previousExpanded)
+    }
+    if (!reducedMotion()) await transitionEnd(menu, 'opacity', 260)
     menu.remove()
     scrim.remove()
     open.delete(ctl)
-    onClose?.()
+    restoreFocus(prevFocus)
+    if (notify) onClose?.()
   }
   const onKey = e => {
-    if (e.key === 'Escape') close()
+    if (topmost() !== ctl || e.defaultPrevented) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      close()
+    } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault()
+      const choices = [...menu.querySelectorAll('.menu-item:not(:disabled)')]
+      const current = choices.indexOf(document.activeElement)
+      const step = e.key === 'ArrowUp' ? -1 : 1
+      const index = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1 : (current + step + choices.length) % choices.length
+      choices[index]?.focus({ preventScroll: true })
+    } else trapTab(e, menu)
   }
   document.addEventListener('keydown', onKey)
   scrim.addEventListener('pointerdown', e => {

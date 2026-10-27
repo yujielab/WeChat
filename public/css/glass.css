@@ -101,9 +101,9 @@
   transition: transform var(--spring-snappy-dur) var(--spring-snappy);
 }
 
-/* Liquid Glass controls swell slightly toward the finger instead of sinking. */
+/* Immediate contact; the shared spring releases the control under the finger. */
 .glass-btn.is-pressed,
-.glass-pill.is-pressed { transform: scale(1.07); transition-duration: 140ms; }
+.glass-pill.is-pressed { transform: scale(0.95); transition-duration: var(--press-dur); }
 
 /* Solid, opaque controls (send button, primary buttons) sink a little. */
 .solid-press { transition: transform var(--spring-snappy-dur) var(--spring-snappy); }

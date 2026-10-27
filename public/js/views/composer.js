@@ -10,7 +10,7 @@ import { openMenu } from './overlay.js'
 export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   const textarea = h('textarea', {
     rows: 1,
-    placeholder: '消息',
+    placeholder: '说点什么…',
     'aria-label': '消息',
     enterkeyhint: 'send',
     autocomplete: 'off',
@@ -19,17 +19,21 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': '发送' }, icon('arrow-up'))
   const field = h('div', { class: 'field glass' }, textarea, send)
   const fileInput = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true })
-  const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '添加内容' }, icon('plus'))
+  const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '添加内容', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('plus'))
   const form = h('form', { class: 'composer', autocomplete: 'off' }, attach, field, fileInput)
 
   let chat = null
   let draftTimer = 0
   let readonly = false
+  let attachmentMenu = null
 
   function autosize() {
     textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 6 * 1.32 * parseFloat(getComputedStyle(textarea).fontSize) + 10)}px`
-    form.classList.toggle('has-text', textarea.value.trim().length > 0)
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 6 * 1.45 * parseFloat(getComputedStyle(textarea).fontSize) + 10)}px`
+    const hasText = textarea.value.trim().length > 0
+    form.classList.toggle('has-text', hasText)
+    send.disabled = readonly || !hasText
+    send.setAttribute('aria-hidden', hasText ? 'false' : 'true')
   }
 
   function saveDraftSoon() {
@@ -47,6 +51,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
     clearTimeout(draftTimer)
     if (chat) setDraft(chat, '')
     onSend(text.replace(/\s+$/, ''))
+    onType?.('')
     // Keep the keyboard up for the next message.
     textarea.focus({ preventScroll: true })
   }
@@ -69,13 +74,27 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   // Keep focus in the field when tapping send, so the keyboard doesn't drop.
   send.addEventListener('pointerdown', e => e.preventDefault())
   send.addEventListener('mousedown', e => e.preventDefault())
+  textarea.addEventListener('focus', () => form.classList.add('is-focused'))
+  textarea.addEventListener('blur', () => form.classList.remove('is-focused'))
 
   attach.addEventListener('click', () => {
     if (readonly) return
-    openMenu(attach, [[
+    if (attachmentMenu && !attachmentMenu.closed) return attachmentMenu.close()
+    attach.classList.add('is-open')
+    attach.setAttribute('aria-expanded', 'true')
+    const menu = openMenu(attach, [[
       { label: '照片', icon: 'photo', onSelect: () => { fileInput.value = ''; fileInput.click() } },
       { label: '画板', icon: 'brush', onSelect: () => onDraw?.() }
-    ]], { preferAbove: true })
+    ]], {
+      preferAbove: true,
+      onClose: () => {
+        if (attachmentMenu !== menu) return
+        attach.classList.remove('is-open')
+        attach.setAttribute('aria-expanded', 'false')
+        attachmentMenu = null
+      }
+    })
+    attachmentMenu = menu
   })
   fileInput.addEventListener('change', () => {
     const files = [...fileInput.files].filter(f => f.type.startsWith('image/'))
@@ -87,6 +106,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   return {
     el: form,
     setChat(id, { readonly: ro = false } = {}) {
+      attachmentMenu?.close()
       if (chat && chat !== id) {
         clearTimeout(draftTimer)
         setDraft(chat, textarea.value)
@@ -96,7 +116,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
       form.classList.toggle('readonly', ro)
       textarea.disabled = ro
       attach.disabled = ro
-      textarea.placeholder = '消息'
+      textarea.placeholder = ro ? '暂时无法发送消息' : '说点什么…'
       textarea.value = id ? getDraft(id) : ''
       autosize()
     },

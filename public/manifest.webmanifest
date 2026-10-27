@@ -1,7 +1,7 @@
 {
   "name": "Duo · 即时通讯",
   "short_name": "Duo",
-  "description": "Cloudflare 自建即时通讯，聊天、语音与视频通话，为 iPhone Duo 设计。",
+  "description": "和在意的人保持联系。即时聊天、随手画、语音与视频。",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",

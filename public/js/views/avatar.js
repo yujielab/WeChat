@@ -6,9 +6,11 @@ import { initials } from '../ui/format.js'
  * `src` is an image URL (a user's uploaded avatar) or falsy for the monogram.
  */
 export function avatar(src, name, { room = false, size } = {}) {
+  const hash = [...String(name || '')].reduce((n, c) => (n * 31 + c.codePointAt(0)) >>> 0, 0)
+  const hue = [27, 75, 145, 205, 265][hash % 5]
   const el = h('span', {
     class: ['avatar', room && 'room'],
-    style: size ? { '--size': `${size}px` } : undefined,
+    style: { '--avatar-hue': String(hue), ...(size ? { '--size': `${size}px` } : {}) },
     'aria-hidden': 'true'
   }, initials(name))
   if (!src) return el

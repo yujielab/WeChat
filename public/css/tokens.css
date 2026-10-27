@@ -13,16 +13,19 @@
 
   /* ---- color: light */
   --bg: #ffffff;
+  --paper: #f7f7f5;
+  --surface: #ffffff;
+  --focus-ring: rgb(20 20 22 / 0.07);
   --bg-elevated: #ffffff;
   --bg-grouped: #f4f4f5;
   --bg-grouped-2: #ffffff;
-  --label: #18181b;
-  --label-2: #737379;
-  --label-3: #a1a1aa;
+  --label: #171719;
+  --label-2: #707071;
+  --label-3: #929293;
   --label-4: rgb(60 60 67 / 0.18);
   --separator: rgb(60 60 67 / 0.22);
   --separator-opaque: #e4e4e7;
-  --line: #e7e7ea;              /* 1px borders on cards, inputs, tiles */
+  --line: #e8e8e6;              /* 1px borders on cards, inputs, tiles */
   --field: #f4f4f5;             /* recessed wells */
   --fill: rgb(120 120 128 / 0.2);
   --fill-2: rgb(120 120 128 / 0.16);
@@ -42,11 +45,11 @@
 
   /* Primary actions are ink, not blue: blue stays with live things
      (your messages, unread, links), so the two never compete. */
-  --ink: #18181b;
+  --ink: #141416;
   --on-ink: #ffffff;
 
-  --bubble-out: #0a7cff;
-  --bubble-out-text: #ffffff;
+  --bubble-out: var(--ink);
+  --bubble-out-text: var(--on-ink);
   --bubble-in: #ededf0;
   --bubble-in-text: #18181b;
   --bubble-card: #ffffff;
@@ -68,10 +71,10 @@
   --glass-rim: rgb(255 255 255 / 0.95);
   --glass-rim-low: rgb(255 255 255 / 0.5);
   --glass-edge-dark: rgb(0 0 0 / 0.035);
-  --glass-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.05), 0 8px 22px -10px rgb(0 0 0 / 0.2);
+  --glass-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 2px 4px rgb(0 0 0 / 0.025), 0 8px 22px -12px rgb(0 0 0 / 0.15);
   --glass-shadow-lg: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 2px 6px rgb(15 15 25 / 0.06), 0 14px 38px rgb(15 15 25 / 0.14);
   --glass-glow: rgb(255 255 255 / 0.85);
-  --glass-blur: 20px;
+  --glass-blur: 22px;
   --glass-blur-lg: 28px;
   --glass-saturate: 1.8;
 
@@ -103,10 +106,10 @@
   --margin: 16px;
   --hit: 44px;
   --r-bubble: 20px;
-  --r-card: 14px;
+  --r-card: 20px;
   --r-tile: 22px;
   --r-menu: 20px;
-  --r-sheet: 34px;
+  --r-sheet: 30px;
   --hairline: 1px;
 
   --safe-top: env(safe-area-inset-top, 0px);
@@ -172,14 +175,17 @@
 @media (color-gamut: p3) {
   :root {
     --blue: color(display-p3 0.08 0.48 1);
-    --bubble-out: color(display-p3 0.12 0.49 1);
+    --bubble-out: var(--ink);
   }
 }
 
 /* ---- color: dark */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #000000;
+    --bg: #101012;
+    --paper: #101012;
+    --surface: #1b1b1d;
+    --focus-ring: rgb(255 255 255 / 0.09);
     --bg-elevated: #1c1c1e;
     --bg-grouped: #000000;
     --bg-grouped-2: #1c1c1e;
@@ -200,7 +206,7 @@
     --yellow: #ffd60a;
     --green: #30d158;
     --indigo: #5e5ce6;
-    --bubble-out: #0a84ff;
+    --bubble-out: var(--ink);
     --bubble-in: #262628;
     --bubble-in-text: #ffffff;
     --bubble-card: #1c1c1e;
@@ -233,7 +239,10 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #000000;
+  --bg: #101012;
+  --paper: #101012;
+  --surface: #1b1b1d;
+  --focus-ring: rgb(255 255 255 / 0.09);
   --bg-elevated: #1c1c1e;
   --bg-grouped: #000000;
   --bg-grouped-2: #1c1c1e;
@@ -254,7 +263,7 @@
   --yellow: #ffd60a;
   --green: #30d158;
   --indigo: #5e5ce6;
-  --bubble-out: #0a84ff;
+  --bubble-out: var(--ink);
   --bubble-in: #262628;
   --bubble-in-text: #ffffff;
   --bubble-card: #1c1c1e;

@@ -56,7 +56,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const back = h('button', { class: 'glass glass-btn back', type: 'button', 'aria-label': '返回聊天列表' }, icon('chevron-left'), backCount)
   const titleName = h('span', { class: 'name' })
   const titleSub = h('span', { class: 'sub' })
-  const titleAvatar = h('span')
+  const titleAvatar = h('span', { class: 'thread-person' })
   const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
   const audioCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '语音通话' }, icon('phone'))
   const videoCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '视频通话' }, icon('video'))
@@ -77,8 +77,24 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
 
   const edgeTop = edge('top')
   const edgeBottom = edge('bottom', true)
-  const root = h('div', { class: 'thread', hidden: true }, scroller, edgeTop, nav, edgeBottom, composer.el, jump)
-  const empty = h('div', { class: 'thread-empty' }, h('div', {}, icon('bubble'), h('p', {}, '选择一个聊天')))
+  const welcomeName = h('h2', {}, '从一句问候开始')
+  const welcome = h('div', { class: 'room-welcome', hidden: true },
+    h('div', { class: 'room-welcome-mark', 'aria-hidden': 'true' }, icon('bubble')),
+    welcomeName,
+    h('p', {}, '写一句话，画一个心情。\n此刻，就从这里聊起。'))
+  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, edgeBottom, composer.el, jump)
+  const empty = h('div', { class: 'thread-empty' },
+    h('div', { class: 'thread-empty-content' },
+      h('div', { class: 'duo-conversation-mark', 'aria-hidden': 'true' },
+        h('span', { class: 'duo-mark-back' }, icon('bubble')),
+        h('span', { class: 'duo-mark-front' }, icon('bubble'))),
+      h('span', { class: 'thread-empty-eyebrow' }, 'DUO · 在一起，聊下去'),
+      h('h2', {}, '每一句，都有回音。'),
+      h('p', {}, '在左侧选择一段对话，\n把文字、手绘和声音留给在意的人。'),
+      h('div', { class: 'thread-empty-features' },
+        h('span', {}, icon('bubble'), '文字'),
+        h('span', {}, icon('brush'), '手绘'),
+        h('span', {}, icon('phone'), '通话'))))
   pane.append(empty, root)
 
   back.addEventListener('click', () => onBack())
@@ -197,8 +213,9 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     }
     decorate(list)
     placeMeta(list)
-    if (t.loaded && !list.length) olderEl.textContent = '还没有消息，打个招呼吧'
-    else if (t.loaded && !t.hasMore) olderEl.textContent = '没有更早的消息了'
+    welcome.hidden = !(t.loaded && !list.length)
+    if (t.loaded && !list.length) olderEl.textContent = ''
+    else if (t.loaded && !t.hasMore) olderEl.textContent = ''
     else if (!t.loading) olderEl.textContent = ''
   }
 
@@ -273,6 +290,11 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     composer.flushDraft()
     stopVoice()
     current = id
+    clearTimeout(typingTimer)
+    typingTimer = 0
+    titleSub.classList.remove('typing')
+    clearGhost()
+    welcome.hidden = true
     newCount = 0
     jumpBadge.hidden = true
     jump.classList.remove('on')
@@ -344,6 +366,10 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     composer.flushDraft()
     composer.blur()
     stopVoice()
+    clearTimeout(typingTimer)
+    typingTimer = 0
+    titleSub.classList.remove('typing')
+    clearGhost()
     current = null
   }
 
@@ -356,9 +382,10 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     if (!current) return
     const c = chatInfo(current) || { id: current, name: '聊天' }
     const room = c.kind === 'group'
-    titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 32 }))
+    titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 40 }))
     titleName.textContent = c.name
-    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '') : (c.online ? '在线' : '')
+    titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
+    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '群聊') : (c.online ? '此刻在线' : '私聊')
     titleBtn.setAttribute('aria-label', `${c.name}，查看聊天信息`)
     const n = unreadTotal(current)
     backCount.textContent = n ? (n > 99 ? '99+' : String(n)) : ''
@@ -479,11 +506,19 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   }
 
   let ghostEl = null
-  function clearGhost() { ghostEl?.remove(); ghostEl = null }
+  function clearGhost() {
+    ghostEl?.remove()
+    ghostEl = null
+    if (current) {
+      const t = thread(current)
+      welcome.hidden = !(t.loaded && !t.list.length)
+    }
+  }
   function setTyping(room, uid, text = '') {
     if (room !== current) return
     clearTimeout(typingTimer)
     if (text) {
+      welcome.hidden = true
       // Live text: a ghost incoming bubble that updates as the peer types.
       if (!ghostEl) {
         const who = isGroup(current) ? h('div', { class: 'm-sender' }, nameOf(uid, current)) : null
@@ -727,7 +762,13 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   // ------------------------------------------------------------ live updates
   on('msg', (m, kind) => {
     if (m.chat !== current) return
-    if (!m.out) clearGhost()
+    if (!m.out) {
+      clearGhost()
+      clearTimeout(typingTimer)
+      typingTimer = 0
+      titleSub.classList.remove('typing')
+      renderHeader()
+    }
     if (kind === 'update') {
       refreshNode(m)
       reconcile()

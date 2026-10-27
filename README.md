@@ -5,6 +5,12 @@
 Cloudflare 账号里。界面参考 iOS“信息”，并借鉴 Benji Taylor（Family / Honk /
 drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）与内屏（展开）打磨。
 
+界面沿用 Cuven Transfer / Worker Studio 的纸白与近黑设计语言：共享选中胶囊、
+触下反馈与弹簧回弹、浮动输入框、可跟手关闭的纸感弹层。登录、消息、手绘和设置
+使用同一套间距与材料层级，支持深色、减少动态效果及窄窗口。
+
+<img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Duo 桌面登录界面：品牌介绍与独立账号表单">
+
 | 折叠（外屏 466×678） | 展开（内屏 890×626） |
 | --- | --- |
 | <img src="docs/screenshots/04-thread.png" width="240"> | <img src="docs/screenshots/09-unfolded.png" width="420"> |

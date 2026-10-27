@@ -1,243 +1,86 @@
-/* Password gate and the WeChat QR login.
- *
- * A plain white page. Structure comes from 1px hairlines and a soft contact
- * shadow rather than fills or color: the QR code sits on its own bordered
- * tile, the primary action is ink, secondary actions are outlined. Each piece
- * arrives with a short blur-to-sharp rise, staggered top to bottom.
- */
+/* Cuven's paper, ink, small optical details and continuous controls. */
+.auth { position:absolute; inset:0; overflow:auto; overflow-anchor:none; display:flex; flex-direction:column; background:var(--paper); padding:calc(var(--safe-top) + 28px) calc(var(--safe-right) + 6vw) calc(var(--safe-bottom) + 22px) calc(var(--safe-left) + 6vw); }
+.auth-brand { display:flex; align-items:center; justify-content:space-between; width:100%; max-width:1120px; margin:0 auto; flex:none; }
+.duo-wordmark { display:flex; align-items:center; gap:12px; font-size:28px; font-weight:750; letter-spacing:-1.4px; color:var(--ink); }
+.duo-mark { display:block; position:relative; width:38px; height:34px; }
+.duo-mark .icon { position:absolute; width:29px; height:29px; }
+.duo-mark .icon:first-child { top:0; left:0; }
+.duo-mark .icon:last-child { bottom:0; right:0; transform:rotate(180deg); color:var(--label-2); }
+.auth-brand-note { font-size:13px; color:var(--label-2); letter-spacing:.08em; }
+.auth-layout { width:100%; max-width:1040px; margin:auto; padding:50px 0; display:grid; grid-template-columns:1fr 420px; gap:clamp(48px,8vw,110px); align-items:center; }
+.auth-eyebrow { margin:0 0 18px; font-size:12px; font-weight:600; color:var(--label-2); letter-spacing:.14em; }
+.auth-story h2 { margin:0; font-size:clamp(40px,4.8vw,64px); line-height:1.21; font-weight:700; letter-spacing:-.06em; color:var(--ink); }
+.auth-story-copy { margin:20px 0 0; color:var(--label-2); line-height:1.9; font-size:15px; }
+.auth-art { position:relative; width:100%; max-width:360px; padding:32px 0 18px; margin-top:28px; }
+.auth-art-caption { font-size:9px; letter-spacing:.2em; color:var(--label-3); margin-bottom:20px; }
+.auth-sample { width:fit-content; max-width:92%; padding:15px 20px; border-radius:22px; font-size:15px; letter-spacing:-.03em; box-shadow:0 2px 3px rgb(0 0 0 / .025); }
+.auth-sample.incoming { background:var(--surface); border:1px solid var(--line); border-bottom-left-radius:7px; transform:rotate(-3deg); }
+.auth-sample.outgoing { background:var(--ink); color:var(--on-ink); margin:16px 0 0 auto; border-bottom-right-radius:7px; transform:rotate(2deg); }
+.sample-spark { display:inline-block; margin-left:15px; font-size:20px; color:#d9ebbb; vertical-align:-1px; }
+.auth-art-typing { display:flex; gap:4px; width:fit-content; padding:12px 15px; background:var(--surface); border:1px solid var(--line); border-radius:18px; margin:20px 0 0 20px; }
+.auth-art-typing i { width:5px; height:5px; border-radius:50%; background:var(--label-3); }
+.auth-art-typing i:nth-child(2) { opacity:.65; }.auth-art-typing i:last-child { opacity:.35; }
+.auth-art-note { margin:22px 0 0; color:var(--label-3); font-size:11px; }
+.auth-features { display:flex; flex-wrap:wrap; gap:20px; color:var(--label-2); font-size:11px; margin-top:22px; }
+.auth-features span { display:flex; align-items:center; gap:6px; }.auth-features .icon { width:14px; height:14px; }
+.auth-card { overflow:hidden; background:var(--surface); border:1px solid var(--line); border-radius:30px; padding:28px; width:100%; box-shadow:0 4px 8px -6px rgb(0 0 0 / .08),0 24px 70px -50px rgb(0 0 0 / .2); }
+.auth-tabs { position:relative; display:flex; padding:4px; background:var(--field); border-radius:15px; isolation:isolate; }
+.auth-tab { position:relative; z-index:1; width:50%; min-height:44px; font-size:13px; font-weight:550; color:var(--label-2); border-radius:12px; transition:color 220ms; }
+.auth-tab[aria-pressed="true"] { color:var(--on-ink); }
+.auth-tab-indicator { position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px); border-radius:12px; background:var(--ink); box-shadow:0 2px 4px rgb(0 0 0 / .1); transition:transform 400ms var(--ease-morph); }
+.auth[data-mode="register"] .auth-tab-indicator { transform:translateX(100%); }
+.auth-heading { padding:29px 0 24px; }
+.auth-card h1 { margin:0; font-size:25px; line-height:1.35; font-weight:650; letter-spacing:-.05em; color:var(--ink); }
+.auth-card .lead { margin:9px 0 0; color:var(--label-2); font-size:13px; line-height:1.6; }
+.auth-form { display:flex; flex-direction:column; gap:17px; width:100%; }
+.auth-label { display:flex; align-items:center; justify-content:space-between; margin:0 2px 8px; font-size:12px; font-weight:600; color:var(--label); }
+.auth-label span { font-size:10px; color:var(--label-3); font-weight:400; }
+.auth-input-well { position:relative; }
+.input { width:100%; height:50px; padding:0 15px; border:1px solid var(--line); border-radius:13px; background:var(--surface); font-size:max(16px,var(--t-callout)); color:var(--label); outline:none; appearance:none; transition:border-color 160ms,box-shadow 200ms; }
+.input::placeholder { color:var(--label-3); }
+.input:focus { border-color:var(--label-2); box-shadow:0 0 0 3px var(--focus-ring); }
+.input[aria-invalid="true"] { border-color:var(--red); box-shadow:0 0 0 3px var(--red-ring); }
+.password-toggle { position:absolute; top:3px; bottom:3px; right:5px; min-width:44px; padding:0 8px; border-radius:10px; font-size:11px; font-weight:550; color:var(--label-2); }
+.auth-input-well:has(.password-toggle) .input { padding-right:62px; }
+.password-toggle:active { background:var(--field); }
+.field-error { margin:0; font-size:12px; color:var(--red); line-height:1.5; text-align:left; overflow-wrap:anywhere; }
+.field-error:empty { display:none; }
+.auth-field[hidden] { display:none; }
+.btn { min-height:50px; border-radius:14px; padding:0 20px; display:inline-flex; align-items:center; justify-content:center; gap:9px; font-size:var(--t-callout); font-weight:600; }
+.btn.primary { background:var(--ink); color:var(--on-ink); box-shadow:0 2px 3px rgb(0 0 0 / .08); transition:transform var(--spring-snappy-dur) var(--spring-snappy),opacity 180ms; }
+.btn.primary.is-pressed { transform:scale(.975); transition-duration:80ms; }
+.btn.primary:disabled { opacity:.55; }
+.btn .spinner { width:17px; height:17px; border-color:color-mix(in srgb,var(--on-ink) 30%,transparent); border-top-color:var(--on-ink); }
+.auth-submit { margin-top:5px; width:100%; position:relative; min-height:52px; }
+.auth-submit > .icon:last-child { position:absolute; right:18px; width:16px; height:16px; }
+.auth-foot { text-align:center; margin-top:17px; }
+.auth-foot button { min-height:44px; padding:0 5px; font-size:12px; color:var(--label-2); }
+.auth-foot button:hover { color:var(--label); }
+.auth-privacy { display:flex; align-items:center; justify-content:center; gap:5px; padding-top:21px; margin-top:17px; border-top:1px solid var(--line); font-size:10px; color:var(--label-3); line-height:1.5; }
+.auth-privacy .icon { width:12px; height:12px; }
+.auth-colophon { display:flex; width:100%; max-width:1120px; margin:0 auto; align-items:center; justify-content:space-between; font-size:10px; color:var(--label-3); flex:none; }
+.auth-colophon > span { letter-spacing:.06em; }
+.btn-outline { min-height:44px; border:1px solid var(--line); border-radius:22px; padding:0 16px; background:var(--surface); color:var(--label); display:inline-flex; align-items:center; justify-content:center; gap:7px; font-size:var(--t-subhead); }
+.btn-outline .icon { width:17px; height:17px; }
+.reveal { animation:reveal 550ms var(--ease-out) calc(var(--s,0) * 65ms) backwards; }
+@media(max-width:850px) {
+  .auth { padding:calc(var(--safe-top) + 23px) calc(var(--safe-right) + 24px) calc(var(--safe-bottom) + 22px) calc(var(--safe-left) + 24px); }
+  .auth-brand { max-width:420px; }.duo-wordmark { font-size:25px; gap:10px; }.duo-mark { transform:scale(.9); transform-origin:left center; width:34px; }
+  .auth-layout { grid-template-columns:1fr; max-width:420px; gap:26px; padding:38px 0; }
+  .auth-story { text-align:center; }.auth-eyebrow { display:none; }.auth-story h2 { font-size:34px; letter-spacing:-.055em; line-height:1.25; }.auth-story h2 br { display:none; }
+  .auth-story-copy { font-size:12px; margin:12px 0 0; line-height:1.6; }.auth-story-copy br { display:none; }
+  .auth-art,.auth-features { display:none; }.auth-card { padding:23px; border-radius:26px; }.auth-heading { padding:23px 0 21px; }.auth-card h1 { font-size:23px; }
+  .auth-colophon { max-width:420px; }.auth-privacy { padding-top:17px; margin-top:12px; }.auth-form { gap:15px; }
+}
+@media(max-width:850px) and (max-height:760px) {
+  .auth { padding-top:calc(var(--safe-top) + 16px); padding-bottom:calc(var(--safe-bottom) + 12px); }.auth-layout { gap:20px; padding:24px 0; }.auth-story h2 { font-size:29px; }.auth-story-copy { margin-top:8px; }.auth-card { padding:20px; }.auth-heading { padding:20px 0 17px; }.auth-form { gap:13px; }.auth-privacy,.auth-colophon { display:none; }
+}
+@media(max-height:540px) {
+  .auth { padding-top:calc(var(--safe-top) + 14px); }.auth-layout { padding:20px 0; }.auth-story { display:none; }.auth-layout { display:block; max-width:420px; }.auth-brand { max-width:420px; }.auth-colophon { display:none; }
+}
+@media(prefers-reduced-motion:reduce) { :root:not([data-motion="full"]) .reveal { animation:none; } :root:not([data-motion="full"]) .auth-tab-indicator { transition:none; } }
+:root[data-motion="reduce"] .reveal { animation:none; }:root[data-motion="reduce"] .auth-tab-indicator { transition:none; }
 
-.auth {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: calc(var(--safe-top) + 24px) calc(20px + var(--safe-right)) calc(var(--safe-bottom) + 24px) calc(20px + var(--safe-left));
-  overflow-y: auto;
-  background: var(--bg);
+@media(max-width:850px) {
+  .auth[data-mode="register"] .auth-story { display:none; }
 }
-
-.auth-card {
-  width: min(380px, 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-}
-
-/* Staggered entrance: opacity, blur and a 9px rise resolve together. The fill
-   is backwards-only so no blur(0) layer lingers afterwards (it would keep the
-   text on a compositing buffer and soften its edges). */
-.reveal {
-  animation: reveal var(--reveal-dur) var(--ease-out) calc(var(--s, 0) * var(--reveal-step)) backwards;
-}
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) .reveal { animation: fade-in 160ms linear both; }
-}
-:root[data-motion="reduce"] .reveal { animation: fade-in 160ms linear both; }
-
-.app-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 15px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(160deg, #5ac8fa, #007aff 55%, #3a4bd8);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 8px 20px -10px rgb(0 80 200 / 0.55);
-}
-.app-icon .icon { width: 34px; height: 34px; }
-
-.auth-card h1 {
-  margin: 4px 0 0;
-  font-size: var(--t-title-2);
-  font-weight: var(--w-bold);
-  letter-spacing: -0.015em;
-  text-wrap: balance;
-}
-.auth-card p.lead {
-  margin: -6px 0 0;
-  font-size: var(--t-subhead);
-  color: var(--label-2);
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-
-/* ---------------------------------------------------------------- form */
-
-.auth-form { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
-
-/* White field with a hairline; focus turns the line blue and adds a soft
-   3px ring instead of a heavy outline. */
-.input {
-  width: 100%;
-  height: 50px;
-  padding: 0 15px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  font-size: max(16px, var(--t-body));
-  color: var(--label);
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
-}
-.input::placeholder { color: var(--label-3); }
-.input:focus-visible, .input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-ring); }
-.input[aria-invalid="true"] { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-ring); }
-.field-error { min-height: 1.2em; margin: -2px 4px 0; font-size: var(--t-footnote); color: var(--red); text-align: left; }
-
-.btn {
-  height: 50px;
-  border-radius: 14px;
-  padding: 0 22px;
-  font-size: var(--t-body);
-  font-weight: var(--w-semibold);
-  letter-spacing: -0.01em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-.btn.primary {
-  background: var(--ink);
-  color: var(--on-ink);
-  box-shadow: 0 1px 2px rgb(17 17 20 / 0.18);
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy), opacity 300ms ease, box-shadow 250ms var(--ease-out);
-}
-/* Lands within 80ms of the touch, springs back on release. */
-.btn.primary.is-pressed { transform: scale(0.97); box-shadow: 0 1px 1px rgb(17 17 20 / 0.12); transition-duration: var(--press-dur); }
-.btn.primary:disabled { opacity: 0.45; }
-.btn .spinner { width: 18px; height: 18px; border-color: color-mix(in srgb, var(--on-ink) 35%, transparent); border-top-color: var(--on-ink); }
-
-/* Secondary actions: white with a hairline, never a second filled button. */
-.btn-outline {
-  height: 40px;
-  padding: 0 15px;
-  border-radius: 20px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--label);
-  font-size: var(--t-subhead);
-  font-weight: var(--w-medium);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color 160ms ease;
-}
-.btn-outline .icon { width: 17px; height: 17px; }
-.btn-outline.is-pressed { transform: scale(0.97); background: var(--field); transition-duration: var(--press-dur), 50ms; }
-
-/* ---------------------------------------------------------------- QR */
-
-.qr-wrap {
-  position: relative;
-  width: min(220px, 58vw);
-  aspect-ratio: 1;
-  border-radius: var(--r-tile);
-  background: #fff;
-  padding: 14px;
-  border: 1px solid var(--line);
-  box-shadow: var(--card-shadow), 0 18px 40px -26px rgb(15 15 25 / 0.28);
-  overflow: hidden;
-}
-:root[data-theme="dark"] .qr-wrap { border-color: transparent; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme]) .qr-wrap { border-color: transparent; } }
-.qr-wrap .qr-img {
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
-  transition: filter 280ms var(--ease-out), opacity 280ms var(--ease-out), transform 420ms var(--ease-morph);
-}
-/* A fresh code resolves out of blur, like the rest of the page. */
-.qr-wrap .qr-img.fresh { animation: qr-in 420ms var(--ease-out) backwards; }
-@keyframes qr-in { from { opacity: 0; filter: blur(8px); transform: scale(0.96); } }
-.qr-wrap .spinner { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
-.qr-wrap.scanned .qr-img, .qr-wrap.expired .qr-img { filter: blur(7px); opacity: 0.28; transform: scale(0.97); }
-.qr-over {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 10px;
-  color: #18181b;
-  font-size: var(--t-subhead);
-  font-weight: var(--w-medium);
-  opacity: 0;
-  filter: blur(4px);
-  transform: scale(0.94);
-  transition: opacity 140ms var(--ease-exit), filter 140ms var(--ease-exit), transform 160ms var(--ease-exit);
-  pointer-events: none;
-}
-.qr-wrap.scanned .qr-over.scanned,
-.qr-wrap.expired .qr-over.expired,
-.qr-wrap.connecting .qr-over.connecting {
-  opacity: 1;
-  filter: none;
-  transform: none;
-  pointer-events: auto;
-  transition: opacity 200ms ease-out, filter 240ms ease-out, transform var(--spring-bouncy-dur) var(--spring-bouncy);
-}
-.qr-over .avatar { --size: 64px; box-shadow: 0 6px 18px -6px rgb(0 0 0 / 0.35); }
-.qr-over .btn { height: 40px; border-radius: 20px; padding: 0 16px; font-size: var(--t-subhead); background: #18181b; color: #fff; }
-.qr-over .btn .icon { width: 17px; height: 17px; }
-.qr-wrap.connecting .qr-img { filter: blur(7px); opacity: 0.22; }
-
-.qr-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-
-.tips {
-  width: 100%;
-  margin: 4px 0 0;
-  padding: 14px 16px;
-  list-style: none;
-  text-align: left;
-  font-size: var(--t-footnote);
-  color: var(--label-2);
-  line-height: 1.55;
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-}
-.tips li { display: grid; grid-template-columns: 14px 1fr; gap: 6px; }
-.tips li::before { content: ""; width: 4px; height: 4px; margin: 0.68em auto 0; border-radius: 50%; background: var(--label-3); }
-
-.auth-error {
-  width: 100%;
-  padding: 11px 13px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--red) 28%, transparent);
-  background: color-mix(in srgb, var(--red) 6%, var(--bg));
-  color: var(--red);
-  font-size: var(--t-footnote);
-  text-align: left;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  animation: reveal 320ms var(--ease-out) backwards;
-}
-.auth-error { white-space: pre-line; }
-.auth-error code { font-size: 0.95em; opacity: 0.8; }
-.auth-error .auth-hint { margin: 8px 0 0; color: var(--label-2); white-space: normal; }
-
-.auth-foot { font-size: var(--t-footnote); color: var(--label-3); }
-.auth-foot button { color: var(--label-2); font-size: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
-
-/* Unfolded iPhone Duo: QR on the left, guidance on the right. */
-@media (min-width: 700px) and (min-aspect-ratio: 1/1) {
-  .auth-card.wide {
-    width: min(720px, 100%);
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-areas: "qr text";
-    align-items: center;
-    text-align: left;
-    gap: 8px 40px;
-  }
-  .auth-card.wide .qr-col { grid-area: qr; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .auth-card.wide .text-col { grid-area: text; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-  .auth-card.wide .qr-wrap { width: 240px; }
-  .auth-card.wide .qr-actions { justify-content: flex-start; }
-}
-.qr-col, .text-col { display: contents; }

@@ -48,7 +48,7 @@ export function setHaptics(on) {
 /** Status bar / browser chrome color follows the effective theme. */
 export function syncThemeColor() {
   const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches)
-  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', dark ? '#000000' : '#ffffff')
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', dark ? '#101012' : '#ffffff')
 }
 
 /**
