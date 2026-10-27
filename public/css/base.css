@@ -165,7 +165,9 @@ img { -webkit-user-drag: none; }
 }
 
 /* No transitions while folding/unfolding or rotating. */
-.no-anim, .no-anim *, .no-anim *::before, .no-anim *::after { transition: none !important; animation: none !important; }
+/* Resetting animation here would replay completed entrances when this class
+   is removed. Let existing animations keep their progress. */
+.no-anim, .no-anim *, .no-anim *::before, .no-anim *::after { transition: none !important; }
 
 /* ---------------------------------------------------------------- shared pieces */
 
