@@ -13,13 +13,17 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 的交互细节：图片可拖入或粘贴，预览后确认发送；邀请码保留完整原生输入，辅以分段焦点轨道；
 点阵插画可切换心情；菜单高亮跟随鼠标和键盘；发送记录展示实际处理、上传和发送阶段及耗时。
 
+双屏布局按 Duo 草图调整：折叠时在右侧集中返回与通话操作，展开时使用紧凑会话列表和底部工具条；
+短窗口或键盘出现时工具回到顶部。双方头像标记消息分组，连续已发送照片合为可翻页、可逐张展开的照片叠。
+布局变化保留草稿、选区和阅读锚点；安全区使用浏览器提供的几何，支持报告双段视口的设备。
+
 <img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Duo 桌面登录界面：品牌介绍与独立账号表单">
 
 | 折叠（外屏 466×678） | 展开（内屏 890×626） |
 | --- | --- |
-| <img src="docs/screenshots/04-thread.png" width="240"> | <img src="docs/screenshots/09-unfolded.png" width="420"> |
-| <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/10-unfolded-dark.png" width="420"> |
-| <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/08-incoming-call.png" width="240"> |
+| <img src="docs/screenshots/15-duo-folded.png" width="240" alt="右侧工具栏与照片叠放"> | <img src="docs/screenshots/16-duo-unfolded.png" width="420" alt="紧凑列表与展开对话"> |
+| <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/18-duo-dark.png" width="420" alt="双屏布局深色模式"> |
+| <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/17-duo-gallery.png" width="420" alt="照片组逐张浏览"> |
 | <img src="docs/screenshots/07-settings.png" width="240"> | <img src="docs/screenshots/01-auth.png" width="240"> |
 
 | 图片发送前预览 | 真实阶段与耗时 |
@@ -148,6 +152,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   注册两个账号，跑一遍登录 → 找人 → 实时收发 → 手绘 → 通话界面 → 展开 / 深色，并截图。
 - 交互回归：`node tools/e2e/design-details.cjs` 验证图片预览、拖放 / 粘贴、真实上传、失败重试、
   任意长度邀请码和 320px 窄屏；只连接本地服务，截图写入 `screenshots-design/`。
+- 双屏回归：`node tools/e2e/duo-layout.cjs` 验证照片叠放与展开、相册切换与焦点恢复、
+  折叠前后的草稿 / 选区 / 阅读位置、小窗口发送和右侧返回；只连接本地服务。
 
 ## 安全
 

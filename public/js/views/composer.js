@@ -20,7 +20,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': '发送' }, icon('arrow-up'))
   const field = h('div', { class: 'field glass' }, textarea, send)
   const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '添加内容', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('plus'))
-  const form = h('form', { class: 'composer', autocomplete: 'off' }, attach, field)
+  const form = h('form', { class: 'composer', autocomplete: 'off' }, field, attach)
 
   let chat = null
   let draftTimer = 0

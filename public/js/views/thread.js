@@ -10,7 +10,7 @@ import {
 } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
-import { renderBubble, hasTail } from './bubbles.js'
+import { renderBubble, hasTail, mediaSize } from './bubbles.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openDrawing } from './draw.js'
 import { openViewer } from './viewer.js'
@@ -18,6 +18,7 @@ import { openMenu, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { createUploadTrace } from '../ui/upload-trace.js'
 import { createHalftone } from '../ui/halftone.js'
+import { renderPhotoStack, openPhotoStack } from './photo-stack.js'
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -46,7 +47,10 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const nodes = new Map()
   const seps = new Map()
   const retryFiles = new Map()
+  const photoGroups = new Map()
+  const expandedPhotos = new Set()
   const ctx = { maxMedia: 240 }
+  let readingAnchor = { bottom: true }
 
   // ------------------------------------------------------------ skeleton
   const olderEl = h('div', { class: 'load-older', 'aria-live': 'polite' })
@@ -56,7 +60,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   scroller.style.overflowAnchor = 'none'
 
   const backCount = h('span', { class: 'count tabular' })
-  const back = h('button', { class: 'glass glass-btn back', type: 'button', 'aria-label': '返回聊天列表' }, icon('chevron-left'), backCount)
+  const back = h('button', { class: 'glass glass-btn back thread-tool-back', type: 'button', 'aria-label': '返回聊天列表' }, icon('chevron-left'), backCount)
   const titleName = h('span', { class: 'name' })
   const titleSub = h('span', { class: 'sub' })
   const titleAvatar = h('span', { class: 'thread-person' })
@@ -64,8 +68,9 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const audioCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '语音通话' }, icon('phone'))
   const videoCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '视频通话' }, icon('video'))
   const infoBtn = h('button', { class: 'glass glass-btn info', type: 'button', 'aria-label': '聊天信息' }, icon('info'))
-  const navActions = h('div', { class: 'nav-actions' }, audioCall, videoCall, infoBtn)
-  const nav = h('header', { class: 'thread-nav' }, back, titleBtn, navActions)
+  const navActions = h('div', { class: 'nav-actions thread-tool-group' }, audioCall, videoCall, infoBtn)
+  const tools = h('nav', { class: 'thread-tools', 'aria-label': '聊天操作' }, back, navActions)
+  const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
@@ -86,7 +91,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     welcomeName,
     h('p', {}, '写一句话，画一个心情。\n此刻，就从这里聊起。'))
   const uploadTrace = createUploadTrace()
-  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, edgeBottom, composer.el, jump, uploadTrace.el)
+  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, tools, edgeBottom, composer.el, jump, uploadTrace.el)
   bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
   new ResizeObserver(() => {
     root.style.setProperty('--trace-h', `${uploadTrace.el.hidden ? 0 : uploadTrace.el.getBoundingClientRect().height + 8}px`)
@@ -110,9 +115,34 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   audioCall.addEventListener('click', () => current && onCall?.(current, 'audio'))
   videoCall.addEventListener('click', () => current && onCall?.(current, 'video'))
 
+  let lastWidth = 0, lastHeight = 0
   new ResizeObserver(([e]) => {
-    ctx.maxMedia = Math.round(Math.min(280, Math.max(180, e.contentRect.width * 0.6)))
-  }).observe(pane)
+    const { width, height } = e.contentRect
+    if (width === lastWidth && height === lastHeight) return
+    lastWidth = width; lastHeight = height
+    ctx.maxMedia = Math.floor(Math.max(96, Math.min(280, width - 42)))
+    if (!current) return
+    const anchor = readingAnchor
+    for (const [id, node] of nodes) {
+      const message = thread(current).byId.get(id)
+      const photos = photoGroups.get(id)
+      if (photos) {
+        const bubble = node.querySelector('.photo-stack')
+        const [w, h] = mediaSize(photos[0].w, photos[0].h, Math.max(100, ctx.maxMedia - 14), 270)
+        bubble.style.setProperty('--w', `${w}px`)
+        bubble.style.setProperty('--h', `${h}px`)
+        bubble.style.setProperty('--photo-ratio', `${w} / ${h}`)
+        continue
+      }
+      const bubble = node.querySelector('.bubble.media:not(.photo-stack)')
+      if (!message || !bubble) continue
+      const [w, h] = mediaSize(message.w, message.h, Math.max(64, ctx.maxMedia - (message.status === 'failed' ? 34 : 0)), message.type === 'video' ? 300 : 320)
+      bubble.style.setProperty('--w', `${w}px`)
+      bubble.style.setProperty('--h', `${h}px`)
+    }
+    restoreReadingAnchor(anchor)
+    rememberReadingAnchor()
+  }).observe(scroller)
 
 
   // ------------------------------------------------------------ rendering
@@ -130,25 +160,55 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.recalled || m.text || '')
     const room = isGroup(current)
     const who = m.fromName || nameOf(m.from, current)
-    const bub = renderBubble(m, ctx)
+    const bub = renderBubble(m, m.status === 'failed' ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 34) } : ctx)
     const sender = room && !m.out ? h('div', { class: 'm-sender' }, who) : null
-    const av = h('span', { class: 'm-avatar' }, room && !m.out ? avatar(avatarOf(m.from, current), who, { size: 28 }) : null)
+    const av = h('span', { class: 'm-avatar', 'aria-hidden': 'true' }, avatar(avatarOf(m.from, current), who, { size: 30 }))
     const status = m.status === 'failed'
       ? h('button', { class: 'm-status', type: 'button', 'aria-label': '发送失败，点按重试' }, icon('exclaim'))
       : null
     return h('div', {
-      class: ['m', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
+      class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
     }, av, h('div', { class: 'm-col' }, sender, bub), status)
   }
 
   function nodeFor(m) {
     let el = nodes.get(m.id)
-    if (!el) {
+    if (!el || el.photoSignature) {
+      const old = el
       el = buildNode(m)
+      old?.replaceWith(el)
       nodes.set(m.id, el)
     }
     return el
+  }
+
+  const groupablePhoto = m => m?.type === 'image' && m.url && !m.recalled && !['sending', 'failed'].includes(m.status) && !String(m.id).startsWith('local:') && !expandedPhotos.has(m.id)
+  function expandPhotos(photos) {
+    const group = nodes.get(photos[photos.length - 1]?.id)
+    const offset = group ? group.getBoundingClientRect().top - scroller.getBoundingClientRect().top : null
+    for (const photo of photos) expandedPhotos.add(photo.id)
+    keepPosition(reconcile)
+    const first = nodes.get(photos[0]?.id)
+    if (offset !== null) restoreReadingAnchor({ id: photos[0].id, offset })
+    rememberReadingAnchor()
+    first?.querySelector('.bubble')?.setAttribute('tabindex', '-1')
+    first?.querySelector('.bubble')?.focus({ preventScroll: true })
+  }
+  function photoNode(photos) {
+    const last = photos[photos.length - 1]
+    const signature = photos.map(photo => `${photo.id}:${photo.url}`).join('|')
+    let node = nodes.get(last.id)
+    if (node?.photoSignature !== signature) {
+      const fresh = buildNode(last)
+      fresh.querySelector('.bubble').replaceWith(renderPhotoStack(photos, ctx, { onExpand: expandPhotos }))
+      fresh.photoSignature = signature
+      node?.replaceWith(fresh)
+      node = fresh
+      nodes.set(last.id, node)
+    }
+    photoGroups.set(last.id, photos)
+    return node
   }
 
   function decorate(list) {
@@ -189,11 +249,27 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const t = thread(current)
     const list = t.list
     const want = []
+    const visible = []
+    photoGroups.clear()
     let prev = null
-    for (const m of list) {
-      if (!prev || m.ts - prev.ts > TS_GAP) want.push(sepFor(m))
-      want.push(nodeFor(m))
-      prev = m
+    for (let i = 0; i < list.length; i++) {
+      const first = list[i]
+      const photos = [first]
+      if (groupablePhoto(first)) {
+        while (photos.length < 10 && i + 1 < list.length) {
+          const next = list[i + 1]
+          const last = photos[photos.length - 1]
+          if (!groupablePhoto(next) || next.from !== first.from || next.out !== first.out || next.ts - last.ts > 60000) break
+          photos.push(next)
+          i++
+        }
+      }
+      const last = photos[photos.length - 1]
+      const message = photos.length > 1 ? { ...last, ts: first.ts } : first
+      if (!prev || first.ts - prev.ts > TS_GAP) want.push(sepFor(message))
+      want.push(photos.length > 1 ? photoNode(photos) : nodeFor(message))
+      visible.push(message)
+      prev = last
     }
     const keep = new Set(want)
     for (const [id, el] of nodes) {
@@ -217,7 +293,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       }
       msgs.insertBefore(el, cursor)
     }
-    decorate(list)
+    decorate(visible)
     placeMeta(list)
     welcome.hidden = !(t.loaded && !list.length)
     if (t.loaded && !list.length) olderEl.textContent = ''
@@ -241,15 +317,36 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     newCount = 0
     jumpBadge.hidden = true
     scroller.scrollTo({ top: 0, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
+    readingAnchor = { bottom: true }
+  }
+
+  function readAnchor() {
+    if (atBottom()) return { bottom: true }
+    const bounds = scroller.getBoundingClientRect()
+    const top = nav.getBoundingClientRect().bottom + 12
+    for (const node of msgs.querySelectorAll('.m')) {
+      const rect = node.getBoundingClientRect()
+      if (rect.bottom > top && rect.top < bounds.bottom) return { id: node.dataset.id, offset: rect.top - bounds.top }
+    }
+    return null
+  }
+  function rememberReadingAnchor() { readingAnchor = readAnchor() }
+  function restoreReadingAnchor(anchor) {
+    if (anchor?.bottom) { scroller.scrollTop = 0; return }
+    const group = [...photoGroups].find(([, photos]) => photos.some(photo => photo.id === anchor?.id))
+    const node = nodes.get(anchor?.id) || nodes.get(group?.[0])
+    if (!node?.isConnected) return
+    const offset = node.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    scroller.scrollTop += offset - anchor.offset
   }
 
   /** Apply a DOM change at the bottom without moving what the reader is looking at. */
   function keepPosition(change) {
     const wasBottom = atBottom()
-    const h0 = scroller.scrollHeight
-    const top0 = scroller.scrollTop
+    const anchor = readAnchor()
     change()
-    if (!wasBottom) scroller.scrollTop = top0 - (scroller.scrollHeight - h0)
+    restoreReadingAnchor(anchor)
+    rememberReadingAnchor()
     return wasBottom
   }
 
@@ -259,6 +356,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     ticking = true
     requestAnimationFrame(() => {
       ticking = false
+      rememberReadingAnchor()
       edgeTop.classList.toggle('on', distTop() > 2)
       jump.classList.toggle('on', scroller.scrollTop < -320)
       if (atBottom() && newCount) {
@@ -308,6 +406,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     for (const el of [...msgs.children]) if (el !== olderEl) el.remove()
     nodes.clear()
     seps.clear()
+    photoGroups.clear()
     root.hidden = false
     empty.hidden = true
     renderHeader()
@@ -695,6 +794,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     clone.classList.remove('is-pressed', 'tail')
     const preview = h('div', {
       class: ['ctx-preview', 'm', m.out ? 'out' : 'in'],
+      'aria-hidden': 'true', inert: true,
       style: { left: `${rect.left - origin.left}px`, top: `${rect.top - origin.top}px`, width: `${Math.ceil(rect.width) + 1}px`, padding: '0' }
     }, clone)
     layer.append(backdrop, preview)
@@ -706,6 +806,11 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
 
     const items = []
     const main = []
+    const photos = photoGroups.get(m.id)
+    if (photos) {
+      main.push({ label: `查看 ${photos.length} 张照片`, icon: 'photo', onSelect: () => openPhotoStack({ messages: photos, thumb: bub.querySelector('.photo-stack-cover img'), findThumb: () => nodes.get(m.id)?.querySelector('.photo-stack-cover img') }) })
+      main.push({ label: '逐张展开', icon: 'photo', onSelect: () => expandPhotos(photos) })
+    }
     if (m.status === 'failed') main.push({ label: '重新发送', icon: 'refresh', onSelect: () => retry(m) })
     if (m.type === 'text' && m.text) {
       main.push({ label: '复制', icon: 'copy', onSelect: () => copy(m.text) })
@@ -714,13 +819,13 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       main.push({ label: '打开链接', icon: 'link', onSelect: () => window.open(safeUrl(m.url), '_blank', 'noopener,noreferrer') })
       main.push({ label: '复制链接', icon: 'copy', onSelect: () => copy(m.url) })
     }
-    if (m.type === 'image') main.push({ label: '查看图片', icon: 'photo', onSelect: () => bub.click() })
+    if (m.type === 'image' && !photos) main.push({ label: '查看图片', icon: 'photo', onSelect: () => bub.click() })
     if (m.type === 'file') main.push({ label: '下载文件', icon: 'download', onSelect: () => m.url && window.open(m.url, '_blank', 'noopener') })
     items.push(main)
-    const canRevoke = m.out && !String(m.id).startsWith('local:') && Date.now() - m.ts < 2 * 60 * 1000
+    const canRevoke = !photos && m.out && !String(m.id).startsWith('local:') && Date.now() - m.ts < 2 * 60 * 1000
     const danger = []
     if (canRevoke) danger.push({ label: '撤回', icon: 'undo', onSelect: () => revoke(m) })
-    danger.push({ label: '从本设备删除', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m) })
+    if (!photos) danger.push({ label: '从本设备删除', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m) })
     items.push(danger)
 
     openMenu(rect, items, {
@@ -832,7 +937,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       el.querySelector('.bubble')?.classList.remove('sending')
       el.querySelector('.m-status')?.remove()
     }
-    reconcile()
+    keepPosition(reconcile)
   })
 
   on('remove', (id, chat) => {

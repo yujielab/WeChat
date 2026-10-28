@@ -1,4 +1,5 @@
-// Conversation list: large collapsing title, pinned avatars, rows with swipe
+// Conversation list: a compact inner-screen index and a fuller outer-screen
+// heading, pinned avatars, rows with swipe
 // actions, a filter menu and live search (names, remarks and pinyin).
 
 import { h, icon, clear, reducedMotion, edge, stagger } from '../ui/dom.js'
@@ -27,7 +28,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   let loading = false // connecting / fetching chats: show a skeleton, not "no chats"
 
   // ------------------------------------------------------------ skeleton
-  const status = h('span', { class: 'conn-status', hidden: true })
+  const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
   const title = h('h1', { class: 'large-title' }, '消息', h('span', { class: 'title-period', 'aria-hidden': 'true' }, '.'))
   const subtitle = h('p', { class: 'list-subtitle' }, '和在意的人，保持联系。')
   const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status), subtitle)
@@ -59,10 +60,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
   const meBtn = h('button', { class: 'glass glass-btn me-btn', type: 'button', 'aria-label': '设置' })
   const filterBtn = h('button', { class: 'bar-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
-  const composeBtn = h('button', { class: 'bar-btn tint', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
+  const composeBtn = h('button', { class: 'bar-btn tint compose-btn', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
   const brand = h('div', { class: 'list-brand', 'aria-label': 'Duo' }, h('span', { class: 'list-brand-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble')), h('span', { class: 'list-wordmark' }, 'Duo'), inlineTitle)
-  const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }), meBtn, h('div', { class: 'bar-group' }, filterBtn, composeBtn))
+  const topActions = h('div', { class: 'bar-group' }, filterBtn, composeBtn)
+  const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }), meBtn, topActions)
 
   const input = h('input', {
     type: 'search',
@@ -151,6 +153,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
   function label(c) {
     const parts = [c.name]
+    if (c.kind === 'dm' && c.online) parts.push('在线')
     if (c.unread) parts.push(`${c.unread} 条未读`)
     if (c.last?.text) parts.push(c.last.text)
     if (c.ts) parts.push(listTime(c.ts))
@@ -166,7 +169,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     r.preview = h('div', { class: 'row-preview' })
     r.unread = h('span', { class: 'row-count', hidden: true })
     r.avatar = avatar(c.avatar, c.name, { room: c.room })
-    r.avWrap = h('span', { class: 'av-wrap' }, r.avatar, h('span', { class: 'pres' }))
+    r.avWrap = h('span', { class: 'av-wrap' }, r.avatar, h('span', { class: 'pres', 'aria-hidden': 'true' }))
     r.inner = h('div', { class: 'row-inner', role: 'button', tabindex: '0' },
       r.dot,
       r.avWrap,
@@ -629,6 +632,13 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     },
     setLayout(layout) {
       pane.dataset.layout = layout
+      // The same action moves next to search on the inner screen. Keep its
+      // focus and listener identity as the available space changes.
+      const focused = document.activeElement === composeBtn
+      const destination = layout === 'split' ? bottombar : topActions
+      if (composeBtn.parentElement !== destination) destination.append(composeBtn)
+      if (focused) composeBtn.focus({ preventScroll: true })
+      requestAnimationFrame(positionFilterThumb)
     },
     focusSearch() {
       input.focus()

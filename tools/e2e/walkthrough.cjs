@@ -70,7 +70,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await A.click('.draw-send'); await sleep(1000); await shot(A, '06-thread-drawing')
 
   // call UI (needs REALTIME_* dummy vars on the dev server)
-  await A.click('.thread-nav .nav-actions .glass-btn[aria-label="语音通话"]').catch(() => {})
+  await A.click('.thread-tools .glass-btn[aria-label="语音通话"]').catch(() => {})
   await sleep(700); await shot(B, '08-incoming-call')
   await A.click('.call .hang').catch(() => {}); await sleep(300)
 
