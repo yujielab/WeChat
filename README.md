@@ -9,6 +9,10 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 触下反馈与弹簧回弹、浮动输入框、可跟手关闭的纸感弹层。登录、消息、手绘和设置
 使用同一套间距与材料层级，支持深色、减少动态效果及窄窗口。
 
+融入 Magnetic Dropzone、Input OTP、Halftone Dots、Dropdown Menu 和 Trace Waterfall
+的交互细节：图片可拖入或粘贴，预览后确认发送；邀请码保留完整原生输入，辅以分段焦点轨道；
+点阵插画可切换心情；菜单高亮跟随鼠标和键盘；发送记录展示实际处理、上传和发送阶段及耗时。
+
 <img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Duo 桌面登录界面：品牌介绍与独立账号表单">
 
 | 折叠（外屏 466×678） | 展开（内屏 890×626） |
@@ -17,6 +21,10 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 | <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/10-unfolded-dark.png" width="420"> |
 | <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/08-incoming-call.png" width="240"> |
 | <img src="docs/screenshots/07-settings.png" width="240"> | <img src="docs/screenshots/01-auth.png" width="240"> |
+
+| 图片发送前预览 | 真实阶段与耗时 |
+| --- | --- |
+| <img src="docs/screenshots/12-attachment-preview.png" width="240" alt="带点阵拖放区的图片预览"> | <img src="docs/screenshots/13-send-waterfall.png" width="440" alt="图片处理、上传和消息发送的耗时记录"> |
 
 > 截图来自本地 `wrangler dev`，账号和消息都是演示数据。
 
@@ -138,6 +146,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   （信令与来电界面可用；真正接通需要真实的 Realtime 应用）。
 - 界面走查脚本：`node tools/e2e/walkthrough.cjs docs/screenshots` 用 Playwright（Chromium）
   注册两个账号，跑一遍登录 → 找人 → 实时收发 → 手绘 → 通话界面 → 展开 / 深色，并截图。
+- 交互回归：`node tools/e2e/design-details.cjs` 验证图片预览、拖放 / 粘贴、真实上传、失败重试、
+  任意长度邀请码和 320px 窄屏；只连接本地服务，截图写入 `screenshots-design/`。
 
 ## 安全
 

@@ -1,0 +1,47 @@
+/* A magnetic paper field stages images; real delivery remains in the chat. */
+.attachment-sheet { --attachment-gap:18px; }
+.attachment-content { padding:0 20px 4px; }
+.attachment-intro { margin:0 0 17px; font-size:var(--t-footnote); color:var(--label-2); text-align:center; }
+.attachment-dropzone { position:relative; min-height:218px; display:grid; place-items:center; overflow:hidden; border:1px dashed var(--separator-opaque); border-radius:23px; color:var(--label); background:var(--surface,var(--bg)); transition:background-color 180ms,border-color 180ms; }
+.attachment-dropzone canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.attachment-dropzone.is-over { border-color:var(--ink); background:var(--field); }
+.attachment-dropzone.has-images { min-height:145px; }
+.attachment-pick { position:relative; z-index:1; width:100%; min-height:inherit; padding:25px 15px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; border-radius:inherit; transform:translate3d(var(--drop-x,0px),var(--drop-y,0px),0); }
+.attachment-pick:focus-visible { outline:2px solid var(--ink); outline-offset:-5px; }
+.attachment-drop-icon { width:49px; height:49px; border-radius:15px; background:var(--surface,var(--bg)); border:1px solid var(--line); box-shadow:0 2px 5px rgb(0 0 0 / .035); display:grid; place-items:center; margin-bottom:8px; transition:transform 300ms var(--ease-morph); }
+.attachment-drop-icon .icon { width:24px; height:24px; }
+.attachment-dropzone.is-over .attachment-drop-icon { transform:translateY(-3px) rotate(-5deg); }
+.attachment-drop-title { font-size:var(--t-callout); font-weight:600; letter-spacing:-.02em; background:var(--surface,var(--bg)); padding:2px 7px; border-radius:5px; }
+.attachment-drop-hint { color:var(--label-2); font-size:var(--t-caption); line-height:1.5; background:var(--surface,var(--bg)); padding:1px 5px; border-radius:4px; }
+.attachment-dropzone.is-over .attachment-drop-title,.attachment-dropzone.is-over .attachment-drop-hint { background:var(--field); }
+.attachment-error { margin:12px 2px 0; color:var(--red); font-size:var(--t-footnote); line-height:1.5; }
+.attachment-error:empty { display:none; }
+.attachment-previews { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:17px; }
+.attachment-previews:empty { display:none; }
+.attachment-preview { position:relative; min-width:0; padding:5px; border:1px solid var(--line); border-radius:15px; background:var(--surface,var(--bg)); animation:attachment-in 260ms var(--ease-out) backwards; }
+.attachment-preview-image { position:relative; height:90px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; background:var(--field); border-radius:10px; overflow:hidden; color:var(--label-2); font-size:var(--t-caption); }
+.attachment-preview-image img { width:100%; height:100%; object-fit:cover; }
+.attachment-preview-image > .icon { width:25px; height:25px; }
+.attachment-preview-meta { display:flex; flex-direction:column; gap:3px; padding:8px 3px 3px; font-size:var(--t-caption-2); color:var(--label-2); }
+.attachment-preview-meta span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--label); }
+.attachment-remove { position:absolute; top:-7px; right:-7px; width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:var(--ink); color:var(--on-ink); border:2px solid var(--paper,var(--bg)); box-shadow:0 2px 5px rgb(0 0 0 / .1); }
+.attachment-remove::before { content:''; position:absolute; inset:-7px; border-radius:50%; }
+.attachment-remove .icon { width:14px; height:14px; }
+.attachment-remove:active { transform:scale(.92); }
+.attachment-footer { display:flex; align-items:center; gap:15px; justify-content:space-between; margin-top:23px; }
+.attachment-count { font-size:var(--t-caption); color:var(--label-2); line-height:1.5; }
+.attachment-send { min-height:46px; padding:0 18px; flex:none; font-size:var(--t-footnote); border-radius:23px; }
+.attachment-send .icon { width:16px; height:16px; }
+.attachment-note { margin:13px 0 0; text-align:center; font-size:var(--t-caption-2); color:var(--label-2); line-height:1.6; }
+.chat-image-drop { position:absolute; z-index:25; inset:14px; display:grid; place-items:center; border:1px dashed var(--label-2); border-radius:28px; background:color-mix(in srgb,var(--surface,var(--bg)) 96%,transparent); opacity:0; visibility:hidden; pointer-events:none; transform:scale(.97); transition:opacity 160ms,transform 280ms var(--ease-morph),visibility 160ms; }
+.chat-image-drop.on { visibility:visible; opacity:1; transform:none; }
+.chat-image-drop > div { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.chat-image-drop-mark { width:70px; height:70px; margin-bottom:10px; display:grid; place-items:center; background:var(--ink); color:var(--on-ink); border-radius:22px; transform:rotate(-7deg); }
+.chat-image-drop-mark .icon { width:32px; height:32px; }
+.chat-image-drop strong { font-size:var(--t-title-2); letter-spacing:-.04em; }
+.chat-image-drop > div > span:last-child { font-size:var(--t-footnote); color:var(--label-2); }
+@keyframes attachment-in { from { opacity:0; transform:translateY(7px) scale(.97); } }
+@media(max-width:360px) { .attachment-content { padding-inline:14px; }.attachment-previews { grid-template-columns:repeat(2,minmax(0,1fr)); }.attachment-footer { gap:8px; }.attachment-send { padding-inline:13px; }.attachment-count { font-size:var(--t-caption-2); } }
+@media(max-height:500px) { .attachment-dropzone { min-height:125px; }.attachment-dropzone.has-images { min-height:100px; }.attachment-drop-icon { width:35px; height:35px; margin-bottom:0; }.attachment-pick { padding:12px; }.attachment-preview-image { height:68px; } }
+@media(prefers-reduced-motion:reduce) { :root:not([data-motion="full"]) .attachment-pick { transform:none; }:root:not([data-motion="full"]) .attachment-preview { animation:none; }:root:not([data-motion="full"]) .chat-image-drop { transform:none; transition:none; } }
+:root[data-motion="reduce"] .attachment-pick { transform:none; }:root[data-motion="reduce"] .attachment-preview { animation:none; }:root[data-motion="reduce"] .chat-image-drop { transform:none; transition:none; }

@@ -240,112 +240,207 @@ export function closeAllOverlays() {
  * scaling out of it. `sections` is an array of item arrays:
  *   { label, icon, destructive, checked, disabled, onSelect }
  */
+let nextMenuId = 0
+
 export function openMenu(anchor, sections, { title, preferAbove = false, onClose } = {}) {
   const root = layer()
   const scrim = h('div', { class: 'scrim clear' })
-  const menu = h('div', { class: 'menu glass glass-thick', role: 'menu', tabindex: '-1', 'aria-label': title || '操作' })
+  const highlight = h('span', { class: 'menu-highlight', 'aria-hidden': 'true' })
+  const menu = h('div', {
+    class: 'menu glass glass-thick', role: 'menu', tabindex: '-1',
+    id: `duo-menu-${++nextMenuId}`, 'aria-label': title || '操作'
+  }, highlight)
   const prevFocus = document.activeElement
   const trigger = anchor instanceof Element ? anchor : null
   const previousExpanded = trigger?.getAttribute('aria-expanded')
+  const previousControls = trigger?.getAttribute('aria-controls')
+  trigger?.setAttribute('aria-haspopup', 'menu')
   trigger?.setAttribute('aria-expanded', 'true')
+  trigger?.setAttribute('aria-controls', menu.id)
   if (title) menu.append(h('div', { class: 'menu-title' }, title))
   const ctl = { el: menu, closed: false, close }
+  const choices = []
+  let active = null
+  let placementFrame = 0
+  let highlightFrame = 0
+  let resizeObserver = null
+  let closing = null
+  let typed = ''
+  let typedAt = 0
+
   sections.filter(s => s.length).forEach((items, i) => {
     if (i > 0) menu.append(h('div', { class: 'menu-sep', role: 'separator' }))
     for (const it of items) {
+      const checkable = it.checked !== undefined
       const btn = h('button', {
         class: ['menu-item', it.destructive && 'destructive'],
         type: 'button',
-        role: it.checked !== undefined ? 'menuitemradio' : 'menuitem',
-        'aria-checked': it.checked !== undefined ? String(Boolean(it.checked)) : undefined,
+        role: checkable ? 'menuitemradio' : 'menuitem',
+        'aria-checked': checkable ? String(Boolean(it.checked)) : undefined,
         disabled: it.disabled
       },
-      it.checked !== undefined ? (it.checked ? icon('check', 'check') : h('span', { class: 'check' })) : null,
-      h('span', { class: 'label' }, it.label),
-      it.icon ? icon(it.icon) : null)
+      checkable ? h('span', { class: 'menu-choice', 'aria-hidden': 'true' }, it.checked ? icon('check') : null) : null,
+      it.icon ? icon(it.icon, 'menu-action-icon') : null,
+      h('span', { class: 'label' }, it.label))
       btn.addEventListener('click', async () => {
         if (ctl.closed) return
         await close(false)
         try { it.onSelect?.() } finally { onClose?.() }
       })
       menu.append(btn)
+      if (!it.disabled) choices.push(btn)
     }
   })
   menu.style.visibility = 'hidden'
   root.append(scrim, menu)
   open.add(ctl)
 
-  // Position next to the anchor, inside the safe frame.
-  const raw = anchor instanceof Element ? anchor.getBoundingClientRect() : anchor
-  const origin = root.getBoundingClientRect()
-  const r = {
-    x: (raw.x ?? raw.left) - origin.left,
-    y: (raw.y ?? raw.top) - origin.top,
-    w: raw.w ?? raw.width ?? 0,
-    h: raw.h ?? raw.height ?? 0
+  // The same surface follows pointer and keyboard focus. Its geometry is
+  // measured from the real row, so text scaling and scrolling stay aligned.
+  function placeHighlight() {
+    if (!active || !active.isConnected || ctl.closed) return
+    highlight.style.width = `${active.offsetWidth}px`
+    highlight.style.height = `${active.offsetHeight}px`
+    highlight.style.transform = `translate3d(${active.offsetLeft}px, ${active.offsetTop}px, 0)`
+    menu.classList.toggle('destructive-focus', active.classList.contains('destructive'))
+    menu.classList.add('has-highlight')
+    if (!highlight.classList.contains('ready')) {
+      cancelAnimationFrame(highlightFrame)
+      highlightFrame = requestAnimationFrame(() => highlight.classList.add('ready'))
+    }
   }
-  const vw = root.clientWidth
-  const vh = root.clientHeight
-  const mw = menu.offsetWidth
-  const mh = menu.offsetHeight
-  const margin = 10
-  const below = r.y + r.h + 8
-  const above = r.y - 8 - mh
-  let top = !preferAbove && below + mh < vh - margin ? below : above >= margin ? above : Math.max(margin, vh - mh - margin)
-  const anchorCenter = r.x + r.w / 2
-  let left = anchorCenter < vw / 2 ? r.x : r.x + r.w - mw
-  left = Math.min(Math.max(margin, left), vw - mw - margin)
-  top = Math.min(Math.max(margin, top), vh - mh - margin)
-  menu.style.left = `${left}px`
-  menu.style.top = `${top}px`
-  menu.style.setProperty('--ox', `${Math.min(Math.max(anchorCenter - left, 0), mw)}px`)
-  menu.style.setProperty('--oy', `${top >= r.y ? 0 : mh}px`)
-  menu.style.setProperty('--menu-lift', top >= r.y ? '-6px' : '6px')
+  function focusChoice(btn) {
+    if (!btn) return
+    btn.focus({ preventScroll: true })
+    btn.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }
+  menu.addEventListener('focusin', e => {
+    const btn = e.target.closest('.menu-item')
+    if (!btn || btn.disabled || !menu.contains(btn)) return
+    active = btn
+    placeHighlight()
+  })
+  menu.addEventListener('pointermove', e => {
+    if ((e.pointerType && e.pointerType !== 'mouse') || ctl.closed) return
+    const btn = e.target.closest('.menu-item')
+    if (btn && !btn.disabled && menu.contains(btn) && btn !== active) btn.focus({ preventScroll: true })
+  })
+
+  // Re-read the anchor on resize instead of retaining geometry from the old
+  // posture. Keep the menu inside the visual viewport when the keyboard moves.
+  function positionMenu() {
+    placementFrame = 0
+    if (ctl.closed) return
+    if (trigger && !trigger.isConnected) { close(); return }
+    const raw = trigger ? trigger.getBoundingClientRect() : anchor
+    const origin = root.getBoundingClientRect()
+    const r = {
+      x: (raw.x ?? raw.left) - origin.left,
+      y: (raw.y ?? raw.top) - origin.top,
+      w: raw.w ?? raw.width ?? 0,
+      h: raw.h ?? raw.height ?? 0
+    }
+    const vw = root.clientWidth, vh = root.clientHeight
+    const mw = menu.offsetWidth, mh = menu.offsetHeight
+    const margin = 10
+    const below = r.y + r.h + 6
+    const above = r.y - 6 - mh
+    let top = !preferAbove && below + mh <= vh - margin ? below : above >= margin ? above : Math.max(margin, vh - mh - margin)
+    const anchorCenter = r.x + r.w / 2
+    let left = anchorCenter < vw / 2 ? r.x : r.x + r.w - mw
+    left = Math.max(margin, Math.min(left, vw - mw - margin))
+    top = Math.max(margin, Math.min(top, vh - mh - margin))
+    menu.style.left = `${Math.round(left)}px`
+    menu.style.top = `${Math.round(top)}px`
+    menu.style.setProperty('--ox', `${Math.min(Math.max(anchorCenter - left, 0), mw)}px`)
+    menu.style.setProperty('--oy', `${top >= r.y ? 0 : mh}px`)
+    menu.style.setProperty('--menu-lift', top >= r.y ? '-4px' : '4px')
+    placeHighlight()
+  }
+  function schedulePosition() {
+    if (!placementFrame && !ctl.closed) placementFrame = requestAnimationFrame(positionMenu)
+  }
+  positionMenu()
   menu.style.visibility = ''
+  if (!ctl.closed) {
+    resizeObserver = new ResizeObserver(schedulePosition)
+    resizeObserver.observe(root)
+    resizeObserver.observe(menu)
+    window.addEventListener('resize', schedulePosition)
+    window.visualViewport?.addEventListener('resize', schedulePosition)
+    window.visualViewport?.addEventListener('scroll', schedulePosition)
+    document.addEventListener('scroll', schedulePosition, { capture: true, passive: true })
+    document.addEventListener('keydown', onKey)
+  }
   nextFrame().then(() => {
     if (ctl.closed) return
     menu.classList.add('on')
-    ;(menu.querySelector('.menu-item:not(:disabled)') || menu).focus({ preventScroll: true })
+    ;(choices[0] || menu).focus({ preventScroll: true })
   })
 
-  async function close(notify = true) {
-    if (ctl.closed) return
+  function close(notify = true) {
+    if (ctl.closed) return closing || Promise.resolve()
     ctl.closed = true
+    cancelAnimationFrame(placementFrame)
+    cancelAnimationFrame(highlightFrame)
+    resizeObserver?.disconnect()
     document.removeEventListener('keydown', onKey)
+    document.removeEventListener('scroll', schedulePosition, true)
+    window.removeEventListener('resize', schedulePosition)
+    window.visualViewport?.removeEventListener('resize', schedulePosition)
+    window.visualViewport?.removeEventListener('scroll', schedulePosition)
     menu.classList.remove('on')
-    // Release trigger ownership before waiting; a new menu may use it while
-    // this one finishes leaving.
+    // Release ownership before waiting, so an older menu cannot clear the
+    // expanded state of a newer menu opened from the same button.
     if (trigger?.isConnected) {
       if (previousExpanded === null) trigger.removeAttribute('aria-expanded')
       else trigger.setAttribute('aria-expanded', previousExpanded)
+      if (previousControls === null) trigger.removeAttribute('aria-controls')
+      else trigger.setAttribute('aria-controls', previousControls)
     }
-    if (!reducedMotion()) await transitionEnd(menu, 'opacity', 260)
-    menu.remove()
-    scrim.remove()
-    open.delete(ctl)
-    restoreFocus(prevFocus)
-    if (notify) onClose?.()
+    closing = (async () => {
+      if (!reducedMotion()) await transitionEnd(menu, 'opacity', 220)
+      menu.remove()
+      scrim.remove()
+      open.delete(ctl)
+      restoreFocus(prevFocus)
+      if (notify) onClose?.()
+    })()
+    return closing
   }
-  const onKey = e => {
-    if (topmost() !== ctl || e.defaultPrevented) return
+  function onKey(e) {
+    if (topmost() !== ctl || e.defaultPrevented || ctl.closed) return
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopImmediatePropagation()
       close()
     } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault()
-      const choices = [...menu.querySelectorAll('.menu-item:not(:disabled)')]
+      if (!choices.length) return
       const current = choices.indexOf(document.activeElement)
-      const step = e.key === 'ArrowUp' ? -1 : 1
-      const index = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1 : (current + step + choices.length) % choices.length
-      choices[index]?.focus({ preventScroll: true })
-    } else trapTab(e, menu)
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1 : current < 0 ? (e.key === 'ArrowUp' ? choices.length - 1 : 0) : (current + (e.key === 'ArrowUp' ? -1 : 1) + choices.length) % choices.length
+      focusChoice(choices[next])
+    } else if (e.key === 'Tab') {
+      trapTab(e, menu)
+    } else if (!e.isComposing && e.key.length === 1 && e.key.trim() && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const now = performance.now()
+      typed = now - typedAt > 650 ? e.key.toLocaleLowerCase() : typed + e.key.toLocaleLowerCase()
+      typedAt = now
+      const chars = [...typed]
+      const prefix = chars.every(char => char === chars[0]) ? chars[0] : typed
+      const current = choices.indexOf(document.activeElement)
+      const start = prefix.length === 1 ? current + 1 : Math.max(current, 0)
+      for (let i = 0; i < choices.length; i++) {
+        const btn = choices[(start + i) % choices.length]
+        if (btn.querySelector('.label').textContent.normalize('NFKC').toLocaleLowerCase().startsWith(prefix.normalize('NFKC'))) {
+          e.preventDefault()
+          focusChoice(btn)
+          break
+        }
+      }
+    }
   }
-  document.addEventListener('keydown', onKey)
-  scrim.addEventListener('pointerdown', e => {
-    e.preventDefault()
-    close()
-  })
+  scrim.addEventListener('pointerdown', e => { e.preventDefault(); close() })
   return ctl
 }
 

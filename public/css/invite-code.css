@@ -1,0 +1,15 @@
+/* A segmented ink rail gives the invite field its own tactile identity.
+   The text above remains one ordinary, unrestricted native input. */
+.invite-code { position:relative; perspective:500px; }
+.invite-code .invite-code-input { padding-bottom:5px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.08em; }
+.invite-code .invite-code-input::placeholder { font-family:var(--font,inherit); letter-spacing:0; font-size:14px; }
+.invite-code-rail { position:absolute; display:flex; pointer-events:none; left:15px; right:15px; bottom:9px; gap:5px; height:2px; transform-origin:center bottom; }
+.invite-code-rail i { flex:1; border-radius:2px; background:var(--line); transform:scaleY(1); transition:background-color 180ms ease,transform 280ms var(--ease-morph); }
+.invite-code.has-value .invite-code-rail i { background:var(--label-3); opacity:.48; }
+.invite-code.is-focused .invite-code-rail i.is-current { background:var(--ink); opacity:1; transform:scaleY(1.5); }
+.invite-code[data-state="pending"] .invite-code-rail i { background:var(--label-2); opacity:.55; }
+.invite-code[data-state="error"] .invite-code-rail i { background:var(--red); opacity:.7; }
+@media(prefers-reduced-motion:reduce) {
+  :root:not([data-motion="full"]) .invite-code-rail i { transition:none; }
+}
+:root[data-motion="reduce"] .invite-code-rail i { transition:none; }

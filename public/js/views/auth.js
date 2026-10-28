@@ -1,6 +1,8 @@
 // Account gate: the same paper, ink and tactile controls as the messenger.
 import { h, icon, stagger, reducedMotion } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
+import { createHalftone } from '../ui/halftone.js'
+import { enhanceInviteInput } from '../ui/invite-code.js'
 
 function mark() {
   return h('span', { class: 'duo-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble'))
@@ -31,6 +33,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
     showPassword.setAttribute('aria-pressed', String(show))
   })
   const code = field({ id: 'c', type: 'text', label: '邀请码', placeholder: '输入你的邀请码', autocomplete: 'off', enterkeyhint: 'go' })
+  const invite = enhanceInviteInput(code.input)
   const error = h('div', { class: 'field-error', role: 'alert', id: 'auth-error' })
   const submitLabel = h('span')
   const submit = h('button', { class: 'btn primary solid-press auth-submit', type: 'submit' }, submitLabel, icon('chevron-right'))
@@ -43,12 +46,9 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
   const card = h('section', { class: 'auth-card', 'aria-label': 'Duo 账号' },
     tabs, h('div', { class: 'auth-heading' }, title, lead), form, foot,
     h('div', { class: 'auth-privacy' }, icon('lock'), '只用一个账号，和在意的人保持联系'))
-  const art = h('div', { class: 'auth-art', 'aria-hidden': 'true' },
+  const art = h('div', { class: 'auth-art' },
     h('div', { class: 'auth-art-caption' }, 'A LITTLE CLOSER'),
-    h('div', { class: 'auth-sample incoming' }, '有些话，想和你说。'),
-    h('div', { class: 'auth-sample outgoing' }, '我在，慢慢说。', h('span', { class: 'sample-spark' }, '✳')),
-    h('div', { class: 'auth-art-typing' }, h('i'), h('i'), h('i')),
-    h('div', { class: 'auth-art-note' }, '文字，涂鸦，还有你的声音。'))
+    createHalftone())
   const story = h('section', { class: 'auth-story' },
     h('p', { class: 'auth-eyebrow' }, '为每一份亲近而设计'),
     h('h2', {}, '小事，也值得', h('br'), '好好聊。'),
@@ -80,6 +80,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
     loginTab.setAttribute('aria-pressed', String(!reg))
     registerTab.setAttribute('aria-pressed', String(reg))
     error.textContent = ''
+    invite.setState('idle')
   }
   function setMode(next) {
     if (pending || next === mode) return
@@ -111,6 +112,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
     const u = username.input.value.trim(), p = password.input.value
     if (!u || !p) return
     pending = true
+    invite.setState(mode === 'register' && needsCode ? 'pending' : 'idle')
     submit.disabled = loginTab.disabled = registerTab.disabled = switchBtn.disabled = true
     main.classList.add('is-submitting')
     submit.replaceChildren(h('span', { class: 'spinner' }), h('span', {}, mode === 'register' ? '正在创建账号…' : '正在登录…'))
@@ -127,6 +129,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
       submit.replaceChildren(icon('check'), h('span', {}, '准备好了'))
       onSuccess(data.me)
     } catch (err) {
+      invite.setState('idle')
       haptic()
       error.textContent = err instanceof TypeError ? '暂时无法连接，请检查网络后重试。' : err.message
       errorAnimation?.cancel()
