@@ -1,0 +1,32 @@
+/* A real group of completed photo messages, arranged as a small paper stack. */
+.bubble.media.photo-stack { width:calc(var(--w) + 14px); max-width:100%; height:auto; padding:10px 0 0; background:transparent; overflow:visible; line-height:1.4; }
+.bubble.media.photo-stack::after { display:none; }
+.photo-stack-open { position:relative; display:block; width:var(--w); max-width:calc(100% - 14px); height:auto; aspect-ratio:var(--photo-ratio); margin:0; padding:0; border-radius:18px; background:none; text-align:left; }
+.photo-stack-layer,.photo-stack-cover { position:absolute; inset:0; display:block; overflow:hidden; border:1px solid var(--line); border-radius:18px; background:var(--field); }
+.photo-stack-layer { inset:4px 8px 0 4px; transform-origin:bottom center; transform:translate(calc(var(--depth) * 3px),calc(var(--depth) * -3px)) rotate(calc(var(--depth) * 1.8deg)); filter:saturate(.75); }
+.photo-stack-layer::after { content:''; position:absolute; inset:0; background:color-mix(in srgb,var(--paper) 26%,transparent); }
+.photo-stack-cover { box-shadow:0 2px 4px rgb(0 0 0 / .05); }
+.bubble.media.photo-stack img { display:block; width:100%; height:100%; object-fit:cover; opacity:1; }
+.photo-stack-fallback { position:absolute; inset:0; display:grid; place-items:center; color:var(--label-2); }
+.photo-stack-fallback .icon { width:28px; height:28px; }
+.photo-stack-open:focus-visible { outline:2px solid var(--label-2); outline-offset:5px; }
+.photo-stack-caption { display:flex; align-items:center; justify-content:space-between; gap:8px; width:var(--w); max-width:calc(100% - 14px); min-height:36px; font-size:11px; color:var(--label-2); }
+.photo-stack-caption>span { display:flex; align-items:center; gap:5px; }
+.photo-stack-caption .icon { width:13px; height:13px; }
+.photo-stack-expand { min-width:44px; min-height:44px; margin-block:-4px; font-size:11px; color:var(--label-2); border-radius:10px; }
+.photo-stack-expand:focus-visible { outline:2px solid var(--label-2); outline-offset:-3px; }
+.photo-stack-expand:active { background:var(--field); }
+.viewer-gallery-count { min-height:44px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-variant-numeric:tabular-nums; text-shadow:0 1px 3px rgb(0 0 0 / .7); }
+.viewer-gallery-bottom { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.viewer-gallery-navigation { display:flex; align-items:center; justify-content:center; gap:12px; }
+.viewer-gallery-navigation .glass-btn { width:44px; height:44px; background:rgb(32 32 32 / .68); color:#fff; }
+.viewer-gallery-navigation .glass-btn:disabled { opacity:.3; }
+.viewer-gallery-thumbnails { display:flex; align-items:center; justify-content:flex-start; gap:7px; max-width:min(100%,440px); padding:4px; overflow-x:auto; scrollbar-width:none; }
+.viewer-gallery-thumbnails::-webkit-scrollbar { display:none; }
+.viewer-gallery-thumb { flex:none; width:44px; height:44px; padding:2px; border-radius:10px; border:1px solid rgb(255 255 255 / .2); background:rgb(255 255 255 / .08); opacity:.55; transition:opacity 160ms,border-color 160ms; }
+.viewer-gallery-thumb[aria-pressed="true"] { opacity:1; border-color:#fff; }
+.viewer-gallery-thumb img { width:100%; height:100%; object-fit:cover; border-radius:7px; }
+.viewer-gallery-thumb:focus-visible,.viewer-gallery-navigation button:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+@media(max-height:500px) { .viewer-gallery-thumbnails { display:none; }.viewer-gallery-bottom { bottom:calc(var(--safe-bottom) + 4px); }.viewer-gallery-navigation { gap:8px; } }
+@media(prefers-reduced-motion:reduce) { :root:not([data-motion="full"]) .viewer-gallery-thumb { transition:none; } }
+:root[data-motion="reduce"] .viewer-gallery-thumb { transition:none; }

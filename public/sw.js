@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v4'
+const SHELL = 'shell-v5'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -20,6 +20,8 @@ const SHELL_FILES = [
   '/css/invite-code.css',
   '/css/halftone.css',
   '/css/upload-trace.css',
+  '/css/duo-layout.css',
+  '/css/photo-stack.css',
   '/js/boot.js',
   '/js/main.js',
   '/js/api.js',
@@ -41,6 +43,7 @@ const SHELL_FILES = [
   '/js/views/bubbles.js',
   '/js/views/composer.js',
   '/js/views/attachments.js',
+  '/js/views/photo-stack.js',
   '/js/views/viewer.js',
   '/js/views/thread.js',
   '/js/views/auth.js',

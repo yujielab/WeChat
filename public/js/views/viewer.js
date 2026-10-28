@@ -6,7 +6,13 @@ import { h, icon, reducedMotion } from '../ui/dom.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { toast } from './overlay.js'
 
-export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = '图片' }) {
+export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = '图片', images, index = 0 }) {
+  const previousFocus = document.activeElement
+  const entries = kind === 'image' && Array.isArray(images) ? images.filter(image => image.src || image.fullSrc) : []
+  const gallery = entries.length > 1 ? entries : []
+  let selected = gallery.length ? Math.max(0, Math.min(gallery.length - 1, index)) : 0
+  if (entries.length) ({ src, fullSrc, w = 0, h: hh = 0, label = '图片' } = entries[selected])
+  src ||= fullSrc
   const layer = document.getElementById('overlays')
   const bg = h('div', { class: 'viewer-bg' })
   const media = kind === 'video'
@@ -15,25 +21,53 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   const stage = h('div', { class: 'viewer-stage' }, media)
   const closeBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
   const shareBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '分享或存储' }, icon('share'))
-  const top = h('div', { class: 'viewer-bar top' }, closeBtn, shareBtn)
+  const counter = gallery.length ? h('span', { class: 'viewer-gallery-count', 'aria-live': 'polite' }) : null
+  const top = h('div', { class: 'viewer-bar top' }, closeBtn, counter, shareBtn)
   const root = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1' }, bg, stage, top)
+  const previous = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '上一张照片' }, icon('chevron-left')) : null
+  const next = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '下一张照片' }, icon('chevron-right')) : null
+  const thumbnailBar = gallery.length ? h('div', { class: 'viewer-gallery-thumbnails', role: 'group', 'aria-label': '照片列表' }) : null
+  const thumbnailButtons = gallery.map((image, i) => {
+    const button = h('button', { class: 'viewer-gallery-thumb', type: 'button', 'aria-label': `查看第 ${i + 1} 张照片`, 'aria-pressed': String(i === selected) },
+      h('img', { src: image.src || image.fullSrc, alt: '', loading: 'lazy', decoding: 'async', draggable: false }))
+    button.addEventListener('click', () => select(i))
+    thumbnailBar.append(button)
+    return button
+  })
+  if (gallery.length) root.append(h('div', { class: 'viewer-bar bottom viewer-gallery-bottom' },
+    h('div', { class: 'viewer-gallery-navigation' }, previous, next), thumbnailBar))
   layer.append(root)
-  document.getElementById('app').inert = true
+  const app = document.getElementById('app')
+  const wasInert = app.inert
+  app.inert = true
+  const pointers = new Map()
+  let g = null
+  let lastTap = 0
+  let tapTimer = 0
+  const vt = velocityTracker()
 
-  const W = root.clientWidth
-  const H = root.clientHeight
+  let W = root.clientWidth
+  let H = root.clientHeight
   const nat = { w: thumb?.naturalWidth || w || 1, h: thumb?.naturalHeight || hh || 1 }
   if (w && hh) {
     nat.w = w
     nat.h = hh
   }
-  const fit = Math.min(W / nat.w, H / nat.h)
-  const fw = nat.w * fit
-  const fh = nat.h * fit
+  let fit = Math.min(W / nat.w, H / nat.h)
+  let fw = nat.w * fit
+  let fh = nat.h * fit
   media.style.width = `${fw}px`
   media.style.height = `${fh}px`
   const rest = { tx: (W - fw) / 2, ty: (H - fh) / 2, k: 1 }
   const s = { ...rest, bg: 0 }
+  let activeAnimation = null
+  let fullImageRequest = 0
+  let navigated = false
+  const animate = options => {
+    activeAnimation?.stop()
+    activeAnimation = spring(options)
+    return activeAnimation
+  }
 
   const apply = () => {
     media.style.transform = `translate3d(${s.tx}px, ${s.ty}px, 0) scale(${s.k})`
@@ -54,7 +88,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   if (from && !reducedMotion()) {
     Object.assign(s, from, { bg: 0 })
     apply()
-    spring({
+    animate({
       from: 0,
       to: 1,
       damping: 0.86,
@@ -74,25 +108,93 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   }
   root.focus({ preventScroll: true })
 
-  if (kind === 'image' && fullSrc && fullSrc !== src) {
+  function loadFull() {
+    const request = ++fullImageRequest
+    if (kind !== 'image' || !fullSrc || fullSrc === src) return
     const full = new Image()
     full.decoding = 'async'
+    const target = fullSrc
     full.onload = () => {
-      if (root.isConnected) media.src = fullSrc
+      if (root.isConnected && request === fullImageRequest) media.src = target
     }
-    full.src = fullSrc
+    full.src = target
   }
+  loadFull()
+
+  function updateGallery() {
+    if (!gallery.length) return
+    counter.textContent = `${selected + 1} / ${gallery.length}`
+    previous.disabled = selected === 0
+    next.disabled = selected === gallery.length - 1
+    thumbnailButtons.forEach((button, i) => button.setAttribute('aria-pressed', String(i === selected)))
+    thumbnailButtons[selected]?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }
+  function fitMedia() {
+    W = root.clientWidth
+    H = root.clientHeight
+    nat.w = w || media.naturalWidth || 1
+    nat.h = hh || media.naturalHeight || 1
+    fit = Math.min(W / nat.w, H / nat.h)
+    fw = nat.w * fit
+    fh = nat.h * fit
+    media.style.width = `${fw}px`
+    media.style.height = `${fh}px`
+    Object.assign(rest, { tx: (W - fw) / 2, ty: (H - fh) / 2, k: 1 })
+    Object.assign(s, rest, { bg: 1 })
+    apply()
+  }
+  function select(i) {
+    if (closing || i < 0 || i >= gallery.length || i === selected) return
+    activeAnimation?.stop()
+    clearTimeout(tapTimer)
+    pointers.clear()
+    g = null
+    selected = i
+    navigated = true
+    ;({ src, fullSrc, w = 0, h: hh = 0, label = '图片' } = gallery[i])
+    media.src = src || fullSrc
+    media.alt = label
+    root.setAttribute('aria-label', label)
+    root.classList.remove('chrome-off')
+    top.style.opacity = ''
+    fitMedia()
+    updateGallery()
+    loadFull()
+    if (!reducedMotion()) media.animate?.([{ opacity: .45 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' })
+  }
+  previous?.addEventListener('click', () => select(selected - 1))
+  next?.addEventListener('click', () => select(selected + 1))
+  updateGallery()
+  const onResize = () => {
+    if (!closing && (root.clientWidth !== W || root.clientHeight !== H)) {
+      activeAnimation?.stop()
+      clearTimeout(tapTimer)
+      pointers.clear()
+      g = null
+      fitMedia()
+    }
+  }
+  const resizeObserver = new ResizeObserver(onResize)
+  resizeObserver.observe(root)
+  if (kind === 'image') media.addEventListener('load', () => {
+    if (!closing && (!w || !hh)) { activeAnimation?.stop(); fitMedia() }
+  })
 
   // ---------------------------------------------------------- close
   let closing = false
   async function close(velocityY = 0) {
     if (closing) return
     closing = true
-    const target = thumbRect(findThumb?.() || thumb)
+    activeAnimation?.stop()
+    fullImageRequest++
+    resizeObserver.disconnect()
+    clearTimeout(tapTimer)
+    // A different photo has no geometric identity with the original cover.
+    const target = navigated ? null : thumbRect(findThumb?.() || thumb)
     if (target && !reducedMotion()) {
       const start = { ...s }
       top.style.opacity = '0'
-      await spring({
+      await animate({
         from: 0,
         to: 1,
         velocity: Math.abs(velocityY) / Math.max(1, H),
@@ -107,32 +209,45 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
         }
       }).done
     } else {
-      root.style.transition = 'opacity 180ms ease-out'
+      root.style.transition = reducedMotion() ? 'none' : 'opacity 180ms ease-out'
       root.style.opacity = '0'
-      await new Promise(r => setTimeout(r, 180))
+      if (!reducedMotion()) await new Promise(r => setTimeout(r, 180))
     }
     if (thumb) thumb.style.visibility = ''
     const t2 = findThumb?.()
     if (t2) t2.style.visibility = ''
     if (kind === 'video') media.pause()
     root.remove()
-    document.getElementById('app').inert = false
+    app.inert = wasInert
     document.removeEventListener('keydown', onKey)
+    if (previousFocus?.isConnected && !previousFocus.closest?.('[inert]')) previousFocus.focus?.({ preventScroll: true })
   }
 
   const onKey = e => {
-    if (e.key === 'Escape') close()
+    if (e.defaultPrevented) return
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close() }
+    else if (gallery.length && ['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault()
+      select(selected + (e.key === 'ArrowLeft' ? -1 : 1))
+    } else if (kind === 'image' && e.key === 'Tab') {
+      const buttons = [...root.querySelectorAll('button:not(:disabled)')].filter(button => button.getClientRects().length && !button.closest('[hidden]'))
+      const first = buttons[0], last = buttons.at(-1)
+      if (e.shiftKey && (document.activeElement === first || !buttons.includes(document.activeElement))) { e.preventDefault(); last?.focus() }
+      else if (!e.shiftKey && (document.activeElement === last || !buttons.includes(document.activeElement))) { e.preventDefault(); first?.focus() }
+    }
   }
   document.addEventListener('keydown', onKey)
   closeBtn.addEventListener('click', () => close())
   shareBtn.addEventListener('click', async () => {
+    const source = fullSrc || src
     try {
-      const res = await fetch(fullSrc || src)
+      const res = await fetch(source)
+      if (!res.ok) throw new Error('Media unavailable')
       const blob = await res.blob()
       const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace('svg+xml', 'svg')
       const file = new File([blob], `${kind === 'video' ? 'VID' : 'IMG'}_${Date.now()}.${ext}`, { type: blob.type })
       if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] })
-      else window.open(fullSrc || src, '_blank', 'noopener')
+      else window.open(source, '_blank', 'noopener')
     } catch (err) {
       if (err?.name !== 'AbortError') toast('无法分享这张图片', { type: 'error' })
     }
@@ -141,20 +256,15 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   if (kind === 'video') return { close }
 
   // ---------------------------------------------------------- gestures
-  const pointers = new Map()
-  let g = null
-  let lastTap = 0
-  let tapTimer = 0
-  const vt = velocityTracker()
-
   const clampRest = (velocity = { x: 0, y: 0 }) => {
+    if (closing) return
     const k = Math.min(Math.max(s.k, 1), 4)
     const sw = fw * k
     const sh = fh * k
     const clamp = (v, size, view) => (size <= view ? (view - size) / 2 : Math.min(0, Math.max(view - size, v)))
     const target = k === 1 ? rest : { tx: clamp(s.tx, sw, W), ty: clamp(s.ty, sh, H), k }
     const start = { ...s }
-    spring({
+    animate({
       from: 0,
       to: 1,
       damping: 1,
@@ -171,10 +281,11 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   }
 
   const zoomAt = (x, y, k) => {
+    if (closing) return
     const start = { ...s }
     const ratio = k / s.k
     const target = { tx: x - (x - s.tx) * ratio, ty: y - (y - s.ty) * ratio, k }
-    spring({
+    animate({
       from: 0,
       to: 1,
       damping: 1,
@@ -185,10 +296,12 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
         s.k = start.k + (target.k - start.k) * p
         apply()
       }
-    }).done.then(() => clampRest())
+    }).done.then(finished => { if (finished && !closing) clampRest() })
   }
 
   stage.addEventListener('pointerdown', e => {
+    if (closing) return
+    activeAnimation?.stop()
     try { stage.setPointerCapture(e.pointerId) } catch {}
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const o = root.getBoundingClientRect()
@@ -227,7 +340,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     vt.add(e.clientX, e.clientY)
     if (g.mode === 'tap') {
       if (Math.hypot(dx, dy) < 8) return
-      g.mode = s.k > 1.02 ? 'pan' : 'dismiss'
+      g.mode = s.k > 1.02 ? 'pan' : gallery.length && Math.abs(dx) > Math.abs(dy) * 1.3 ? 'navigate' : 'dismiss'
     }
     if (g.mode === 'pan') {
       s.tx = g.start.tx + dx
@@ -241,6 +354,9 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
       if (s.ty > 0) s.ty = rubberband(s.ty, H)
       if (s.ty < minY) s.ty = minY + rubberband(s.ty - minY, H)
       apply()
+    } else if (g.mode === 'navigate') {
+      s.tx = rest.tx + rubberband(dx, W)
+      apply()
     } else if (g.mode === 'dismiss') {
       const shrink = 1 - Math.min(0.35, Math.abs(dy) / H * 0.6)
       s.k = shrink
@@ -253,6 +369,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   })
 
   const up = e => {
+    if (closing) { pointers.clear(); g = null; return }
     if (!pointers.has(e.pointerId)) return
     pointers.delete(e.pointerId)
     if (!g) return
@@ -267,7 +384,15 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     const at = { x: e.clientX - g.ox, y: e.clientY - g.oy }
     g = null
     const v = vt.velocity()
-    if (mode === 'tap') {
+    if (e.type === 'pointercancel') {
+      top.style.opacity = ''
+      clampRest()
+    } else if (mode === 'navigate') {
+      const displacement = s.tx - rest.tx
+      const target = selected + (displacement < 0 ? 1 : -1)
+      if ((Math.abs(displacement) > 35 || Math.abs(v.x) > 500) && target >= 0 && target < gallery.length) select(target)
+      else clampRest()
+    } else if (mode === 'tap') {
       const now = performance.now()
       if (now - lastTap < 280) {
         clearTimeout(tapTimer)
@@ -291,5 +416,5 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   stage.addEventListener('pointerup', up)
   stage.addEventListener('pointercancel', up)
 
-  return { close }
+  return { close, select, get index() { return selected } }
 }
