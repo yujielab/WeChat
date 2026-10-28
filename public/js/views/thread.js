@@ -15,6 +15,9 @@ import { createComposer, prepareImage } from './composer.js'
 import { openDrawing } from './draw.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
+import { bindImageDropTarget } from './attachments.js'
+import { createUploadTrace } from '../ui/upload-trace.js'
+import { createHalftone } from '../ui/halftone.js'
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -82,12 +85,15 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     h('div', { class: 'room-welcome-mark', 'aria-hidden': 'true' }, icon('bubble')),
     welcomeName,
     h('p', {}, '写一句话，画一个心情。\n此刻，就从这里聊起。'))
-  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, edgeBottom, composer.el, jump)
+  const uploadTrace = createUploadTrace()
+  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, edgeBottom, composer.el, jump, uploadTrace.el)
+  bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
+  new ResizeObserver(() => {
+    root.style.setProperty('--trace-h', `${uploadTrace.el.hidden ? 0 : uploadTrace.el.getBoundingClientRect().height + 8}px`)
+  }).observe(uploadTrace.el)
   const empty = h('div', { class: 'thread-empty' },
     h('div', { class: 'thread-empty-content' },
-      h('div', { class: 'duo-conversation-mark', 'aria-hidden': 'true' },
-        h('span', { class: 'duo-mark-back' }, icon('bubble')),
-        h('span', { class: 'duo-mark-front' }, icon('bubble'))),
+      createHalftone({ compact: true }),
       h('span', { class: 'thread-empty-eyebrow' }, 'DUO · 在一起，聊下去'),
       h('h2', {}, '每一句，都有回音。'),
       h('p', {}, '在左侧选择一段对话，\n把文字、手绘和声音留给在意的人。'),
@@ -290,6 +296,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     composer.flushDraft()
     stopVoice()
     current = id
+    uploadTrace.setChat(id)
     clearTimeout(typingTimer)
     typingTimer = 0
     titleSub.classList.remove('typing')
@@ -371,6 +378,8 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     titleSub.classList.remove('typing')
     clearGhost()
     current = null
+    composer.setChat(null)
+    uploadTrace.setChat(null)
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -447,13 +456,22 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   async function sendImages(files) {
     const chat = current
     if (!chat) return
-    for (const f of files) {
-      const prepared = await prepareImage(f)
-      await sendPrepared(chat, prepared)
+    for (const [index, f] of files.entries()) {
+      const trace = uploadTrace.begin(chat, `${f.name || '图片'}${files.length > 1 ? ` · ${index + 1}/${files.length}` : ''}`)
+      trace.stage(0)
+      try {
+        const prepared = await prepareImage(f)
+        await sendPrepared(chat, prepared, trace)
+      } catch (err) {
+        trace.fail(err)
+        toast(err.message || '无法处理这张图片，请重新选择。', { type: 'error' })
+      }
     }
   }
 
-  async function sendPrepared(chat, { file, w, h: hh }) {
+  async function sendPrepared(chat, { file, w, h: hh }, trace) {
+    const prepared = !trace
+    trace ||= uploadTrace.begin(chat, file.name || '图片', { prepared: true })
     const cid = newCid()
     const preview = URL.createObjectURL(file)
     state.previews.set(cid, preview)
@@ -461,13 +479,17 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'image', w, h: hh, url: preview, status: 'sending' }
     upsertMessage(local)
     bumpList(local)
-    scrollToBottom()
+    if (chat === current) scrollToBottom()
     try {
+      trace.stage(prepared ? 0 : 1)
       const up = await uploadMedia('image', file, { room: chat, name: file.name || 'photo.jpg', w, h: hh })
+      trace.stage(prepared ? 1 : 2)
       const r = await api.post('/api/messages', { room: chat, type: 'image', meta: { ...up.meta, url: up.url }, localId: cid })
       if (r.msg) replaceMessage(local.id, normMsg(r.msg))
       retryFiles.delete(cid)
+      trace.finish()
     } catch (err) {
+      trace.fail(err)
       upsertMessage({ ...local, status: 'failed' })
       toast(err.message || '图片发送失败', { type: 'error' })
     }
@@ -488,6 +510,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const chat = current
     if (!chat) return
     const file = new File([blob], 'drawing.png', { type: 'image/png' })
+    const trace = uploadTrace.begin(chat, '随手画 · drawing.png', { prepared: true })
     const cid = newCid()
     const preview = URL.createObjectURL(file)
     state.previews.set(cid, preview)
@@ -496,10 +519,14 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     bumpList(local)
     scrollToBottom()
     try {
+      trace.stage(0)
       const up = await uploadMedia('image', file, { room: chat, name: 'drawing.png', w, h })
+      trace.stage(1)
       const r = await api.post('/api/messages', { room: chat, type: 'drawing', meta: { ...up.meta, url: up.url }, localId: cid })
       if (r.msg) replaceMessage(local.id, normMsg(r.msg))
+      trace.finish()
     } catch (err) {
+      trace.fail(err)
       upsertMessage({ ...local, status: 'failed' })
       toast(err.message || '发送失败', { type: 'error' })
     }

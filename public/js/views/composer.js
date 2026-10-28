@@ -6,6 +6,7 @@ import { h, icon } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
 import { openMenu } from './overlay.js'
+import { openAttachments } from './attachments.js'
 
 export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   const textarea = h('textarea', {
@@ -18,14 +19,31 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   })
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': '发送' }, icon('arrow-up'))
   const field = h('div', { class: 'field glass' }, textarea, send)
-  const fileInput = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true })
   const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '添加内容', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('plus'))
-  const form = h('form', { class: 'composer', autocomplete: 'off' }, attach, field, fileInput)
+  const form = h('form', { class: 'composer', autocomplete: 'off' }, attach, field)
 
   let chat = null
   let draftTimer = 0
   let readonly = false
   let attachmentMenu = null
+  let attachmentSheet = null
+
+  function openImages(files = []) {
+    if (readonly || !chat) return false
+    if (attachmentSheet && !attachmentSheet.closed) {
+      attachmentSheet.addFiles(files)
+      return attachmentSheet
+    }
+    const destination = chat
+    attachmentSheet = openAttachments({
+      files,
+      onSend: selected => {
+        if (readonly || chat !== destination) return false
+        return onImages?.(selected)
+      }
+    })
+    return attachmentSheet
+  }
 
   function autosize() {
     textarea.style.height = 'auto'
@@ -83,7 +101,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
     attach.classList.add('is-open')
     attach.setAttribute('aria-expanded', 'true')
     const menu = openMenu(attach, [[
-      { label: '照片', icon: 'photo', onSelect: () => { fileInput.value = ''; fileInput.click() } },
+      { label: '照片', icon: 'photo', onSelect: () => openImages() },
       { label: '画板', icon: 'brush', onSelect: () => onDraw?.() }
     ]], {
       preferAbove: true,
@@ -96,17 +114,13 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
     })
     attachmentMenu = menu
   })
-  fileInput.addEventListener('change', () => {
-    const files = [...fileInput.files].filter(f => f.type.startsWith('image/'))
-    if (files.length) onImages(files)
-  })
-
   new ResizeObserver(() => onHeight?.(form.offsetHeight)).observe(form)
 
   return {
     el: form,
     setChat(id, { readonly: ro = false } = {}) {
       attachmentMenu?.close()
+      attachmentSheet?.close()
       if (chat && chat !== id) {
         clearTimeout(draftTimer)
         setDraft(chat, textarea.value)
@@ -123,6 +137,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
     flushDraft() {
       if (chat) setDraft(chat, textarea.value)
     },
+    openImages,
     focus() {
       textarea.focus({ preventScroll: true })
     },
