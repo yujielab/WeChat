@@ -11,6 +11,7 @@ import {
 import { renderAuth } from './views/auth.js'
 import { createShell } from './views/shell.js'
 import { createCalls } from './views/call.js'
+import { syncPush } from './ui/push.js'
 import { toast, closeAllOverlays } from './views/overlay.js'
 
 const app = document.getElementById('app')
@@ -74,7 +75,13 @@ async function refresh() {
   state.calls = boot.calls || { enabled: false }
   state.vapid = boot.vapid || null
   shell?.setMe(state.me)
+  // Once per launch: keep this device's push subscription current.
+  if (!pushSynced) {
+    pushSynced = true
+    syncPush(state.vapid)
+  }
 }
+let pushSynced = false
 
 function mountShell() {
   if (shell) { shell.setMe(state.me); return }

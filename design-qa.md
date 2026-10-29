@@ -216,3 +216,37 @@ SF Symbols 的图形只许在 Apple 平台的应用里使用，网页不能直�
 - `strip.cjs` 在 84pt 系统列下检查：内屏面板在内容区居中、不碰控制列；外屏面板两侧各 8pt、控制列让开并在关闭后回来。
   `safe-layout.cjs` 检查控制列的菜单出现在按钮旁边、与按钮齐平。
 - Service Worker 缓存版本升到 `shell-v13`。
+
+## iOS 27.2：导航列、通话、通知与 WebGPU
+
+**导航列再次跑出系统列**（iOS 27.2 真机截图）：从截图量得列表的控制列位于 安全区 84pt + 10pt 处，说明 CSS 拿到的右侧
+安全区仍是 84pt，但应用没有进入“系统列”模式。原因是 iOS 27.2 在应用启动之后才给主屏幕应用安全区，期间不触发 resize，
+而判断只在启动和 resize 时做一次。现在 `viewport.js` 用 ResizeObserver 盯住量安全区的探针，安全区一变就重新判断；
+回到前台（`pageshow`、`visibilitychange`）也会再判断一次。`strip.cjs` 增加了“安全区晚到且没有 resize”的用例：
+在旧代码上失败，修复后通过。
+
+**无法建立通话 / 对方没有提醒**：
+- 来电只经 WebSocket 发给对方，应用不在前台（iOS 后台会断开 socket）时对方什么也收不到；而对方 socket 一断，
+  服务端还会把正在响铃的通话直接挂断，主叫几秒内就看到通话结束。
+- 现在通话在响铃期间存进 Durable Object；被叫的应用收到来电会回一个“正在响铃”。没打开应用的成员立刻、打开了却
+  2.5 秒内没回应的成员随后，都会收到来电通知（Declarative Web Push，点按回到该聊天）；被叫转到后台不会挂断，
+  回来时（包括从通知回来）会再次响铃；主叫取消或无人接听时，被通知过的人会收到“未接来电”。
+- 主叫状态会显示“对方响铃中…”“已通过通知提醒对方…”或“对方没有打开应用，也没有开启通知”；45 秒无人接听显示
+  “无人接听”并结束；对方超时未接不再显示成“对方已拒绝”。
+- 建立通话失败时，提示里会带上原因（Realtime 返回的错误、找不到麦克风等），对方也会停止响铃；
+  挂断时如果权限弹窗还开着，会释放麦克风。通话期间把 `navigator.audioSession.type` 设为 `play-and-record`。
+- 无法在这里真正接通：开发环境访问不到 Cloudflare Realtime；信令逻辑由 `test/call.test.js` 覆盖（9 项）。
+
+**Declarative Web Push**：服务端发送 `web_push: 8030` 消息（标题、正文、`navigate` 链接、`tag`、`app_badge` 未读数），
+支持的浏览器由系统直接显示，不依赖 Service Worker 是否还活着；其他浏览器由 `sw.js` 显示同一条消息。
+支持时订阅改用 `window.pushManager`，每次启动同步一次订阅，旧的 Service Worker 订阅会被替换，避免重复通知。
+设置里的开关改名为“通知”，涵盖新消息与来电。
+
+**WebGPU**：点阵插画与“分享图片”面板的点阵改由 WebGPU 绘制（`ui/dots.js`）：每帧所有圆点是一次实例化绘制，
+抗锯齿在着色器里做；没有 WebGPU 或设备丢失时退回 Canvas 2D。在 Xvfb + SwiftShader 下与 Canvas 2D 逐点一致；
+2301 个点时主线程每帧 0.72 → 0.48 ms（桌面模拟环境，真机未测）。界面其余动效本来就走合成器（CSS / Web Animations）。
+
+**Safari 27.2 的其他变化**（自定义 select 的 `::field-content`、Grid Lanes `flow-tolerance` 改名 `fit-tolerance`、
+大型选择器的安全对齐）本应用都没有用到，无需改动。
+
+Service Worker 缓存版本升到 `shell-v14`，并缓存新增的 `js/ui/push.js` 与 `js/ui/dots.js`。

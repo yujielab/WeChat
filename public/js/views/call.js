@@ -12,8 +12,14 @@ import { toast } from './overlay.js'
 import { placeOnSide } from '../ui/fold.js'
 import { avatar } from './avatar.js'
 
+// An unanswered call gives up after this long (the server keeps it ringing as long).
+const RING_MS = 45000
+// How the caller hears each callee was reached, best first.
+const REACH = ['ringing', 'notified', 'unreachable']
+const REACH_TEXT = { ringing: '对方响铃中…', notified: '已通过通知提醒对方…', unreachable: '对方没有打开应用，也没有开启通知' }
+
 export function createCalls({ socketSend }) {
-  let active = null // { room, callId, media, role, pc, sessionId, stream, peers, ui, startedAt, ringTimer }
+  let active = null // { room, callId, media, role, pc, sessionId, stream, peers, ui, startedAt, ringTimer, reach }
 
   function start(roomId, media = 'audio') {
     if (active) return toast('已有通话进行中', { type: 'error' })
@@ -21,6 +27,7 @@ export function createCalls({ socketSend }) {
     const callId = `${Date.now()}${Math.floor(Math.random() * 1000)}`
     active = newCall({ room: roomId, callId, media, role: 'caller' })
     socketSend({ t: 'call', kind: 'invite', room: roomId, callId, media })
+    active.ringTimer = setTimeout(() => { if (active?.callId === callId && !active.answered) endSoon('无人接听') }, RING_MS)
     begin().catch(fail)
   }
 
@@ -28,14 +35,25 @@ export function createCalls({ socketSend }) {
     const { kind, room, callId } = msg
     if (kind === 'invite') return incoming(msg)
     if (!active || active.callId !== callId) return
-    if (kind === 'accept') { active.ui.setStatus('已接通'); active.answered = true; announceTracks() }
+    if (kind === 'accept') { clearTimeout(active.ringTimer); active.ui.setStatus('已接通'); active.answered = true; announceTracks() }
     else if (kind === 'tracks') pullFrom(msg.from, msg.sessionId, msg.tracks)
-    else if (kind === 'decline') { active.ui.setStatus('对方已拒绝'); endSoon('对方已拒绝') }
+    else if (REACH.includes(kind)) reached(kind)
+    else if (kind === 'decline') endSoon(msg.missed ? '无人接听' : '对方已拒绝')
     else if (kind === 'cancel') end(true)
     else if (kind === 'hangup') { if (active.answered) endSoon('通话结束'); else end(true) }
   }
 
+  // The caller's status says how the call is reaching the other side.
+  function reached(kind) {
+    if (active.role !== 'caller' || active.answered) return
+    if (active.reach && REACH.indexOf(active.reach) <= REACH.indexOf(kind)) return
+    active.reach = kind
+    active.ui.setStatus(active.media === 'video' ? `视频通话 · ${REACH_TEXT[kind]}` : REACH_TEXT[kind])
+  }
+
   function incoming(msg) {
+    // The same call again: this device reconnected while it rang.
+    if (active?.callId === msg.callId) return socketSend({ t: 'call', kind: 'ringing', room: msg.room, callId: msg.callId })
     if (active) { // busy
       socketSend({ t: 'call', kind: 'decline', room: msg.room, callId: msg.callId, to: msg.from })
       return
@@ -45,14 +63,22 @@ export function createCalls({ socketSend }) {
       accept: () => { socketSend({ t: 'call', kind: 'accept', room: msg.room, callId: msg.callId }); active.answered = true; begin().catch(fail) },
       decline: () => { socketSend({ t: 'call', kind: 'decline', room: msg.room, callId: msg.callId }); end(true) }
     })
+    // Tell the caller it rings here, so it isn't also sent as a notification.
+    socketSend({ t: 'call', kind: 'ringing', room: msg.room, callId: msg.callId })
     haptic()
-    active.ringTimer = setTimeout(() => { if (active && !active.answered) { socketSend({ t: 'call', kind: 'decline', room: msg.room, callId: msg.callId, missed: true }); end(true) } }, 35000)
+    active.ringTimer = setTimeout(() => { if (active && !active.answered) { socketSend({ t: 'call', kind: 'decline', room: msg.room, callId: msg.callId, missed: true }); end(true) } }, RING_MS)
   }
 
   async function begin() {
-    clearTimeout(active.ringTimer)
+    if (active.role === 'callee') clearTimeout(active.ringTimer)
     const wantVideo = active.media === 'video'
-    active.stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo ? { facingMode: 'user', width: 1280, height: 720 } : false })
+    // iOS: route the call like a call (microphone and receiver together).
+    if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'
+    const call = active
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo ? { facingMode: 'user', width: 1280, height: 720 } : false })
+    // Hung up while the permission prompt was open: let the microphone go.
+    if (active !== call) { stream.getTracks().forEach(t => t.stop()); return }
+    active.stream = stream
     active.ui.attachLocal(active.stream, wantVideo)
     const ice = await api.post('/rtc/turn').then(r => r.iceServers).catch(() => [{ urls: 'stun:stun.cloudflare.com:3478' }])
     const pc = new RTCPeerConnection({ iceServers: ice, bundlePolicy: 'max-bundle' })
@@ -114,8 +140,14 @@ export function createCalls({ socketSend }) {
     setTimeout(() => end(), 900)
   }
   function fail(err) {
-    toast(err?.name === 'NotAllowedError' ? '需要麦克风/摄像头权限' : '无法建立通话', { type: 'error' })
-    end(true)
+    if (!active) return
+    const reason = err?.name === 'NotAllowedError' ? '需要麦克风/摄像头权限'
+      : err?.name === 'NotFoundError' ? '找不到麦克风或摄像头'
+      : err?.status !== undefined ? err.message
+      : `无法建立通话${err?.name && err.name !== 'Error' ? `（${err.name}）` : ''}`
+    toast(reason, { type: 'error', duration: 5000 })
+    // The other side stops ringing too.
+    end(false)
   }
   function end(silent) {
     if (!active) return
@@ -124,6 +156,7 @@ export function createCalls({ socketSend }) {
     clearTimeout(a.ringTimer)
     try { a.stream?.getTracks().forEach(t => t.stop()) } catch {}
     try { a.pc?.close() } catch {}
+    if (navigator.audioSession) navigator.audioSession.type = 'auto'
     if (!silent && a.answered) {
       const duration = a.startedAt ? (Date.now() - a.startedAt) / 1000 : 0
       socketSend({ t: 'call', kind: 'hangup', room: a.room, callId: a.callId, media: a.media, duration })

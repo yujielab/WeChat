@@ -5,6 +5,7 @@ import { h, icon } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
 import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appearance.js'
 import { isStandalone } from '../ui/viewport.js'
+import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -168,40 +169,29 @@ function changePassword() {
 // ---------------------------------------------------------------- notifications
 async function renderPush(slot) {
   const configured = Boolean(state.vapid)
-  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
-  let sub = null
-  if (supported) {
-    try { sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription() } catch {}
-  }
-  let note = '收到新消息时在锁屏和通知中心提醒你。'
+  const supported = pushSupported()
+  const sub = supported ? await currentSubscription() : null
+  let note = '新消息和来电会在锁屏和通知中心提醒你，应用关闭后也会。'
   let disabled = false
   if (!configured) { note = '服务器未配置 VAPID 密钥，通知不可用（见 README）。'; disabled = true }
   else if (!supported) { note = isStandalone() ? '此设备不支持网页推送。' : '请先用 Safari 的“添加到主屏幕”安装本应用，再从主屏幕打开以开启通知。'; disabled = true }
   else if (Notification.permission === 'denied') { note = '通知权限已被拒绝，请在系统“设置 › 通知”中允许。'; disabled = true }
-  const sw = toggle(Boolean(sub), on => (on ? enablePush() : disablePush()), '新消息通知')
+  const sw = toggle(Boolean(sub), on => (on ? turnOn() : turnOff()), '通知')
   sw.disabled = disabled
-  slot.replaceChildren(group(cell('新消息通知', sw, { icon: 'bell', color: 'var(--red)' })), foot(note))
+  slot.replaceChildren(group(cell('通知', sw, { icon: 'bell', color: 'var(--red)' })), foot(note))
 }
-async function enablePush() {
+async function turnOn() {
   try {
-    if (await Notification.requestPermission() !== 'granted') { toast('没有获得通知权限', { type: 'error' }); return false }
-    const reg = await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(state.vapid) })
-    await api.post('/api/push/subscribe', { sub: sub.toJSON() })
+    await enablePush(state.vapid)
     toast('通知已开启', { type: 'ok' })
     return true
   } catch (err) { toast(`无法开启通知：${err.message}`, { type: 'error' }); return false }
 }
-async function disablePush() {
+async function turnOff() {
   try {
-    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription()
-    if (sub) { await api.post('/api/push/unsubscribe', { endpoint: sub.endpoint }); await sub.unsubscribe() }
+    await disablePush()
     return true
   } catch (err) { toast(err.message, { type: 'error' }); return false }
-}
-function b64urlToBytes(s) {
-  const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4))
-  return Uint8Array.from(bin, c => c.charCodeAt(0))
 }
 
 // ---------------------------------------------------------------- new chat

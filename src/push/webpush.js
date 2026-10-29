@@ -97,13 +97,32 @@ async function vapidAuthorization(env, endpoint) {
   return `vapid t=${header}.${claims}.${b64urlEncode(sig)}, k=${env.VAPID_PUBLIC_KEY}`
 }
 
+/**
+ * A Declarative Web Push message (web_push 8030). Browsers that support it
+ * (Safari 18.4 and later, iOS Home Screen apps included) show the
+ * notification themselves, with no script running, so it arrives even when
+ * the app was closed long ago; the rest hand the same JSON to the service
+ * worker's push event, which shows it the same way (public/sw.js).
+ * `navigate` must be an absolute URL: activating the notification opens it.
+ */
+export function declarativeMessage({ title, body = '', navigate, tag, badge, silent = false }) {
+  const notification = { title: String(title || 'Duo'), body: String(body), navigate: String(navigate), lang: 'zh-CN', dir: 'ltr', silent: Boolean(silent) }
+  if (tag) notification.tag = String(tag)
+  if (Number.isInteger(badge) && badge >= 0) notification.app_badge = String(badge)
+  return { web_push: 8030, notification }
+}
+
 async function topicFor(tag) {
   const digest = await crypto.subtle.digest('SHA-256', enc.encode(String(tag)))
   return b64urlEncode(new Uint8Array(digest).slice(0, 24))
 }
 
-/** Sends one notification. Returns the push service response. */
-export async function sendWebPush(env, subscription, payload, { ttl = 86400 } = {}) {
+/**
+ * Sends one notification. Returns the push service response. A `topic`
+ * replaces any undelivered message with the same topic (a newer preview of
+ * the same chat, or a call that has since ended).
+ */
+export async function sendWebPush(env, subscription, payload, { ttl = 86400, topic = null } = {}) {
   const body = await encryptPayload(
     enc.encode(JSON.stringify(payload)),
     b64urlDecode(subscription.keys.p256dh),
@@ -116,6 +135,6 @@ export async function sendWebPush(env, subscription, payload, { ttl = 86400 } = 
     Urgency: 'high',
     Authorization: await vapidAuthorization(env, subscription.endpoint)
   }
-  if (payload.tag) headers.Topic = await topicFor(payload.tag)
+  if (topic) headers.Topic = await topicFor(topic)
   return fetch(subscription.endpoint, { method: 'POST', headers, body, signal: AbortSignal.timeout(15000) })
 }

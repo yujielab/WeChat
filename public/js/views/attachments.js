@@ -2,6 +2,7 @@
 // The magnetic field follows pointer activity; it has no idle animation loop.
 import { h, icon, reducedMotion, announce } from '../ui/dom.js'
 import { openSheet, toast } from './overlay.js'
+import { dotRenderer } from '../ui/dots.js'
 
 const IMAGE_EXT = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i
 const hasFiles = event => [...(event.dataTransfer?.types || [])].includes('Files')
@@ -201,8 +202,8 @@ export function bindImageDropTarget(root, { onFiles, enabled = () => true } = {}
 }
 
 function magneticField(zone, canvas) {
-  const context = canvas.getContext('2d')
-  if (!context) return () => {}
+  const renderer = dotRenderer(canvas, () => resize())
+  if (!renderer.current) return () => {}
   const coarse = matchMedia('(hover: none), (pointer: coarse)')
   let frame = 0
   let width = 0, height = 0, ratio = 1
@@ -210,20 +211,17 @@ function magneticField(zone, canvas) {
   let strength = 0, targetStrength = 0
   let destroyed = false
   function draw() {
-    context.clearRect(0, 0, width, height)
-    context.fillStyle = getComputedStyle(zone).color
+    const dots = renderer.current
+    dots.begin(width, height, ratio, getComputedStyle(zone).color)
     const reach = 92
     for (let py = 9; py < height; py += 12) {
       for (let px = 9; px < width; px += 12) {
         const distance = Math.hypot(px - x, py - y)
         const pull = !reducedMotion() && distance < reach ? (1 - distance / reach) ** 2 * strength : 0
-        context.globalAlpha = 0.13 + pull * 0.23
-        context.beginPath()
-        context.arc(px + (x - px) * pull * 0.065, py + (y - py) * pull * 0.065, 0.65 + pull * 0.8, 0, Math.PI * 2)
-        context.fill()
+        dots.dot(px + (x - px) * pull * 0.065, py + (y - py) * pull * 0.065, 0.65 + pull * 0.8, 0.13 + pull * 0.23)
       }
     }
-    context.globalAlpha = 1
+    dots.end()
     const leanX = !reducedMotion() ? (x - width / 2) / Math.max(width, 1) * strength * 3 : 0
     const leanY = !reducedMotion() ? (y - height / 2) / Math.max(height, 1) * strength * 3 : 0
     zone.style.setProperty('--drop-x', `${leanX.toFixed(2)}px`)
@@ -243,9 +241,8 @@ function magneticField(zone, canvas) {
     width = zone.clientWidth
     height = zone.clientHeight
     ratio = Math.min(devicePixelRatio || 1, 2)
-    canvas.width = Math.round(width * ratio)
-    canvas.height = Math.round(height * ratio)
-    context.setTransform(ratio, 0, 0, ratio, 0, 0)
+    renderer.current.canvas.width = Math.round(width * ratio)
+    renderer.current.canvas.height = Math.round(height * ratio)
     draw()
   }
   function move(event) {
@@ -269,6 +266,7 @@ function magneticField(zone, canvas) {
   return () => {
     destroyed = true
     cancelAnimationFrame(frame)
+    renderer.destroy()
     resizeObserver.disconnect()
     appearance.disconnect()
     themeQuery.removeEventListener('change', resize)

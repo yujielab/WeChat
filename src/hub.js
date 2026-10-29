@@ -7,7 +7,7 @@ import {
   hashPassword, verifyPassword, mintToken, readToken,
   cookieHeader, clearCookieHeader, readCookie, b64url
 } from './auth.js'
-import { sendWebPush, pushConfigured } from './push/webpush.js'
+import { sendWebPush, pushConfigured, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
 
@@ -58,6 +58,7 @@ export class Hub {
   async fetch(request) {
     const url = new URL(request.url)
     const path = url.pathname
+    this.noteOrigin(url.origin)
     try {
       if (path.startsWith('/auth/')) return await this.auth(request, url)
       if (request.headers.get('upgrade') === 'websocket') return this.socket(request)
@@ -288,7 +289,8 @@ export class Hub {
     // --- push
     if (path === '/api/push/subscribe' && method === 'POST') {
       if (!body.sub?.endpoint) return json({ ok: false, error: '无效订阅' }, 400)
-      const id = this.store.addSub(user.id, body.sub)
+      // The origin goes with it: a notification's link must be absolute.
+      const id = this.store.addSub(user.id, { endpoint: body.sub.endpoint, keys: body.sub.keys, origin: url.origin })
       return json({ ok: true, id })
     }
     if (path === '/api/push/unsubscribe' && method === 'POST') {
@@ -370,6 +372,9 @@ export class Hub {
       me: this.store.pub(user),
       presence: this.onlineUids()
     }))
+    // A call still ringing for this user (they may have come from its
+    // notification) rings again on the device that just connected.
+    this.calls.onConnect(user.id)
     if (!wasOnline) this.fanoutToPeers(user.id, { t: 'presence', uid: user.id, online: true })
   }
 
@@ -455,22 +460,48 @@ export class Hub {
     for (const p of peers) this.sendToUser(p, payload)
   }
 
-  // --- push to offline members
+  // --- push
+  /** The app's own origin, for links in notifications sent with no request at hand. */
+  noteOrigin(origin) {
+    if (!origin || origin === this.origin) return
+    this.origin = origin
+    if (this.store.kvGet('origin') !== origin) this.store.kvSet('origin', origin)
+  }
+  appOrigin(sub) {
+    return sub?.origin || this.origin || (this.origin = this.store.kvGet('origin'))
+  }
+
+  /**
+   * Sends a Declarative Web Push notification to every device a user has
+   * subscribed. `link` is a path in the app. Returns how many were accepted.
+   */
+  async pushTo(uid, { link, ...notification }, options) {
+    if (!pushConfigured(this.env)) return 0
+    let sent = 0
+    for (const { id, sub } of this.store.listSubs(uid)) {
+      const origin = this.appOrigin(sub)
+      if (!origin) continue
+      try {
+        const res = await sendWebPush(this.env, sub, declarativeMessage({ ...notification, navigate: origin + link }), options)
+        if (res && (res.status === 404 || res.status === 410)) this.store.removeSub(id)
+        else if (res?.ok) sent++
+      } catch {}
+    }
+    return sent
+  }
+
   async pushToOffline(roomId, sender, msg) {
     if (!pushConfigured(this.env)) return
     const room = this.store.getRoom(roomId)
     const title = room.kind === 'dm' ? sender.display : (room.name || '群聊')
     const preview = room.kind === 'dm' ? this.preview(msg) : `${sender.display}: ${this.preview(msg)}`
-    const payload = { title, body: preview, room: roomId, tag: roomId }
     for (const uid of this.store.roomMembers(roomId)) {
       if (uid === sender.id || this.isOnline(uid)) continue
       if (this.store.membership(roomId, uid)?.muted) continue
-      for (const { id, sub } of this.store.listSubs(uid)) {
-        try {
-          const res = await sendWebPush(this.env, sub, payload)
-          if (res && (res.status === 404 || res.status === 410)) this.store.removeSub(id)
-        } catch {}
-      }
+      await this.pushTo(uid, {
+        title, body: preview, tag: roomId, badge: this.store.unreadTotal(uid),
+        link: `/?chat=${encodeURIComponent(roomId)}`
+      }, { topic: roomId })
     }
   }
 

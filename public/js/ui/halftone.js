@@ -1,6 +1,7 @@
 // A finite, interactive halftone illustration. Source masks are procedural;
 // only pointer movement or a chosen shape wakes the canvas animation.
 import { h, icon, reducedMotion } from './dom.js'
+import { dotRenderer } from './dots.js'
 
 const WIDTH = 320
 const HEIGHT = 210
@@ -106,7 +107,11 @@ export function createHalftone({ compact = false } = {}) {
     controls.append(button)
     return button
   })
-  const ctx = canvas.getContext('2d')
+  // Canvas 2D at once; WebGPU takes over when it's ready (ui/dots.js).
+  const renderer = dotRenderer(canvas, dots => {
+    el.dataset.renderer = dots.kind
+    resize()
+  })
   const points = []
   for (let y = GAP / 2; y < HEIGHT; y += GAP) {
     for (let x = GAP / 2; x < WIDTH; x += GAP) points.push({ x, y })
@@ -126,7 +131,10 @@ export function createHalftone({ compact = false } = {}) {
   const finePointer = matchMedia('(hover: hover) and (pointer: fine)')
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)')
   const themeQuery = matchMedia('(prefers-color-scheme: dark)')
-  if (ctx) el.dataset.canvas = 'ready'
+  if (renderer.current) {
+    el.dataset.canvas = 'ready'
+    el.dataset.renderer = renderer.current.kind
+  }
 
   const drawable = () => !destroyed && visible && !document.hidden && el.isConnected && stage.getClientRects().length > 0
   const stop = () => {
@@ -143,18 +151,18 @@ export function createHalftone({ compact = false } = {}) {
   }
   function resize() {
     const width = stage.getBoundingClientRect().width
-    if (!width || !ctx) return
+    const dots = renderer.current
+    if (!width || !dots) return
     const dpr = Math.min(2, devicePixelRatio || 1)
-    canvas.width = Math.round(width * dpr)
-    canvas.height = Math.round(width * HEIGHT / WIDTH * dpr)
-    scale = canvas.width / WIDTH
+    dots.canvas.width = Math.round(width * dpr)
+    dots.canvas.height = Math.round(width * HEIGHT / WIDTH * dpr)
+    scale = dots.canvas.width / WIDTH
     draw()
   }
   function draw(now = performance.now()) {
-    if (!ctx || !drawable()) return
-    ctx.setTransform(scale, 0, 0, scale, 0, 0)
-    ctx.clearRect(0, 0, WIDTH, HEIGHT)
-    ctx.fillStyle = ink
+    const dots = renderer.current
+    if (!dots || !drawable()) return
+    dots.begin(WIDTH, HEIGHT, scale, ink)
     let moving = false
     const dt = Math.min(40, lastTime ? now - lastTime : 16)
     const follow = 1 - Math.exp(-dt / 65)
@@ -188,12 +196,9 @@ export function createHalftone({ compact = false } = {}) {
       }
       const edge = Math.max(0, Math.min(1, p.x / 28, (WIDTH - p.x) / 28, p.y / 20, (HEIGHT - p.y) / 20))
       const tone = current[i]
-      ctx.globalAlpha = Math.min(.94, (.085 + tone * .84) * edge)
-      ctx.beginPath()
-      ctx.arc(x, y, .48 + Math.pow(tone, .74) * 2.05, 0, Math.PI * 2)
-      ctx.fill()
+      dots.dot(x, y, .48 + Math.pow(tone, .74) * 2.05, Math.min(.94, (.085 + tone * .84) * edge))
     }
-    ctx.globalAlpha = 1
+    dots.end()
     lastTime = now
     if (!moving) morph = null
     el.dataset.animating = moving ? 'true' : 'false'
@@ -268,6 +273,7 @@ export function createHalftone({ compact = false } = {}) {
     if (destroyed) return
     stop()
     destroyed = true
+    renderer.destroy()
     resizeObserver.disconnect()
     intersection.disconnect()
     preferences.disconnect()
