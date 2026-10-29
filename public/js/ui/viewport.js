@@ -55,10 +55,11 @@ function measure() {
   // The column stays with the hardware: on the outer display in landscape the
   // camera is at its foot rather than its head (see duo-layout.css).
   root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
-  // Upright, the outer display keeps a column of its own down the right edge
-  // for the status bar and the Dynamic Island, reported as a wide right
-  // safe-area inset; no other iPhone has one in portrait. Bars join it.
-  if (window.innerWidth < window.innerHeight && insetRight() >= EDGE_COLUMN_MIN) root.dataset.edgeColumn = ''
+  // Both displays keep a column of their own down the right edge for the
+  // status bar and the Dynamic Island (84pt on device, open or closed),
+  // reported as a wide right safe-area inset. Other iPhones' insets stay
+  // under it even in landscape (59pt at most). Bars join that column.
+  if (insetRight() >= EDGE_COLUMN_MIN) root.dataset.edgeColumn = ''
   else delete root.dataset.edgeColumn
   if (nextBars !== bars) {
     bars = nextBars
