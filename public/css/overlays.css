@@ -10,6 +10,7 @@
   pointer-events: none;
 }
 .overlays > * { pointer-events: auto; }
+.menu-safe-frame { position:absolute; inset:calc(var(--safe-top) + 10px) calc(var(--safe-right) + 10px) calc(var(--safe-bottom) + 10px) calc(var(--safe-left) + 10px); visibility:hidden; pointer-events:none; }
 
 .scrim {
   position: absolute;

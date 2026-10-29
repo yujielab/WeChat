@@ -245,6 +245,7 @@ let nextMenuId = 0
 export function openMenu(anchor, sections, { title, preferAbove = false, onClose } = {}) {
   const root = layer()
   const scrim = h('div', { class: 'scrim clear' })
+  const safeFrame = h('span', { class: 'menu-safe-frame', 'aria-hidden': 'true', inert: true })
   const highlight = h('span', { class: 'menu-highlight', 'aria-hidden': 'true' })
   const menu = h('div', {
     class: 'menu glass glass-thick', role: 'menu', tabindex: '-1',
@@ -292,7 +293,7 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
     }
   })
   menu.style.visibility = 'hidden'
-  root.append(scrim, menu)
+  root.append(scrim, safeFrame, menu)
   open.add(ctl)
 
   // The same surface follows pointer and keyboard focus. Its geometry is
@@ -331,7 +332,7 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
   function positionMenu() {
     placementFrame = 0
     if (ctl.closed) return
-    if (trigger && !trigger.isConnected) { close(); return }
+    if (trigger && (!trigger.isConnected || !trigger.getClientRects().length)) { close(); return }
     const raw = trigger ? trigger.getBoundingClientRect() : anchor
     const origin = root.getBoundingClientRect()
     const r = {
@@ -340,16 +341,19 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
       w: raw.w ?? raw.width ?? 0,
       h: raw.h ?? raw.height ?? 0
     }
-    const vw = root.clientWidth, vh = root.clientHeight
+    const bounds = safeFrame.getBoundingClientRect()
+    const minX = bounds.left - origin.left, minY = bounds.top - origin.top
+    const maxX = bounds.right - origin.left, maxY = bounds.bottom - origin.top
+    menu.style.maxWidth = `${Math.max(0, bounds.width)}px`
+    menu.style.maxHeight = `${Math.max(0, bounds.height)}px`
     const mw = menu.offsetWidth, mh = menu.offsetHeight
-    const margin = 10
     const below = r.y + r.h + 6
     const above = r.y - 6 - mh
-    let top = !preferAbove && below + mh <= vh - margin ? below : above >= margin ? above : Math.max(margin, vh - mh - margin)
+    let top = !preferAbove && below + mh <= maxY ? below : above >= minY ? above : Math.max(minY, maxY - mh)
     const anchorCenter = r.x + r.w / 2
-    let left = anchorCenter < vw / 2 ? r.x : r.x + r.w - mw
-    left = Math.max(margin, Math.min(left, vw - mw - margin))
-    top = Math.max(margin, Math.min(top, vh - mh - margin))
+    let left = anchorCenter < (minX + maxX) / 2 ? r.x : r.x + r.w - mw
+    left = Math.max(minX, Math.min(left, maxX - mw))
+    top = Math.max(minY, Math.min(top, maxY - mh))
     menu.style.left = `${Math.round(left)}px`
     menu.style.top = `${Math.round(top)}px`
     menu.style.setProperty('--ox', `${Math.min(Math.max(anchorCenter - left, 0), mw)}px`)
@@ -365,6 +369,7 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
   if (!ctl.closed) {
     resizeObserver = new ResizeObserver(schedulePosition)
     resizeObserver.observe(root)
+    resizeObserver.observe(safeFrame)
     resizeObserver.observe(menu)
     window.addEventListener('resize', schedulePosition)
     window.visualViewport?.addEventListener('resize', schedulePosition)
@@ -402,6 +407,7 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
       if (!reducedMotion()) await transitionEnd(menu, 'opacity', 220)
       menu.remove()
       scrim.remove()
+      safeFrame.remove()
       open.delete(ctl)
       restoreFocus(prevFocus)
       if (notify) onClose?.()

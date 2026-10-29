@@ -16,6 +16,8 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 双屏布局按 Duo 草图调整：折叠时在右侧集中返回与通话操作，展开时使用紧凑会话列表和底部工具条；
 短窗口或键盘出现时工具回到顶部。双方头像标记消息分组，连续已发送照片合为可翻页、可逐张展开的照片叠。
 布局变化保留草稿、选区和阅读锚点；安全区使用浏览器提供的几何，支持报告双段视口的设备。
+系统侧边区域挤占可用宽度时，工具改用横栏；低高度窄窗口收进“更多聊天操作”。
+消息滚动区从标题栏下方开始，时间戳与首条消息之间不再重复留白。
 
 <img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Duo 桌面登录界面：品牌介绍与独立账号表单">
 
@@ -25,6 +27,10 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 | <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/18-duo-dark.png" width="420" alt="双屏布局深色模式"> |
 | <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/17-duo-gallery.png" width="420" alt="照片组逐张浏览"> |
 | <img src="docs/screenshots/07-settings.png" width="240"> | <img src="docs/screenshots/01-auth.png" width="240"> |
+
+| 模拟系统侧边 / 底部安全区 | 低高度下收纳工具 |
+| --- | --- |
+| <img src="docs/screenshots/19-safe-layout.png" width="240" alt="安全区较大时使用横向工具栏"> | <img src="docs/screenshots/21-safe-keyboard.png" width="320" alt="低高度下保留返回与更多操作"> |
 
 | 图片发送前预览 | 真实阶段与耗时 |
 | --- | --- |
@@ -154,6 +160,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   任意长度邀请码和 320px 窄屏；只连接本地服务，截图写入 `screenshots-design/`。
 - 双屏回归：`node tools/e2e/duo-layout.cjs` 验证照片叠放与展开、相册切换与焦点恢复、
   折叠前后的草稿 / 选区 / 阅读位置、小窗口发送和右侧返回；只连接本地服务。
+- 安全区回归：`node tools/e2e/safe-layout.cjs` 复现非零侧边 / 底部安全区，检查消息裁切、
+  窄屏 / 低高度工具布局、菜单边界、200% 字号；使用前端示例数据，不创建服务端账号。
 
 ## 安全
 
