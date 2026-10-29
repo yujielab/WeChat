@@ -5,7 +5,7 @@
 
 /* ---------------------------------------------------------------- sidebar */
 .pane-sidebar { --side-inset: 22px; --content-right: calc(var(--safe-right) + var(--side-inset)); background: var(--paper); }
-.pane-sidebar[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+.pane-sidebar[data-bars="vertical"] { --content-right: var(--rail-content); }
 .pane-sidebar[data-bars="vertical"] > .duo-rail { display: flex; }
 .side-scroll { padding: calc(var(--safe-top) + 26px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 24px) calc(var(--safe-left) + var(--side-inset)); }
 .pane-sidebar[data-bars="horizontal"]:not([data-layout="leading"]) .side-scroll { padding-top: calc(var(--safe-top) + 72px); }
@@ -73,7 +73,7 @@
 .pane-artifact { background: var(--bg); }
 .art-body { position: absolute; inset: 0; }
 .art-body[data-kind="info"] { --content-right: calc(var(--safe-right) + var(--margin)); }
-.art-body[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+.art-body[data-bars="vertical"] { --content-right: var(--rail-content); }
 .art-body[data-bars="vertical"] > .duo-rail { display: flex; }
 /* No heading: Close (or Back) alone, above the profile with horizontal
    bars, in the trailing column with vertical ones. */

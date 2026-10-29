@@ -240,9 +240,9 @@ mark { background: none; color: var(--blue); }
 /* Folded (and wherever bars are vertical), the list's bars run down the
    trailing edge and the content takes the space beside them. Search is a
    button there; the field opens above the list while searching. */
-.pane-list[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+.pane-list[data-bars="vertical"] { --content-right: var(--rail-content); }
 .pane-list[data-bars="vertical"] .list-topbar { right: var(--content-right); }
-.pane-list[data-bars="vertical"] .list-scroll { padding-right: calc(var(--content-right) - var(--safe-right) - 10px); padding-bottom: calc(var(--safe-bottom) + 28px); }
+.pane-list[data-bars="vertical"] .list-scroll { padding-right: calc(var(--content-right) - 10px); padding-bottom: calc(var(--safe-bottom) + 28px); }
 .pane-list[data-bars="vertical"] .list-head { padding-right: calc(var(--safe-left) + 12px); }
 .pane-list[data-bars="vertical"] .list-bottombar { top: calc(var(--safe-top) + 12px); bottom: auto; right: var(--content-right); }
 .pane-list[data-bars="vertical"]:not(.search-open):not(.searching) .list-bottombar { visibility: hidden; }

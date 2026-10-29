@@ -31,13 +31,18 @@ for(const c of [
 await p.evaluate(c=>{if(c.kb)Object.defineProperty(visualViewport,'height',{get:()=>c.kb,configurable:true});else delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))},c);await p.waitForTimeout(250);const H=c.kb||c.h,B=c.kb?0:c.bottom;
 const d=await p.evaluate(()=>{const r=e=>{const b=e.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,w:b.width,h:b.height}};const thread=document.querySelector('.thread'),nav=document.querySelector('.thread-nav');return{axis:thread.dataset.bars,reserve:document.querySelector('.thread-rail').getBoundingClientRect().top,foot:document.querySelector('.thread-rail').getBoundingClientRect().bottom,thread:r(thread),header:r(nav),scroll:r(document.querySelector('.thread-scroll')),field:r(document.querySelector('.composer .field')),title:r(document.querySelector('.thread-title')),items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>({id:e.dataset.item||'more',...r(e)})),overflow:thread.scrollWidth>thread.clientWidth,underHeader:Boolean(document.elementFromPoint(nav.getBoundingClientRect().left+100,nav.getBoundingClientRect().bottom-2)?.closest('.m'))}});console.log(JSON.stringify({case:c,axis:d.axis,items:d.items.map(i=>i.id)}));
 assert.equal(d.axis,c.axis,'bar axis');assert.ok(d.scroll.y>=d.header.bottom-.5);assert.equal(d.underHeader,false);assert.equal(d.overflow,false);
-for(const b of[...d.items,d.field]){assert.ok(b.x>=d.thread.x-.5&&b.right<=Math.min(c.w-c.right,d.thread.right)+.5,'safe horizontal '+b.id);assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
+// Upright with a wide right inset (the outer display's own column for the status bar and Dynamic Island),
+// the bars join that column; everywhere else they stay inside the safe area. Content always does.
+const edge=c.w<c.h&&c.right>=64
+for(const b of[...d.items,d.field]){const limit=edge&&b!==d.field?c.w-4:Math.min(c.w-c.right,d.thread.right);assert.ok(b.x>=d.thread.x-.5&&b.right<=limit+.5,'safe horizontal '+b.id);assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
 for(const b of d.items)assert.ok(b.w>=44&&b.h>=44,'44pt '+b.id)
 const ids=d.items.map(i=>i.id)
 if(c.axis==='vertical'){
  // One column on the trailing edge, below the camera and status bar, beside the content.
  const left=Math.min(...d.items.map(i=>i.x));assert.ok(d.items.every(i=>i.x>=c.w-c.right-72),'column on the trailing edge');assert.ok(d.items.every(i=>i.y>=d.reserve-.5&&i.bottom<=d.foot+.5),'clear of camera/status bar');assert.ok(d.field.right<=left,'content beside the column');assert.ok(d.header.right<=left,'heading beside the column')
  if(!c.split)assert.equal(ids[0],'back','Back leads the column')
+ if(edge){const mid=(left+Math.max(...d.items.map(i=>i.right)))/2;assert.ok(Math.abs(mid-(c.w-(c.right-34)))<1.5,'rail centred in the system column '+mid);assert.ok(d.field.right>=c.w-c.right-20-1,'content runs up to the inset (one margin) '+d.field.right)}
+ else assert.ok(d.items.every(i=>i.right<=c.w-c.right+.5),'rail inside the safe area')
  for(let i=1;i<d.items.length;i++)assert.ok(d.items[i].y>=d.items[i-1].y,'column order')
  if(c.split)assert.equal(ids.at(-1),'compose','New Chat ends the column beside the list')
 }else{
