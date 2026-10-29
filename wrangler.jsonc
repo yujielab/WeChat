@@ -36,6 +36,20 @@
   "vars": {
     // Where the Durable Object is created on first use.
     "DO_LOCATION_HINT": "apac"
+  },
+
+  // Pull-request builds run `wrangler preview`, which needs its own bindings.
+  // Each Preview gets a fresh, isolated hub (accounts, rooms, messages), and
+  // media goes to a separate bucket, so a Preview never touches production
+  // data. Create that bucket once:
+  //   npx wrangler r2 bucket create cf-messenger-media-preview
+  // Previews don't inherit production secrets (set them with
+  // `npx wrangler preview secret`); without SIGNUP_CODE sign-up is open and
+  // without REALTIME_* calls are off, which suits a throwaway Preview.
+  "previews": {
+    "vars": { "DO_LOCATION_HINT": "apac" },
+    "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "Hub" }] },
+    "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cf-messenger-media-preview" }]
   }
 
   // Secrets (set with `npx wrangler secret put <NAME>`):

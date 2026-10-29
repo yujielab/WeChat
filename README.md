@@ -133,6 +133,10 @@ npx wrangler deploy
   自建到其他账号时，应改成自己的域名，或移除这项配置。
 - Workers Builds 的根目录使用仓库根目录，构建命令留空（静态文件无需编译），部署命令使用
   `npm run deploy`。首次部署前，在同一个 Cloudflare 账号创建 `cf-messenger-media` R2 桶。
+- 拉取请求的构建运行 `npx wrangler preview`，使用 `wrangler.jsonc` 里的 `previews` 配置：每个预览有独立的 Hub
+  （账号、消息互不影响生产），媒体写入单独的桶。在同一账号创建一次：
+  `npx wrangler r2 bucket create cf-messenger-media-preview`。预览不继承生产 secret，需要时用
+  `npx wrangler preview secret` 设置。
 - 旧版已执行 `v1`（`WeChatSession`），升级由新增的 `v2` 创建 `Hub`。
   保留历史迁移和旧类导出，不要把 `v1` 改成 `Hub`，也不要删除旧 namespace。
   旧微信存储保留但不再使用；Duo 的账号和消息从独立的 Hub 数据库开始。
