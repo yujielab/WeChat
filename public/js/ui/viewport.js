@@ -25,6 +25,8 @@ const vv = window.visualViewport
 const SPLIT_MIN = 700
 // Height below which a portrait window has no room for top and bottom bars.
 const TALL_MIN = 760
+// A right inset this wide is a column the bars can share (the rail is 52pt).
+const EDGE_COLUMN_MIN = 64
 const listeners = new Set()
 const barListeners = new Set()
 let layout = null
@@ -53,6 +55,11 @@ function measure() {
   // The column stays with the hardware: on the outer display in landscape the
   // camera is at its foot rather than its head (see duo-layout.css).
   root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  // Upright, the outer display keeps a column of its own down the right edge
+  // for the status bar and the Dynamic Island, reported as a wide right
+  // safe-area inset; no other iPhone has one in portrait. Bars join it.
+  if (window.innerWidth < window.innerHeight && insetRight() >= EDGE_COLUMN_MIN) root.dataset.edgeColumn = ''
+  else delete root.dataset.edgeColumn
   if (nextBars !== bars) {
     bars = nextBars
     root.dataset.bars = bars
@@ -158,6 +165,17 @@ export function emulateFold(options = null) {
 
 export function getFold() {
   return { ...fold }
+}
+
+let insetProbe = null
+function insetRight() {
+  if (!insetProbe) {
+    insetProbe = document.createElement('div')
+    insetProbe.setAttribute('aria-hidden', 'true')
+    insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;height:0;width:var(--safe-right)'
+    document.body.append(insetProbe)
+  }
+  return insetProbe.offsetWidth
 }
 
 function hasTextFocus() {

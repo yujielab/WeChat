@@ -17,8 +17,24 @@
   --rail-gap: 12px;
   /* Camera + status bar at the top of the column on the outer display;
      status bar alone on the inner display (its camera hides when inactive). */
-  --rail-reserve-outer: 150px;
+  --rail-reserve-outer: 162px;
   --rail-reserve-inner: 104px;
+}
+/* Where the column goes. Without a column of the system's own, the rail
+   takes its place inside the safe area and content stops beside it
+   (--rail-content). Upright on the outer display, iOS keeps a column down the
+   right edge for the status bar and the Dynamic Island, reported as the right
+   inset (84pt, its centre 50pt in from the edge, measured on device): the
+   rail joins that column, centred under the status bar, and content runs up
+   to the inset like everywhere else. Computed per pane and per overlay so a
+   column beside the fold uses its own insets. */
+.pane, .overlays, .viewer, .draw, .call {
+  --rail-right: calc(var(--safe-right) + var(--rail-inset));
+  --rail-content: calc(var(--rail-right) + var(--rail-w) + var(--rail-gap));
+}
+:root[data-edge-column] :is(.pane:not([data-role="leading"]), .overlays, .viewer, .draw, .call) {
+  --rail-right: max(4px, calc(var(--safe-right) - 34px - var(--rail-w) / 2));
+  --rail-content: max(calc(var(--safe-right) + var(--margin)), calc(var(--rail-right) + var(--rail-w) + var(--rail-gap)));
 }
 .pane { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
 .shell[data-layout="split"] .pane { --rail-reserve: var(--rail-reserve-inner); }
@@ -81,7 +97,7 @@
   z-index: calc(var(--z-chrome) + 1);
   top: max(var(--safe-top), var(--rail-reserve));
   bottom: max(var(--safe-bottom), var(--rail-foot));
-  right: calc(var(--safe-right) + var(--rail-inset));
+  right: var(--rail-right);
   width: var(--rail-w);
   display: none;
   flex-direction: column;
@@ -96,7 +112,7 @@
 
 /* ---------------------------------------------------------------- conversation */
 .thread { --head-top: 12px; --head-h: max(64px, calc(2.6rem + 16px)); --content-right: calc(var(--safe-right) + var(--margin)); }
-.thread[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+.thread[data-bars="vertical"] { --content-right: var(--rail-content); }
 
 /* The heading is content: avatar, name and status at the top of the
    conversation, beside the column; with horizontal bars it shares the top
@@ -214,7 +230,7 @@
 :root[data-bars="vertical"] .viewer-bar.top {
   top: max(var(--safe-top), var(--rail-reserve));
   left: auto;
-  right: calc(var(--safe-right) + var(--rail-inset));
+  right: var(--rail-right);
   width: var(--rail-w);
   flex-direction: column;
   align-items: center;
@@ -226,22 +242,22 @@
   top: auto;
   bottom: max(var(--safe-bottom), var(--rail-foot));
   left: auto;
-  right: calc(var(--safe-right) + var(--rail-inset));
+  right: var(--rail-right);
   width: var(--rail-w);
   flex-direction: column;
   gap: 10px;
   padding: 0;
 }
-:root[data-bars="vertical"] .viewer-bar.viewer-gallery-bottom { right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w)); }
+:root[data-bars="vertical"] .viewer-bar.viewer-gallery-bottom { right: calc(var(--rail-right) + var(--rail-w)); }
 
 /* Drawing: Close, then Send (a symbol here: text stays in horizontal bars),
    then Undo and Clear; the colours and sizes stay with the paper. */
-:root[data-bars="vertical"] .draw { --draw-column: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+:root[data-bars="vertical"] .draw { --draw-column: var(--rail-content); }
 :root[data-bars="vertical"] .draw-head {
   position: absolute;
   z-index: 2;
   top: max(var(--safe-top), var(--rail-reserve));
-  right: calc(var(--safe-right) + var(--rail-inset));
+  right: var(--rail-right);
   width: var(--rail-w);
   display: flex;
   flex-direction: column;
@@ -258,7 +274,7 @@
   position: absolute;
   z-index: 2;
   top: calc(max(var(--safe-top), var(--rail-reserve)) + 118px);
-  right: calc(var(--safe-right) + var(--rail-inset));
+  right: var(--rail-right);
   width: var(--rail-w);
   flex-direction: column;
   align-items: center;
@@ -280,7 +296,7 @@
   position: absolute;
   z-index: 3;
   top: max(var(--safe-top), var(--rail-reserve));
-  right: calc(var(--safe-right) + var(--rail-inset) - 6px);
+  right: calc(var(--rail-right) - 6px);
   flex-direction: column;
   justify-content: flex-start;
   gap: 16px;
@@ -288,6 +304,6 @@
 }
 :root[data-bars="vertical"] .call-controls .hang,
 :root[data-bars="vertical"] .call-incoming .hang { order: -1; }
-:root[data-bars="vertical"] .call-stage { padding-right: calc(var(--safe-right) + var(--rail-inset) + 64px); }
-:root[data-bars="vertical"] .call-head { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--safe-right) + var(--rail-inset) + 76px); text-align: left; }
+:root[data-bars="vertical"] .call-stage { padding-right: var(--rail-content); }
+:root[data-bars="vertical"] .call-head { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--rail-content) + 12px); text-align: left; }
 :root[data-bars="vertical"] .call-local { top: auto; right: auto; bottom: calc(max(var(--safe-bottom), 14px) + 4px); left: calc(var(--margin) + var(--safe-left)); }
