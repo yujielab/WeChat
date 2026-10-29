@@ -43,7 +43,7 @@
 .side-me .chev { color: var(--label-3); display: inline-flex; }
 .side-me .chev .icon { width: 14px; height: 14px; }
 
-.side-scopes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.side-scopes { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .side-scope {
   width: 100%;
   min-height: 48px;

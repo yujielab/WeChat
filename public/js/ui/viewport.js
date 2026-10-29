@@ -38,7 +38,11 @@ let lastVVWidth = vv ? vv.width : window.innerWidth
 function measure() {
   const h = vv ? vv.height : window.innerHeight
   const top = vv ? vv.offsetTop : 0
-  root.style.setProperty('--vvh', `${Math.round(h)}px`)
+  // The app follows the visual viewport only while the keyboard can be up;
+  // otherwise it fills the layout viewport, which on the Duo is taller than
+  // the visual one by the home-indicator strip.
+  const appH = hasTextFocus() ? h : Math.max(h, window.innerHeight)
+  root.style.setProperty('--vvh', `${Math.round(appH)}px`)
   root.style.setProperty('--vvt', `${Math.round(top)}px`)
   // A resize that changes the width is a fold, an unfold or a rotation, never
   // the keyboard (keyboards don't change width): it starts from no keyboard,
