@@ -3,6 +3,7 @@
 import { h, icon, transitionEnd, reducedMotion, stagger } from '../ui/dom.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { getLayout } from '../ui/viewport.js'
+import { placeOnSide, foldSide } from '../ui/fold.js'
 import { haptic } from '../ui/haptics.js'
 
 const layer = () => document.getElementById('overlays')
@@ -71,7 +72,7 @@ function setPresence(p) {
 
 // ---------------------------------------------------------------- sheets
 
-export function openSheet({ title, content, tall = false, start = null, end = null, label, onClose }) {
+export function openSheet({ title, content, tall = false, start = null, end = null, label, side, onClose }) {
   const root = layer()
   root.dataset.layout = getLayout()
   const scrim = h('div', { class: 'scrim' })
@@ -99,6 +100,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   open.add(ctl)
   const prevFocus = document.activeElement
   root.append(scrim, sheet)
+  placeOnSide(sheet, side)
   lockApp()
   const recedes = getLayout() === 'stack' && !reducedMotion()
   let receded = false
@@ -242,7 +244,7 @@ export function closeAllOverlays() {
  */
 let nextMenuId = 0
 
-export function openMenu(anchor, sections, { title, preferAbove = false, onClose } = {}) {
+export function openMenu(anchor, sections, { title, header, preferAbove = false, onClose } = {}) {
   const root = layer()
   const scrim = h('div', { class: 'scrim clear' })
   const safeFrame = h('span', { class: 'menu-safe-frame', 'aria-hidden': 'true', inert: true })
@@ -260,6 +262,12 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
   trigger?.setAttribute('aria-controls', menu.id)
   if (title) menu.append(h('div', { class: 'menu-title' }, title))
   const ctl = { el: menu, closed: false, close }
+  // A custom first row (e.g. reactions) closes the menu like an item does.
+  if (header) menu.append(header(async run => {
+    if (ctl.closed) return
+    await close(false)
+    try { run?.() } finally { onClose?.() }
+  }))
   const choices = []
   let active = null
   let placementFrame = 0
@@ -294,6 +302,7 @@ export function openMenu(anchor, sections, { title, preferAbove = false, onClose
   })
   menu.style.visibility = 'hidden'
   root.append(scrim, safeFrame, menu)
+  placeOnSide(safeFrame, foldSide(trigger))
   open.add(ctl)
 
   // The same surface follows pointer and keyboard focus. Its geometry is
@@ -471,6 +480,7 @@ export function toast(text, { type = '', iconName, duration = 2400 } = {}) {
     iconName || type ? icon(iconName || (type === 'error' ? 'exclaim' : 'check')) : null,
     h('span', {}, text))
   layer().append(el)
+  placeOnSide(el)
   if (type === 'error') haptic()
   const t = { dismiss }
   current = t

@@ -138,6 +138,14 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
       if (chat) setDraft(chat, textarea.value)
     },
     openImages,
+    /** Move the plus into another toolbar (or back), keeping focus and listeners. */
+    dockAttach(container) {
+      const destination = container || form
+      if (attach.parentElement === destination) return
+      const focused = document.activeElement === attach
+      destination.append(attach)
+      if (focused) attach.focus({ preventScroll: true })
+    },
     focus() {
       textarea.focus({ preventScroll: true })
     },

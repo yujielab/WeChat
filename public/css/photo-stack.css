@@ -1,19 +1,53 @@
-/* A real group of completed photo messages, arranged as a small paper stack. */
-.bubble.media.photo-stack { width:calc(var(--w) + 14px); max-width:100%; height:auto; padding:10px 0 0; background:transparent; overflow:visible; line-height:1.4; }
+/* A real group of completed photo messages, dealt as a small fan of paper
+   prints (sketch 1): the cards behind lean out on the side away from the
+   sender, the sender sits on the cover's top corner, the count sits below. */
+.bubble.media.photo-stack { --fan:30px; width:calc(var(--w) + var(--fan)); max-width:100%; height:auto; padding:10px 0 0; background:transparent; overflow:visible; line-height:1.4; }
+.bubble.media.photo-stack.has-head { padding-top:26px; }
 .bubble.media.photo-stack::after { display:none; }
-.photo-stack-open { position:relative; display:block; width:var(--w); max-width:calc(100% - 14px); height:auto; aspect-ratio:var(--photo-ratio); margin:0; padding:0; border-radius:18px; background:none; text-align:left; }
+.photo-stack-open { position:relative; display:block; width:var(--w); max-width:calc(100% - var(--fan)); height:auto; aspect-ratio:var(--photo-ratio); margin:0; padding:0; border-radius:18px; background:none; text-align:left; }
+.m.out .photo-stack-open, .m.out .photo-stack-caption { margin-left:auto; }
 .photo-stack-layer,.photo-stack-cover { position:absolute; inset:0; display:block; overflow:hidden; border:1px solid var(--line); border-radius:18px; background:var(--field); }
-.photo-stack-layer { inset:4px 8px 0 4px; transform-origin:bottom center; transform:translate(calc(var(--depth) * 3px),calc(var(--depth) * -3px)) rotate(calc(var(--depth) * 1.8deg)); filter:saturate(.75); }
+.photo-stack-layer {
+  transform-origin:0 100%;
+  transform:translateX(calc(var(--depth) * 8px)) rotate(calc(var(--depth) * 2.6deg));
+  filter:saturate(.75);
+  box-shadow:0 2px 6px -3px rgb(0 0 0 / .14);
+  transition:transform var(--spring-bouncy-dur) var(--spring-bouncy);
+}
+.m.out .photo-stack-layer { transform-origin:100% 100%; transform:translateX(calc(var(--depth) * -8px)) rotate(calc(var(--depth) * -2.6deg)); }
 .photo-stack-layer::after { content:''; position:absolute; inset:0; background:color-mix(in srgb,var(--paper) 26%,transparent); }
-.photo-stack-cover { box-shadow:0 2px 4px rgb(0 0 0 / .05); }
+.photo-stack-cover { box-shadow:0 2px 4px rgb(0 0 0 / .05); transition:transform var(--spring-snappy-dur) var(--spring-snappy); }
+/* Touching the album spreads the fan a little further, like thumbing prints. */
+.photo-stack-open.is-pressed .photo-stack-layer { transform:translateX(calc(var(--depth) * 12px)) rotate(calc(var(--depth) * 4.4deg)); }
+.m.out .photo-stack-open.is-pressed .photo-stack-layer { transform:translateX(calc(var(--depth) * -12px)) rotate(calc(var(--depth) * -4.4deg)); }
+.photo-stack-open.is-pressed .photo-stack-cover { transform:scale(.985); transition-duration:var(--press-dur); }
+@media (hover:hover) and (pointer:fine) {
+  .photo-stack-open:hover .photo-stack-layer { transform:translateX(calc(var(--depth) * 11px)) rotate(calc(var(--depth) * 3.8deg)); }
+  .m.out .photo-stack-open:hover .photo-stack-layer { transform:translateX(calc(var(--depth) * -11px)) rotate(calc(var(--depth) * -3.8deg)); }
+}
+/* A newly arrived album is dealt out from a squared pile. */
+.m.enter .photo-stack-layer { animation:stack-deal 560ms var(--spring-bouncy) 90ms backwards; }
+@keyframes stack-deal { from { transform:none; } }
 .bubble.media.photo-stack img { display:block; width:100%; height:100%; object-fit:cover; opacity:1; }
 .photo-stack-fallback { position:absolute; inset:0; display:grid; place-items:center; color:var(--label-2); }
 .photo-stack-fallback .icon { width:28px; height:28px; }
 .photo-stack-open:focus-visible { outline:2px solid var(--label-2); outline-offset:5px; }
-.photo-stack-caption { display:flex; align-items:center; justify-content:space-between; gap:8px; width:var(--w); max-width:calc(100% - 14px); min-height:36px; font-size:11px; color:var(--label-2); }
+.photo-stack-head { position:absolute; z-index:2; top:0; left:0; right:0; height:26px; display:flex; align-items:flex-start; pointer-events:none; }
+.m.out .photo-stack-head { justify-content:flex-end; }
+.photo-stack-avatar { position:absolute; top:11px; left:-12px; border-radius:50%; box-shadow:0 0 0 3px var(--bg), 0 3px 8px -3px rgb(0 0 0 / .2); }
+.m.out .photo-stack-avatar { left:auto; right:-12px; }
+.photo-stack-avatar .avatar { --size:30px; }
+.photo-stack-from { margin:0 0 0 26px; max-width:calc(100% - 52px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:20px; color:var(--label-2); }
+.m.out .photo-stack-from { margin:0 26px 0 0; }
+/* The album carries its own sender, so the row's avatar column steps aside. */
+.m.has-stack .m-avatar, .m.has-stack .m-sender { display:none; }
+.m.has-stack { padding-inline:12px; }
+.photo-stack-caption { display:flex; align-items:center; justify-content:flex-start; gap:4px; width:var(--w); max-width:calc(100% - var(--fan)); min-height:36px; margin-top:4px; font-size:11px; color:var(--label-2); }
+.m.out .photo-stack-caption { justify-content:flex-end; }
 .photo-stack-caption>span { display:flex; align-items:center; gap:5px; }
 .photo-stack-caption .icon { width:13px; height:13px; }
-.photo-stack-expand { min-width:44px; min-height:44px; margin-block:-4px; font-size:11px; color:var(--label-2); border-radius:10px; }
+.photo-stack-expand { min-width:44px; min-height:44px; margin-block:-4px; padding:0 8px; font-size:11px; color:var(--label); font-weight:560; border-radius:10px; }
+.photo-stack-expand::before { content:'·'; margin-right:6px; color:var(--label-3); }
 .photo-stack-expand:focus-visible { outline:2px solid var(--label-2); outline-offset:-3px; }
 .photo-stack-expand:active { background:var(--field); }
 .viewer-gallery-count { min-height:44px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-variant-numeric:tabular-nums; text-shadow:0 1px 3px rgb(0 0 0 / .7); }
@@ -28,5 +62,6 @@
 .viewer-gallery-thumb img { width:100%; height:100%; object-fit:cover; border-radius:7px; }
 .viewer-gallery-thumb:focus-visible,.viewer-gallery-navigation button:focus-visible { outline:2px solid #fff; outline-offset:3px; }
 @media(max-height:500px) { .viewer-gallery-thumbnails { display:none; }.viewer-gallery-bottom { bottom:calc(var(--safe-bottom) + 4px); }.viewer-gallery-navigation { gap:8px; } }
-@media(prefers-reduced-motion:reduce) { :root:not([data-motion="full"]) .viewer-gallery-thumb { transition:none; } }
-:root[data-motion="reduce"] .viewer-gallery-thumb { transition:none; }
+@media(prefers-reduced-motion:reduce) { :root:not([data-motion="full"]) .viewer-gallery-thumb, :root:not([data-motion="full"]) .photo-stack-layer { transition:none; } :root:not([data-motion="full"]) .m.enter .photo-stack-layer { animation:none; } }
+:root[data-motion="reduce"] .viewer-gallery-thumb, :root[data-motion="reduce"] .photo-stack-layer { transition:none; }
+:root[data-motion="reduce"] .m.enter .photo-stack-layer { animation:none; }

@@ -46,6 +46,7 @@ export function normRoom(r) {
     name: r.name,
     avatar: r.avatar || '',
     peer: r.peer || null,
+    peerRead: r.peerRead || 0,
     unread: r.unread || 0,
     muted: Boolean(r.muted),
     pinned: Boolean(r.pinned),
@@ -120,7 +121,8 @@ export function normMsg(m) {
     name: meta.name,
     size: meta.size,
     call: m.type === 'call' ? meta : null,
-    replyTo: m.replyTo || null
+    replyTo: m.replyTo || null,
+    reactions: m.reactions || []
   }
 }
 

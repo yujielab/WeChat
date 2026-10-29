@@ -2,7 +2,7 @@
 // contacts, rooms, messages and presence, runs the realtime WebSocket fan-out,
 // and (in call.js) brokers Cloudflare Realtime sessions for voice/video.
 
-import { Store } from './store.js'
+import { Store, REACTIONS } from './store.js'
 import {
   hashPassword, verifyPassword, mintToken, readToken,
   cookieHeader, clearCookieHeader, readCookie, b64url
@@ -266,6 +266,17 @@ export class Hub {
     }
     if (path === '/api/messages' && method === 'POST') {
       return this.postMessage(body, user)
+    }
+    if (path === '/api/react' && method === 'POST') {
+      const target = this.store.getMessage(String(body.id || ''))
+      if (!target || !this.store.isMember(target.room, user.id)) return json({ ok: false, error: '找不到这条消息' }, 404)
+      if (target.type === 'system' || target.state === 'revoked') return json({ ok: false, error: '这条消息无法回应' }, 400)
+      const emoji = body.emoji ? String(body.emoji) : ''
+      if (emoji && !REACTIONS.includes(emoji)) return json({ ok: false, error: '不支持这个回应' }, 400)
+      const msg = this.store.setReaction(target.id, user.id, emoji)
+      // A separate event: a reaction must not reorder the list or count as unread.
+      this.fanoutToRoom(msg.room, { t: 'react', msg })
+      return json({ ok: true, msg })
     }
     if (path === '/api/revoke' && method === 'POST') {
       const m = this.store.revokeMessage(body.id, user.id)

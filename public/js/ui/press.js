@@ -3,7 +3,7 @@
 // flash highlights; buttons respond immediately. Glass controls also get a
 // light bloom positioned under the finger (--gx / --gy).
 
-const IMMEDIATE = '.glass-btn, .glass-pill, .bar-btn, .solid-press, .menu-item, .send, .switch, .seg button, .btn, .btn-outline, .auth-tab, .password-toggle, .filter-tab'
+const IMMEDIATE = '.glass-btn, .glass-pill, .bar-btn, .solid-press, .menu-item, .menu-reaction, .m-reactions, .photo-stack-open, .send, .switch, .seg button, .btn, .btn-outline, .auth-tab, .password-toggle, .filter-tab'
 const DELAYED = '.row, .pin, .contact-row, button.cell, a.cell, .member'
 const SLOP = 10
 

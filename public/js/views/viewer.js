@@ -5,6 +5,7 @@
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { toast } from './overlay.js'
+import { placeOnSide, foldSide } from '../ui/fold.js'
 
 export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = '图片', images, index = 0 }) {
   const previousFocus = document.activeElement
@@ -37,6 +38,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   if (gallery.length) root.append(h('div', { class: 'viewer-bar bottom viewer-gallery-bottom' },
     h('div', { class: 'viewer-gallery-navigation' }, previous, next), thumbnailBar))
   layer.append(root)
+  placeOnSide(root, foldSide(thumb))
   const app = document.getElementById('app')
   const wasInert = app.inert
   app.inert = true
@@ -72,6 +74,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   const apply = () => {
     media.style.transform = `translate3d(${s.tx}px, ${s.ty}px, 0) scale(${s.k})`
     bg.style.opacity = String(s.bg)
+    root.style.setProperty('--shade', String(s.bg))
   }
 
   const thumbRect = el => {

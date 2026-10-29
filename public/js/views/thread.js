@@ -18,7 +18,7 @@ import { openMenu, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { createUploadTrace } from '../ui/upload-trace.js'
 import { createHalftone } from '../ui/halftone.js'
-import { renderPhotoStack, openPhotoStack } from './photo-stack.js'
+import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -36,6 +36,24 @@ const safeUrl = u => {
 
 const isGroup = id => chatInfo(id)?.kind === 'group'
 const isSys = m => m.type === 'system'
+const REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏']
+const REACTION_NAMES = { '❤️': '喜欢', '😂': '大笑', '👍': '赞', '😮': '惊讶', '😢': '难过', '🙏': '感谢' }
+const reactable = m => m && !isSys(m) && !String(m.id).startsWith('local:') && !['sending', 'failed', 'revoked'].includes(m.status)
+const myReaction = m => m.reactions?.find(g => g.users.includes(state.me?.id))?.emoji || ''
+// What a bubble shows, apart from its reactions: a reaction alone patches the
+// chip in place rather than rebuilding (and re-fading) the whole message.
+const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name].join('\u0001')
+const reactSig = m => (m.reactions || []).map(g => `${g.emoji}${g.users.join(',')}`).join('|')
+
+/** Apply one person's reaction locally, mirroring the server's one-per-person rule. */
+function withReaction(groups = [], uid, emoji) {
+  const next = groups.map(g => ({ ...g, users: g.users.filter(u => u !== uid) })).filter(g => g.users.length)
+  if (!emoji) return next
+  const group = next.find(g => g.emoji === emoji)
+  if (group) group.users.push(uid)
+  else next.push({ emoji, users: [uid] })
+  return next
+}
 const sameRun = (a, b) =>
   a && b && !isSys(a) && !isSys(b) && a.out === b.out && a.from === b.from && b.ts - a.ts < RUN_GAP
 
@@ -63,25 +81,31 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const back = h('button', { class: 'glass glass-btn back thread-tool-back', type: 'button', 'aria-label': '返回聊天列表' }, icon('chevron-left'), backCount)
   const titleName = h('span', { class: 'name' })
   const titleSub = h('span', { class: 'sub' })
+  // Unfolded, the avatar becomes a pill at the header's trailing edge so the
+  // name can sit centred under the inner camera.
   const titleAvatar = h('span', { class: 'thread-person' })
-  const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
-  const audioCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '语音通话' }, icon('phone'))
-  const videoCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '视频通话' }, icon('video'))
+  const titlePersonHint = h('span', { class: 'thread-person-hint', 'aria-hidden': 'true' })
+  const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, h('span', { class: 'thread-person-pill' }, titleAvatar, titlePersonHint), h('span', { class: 't' }, titleName, titleSub))
+  const toolLabel = text => h('span', { class: 'tool-label', 'aria-hidden': 'true' }, text)
+  const audioCall = h('button', { class: 'glass glass-btn tool-audio', type: 'button', 'aria-label': '语音通话' }, icon('phone'), toolLabel('语音'))
+  const videoCall = h('button', { class: 'glass glass-btn tool-video', type: 'button', 'aria-label': '视频通话' }, icon('video'), toolLabel('视频'))
+  const drawTool = h('button', { class: 'glass glass-btn thread-tool-draw', type: 'button', 'aria-label': '画板' }, icon('brush'), toolLabel('画板'))
   const infoBtn = h('button', { class: 'glass glass-btn info', type: 'button', 'aria-label': '聊天信息' }, icon('info'))
   const moreTools = h('button', { class: 'glass glass-btn thread-tool-overflow', type: 'button', 'aria-label': '更多聊天操作', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('ellipsis'))
-  const navActions = h('div', { class: 'nav-actions thread-tool-group' }, audioCall, videoCall, infoBtn)
+  const navActions = h('div', { class: 'nav-actions thread-tool-group' }, audioCall, videoCall, drawTool, infoBtn)
   const tools = h('nav', { class: 'thread-tools', 'aria-label': '聊天操作' }, back, navActions, moreTools)
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
 
+  const draw = () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
   const composer = createComposer({
     onSend: text => sendText(text),
     onImages: files => sendImages(files),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
     onType: text => sendTyping(text),
-    onDraw: () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
+    onDraw: draw
   })
 
   const edgeTop = edge('top')
@@ -103,6 +127,8 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const changed = root.dataset.tools !== mode || root.dataset.tight !== String(tight)
     root.dataset.tools = mode
     root.dataset.tight = String(tight)
+    // The unfolded strip ends with the plus, so the field can run full width.
+    composer.dockAttach(pane.dataset.layout === 'split' && mode === 'strip' ? tools : null)
     if (tools.contains(previousFocus) && !previousFocus.getClientRects().length) {
       const target = previousFocus === back ? titleBtn : moreTools.getClientRects().length ? moreTools : audioCall
       target.focus({ preventScroll: true })
@@ -141,6 +167,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   titleBtn.addEventListener('click', () => current && onInfo(current))
   infoBtn.addEventListener('click', () => current && onInfo(current))
   jump.addEventListener('click', () => scrollToBottom(true))
+  drawTool.addEventListener('click', () => current && draw())
   audioCall.addEventListener('click', () => current && onCall?.(current, 'audio'))
   videoCall.addEventListener('click', () => current && onCall?.(current, 'video'))
   moreTools.addEventListener('click', () => {
@@ -167,7 +194,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       const photos = photoGroups.get(id)
       if (photos) {
         const bubble = node.querySelector('.photo-stack')
-        const [w, h] = mediaSize(photos[0].w, photos[0].h, Math.max(100, ctx.maxMedia - 14), 270)
+        const [w, h] = stackSize(photos[0], ctx.maxMedia)
         bubble.style.setProperty('--w', `${w}px`)
         bubble.style.setProperty('--h', `${h}px`)
         bubble.style.setProperty('--photo-ratio', `${w} / ${h}`)
@@ -205,10 +232,43 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const status = m.status === 'failed'
       ? h('button', { class: 'm-status', type: 'button', 'aria-label': '发送失败，点按重试' }, icon('exclaim'))
       : null
-    return h('div', {
+    const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
-    }, av, h('div', { class: 'm-col' }, sender, bub), status)
+    }, av, h('div', { class: 'm-col' }, sender, bub, reactionChip(m)), status)
+    el.bodySig = bodySig(m)
+    el.reactSig = reactSig(m)
+    return el
+  }
+
+  /** Reactions hang off the bubble's lower edge, away from its tail (sketch 1). */
+  function reactionChip(m) {
+    const groups = m.reactions || []
+    if (!groups.length) return null
+    const total = groups.reduce((n, g) => n + g.users.length, 0)
+    return h('button', {
+      class: ['m-reactions', myReaction(m) && 'mine'],
+      type: 'button',
+      'aria-label': `回应：${groups.map(g => `${REACTION_NAMES[g.emoji] || g.emoji} ${g.users.length}`).join('，')}，点按更改`
+    }, groups.map(g => h('span', { class: 'm-reaction', 'aria-hidden': 'true' }, g.emoji)),
+    total > 1 ? h('span', { class: 'm-reaction-count tabular', 'aria-hidden': 'true' }, `${total}`) : null)
+  }
+
+  function updateReactions(node, m) {
+    const sig = reactSig(m)
+    if (node.reactSig === sig) return
+    const grew = sig.length > (node.reactSig || '').length
+    node.reactSig = sig
+    const col = node.querySelector('.m-col')
+    const next = reactionChip(m)
+    const prev = col.querySelector('.m-reactions')
+    if (prev && next) prev.replaceWith(next)
+    else if (next) col.append(next)
+    else prev?.remove()
+    if (next && grew && !reducedMotion()) {
+      next.classList.add('pop')
+      next.addEventListener('animationend', () => next.classList.remove('pop'), { once: true })
+    }
   }
 
   function nodeFor(m) {
@@ -240,7 +300,13 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     let node = nodes.get(last.id)
     if (node?.photoSignature !== signature) {
       const fresh = buildNode(last)
-      fresh.querySelector('.bubble').replaceWith(renderPhotoStack(photos, ctx, { onExpand: expandPhotos }))
+      const who = last.out ? '我' : last.fromName || nameOf(last.from, current)
+      const sender = {
+        avatar: avatar(avatarOf(last.from, current), who, { size: 30 }),
+        label: `${who} · ${threadTime(photos[0].ts)[1]}`
+      }
+      fresh.querySelector('.bubble').replaceWith(renderPhotoStack(photos, ctx, { onExpand: expandPhotos, sender }))
+      fresh.classList.add('has-stack')
       fresh.photoSignature = signature
       node?.replaceWith(fresh)
       node = fresh
@@ -277,8 +343,10 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       meta.remove()
       return
     }
-    meta.className = `m-meta${lastOut.status === 'failed' ? ' failed' : ''}`
-    meta.textContent = lastOut.status === 'sending' ? '发送中…' : lastOut.status === 'failed' ? '未发送' : '已发送'
+    const c = chatInfo(current)
+    const read = c?.kind === 'dm' && (lastOut.status === 'read' || (c.peerRead && lastOut.ts <= c.peerRead))
+    meta.className = `m-meta${lastOut.status === 'failed' ? ' failed' : ''}${read ? ' read' : ''}`
+    meta.textContent = lastOut.status === 'sending' ? '发送中…' : lastOut.status === 'failed' ? '未发送' : read ? '已读' : '已发送'
     const node = nodes.get(lastOut.id)
     if (node && node.nextSibling !== meta) node.after(meta)
   }
@@ -343,6 +411,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   function refreshNode(m) {
     const old = nodes.get(m.id)
     if (!old) return
+    if (!old.photoSignature && old.bodySig === bodySig(m)) return updateReactions(old, m)
     const fresh = buildNode(m)
     old.replaceWith(fresh)
     nodes.set(m.id, fresh)
@@ -531,6 +600,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const c = chatInfo(current) || { id: current, name: '聊天' }
     const room = c.kind === 'group'
     titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 40 }))
+    titlePersonHint.textContent = room ? (c.count ? `${c.count} 人` : '成员') : '资料'
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
     if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '群聊') : (c.online ? '此刻在线' : '私聊')
@@ -728,11 +798,20 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const node = e.target.closest('.m')
     const m = msgOf(node)
     if (!m) return
-    if (e.target.closest('.m-status')) return messageMenu(node, m)
+    if (e.target.closest('.m-status, .m-reactions')) return messageMenu(node, m)
     if (e.target.closest('a')) return
     const bub = e.target.closest('.bubble')
     if (!bub) return
     switch (bub.dataset.kind) {
+      case 'text': {
+        // Double-tap a message to love it (or take the heart back).
+        const now = performance.now()
+        if (lastTap.id === m.id && now - lastTap.at < 340) {
+          lastTap = {}
+          if (reactable(m)) react(m, '❤️', { burst: true })
+        } else lastTap = { id: m.id, at: now }
+        break
+      }
       case 'image': {
         const img = bub.querySelector('img')
         const preview = m.cid ? state.previews.get(m.cid) : null
@@ -777,6 +856,31 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
         break
     }
   })
+
+  let lastTap = {}
+
+  async function react(m, emoji, { burst = false } = {}) {
+    const chat = m.chat
+    const before = m.reactions || []
+    const next = myReaction(m) === emoji ? '' : emoji
+    upsertMessage({ ...m, reactions: withReaction(before, state.me?.id, next) })
+    haptic()
+    const node = nodes.get(m.id)
+    if (burst && next && node && !reducedMotion()) {
+      const heart = h('span', { class: 'reaction-burst', 'aria-hidden': 'true' }, next)
+      node.querySelector('.m-col')?.append(heart)
+      heart.addEventListener('animationend', () => heart.remove(), { once: true })
+    }
+    announce(next ? `已回应${REACTION_NAMES[next] || next}` : '已取消回应')
+    try {
+      const r = await api.post('/api/react', { id: m.id, emoji: next })
+      const known = thread(chat).byId.get(m.id)
+      if (r.msg && known) upsertMessage({ ...known, reactions: r.msg.reactions || [] })
+    } catch (err) {
+      if (thread(chat).byId.has(m.id)) upsertMessage({ ...thread(chat).byId.get(m.id), reactions: before })
+      toast(err.message || '回应失败', { type: 'error' })
+    }
+  }
 
   // Long press → context menu (bubbles shrink a touch while held).
   let press = null
@@ -868,7 +972,29 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     if (!photos) danger.push({ label: '从本设备删除', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m) })
     items.push(danger)
 
+    const header = !photos && reactable(m) ? choose => {
+      const mine = myReaction(m)
+      const buttons = REACTIONS.map((emoji, i) => {
+        const b = h('button', {
+          class: 'menu-reaction', type: 'button', role: 'menuitemradio', style: { '--i': i },
+          'aria-checked': String(emoji === mine), 'aria-label': REACTION_NAMES[emoji]
+        }, emoji)
+        b.addEventListener('click', () => choose(() => react(m, emoji)))
+        return b
+      })
+      const row = h('div', { class: 'menu-reactions', role: 'group', 'aria-label': '回应' }, buttons)
+      row.addEventListener('keydown', e => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
+        e.preventDefault()
+        e.stopPropagation()
+        const i = buttons.indexOf(document.activeElement)
+        buttons[(i + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length]?.focus()
+      })
+      return row
+    } : null
+
     openMenu(rect, items, {
+      header,
       onClose: () => {
         backdrop.classList.remove('on')
         preview.style.transform = ''
@@ -976,6 +1102,8 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       }
       el.querySelector('.bubble')?.classList.remove('sending')
       el.querySelector('.m-status')?.remove()
+      // The sent message keeps its local preview; the node is now current.
+      el.bodySig = bodySig(m)
     }
     keepPosition(reconcile)
   })

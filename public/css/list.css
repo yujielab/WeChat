@@ -74,7 +74,6 @@
 .row { position: relative; overflow: hidden; contain: layout paint; margin-bottom: 3px; border-radius: 18px; }
 .row-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px 13px; border-radius: inherit; background: var(--bg); transition: background-color 160ms ease-out, box-shadow 160ms ease-out; will-change: transform; }
 .row.is-pressed .row-inner { background: var(--paper, var(--fill-4)); transition-duration: 0ms; }
-.pane-list[data-layout="split"] .row.selected .row-inner { background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
 .row-dot { display: none; }
 .row .avatar { --size: var(--row-avatar); border-radius: 50%; }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
@@ -160,7 +159,7 @@ mark { background: none; color: var(--blue); }
 .av-wrap { position: relative; flex: none; }
 .av-wrap .pres { position: absolute; right: -1px; bottom: 0; width: 17px; height: 9px; border-radius: 6px; background: var(--green); box-shadow: 0 0 0 3px var(--bg); opacity: 0; transform: scale(.4); transition: opacity 180ms ease, transform var(--spring-bouncy-dur) var(--spring-bouncy); }
 .row.online .av-wrap .pres { opacity: 1; transform: none; }
-.pane-list[data-layout="split"] .row.selected .av-wrap .pres { box-shadow: 0 0 0 3px var(--field); }
+.pane-list[data-layout="split"] .row.selected .av-wrap .pres { box-shadow: 0 0 0 3px color-mix(in srgb, var(--label) 5%, var(--bg)); }
 @media (hover: hover) {
   .row-inner:hover, .contact-row:hover, .pin:hover { background: var(--paper, var(--fill-4)); }
   .bar-btn:not(.tint):hover { background: var(--paper, var(--fill-4)); }
@@ -188,13 +187,22 @@ mark { background: none; color: var(--blue); }
 .pane-list[data-width="narrow"] .row-preview { font-size: .765rem; }
 .pane-list[data-width="narrow"].collapsed .list-wordmark { display: none; }
 
-/* The inner screen is a conversation index beside the open thread. The
-   compact header leaves six readable rows in a short, unfolded window. */
-.pane-list[data-layout="split"] { --list-inset: 18px; --row-avatar: 44px; }
-.pane-list[data-layout="split"] .list-topbar { top: calc(var(--safe-top) + 13px); gap: 8px; }
+/* The inner screen is a conversation index beside the open thread (sketch 2).
+   Its one-row header shares the conversation header's top, height and
+   divider, so a single line runs across both halves of the display; the
+   filters move into the filter menu and rows begin right under the line. */
+.pane-list[data-layout="split"] { --list-inset: 18px; --row-avatar: 44px; --duo-head-h: max(64px, calc(2.6rem + 16px)); }
+.pane-list[data-layout="split"] .list-topbar { top: calc(var(--safe-top) + 14px); height: calc(var(--duo-head-h) - 13px); gap: 8px; }
+.pane-list[data-layout="split"] .list-topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -13px; height: 1px; background: var(--line); }
+.pane-list[data-layout="split"] .list-scroll { top: calc(var(--safe-top) + 14px + var(--duo-head-h)); }
+.pane-list[data-layout="split"] > .edge-top { display: none; }
+.pane-list[data-layout="split"] .list-filters { display: none; }
+.pane-list[data-layout="split"] .search-results { padding-top: 0; }
+.pane-list[data-layout="split"] .filter-btn.active { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
 .pane-list[data-layout="split"] .list-wordmark { font-size: 1.235rem; letter-spacing: -.7px; }
 .pane-list[data-layout="split"] .list-inline-title { max-width: 10em; opacity: 1; font-size: .706rem; }
-.pane-list[data-layout="split"] .list-head { position: relative; padding-top: calc(var(--safe-top) + 72px); }
+.pane-list[data-layout="split"] .list-head { position: relative; padding-top: 0; }
+.pane-list[data-layout="split"] .list-head:has(.conn-status:not([hidden])) { padding-top: 8px; }
 .pane-list[data-layout="split"] .large-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .pane-list[data-layout="split"] .list-subtitle { display: none; }
 .pane-list[data-layout="split"] .list-heading { justify-content: flex-end; }
@@ -202,7 +210,7 @@ mark { background: none; color: var(--blue); }
 .pane-list[data-layout="split"] .list-filters { margin-top: 0; margin-bottom: 10px; gap: 2px; }
 .pane-list[data-layout="split"] .filter-tab { padding-inline: 14px; font-size: .706rem; }
 .pane-list[data-layout="split"] .filter-thumb { top: 6px; height: 32px; }
-.pane-list[data-layout="split"] .rows { padding-inline: 10px; }
+.pane-list[data-layout="split"] .rows { padding: 6px 10px 0; }
 .pane-list[data-layout="split"] .row { margin-bottom: 2px; border-radius: 16px; }
 .pane-list[data-layout="split"] .row-inner { min-height: 66px; padding: 10px 11px; gap: 11px; }
 .pane-list[data-layout="split"] .row-main { gap: 5px; }
@@ -210,13 +218,21 @@ mark { background: none; color: var(--blue); }
 .pane-list[data-layout="split"] .row-preview { font-size: .706rem; }
 .pane-list[data-layout="split"] .row-time { font-size: .588rem; }
 .pane-list[data-layout="split"] .row-count { min-width: 17px; height: 17px; font-size: .588rem; }
-.pane-list[data-layout="split"] .row.selected .row-inner::before { content: ''; position: absolute; width: 3px; height: 25px; left: 0; top: calc(50% - 12.5px); border-radius: 0 3px 3px 0; background: var(--ink); }
+/* One capsule marks the open conversation and glides between rows. */
+.row-highlight { position: absolute; z-index: 2; top: 0; left: 10px; right: 10px; height: 0; border-radius: 16px; pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--label) 5%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
+.row-highlight::before { content: ''; position: absolute; width: 3px; height: 25px; left: 0; top: calc(50% - 12.5px); border-radius: 0 3px 3px 0; background: var(--ink); }
+.row-highlight.on { opacity: 1; }
+.row-highlight.ready { transition: transform 440ms var(--spring-smooth), height 300ms var(--ease-out), opacity 160ms ease-out; }
+.rows:has(.row.selected.swiping) + .row-highlight { opacity: 0; }
 .pane-list[data-layout="split"] .pinned { gap: 5px; margin-bottom: 12px; padding-bottom: 11px; }
 .pane-list[data-layout="split"] .pin { gap: 6px; padding-block: 4px; }
 .pane-list[data-layout="split"] .pin .avatar { --size: 44px; border-radius: 50%; }
 .pane-list[data-layout="split"] .pinned-label { margin-bottom: 6px; font-size: .647rem; }
-.pane-list[data-layout="split"] .list-bottombar { gap: 9px; }
-.pane-list[data-layout="split"] .list-bottombar .compose-btn { width: 50px; height: 50px; flex: none; }
+/* The search band shares the composer's baseline and height across the fold. */
+.pane-list[data-layout="split"] .list-bottombar { gap: 9px; bottom: max(var(--safe-bottom), 16px); }
+:root[data-kb="1"] .pane-list[data-layout="split"] .list-bottombar { bottom: 8px; }
+.pane-list[data-layout="split"] .search-pill { height: 56px; border-radius: 28px; }
+.pane-list[data-layout="split"] .list-bottombar .compose-btn { width: 56px; height: 56px; flex: none; }
 .pane-list[data-layout="split"].searching .list-bottombar .compose-btn { display: none; }
 .pane-list[data-layout="split"] .search-pill { padding-inline: 14px; }
 .pane-list[data-layout="split"] .search-pill input { font-size: max(16px, .8rem); }
@@ -238,6 +254,7 @@ mark { background: none; color: var(--blue); }
   .pane-list[data-layout="stack"] .list-filters { margin-top: 0; margin-bottom: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .row-highlight,
   :root:not([data-motion="full"]) .filter-thumb,
   :root:not([data-motion="full"]) .list-inline-title,
   :root:not([data-motion="full"]) .search-cancel { transition: none; }
@@ -245,6 +262,7 @@ mark { background: none; color: var(--blue); }
   :root:not([data-motion="full"]) .sk::after { animation: none; }
   :root:not([data-motion="full"]) .offline-banner { animation: fade-in 120ms linear backwards; }
 }
+:root[data-motion="reduce"] .row-highlight,
 :root[data-motion="reduce"] .filter-thumb,
 :root[data-motion="reduce"] .list-inline-title,
 :root[data-motion="reduce"] .search-cancel { transition: none; }

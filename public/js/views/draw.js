@@ -4,6 +4,7 @@
 
 import { h, icon } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
+import { placeOnSide } from '../ui/fold.js'
 
 const COLORS = ['#18181b', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#5856d6', '#ff2d92', '#ffffff']
 const SIZES = [3, 6, 12, 22]
@@ -36,6 +37,7 @@ export function openDrawing({ onSend }) {
 
   const overlays = document.getElementById('overlays')
   overlays.append(root)
+  placeOnSide(root, 'thread')
   requestAnimationFrame(() => root.classList.add('on'))
 
   // ---- canvas setup (HiDPI, white paper)

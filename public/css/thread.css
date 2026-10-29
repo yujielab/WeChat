@@ -629,3 +629,60 @@
 :root[data-motion="reduce"] .send { transition: none; }
 :root[data-motion="reduce"] .bubble.ghost,
 :root[data-motion="reduce"] .bubble.ghost::after { animation: none; }
+
+/* ---------------------------------------------------------------- reactions */
+
+/* A small paper chip hangs off the bubble's lower edge, on the side away from
+   its tail (sketch 1). It lands with a bounce; the heart from a double tap
+   rises out of the bubble and dissolves. */
+.m-reactions {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  min-height: 26px;
+  margin-top: -9px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 13px;
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 1px var(--line), 0 3px 9px -5px rgb(0 0 0 / 0.22);
+  color: var(--label-2);
+  font-size: 14px;
+  line-height: 1;
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+}
+.m-reactions::before { content: ""; position: absolute; inset: -9px -4px; }
+.m.out .m-reactions { align-self: flex-start; margin-left: 12px; }
+.m.in .m-reactions { align-self: flex-end; margin-right: 12px; }
+.m-reactions.mine { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--label) 30%, var(--line)), 0 3px 9px -5px rgb(0 0 0 / 0.22); }
+.m-reactions.is-pressed { transform: scale(0.92); transition-duration: var(--press-dur); }
+.m-reaction-count { margin-left: 4px; font-size: 11px; font-weight: var(--w-semibold); }
+.m-reactions.pop { animation: reaction-pop var(--spring-bouncy-dur) var(--spring-bouncy) backwards; }
+.m-reactions.pop .m-reaction:last-of-type { animation: reaction-emoji 520ms var(--ease-out) backwards; }
+@keyframes reaction-pop { from { opacity: 0; transform: translateY(-6px) scale(0.4); } }
+@keyframes reaction-emoji { 0% { transform: scale(0.3) rotate(-18deg); } 55% { transform: scale(1.35) rotate(6deg); } }
+.m-col { position: relative; }
+.reaction-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  font-size: 34px;
+  line-height: 1;
+  pointer-events: none;
+  animation: reaction-burst 760ms var(--ease-out) forwards;
+}
+@keyframes reaction-burst {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.3); }
+  28% { opacity: 1; transform: translate(-50%, -70%) scale(1.25); }
+  60% { opacity: 1; transform: translate(-50%, -95%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -150%) scale(0.85); filter: blur(4px); }
+}
+.m-meta.read { color: var(--label); }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .m-reactions.pop,
+  :root:not([data-motion="full"]) .m-reactions.pop .m-reaction { animation: none; }
+}
+:root[data-motion="reduce"] .m-reactions.pop,
+:root[data-motion="reduce"] .m-reactions.pop .m-reaction { animation: none; }
