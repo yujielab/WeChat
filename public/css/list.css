@@ -1,4 +1,4 @@
-/* Duo conversation list: paper, ink, and one shared moving selection capsule. */
+/* Conversation list: paper, ink, and one shared moving selection capsule. */
 .pane-list { --list-inset: 22px; --row-avatar: 48px; }
 .list-scroll { padding-bottom: calc(var(--safe-bottom) + 100px); overflow-anchor: none; }
 .list-topbar {
@@ -9,12 +9,6 @@
 }
 .list-topbar > * { pointer-events: auto; }
 .list-topbar .spacer { flex: 1; pointer-events: none; }
-.list-brand { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--label); }
-.list-brand-mark { position: relative; width: 30px; height: 27px; display: block; flex: none; }
-.list-brand-mark .icon { position: absolute; width: 23px; height: 23px; }
-.list-brand-mark .icon:first-child { top: 0; left: 0; }
-.list-brand-mark .icon:last-child { bottom: 0; right: 0; transform: rotate(180deg); color: var(--label-2); }
-.list-wordmark { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.353rem; font-weight: 760; letter-spacing: -1.1px; line-height: 1; }
 .list-inline-title {
   max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0;
   color: var(--label-2); font-size: .824rem; letter-spacing: -.1px;
@@ -24,7 +18,6 @@
 .list-head { padding: calc(var(--safe-top) + 80px) calc(var(--list-inset) + var(--safe-right)) 0 calc(var(--list-inset) + var(--safe-left)); }
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .large-title { margin: 0; font-size: 1.882rem; font-weight: 730; line-height: 1.17; letter-spacing: -1.5px; color: var(--label); }
-.title-period { color: var(--label-3); margin-left: 1px; }
 .conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
 .conn-status .icon { width: 14px; height: 14px; }
 .conn-status.warn { color: var(--orange); }
@@ -89,15 +82,11 @@
 
 /* A useful first screen, not a blank account. */
 .list-empty { padding: 36px 26px 30px; text-align: center; color: var(--label-2); font-size: .824rem; }
-.empty-art { position: relative; width: 110px; height: 95px; margin: 0 auto 21px; }
-.empty-bubble { position: absolute; top: 4px; left: 7px; width: 80px; height: 72px; border-radius: 25px; border: 1px solid var(--line); background: var(--surface, var(--bg)); display: grid; place-items: center; transform: rotate(-9deg); box-shadow: 0 8px 20px -14px rgb(0 0 0 / .2); }
-.empty-bubble .icon { width: 36px; height: 36px; color: var(--label); }
-.empty-spark { position: absolute; bottom: 5px; right: 0; width: 43px; height: 43px; border-radius: 16px; display: grid; place-items: center; background: var(--ink); color: var(--on-ink); transform: rotate(10deg); box-shadow: 0 5px 12px rgb(0 0 0 / .08); }
-.empty-spark .icon { width: 20px; height: 20px; }
+.empty-art { margin: 0 auto 14px; color: var(--label-3); }
+.empty-art .icon { width: 44px; height: 44px; margin: 0 auto; }
 .list-empty h2 { margin: 0; color: var(--label); font-size: 1.118rem; line-height: 1.4; letter-spacing: -.5px; font-weight: 650; }
 .list-empty p { margin: 10px auto 0; max-width: 240px; font-size: .824rem; line-height: 1.8; white-space: pre-line; }
-.empty-compose { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-top: 23px; padding: 0 19px; border-radius: 24px; color: var(--on-ink); background: var(--ink); font-size: .824rem; font-weight: 600; }
-.empty-compose .icon { width: 17px; height: 17px; }
+.empty-compose { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 18px; padding: 0 20px; border-radius: 24px; color: var(--on-ink); background: var(--ink); font-size: .824rem; font-weight: 600; }
 .list-bottombar { position: absolute; z-index: var(--z-chrome); left: calc(var(--list-inset) + var(--safe-left)); right: calc(var(--list-inset) + var(--safe-right)); bottom: calc(max(var(--safe-bottom), 10px) + 9px); display: flex; align-items: center; gap: 8px; }
 :root[data-kb="1"] .list-bottombar { bottom: 8px; }
 .search-pill { flex: 1; min-width: 0; height: 50px; border-radius: 26px; padding: 0 17px; display: flex; align-items: center; gap: 9px; color: var(--label-2); text-align: left; cursor: text; background: var(--surface, var(--bg)); box-shadow: 0 1px 3px rgb(0 0 0 / .03), 0 6px 22px -13px rgb(0 0 0 / .15), inset 0 0 0 1px var(--line); }
@@ -117,10 +106,6 @@
 .contact-row .sub { margin-top: 4px; font-size: .706rem; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row.is-pressed { background: var(--paper, var(--fill-4)); }
 mark { background: none; color: var(--blue); }
-.search-intro { padding: 58px 24px; text-align: center; color: var(--label-2); }
-.search-intro > .icon { width: 30px; height: 30px; margin: 0 auto 19px; color: var(--label-3); }
-.search-intro h2 { margin: 0; color: var(--label); font-size: .941rem; font-weight: 600; }
-.search-intro p { font-size: .765rem; line-height: 1.7; margin: 9px 0 0; }
 
 /* Connection recovery remains part of the real connection state. */
 .offline-banner { position: absolute; z-index: var(--z-chrome); left: var(--list-inset); right: var(--list-inset); bottom: calc(max(var(--safe-bottom), 10px) + 72px); border-radius: 20px; padding: 11px 12px; display: flex; align-items: center; gap: 9px; font-size: .706rem; color: var(--label-2); animation: materialize 320ms var(--ease-out) backwards; }
@@ -153,34 +138,25 @@ mark { background: none; color: var(--blue); }
   .large-title { font-size: 1.765rem; }
   .list-filters { margin-top: 12px; margin-bottom: 12px; }
   .list-empty { padding-top: 16px; }
-  .empty-art { height: 65px; width: 90px; margin-bottom: 13px; }
-  .empty-bubble { width: 64px; height: 56px; border-radius: 21px; }
-  .empty-bubble .icon { width: 29px; height: 29px; }
-  .empty-spark { width: 35px; height: 35px; border-radius: 13px; }
+  .empty-art .icon { width: 36px; height: 36px; }
 }
 .pane-list[data-width="narrow"] { --list-inset: 18px; }
-.pane-list[data-width="narrow"] .list-brand { gap: 5px; }
-.pane-list[data-width="narrow"] .list-wordmark { font-size: 1.235rem; }
 .pane-list[data-width="narrow"] .list-topbar { gap: 4px; }
 .pane-list[data-width="narrow"] .filter-tab { padding: 0 14px; font-size: .765rem; }
 .pane-list[data-width="narrow"] .row-inner { padding: 10px 9px; gap: 10px; min-height: 70px; }
 .pane-list[data-width="narrow"] .row-name { font-size: .882rem; }
 .pane-list[data-width="narrow"] .row .avatar { --size: var(--row-avatar); border-radius: 50%; }
 .pane-list[data-width="narrow"] .row-preview { font-size: .765rem; }
-.pane-list[data-width="narrow"].collapsed .list-wordmark { display: none; }
 
 .pane-list[data-layout="leading"] .list-filters { display: none; }
-/* Beside the sidebar, its scopes and brand are already on screen. */
-.pane-list[data-layout="trailing"] .list-filters,
-.pane-list[data-layout="trailing"] .list-brand-mark,
-.pane-list[data-layout="trailing"] .list-wordmark { display: none; }
+/* Beside the sidebar, its scopes are already on screen. */
+.pane-list[data-layout="trailing"] .list-filters { display: none; }
 
 /* Unfolded, the list is the leading pane of a split view, like Mail and
    Notes in the HIG: its own controls stay horizontal above it, a large
    title names it, filters live in the filter menu, search sits at its foot. */
 .pane-list[data-layout="leading"] { --list-inset: 18px; --row-avatar: 44px; }
 .pane-list[data-layout="leading"] .list-topbar { top: calc(var(--safe-top) + 12px); gap: 8px; }
-.pane-list[data-layout="leading"] .list-wordmark { font-size: 1.235rem; letter-spacing: -.7px; }
 .pane-list[data-layout="leading"] .list-head { padding-top: calc(var(--safe-top) + 66px); margin-bottom: 8px; }
 .pane-list[data-layout="leading"] .large-title { font-size: 1.765rem; }
 .pane-list[data-layout="leading"] .conn-status { max-width: 100%; }
@@ -243,7 +219,8 @@ mark { background: none; color: var(--blue); }
 .pane-list[data-bars="vertical"] { --content-right: var(--rail-content); }
 .pane-list[data-bars="vertical"] .list-topbar { right: var(--content-right); }
 .pane-list[data-bars="vertical"] .list-scroll { padding-right: calc(var(--content-right) - 10px); padding-bottom: calc(var(--safe-bottom) + 28px); }
-.pane-list[data-bars="vertical"] .list-head { padding-right: calc(var(--safe-left) + 12px); }
+/* No bar above the list here, so the large title leads the column. */
+.pane-list[data-bars="vertical"] .list-head { padding-top: calc(var(--safe-top) + 30px); padding-right: calc(var(--safe-left) + 12px); }
 .pane-list[data-bars="vertical"] .list-bottombar { top: calc(var(--safe-top) + 12px); bottom: auto; right: var(--content-right); }
 .pane-list[data-bars="vertical"]:not(.search-open):not(.searching) .list-bottombar { visibility: hidden; }
 .pane-list[data-bars="vertical"].searching .list-topbar,

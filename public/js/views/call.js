@@ -16,14 +16,14 @@ import { avatar } from './avatar.js'
 const RING_MS = 45000
 // How the caller hears each callee was reached, best first.
 const REACH = ['ringing', 'notified', 'unreachable']
-const REACH_TEXT = { ringing: '对方响铃中…', notified: '已通过通知提醒对方…', unreachable: '对方没有打开应用，也没有开启通知' }
+const REACH_TEXT = { ringing: '对方响铃中…', notified: '已通知对方…', unreachable: '对方暂时无法接听' }
 
 export function createCalls({ socketSend }) {
   let active = null // { room, callId, media, role, pc, sessionId, stream, peers, ui, startedAt, ringTimer, reach }
 
   function start(roomId, media = 'audio') {
     if (active) return toast('已有通话进行中', { type: 'error' })
-    if (!state.calls?.enabled) return toast('通话服务未配置（需要在 Cloudflare 开通 Realtime 应用）', { type: 'error', duration: 5000 })
+    if (!state.calls?.enabled) return toast('暂时无法通话', { type: 'error' })
     const callId = `${Date.now()}${Math.floor(Math.random() * 1000)}`
     active = newCall({ room: roomId, callId, media, role: 'caller' })
     socketSend({ t: 'call', kind: 'invite', room: roomId, callId, media })

@@ -36,7 +36,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
 
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
-  const title = h('h1', { class: 'large-title' }, '消息', h('span', { class: 'title-period', 'aria-hidden': 'true' }, '.'))
+  const title = h('h1', { class: 'large-title' }, '消息')
   const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
@@ -61,15 +61,14 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   const rows = h('ul', { class: 'rows', 'aria-label': '聊天' })
   const empty = h('div', { class: 'list-empty', hidden: true })
   const results = h('div', { class: 'search-results', hidden: true })
-  const pinLabel = h('div', { class: 'pinned-label', hidden: true }, icon('pin'), '留在身边')
+  const pinLabel = h('div', { class: 'pinned-label', hidden: true }, icon('pin'), '置顶')
   // Unfolded, one shared capsule marks the open conversation and glides
   // between rows (and along with a row as it reorders) instead of jumping.
   const capsule = h('span', { class: 'row-highlight', 'aria-hidden': 'true' })
   const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, capsule, empty, results)
 
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
-  const brand = h('div', { class: 'list-brand', 'aria-label': 'Duo' }, h('span', { class: 'list-brand-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble')), h('span', { class: 'list-wordmark' }, 'Duo'), inlineTitle)
-  const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }))
+  const topbar = h('div', { class: 'list-topbar' }, inlineTitle, h('div', { class: 'spacer' }))
 
   // Bars (Apple HIG, Designing for iPhone Duo). Folded, they run down the
   // trailing edge: Back to the sidebar and filters at the top, search and
@@ -139,7 +138,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
         bars.layout('vertical', rail.clientHeight)
       } else {
         if (bars.top.parentElement !== topbar) bars.move(() => { topbar.append(bars.top); bars.bottom.remove() })
-        bars.layout('horizontal', { top: Math.max(0, topbar.clientWidth - brand.offsetWidth - 16), bottom: Infinity })
+        bars.layout('horizontal', { top: Math.max(0, topbar.clientWidth - inlineTitle.offsetWidth - 16), bottom: Infinity })
       }
     })
   }
@@ -184,7 +183,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     requestAnimationFrame(() => {
       ticking = false
       const y = scroll.scrollTop
-      pane.classList.toggle('collapsed', y > 76)
+      // The inline title takes over once the large one has scrolled under the top bar.
+      pane.classList.toggle('collapsed', title.getBoundingClientRect().bottom < topbar.getBoundingClientRect().bottom)
       edgeTop.classList.toggle('on', y > 2)
       closeSwipe()
     })
@@ -410,15 +410,12 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     if (noChats && loading) {
       if (!empty.querySelector('.sk-row')) empty.replaceChildren(skeleton())
     } else if (noChats) {
-      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, icon(state.filter === 'all' ? 'compose' : 'bubble'), state.filter === 'all' ? '发起新聊天' : '查看全部聊天')
+      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? '新聊天' : '显示全部')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
-      const emptyTitle = state.filter === 'all' ? '从一句你好开始' : state.filter === 'unread' ? '都看过了，真好' : `还没有${filter.label}`
-      empty.replaceChildren(
-        h('div', { class: 'empty-art', 'aria-hidden': 'true' }, h('span', { class: 'empty-bubble' }, icon('bubble')), h('span', { class: 'empty-spark' }, icon(state.filter === 'unread' ? 'check' : 'brush'))),
-        h('h2', {}, emptyTitle), action
-      )
-      // Its symbols draw on when it comes into view, not on every refresh.
-      if (newArt) for (const svg of empty.querySelectorAll('.empty-art .icon')) symbolEffect(svg, 'draw-on')
+      const emptyTitle = state.filter === 'all' ? '没有聊天' : state.filter === 'unread' ? '没有未读消息' : `没有${filter.label}`
+      empty.replaceChildren(h('div', { class: 'empty-art', 'aria-hidden': 'true' }, icon('bubble')), h('h2', {}, emptyTitle), action)
+      // Its symbol draws on when it comes into view, not on every refresh.
+      if (newArt) symbolEffect(empty.querySelector('.empty-art .icon'), 'draw-on')
     }
   }
 
@@ -679,7 +676,6 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
         results.append(h('div', { class: 'section-title' }, '最近'))
         for (const c of recent) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: c.last?.text, onClick: () => onOpen(c.id) }))
       }
-      if (!recent.length) results.append(h('div', { class: 'search-intro' }, icon('search'), h('h2', {}, '找一位朋友，聊点什么'), h('p', {}, '输入用户名、昵称或消息内容')))
       return
     }
     const lc = q.toLowerCase()

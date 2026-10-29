@@ -154,11 +154,11 @@
 .thread-scroll {
   top: calc(var(--safe-top) + var(--head-top) + var(--head-h));
   bottom: 0;
-  padding: 0 var(--content-right) calc(var(--composer-h, 76px) + var(--trace-h, 0px) + 14px) calc(var(--margin) + var(--safe-left) + 2px);
+  padding: 0 var(--content-right) calc(var(--composer-h, 76px) + 14px) calc(var(--margin) + var(--safe-left) + 2px);
   -webkit-mask-image: none;
   mask-image: none;
 }
-:root:not([data-kb="1"]) .thread-scroll { padding-bottom: calc(var(--composer-h, 76px) + var(--trace-h, 0px) + 14px); }
+:root:not([data-kb="1"]) .thread-scroll { padding-bottom: calc(var(--composer-h, 76px) + 14px); }
 .thread .composer { padding-right: var(--content-right); gap: 8px; isolation: isolate; }
 .thread .composer::before {
   content: '';
@@ -174,9 +174,7 @@
 /* With horizontal bars, drawing and photos sit beside the field. */
 .composer > .bar-section { flex: none; margin-bottom: 6px; gap: 6px; }
 .composer > .bar-section .bar-group.capsule { box-shadow: none; background: var(--field); }
-.room-welcome { right: var(--content-right); bottom: calc(var(--composer-h, 84px) + 24px); }
-.thread .upload-trace { right: var(--content-right); bottom: calc(var(--composer-h, 76px) + 8px); }
-.thread .jump { right: var(--content-right); bottom: calc(var(--composer-h, 76px) + var(--trace-h, 0px) + 12px); }
+.thread .jump { right: var(--content-right); bottom: calc(var(--composer-h, 76px) + 12px); }
 
 /* The sender stays legible at the end of a message run, on either side. */
 .m.has-avatar { gap: 10px; padding-inline: 0; }
@@ -197,7 +195,7 @@
    conversation reads above the fold and writing happens below it, so no
    message or control sits in the bend. While typing, the keyboard owns the
    lower half and the usual layout returns. */
-:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); padding-bottom: calc(var(--trace-h, 0px) + 14px); }
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); padding-bottom: 14px; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer { top: var(--fold-end); bottom: auto; padding-top: 16px; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer::before { display: none; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .jump { bottom: calc(100% - var(--fold-start) + 12px); }

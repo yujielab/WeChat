@@ -198,7 +198,7 @@ export class CallBroker {
 
   // ---------------------------------------------------------------- media proxy (/rtc/*)
   async http(request, url, user) {
-    if (!this.configured().enabled) return j({ ok: false, error: '通话服务未配置（需要 REALTIME_APP_ID / REALTIME_APP_SECRET）' }, 503)
+    if (!this.configured().enabled) return j({ ok: false, error: '暂时无法通话' }, 503)
     const path = url.pathname.replace(/^\/rtc/, '')
 
     if (path === '/turn' && request.method === 'POST') {
@@ -230,10 +230,10 @@ export class CallBroker {
     })
     const text = await res.text()
     if (!res.ok) {
-      // Say what the service said, so a failed call can be told apart from a refused microphone.
-      let reason = ''
-      try { reason = JSON.parse(text).errorDescription || '' } catch {}
-      return j({ ok: false, error: `通话服务出错（${res.status}${reason ? `：${reason}` : ''}）` }, res.status)
+      // The status tells a service failure apart from a refused microphone;
+      // the service's own description goes to the log, not the person.
+      console.warn('realtime', res.status, text.slice(0, 300))
+      return j({ ok: false, error: `通话服务暂时不可用（${res.status}）` }, res.status)
     }
     return new Response(text, { status: res.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
   }

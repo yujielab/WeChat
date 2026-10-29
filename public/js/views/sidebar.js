@@ -38,7 +38,7 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
     scopes.append(h('li', {}, button))
   }
 
-  const title = h('h1', { class: 'large-title side-title' }, 'Duo', h('span', { class: 'title-period', 'aria-hidden': 'true' }, '.'))
+  const title = h('h1', { class: 'large-title side-title' }, 'Cuven')
   const scroll = h('div', { class: 'scroll side-scroll' },
     h('header', { class: 'side-head' }, title),
     me,

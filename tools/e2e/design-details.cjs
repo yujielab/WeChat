@@ -1,5 +1,5 @@
 // End-to-end design details, driven through actual local registration and media APIs.
-// Start npm run dev, then: node tools/e2e/design-details.cjs [outdir]
+// Start npm run dev:e2e (calls switched on), then: node tools/e2e/design-details.cjs [outdir]
 // Covers preview-before-send, failure/retry, Unicode invite codes and narrow layouts.
 const { chromium } = require('playwright')
 const fs = require('fs')
@@ -19,9 +19,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  const a=await ctx.newPage(), b=await bctx.newPage()
  for(const p of [a,b]) p.on('pageerror',e=>problems.push(e.message))
  const shot=async(p,n)=>{await sleep(850);await p.screenshot({path:`${OUT}/${n}.png`})}
- await a.goto(BASE);await a.waitForSelector('.halftone-stage')
- await a.click('.halftone-controls button:nth-child(2)');await sleep(1000)
- assert.equal(await a.locator('.halftone-art').getAttribute('data-animating'),'false')
+ await a.goto(BASE);await a.waitForSelector('.auth-name')
+ // A release sign-in: the app's name and the form, no logo, tagline or illustration.
+ assert.equal(await a.locator('.auth-name').textContent(),'Cuven')
+ assert.equal(await a.locator('.auth svg, .auth canvas').count(),0)
  await shot(a,'11-auth-desktop')
  // Optional invite code remains an unrestricted native input; inspect the
  // actual registration body without changing the local server configuration.
@@ -51,18 +52,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  await shot(a,'12-attachment-preview')
  // The deliberate network delay lets us inspect a genuine in-flight stage.
  await a.route('**/api/media/upload?**',async route=>{await sleep(1700);await route.continue()})
- await a.click('.attachment-send');await a.locator('.upload-trace-label:has-text("上传图片")').waitFor()
- await a.click('.upload-trace-toggle');await a.setViewportSize({width:890,height:626});await shot(a,'13-send-waterfall')
- await a.locator('.upload-trace-label:has-text("已发送")').waitFor()
+ await a.click('.attachment-send');await a.locator('.thread .bubble[data-kind=image]').waitFor()
+ await a.setViewportSize({width:890,height:626});await shot(a,'13-image-sending')
  await b.locator('.bubble[data-kind=image]').waitFor()
  await a.unroute('**/api/media/upload?**')
  // Image paste uses the same preview; transport errors keep the real retry.
  await a.evaluate(png=>{const bytes=Uint8Array.from(atob(png),c=>c.charCodeAt(0));const dt=new DataTransfer();dt.items.add(new File([bytes],'retry.png',{type:'image/png'}));document.querySelector('.composer textarea').dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))},png)
  await a.waitForSelector('.attachment-sheet.on')
  await a.route('**/api/media/upload?**',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({ok:false,error:'测试网络中断'})}))
- await a.click('.attachment-send');await a.locator('.upload-trace-label:has-text("发送未完成")').waitFor();await a.locator('.m-status').waitFor()
+ await a.click('.attachment-send');await a.locator('.m-status').waitFor()
  await a.unroute('**/api/media/upload?**')
- await a.click('.m-status');await a.click('.menu-item:has-text("重新发送")');await a.locator('.upload-trace-label:has-text("已发送")').waitFor();assert.equal(await a.locator('.m-status').count(),0)
+ await a.click('.m-status');await a.click('.menu-item:has-text("重新发送")');await a.locator('.m-status').waitFor({state:'detached'})
  // Drag/drop is preview-first, including at narrow touch dimensions.
  await a.setViewportSize({width:320,height:568})
  await a.evaluate(png=>{const dt=new DataTransfer();dt.items.add(new File([Uint8Array.from(atob(png),c=>c.charCodeAt(0))],'drop.png',{type:'image/png'}));document.querySelector('.thread').dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}))},png)
@@ -72,6 +72,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  await a.evaluate(()=>{document.documentElement.dataset.theme='dark';document.documentElement.dataset.motion='reduce'})
  await a.locator('.bubble.text').last().click({button:'right'});await a.waitForSelector('.menu.on');await a.keyboard.press('Escape')
  assert.deepEqual(problems,[])
- console.log('PASS: halftone settles; unrestricted invite request; local image preview/upload/recipient/failure/retry; paste/drop; 320px layout; dark/reduced motion; no page errors.')
+ console.log('PASS: plain sign-in; unrestricted invite request; local image preview/upload/recipient/failure/retry; paste/drop; 320px layout; dark/reduced motion; no page errors.')
  } finally {await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1})

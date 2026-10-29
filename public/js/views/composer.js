@@ -12,7 +12,7 @@ import { openAttachments } from './attachments.js'
 export function createComposer({ onSend, onImages, onHeight, onType }) {
   const textarea = h('textarea', {
     rows: 1,
-    placeholder: '说点什么…',
+    placeholder: '消息',
     'aria-label': '消息',
     enterkeyhint: 'send',
     autocomplete: 'off',
@@ -112,7 +112,7 @@ export function createComposer({ onSend, onImages, onHeight, onType }) {
       readonly = ro
       form.classList.toggle('readonly', ro)
       textarea.disabled = ro
-      textarea.placeholder = ro ? '暂时无法发送消息' : '说点什么…'
+      textarea.placeholder = ro ? '无法发送消息' : '消息'
       textarea.value = id ? getDraft(id) : ''
       autosize()
     },

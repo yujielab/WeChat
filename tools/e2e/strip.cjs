@@ -2,7 +2,7 @@
 // folded and two adjacent columns unfolded. Replays the sequence closed chat → open list + chat → slide to
 // chat + details → fold to details → swipe back to chat, then checks history, the sidebar, focus within the
 // window, the posture morph's entering column, and reduced motion.
-// Start npm run dev, then node tools/e2e/strip.cjs [outdir].
+// Start npm run dev:e2e (calls switched on), then node tools/e2e/strip.cjs [outdir].
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path')
 const BASE=process.env.BASE||'http://127.0.0.1:8787',OUT=process.argv[2]||path.join(process.cwd(),'screenshots-strip')
 if(!['localhost','127.0.0.1','[::1]'].includes(new URL(BASE).hostname))throw new Error('Use a local wrangler dev instance')
