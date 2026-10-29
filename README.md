@@ -236,10 +236,10 @@ src/            index.js（瘦代理）· hub.js（Durable Object）· store.js�
                 auth.js（账号加密）· media.js（R2）· call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
-    ui/         视口与折叠、栏带（strip）、工具栏、弹簧、按压、外观、格式、触感
+    ui/         视口与折叠、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
                 overlay · sheets · shell · viewer · call（通话）· draw（画板）· avatar
-tools/          gen-vapid.mjs · gen-springs.mjs · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip）
+tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip）
 test/           store · auth · webpush
 ```
 

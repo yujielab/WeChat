@@ -4,6 +4,7 @@
 // other column.
 
 import { h, icon } from '../ui/dom.js'
+import { symbolEffect } from '../ui/symbols.js'
 import { state, on, sortedChats } from '../store.js'
 import { avatar } from './avatar.js'
 import { createBars } from '../ui/bars.js'
@@ -29,7 +30,10 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
       h('span', { class: 'side-scope-icon' }, icon(SCOPE_ICONS[key] || 'bubble')),
       h('span', { class: 'side-scope-label' }, f.label),
       count)
-    button.addEventListener('click', () => onScope(key))
+    button.addEventListener('click', () => {
+      symbolEffect(button.querySelector('.side-scope-icon .icon'), 'bounce')
+      onScope(key)
+    })
     rows.set(key, { button, count })
     scopes.append(h('li', {}, button))
   }

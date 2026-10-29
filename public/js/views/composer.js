@@ -4,6 +4,7 @@
 // composing; Shift+Enter inserts a newline.
 
 import { h, icon } from '../ui/dom.js'
+import { symbolEffect } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
 import { openAttachments } from './attachments.js'
@@ -48,6 +49,9 @@ export function createComposer({ onSend, onImages, onHeight, onType }) {
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 6 * 1.45 * parseFloat(getComputedStyle(textarea).fontSize) + 10)}px`
     const hasText = textarea.value.trim().length > 0
+    // The send arrow draws on as the button arrives with the first character
+    // and off as it leaves.
+    if (hasText !== form.classList.contains('has-text')) symbolEffect(send.querySelector('.icon'), hasText ? 'draw-on' : 'draw-off')
     form.classList.toggle('has-text', hasText)
     send.disabled = readonly || !hasText
     send.setAttribute('aria-hidden', hasText ? 'false' : 'true')

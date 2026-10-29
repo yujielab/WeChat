@@ -3,6 +3,7 @@
 // bars arranged for the display (see ui/bars.js).
 
 import { h, icon, clear, reducedMotion, edge, stagger } from '../ui/dom.js'
+import { symbolEffect } from '../ui/symbols.js'
 import { listTime } from '../ui/format.js'
 import { velocityTracker, project, rubberband, spring } from '../ui/spring.js'
 import { haptic } from '../ui/haptics.js'
@@ -30,6 +31,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   let query = ''
   let openSwipe = null
   let loading = false // connecting / fetching chats: show a skeleton, not "no chats"
+  let shownArt = null // the filter whose empty state is on screen
+  let signalEffect = null
 
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
@@ -265,7 +268,19 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
       r.avatar.replaceWith(r.avatar = avatar(c.avatar, c.name, { room: c.room }))
     }
     r.name.textContent = c.name
-    r.flag.replaceChildren(...(c.muted ? [icon('bell-slash')] : []))
+    const muted = Boolean(c.muted)
+    if (r._muted !== muted) {
+      // Muting or unmuting a conversation in view: its flag appears or goes.
+      const shown = r._muted !== undefined
+      r._muted = muted
+      if (muted) {
+        r.flag.replaceChildren(icon('bell-slash'))
+        if (shown) symbolEffect(r.flag.firstChild, 'appear')
+      } else if (shown && r.flag.firstChild) {
+        const flag = r.flag.firstChild
+        symbolEffect(flag, 'disappear').done.then(() => { if (!r._muted) flag.remove() })
+      } else r.flag.replaceChildren()
+    }
     r.time.textContent = listTime(c.ts)
     r.preview.replaceChildren(...preview(c))
     r.unread.hidden = !c.unread
@@ -387,6 +402,9 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     placeHighlight()
 
     const noChats = list.length === 0 && pins.length === 0
+    const emptyArt = noChats && !loading ? state.filter : null
+    const newArt = emptyArt !== null && (empty.hidden || emptyArt !== shownArt)
+    shownArt = emptyArt
     empty.hidden = !noChats
     empty.classList.toggle('skeleton', noChats && loading)
     if (noChats && loading) {
@@ -399,6 +417,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
         h('div', { class: 'empty-art', 'aria-hidden': 'true' }, h('span', { class: 'empty-bubble' }, icon('bubble')), h('span', { class: 'empty-spark' }, icon(state.filter === 'unread' ? 'check' : 'brush'))),
         h('h2', {}, emptyTitle), action
       )
+      // Its symbols draw on when it comes into view, not on every refresh.
+      if (newArt) for (const svg of empty.querySelectorAll('.empty-art .icon')) symbolEffect(svg, 'draw-on')
     }
   }
 
@@ -709,7 +729,14 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
       }
       status.hidden = !text
       status.classList.toggle('warn', warn)
-      status.replaceChildren(...(spinner ? [h('span', { class: 'spinner' })] : []), text || '')
+      // Connecting: the Wi-Fi symbol's bars light in turn until it connects.
+      const signal = spinner ? status.querySelector('.i-wifi') || icon('wifi') : null
+      status.replaceChildren(...(signal ? [signal] : []), text || '')
+      if (signal && !signalEffect) signalEffect = symbolEffect(signal, 'variable-color')
+      if (!signal) {
+        signalEffect?.stop()
+        signalEffect = null
+      }
       statusText = text || ''
       updateFilters()
     },

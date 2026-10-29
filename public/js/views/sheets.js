@@ -2,6 +2,7 @@
 // overlay.js, and a conversation's details, rendered into the details column.
 
 import { h, icon } from '../ui/dom.js'
+import { symbolEffect } from '../ui/symbols.js'
 import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appearance.js'
 import { isStandalone } from '../ui/viewport.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
@@ -275,6 +276,7 @@ export function openNewGroup({ loadContacts, onOpen }) {
     const el = cell(c.display, check, { sub: '@' + c.username, onClick: () => {
       if (picked.has(c.id)) picked.delete(c.id); else picked.add(c.id)
       el.classList.toggle('picked', picked.has(c.id))
+      if (picked.has(c.id)) symbolEffect(check.querySelector('.icon'), 'draw-on')
       create.disabled = picked.size === 0
     } })
     el.prepend(avatar(c.avatar, c.display, { size: 40 }))
@@ -352,9 +354,11 @@ async function addMembers(roomId, existing, loadContacts) {
   const sheet = openSheet({ title: '添加成员', content, tall: true })
   const cs = (await loadContacts()).filter(c => !existing.includes(c.id))
   list.replaceChildren(cs.length ? group(...cs.map(c => {
-    const el = cell(c.display, h('span', { class: 'pick-check' }, icon('check')), { sub: '@' + c.username, onClick: () => {
+    const check = h('span', { class: 'pick-check' }, icon('check'))
+    const el = cell(c.display, check, { sub: '@' + c.username, onClick: () => {
       picked.has(c.id) ? picked.delete(c.id) : picked.add(c.id)
       el.classList.toggle('picked', picked.has(c.id)); add.disabled = !picked.size
+      if (picked.has(c.id)) symbolEffect(check.querySelector('.icon'), 'draw-on')
     } })
     el.prepend(avatar(c.avatar, c.display, { size: 40 }))
     return el

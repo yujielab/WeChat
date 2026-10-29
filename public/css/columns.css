@@ -61,7 +61,7 @@
 .side-scope:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
 .side-scope.current { background: var(--ink); color: var(--on-ink); font-weight: var(--w-semibold); }
 .side-scope-icon { flex: none; width: 24px; display: grid; place-items: center; color: var(--label-2); }
-.side-scope.current .side-scope-icon { color: inherit; }
+.side-scope.current .side-scope-icon { color: inherit; --sym-w: 2.2; } /* semibold, like its label */
 .side-scope-icon .icon { width: 19px; height: 19px; }
 .side-scope-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 11px; background: var(--blue); color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); }
