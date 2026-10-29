@@ -68,8 +68,9 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const audioCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '语音通话' }, icon('phone'))
   const videoCall = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '视频通话' }, icon('video'))
   const infoBtn = h('button', { class: 'glass glass-btn info', type: 'button', 'aria-label': '聊天信息' }, icon('info'))
+  const moreTools = h('button', { class: 'glass glass-btn thread-tool-overflow', type: 'button', 'aria-label': '更多聊天操作', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('ellipsis'))
   const navActions = h('div', { class: 'nav-actions thread-tool-group' }, audioCall, videoCall, infoBtn)
-  const tools = h('nav', { class: 'thread-tools', 'aria-label': '聊天操作' }, back, navActions)
+  const tools = h('nav', { class: 'thread-tools', 'aria-label': '聊天操作' }, back, navActions, moreTools)
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
@@ -91,7 +92,35 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     welcomeName,
     h('p', {}, '写一句话，画一个心情。\n此刻，就从这里聊起。'))
   const uploadTrace = createUploadTrace()
-  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, tools, edgeBottom, composer.el, jump, uploadTrace.el)
+  const safeFrame = h('span', { class: 'thread-safe-frame', 'aria-hidden': 'true', inert: true })
+  const root = h('div', { class: 'thread', hidden: true }, safeFrame, scroller, welcome, edgeTop, nav, tools, edgeBottom, composer.el, jump, uploadTrace.el)
+  let safeWidth = 0, safeHeight = 0
+  let toolsMenu = null
+  function arrangeTools(previousFocus = document.activeElement) {
+    if (!safeWidth || !safeHeight) return
+    const mode = safeHeight <= 500 || safeWidth < 260 ? 'header' : pane.dataset.layout === 'split' || safeWidth < 400 ? 'strip' : 'rail'
+    const tight = safeWidth < 400
+    const changed = root.dataset.tools !== mode || root.dataset.tight !== String(tight)
+    root.dataset.tools = mode
+    root.dataset.tight = String(tight)
+    if (tools.contains(previousFocus) && !previousFocus.getClientRects().length) {
+      const target = previousFocus === back ? titleBtn : moreTools.getClientRects().length ? moreTools : audioCall
+      target.focus({ preventScroll: true })
+    }
+    if (!changed) return
+    if (toolsMenu && !toolsMenu.closed) {
+      const previous = toolsMenu
+      const hadFocus = previous.el.contains(document.activeElement)
+      previous.close().then(() => {
+        if (hadFocus && document.activeElement === document.body && current) titleBtn.focus({ preventScroll: true })
+      })
+    }
+  }
+  new ResizeObserver(([entry]) => {
+    safeWidth = entry.contentRect.width
+    safeHeight = entry.contentRect.height
+    arrangeTools()
+  }).observe(safeFrame)
   bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
   new ResizeObserver(() => {
     root.style.setProperty('--trace-h', `${uploadTrace.el.hidden ? 0 : uploadTrace.el.getBoundingClientRect().height + 8}px`)
@@ -114,6 +143,16 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   jump.addEventListener('click', () => scrollToBottom(true))
   audioCall.addEventListener('click', () => current && onCall?.(current, 'audio'))
   videoCall.addEventListener('click', () => current && onCall?.(current, 'video'))
+  moreTools.addEventListener('click', () => {
+    if (!current) return
+    if (toolsMenu && !toolsMenu.closed) return toolsMenu.close()
+    const chat = current
+    toolsMenu = openMenu(moreTools, [[
+      { label: '语音通话', icon: 'phone', onSelect: () => current === chat && onCall?.(chat, 'audio') },
+      { label: '视频通话', icon: 'video', onSelect: () => current === chat && onCall?.(chat, 'video') },
+      { label: '聊天信息', icon: 'info', onSelect: () => current === chat && onInfo(chat) }
+    ]])
+  })
 
   let lastWidth = 0, lastHeight = 0
   new ResizeObserver(([e]) => {
@@ -469,6 +508,7 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   }
 
   function close() {
+    toolsMenu?.close()
     composer.flushDraft()
     composer.blur()
     stopVoice()
@@ -966,7 +1006,9 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       empty.hidden = false
     },
     setLayout(layout) {
+      const previousFocus = document.activeElement
       pane.dataset.layout = layout
+      arrangeTools(previousFocus)
     },
     focusComposer() {
       composer.focus()

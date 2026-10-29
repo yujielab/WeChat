@@ -2,11 +2,11 @@
    controls settle above the composer when the conversation opens beside a list.
    Camera and folding clearances come from the shell's measured safe regions. */
 .pane-thread { container-type:size; }
-.thread { --thread-top:max(96px,calc(3.4rem + 32px)); --thread-header-h:max(64px,calc(2.6rem + 16px)); --rail-width:66px; --thread-tools-h:0px; --header-tools-width:0px; --short-tools-width:184px; }
+.thread { --thread-top:max(96px,calc(3.4rem + 32px)); --thread-header-h:max(64px,calc(2.6rem + 16px)); --header-top:14px; --rail-width:66px; --thread-tools-h:0px; --header-tools-width:0px; --short-tools-width:184px; }
 .thread-nav,
 .pane-thread[data-layout="split"] .thread-nav {
   grid-template-columns:minmax(0,1fr);
-  top:calc(var(--safe-top) + 14px);
+  top:calc(var(--safe-top) + var(--header-top));
   left:calc(var(--margin) + var(--safe-left));
   right:calc(var(--margin) + var(--safe-right) + var(--rail-width) + var(--header-tools-width));
   height:var(--thread-header-h);
@@ -18,6 +18,10 @@
 .thread-title .name { font-size:1.059rem; line-height:1.25; letter-spacing:-.025em; }
 .thread-title .sub { font-size:var(--t-caption); margin-top:5px; }
 .thread-title:focus-visible { outline-offset:4px; }
+.thread-nav { background:var(--bg); }
+.thread>.edge-top { display:none; }
+.thread .ts { margin:14px 0 8px; }
+.thread .ts + .m.first { --gap:0px; }
 
 .thread-tools {
   position:absolute;
@@ -71,7 +75,13 @@
   .thread-tools .glass-btn:hover { background:var(--field); }
 }
 
+.thread-safe-frame { position:absolute; inset:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); pointer-events:none; visibility:hidden; }
+.thread-tool-overflow { display:none; }
 .thread-scroll {
+  top:calc(var(--safe-top) + var(--header-top) + var(--thread-header-h));
+  padding-top:max(0px,calc(var(--thread-top) - var(--header-top) - var(--thread-header-h)));
+  -webkit-mask-image:none;
+  mask-image:none;
   padding-right:calc(var(--margin) + var(--safe-right) + var(--rail-width));
   padding-bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + var(--trace-h,0px) + 18px);
 }
@@ -105,8 +115,9 @@
 
 /* An unfolded conversation gets a low tool strip: more room to read at the
    top, while the controls remain adjacent to the writing task. */
-.pane-thread[data-layout="split"] .thread { --rail-width:0px; --thread-tools-h:56px; --short-tools-width:136px; }
-.pane-thread[data-layout="split"] .thread-tools {
+.pane-thread[data-layout="split"] .thread { --short-tools-width:136px; }
+.thread[data-tools="strip"] { --rail-width:0px; --thread-tools-h:56px; }
+.thread[data-tools="strip"] .thread-tools {
   top:auto;
   left:calc(var(--margin) + var(--safe-left));
   right:calc(var(--margin) + var(--safe-right));
@@ -117,44 +128,42 @@
   justify-content:stretch;
 }
 .pane-thread[data-layout="split"] .thread-tool-back { display:none; }
-.pane-thread[data-layout="split"] .thread-tool-group { flex-direction:row; gap:6px; width:100%; padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
-.pane-thread[data-layout="split"] .thread-tool-group .info { margin-left:auto; }
-.pane-thread[data-layout="split"] .thread-tool-group .glass-btn { background:var(--field); }
+.thread[data-tools="strip"] .thread-tool-group { flex:1; flex-direction:row; gap:6px; width:auto; padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.thread[data-tools="strip"] .thread-tool-group .info { margin-left:auto; }
+.thread[data-tools="strip"] .thread-tool-group .glass-btn { background:var(--field); }
 
 /* Keyboard and shallow-window layouts use their actual conversation height.
    The tools become a compact header row rather than consuming reading height. */
-@container conversation (max-height:500px) {
-  .thread,.pane-thread[data-layout="split"] .thread { --thread-top:max(78px,calc(2rem + 40px)); --thread-header-h:max(52px,calc(1.6rem + 24px)); --rail-width:0px; --thread-tools-h:0px; --header-tools-width:var(--short-tools-width); }
-  .thread-nav,.pane-thread[data-layout="split"] .thread-nav { top:calc(var(--safe-top) + 9px); height:var(--thread-header-h); padding-bottom:0; border-bottom:0; }
-  .thread-title { gap:8px; min-height:44px; }
-  .thread-title .avatar { --size:32px; }
-  .thread-title .name { font-size:var(--t-subhead); }
-  .thread-title .sub { margin-top:3px; font-size:10px; }
-  .thread-tools,.pane-thread[data-layout="split"] .thread-tools {
-    top:calc(var(--safe-top) + 9px + var(--thread-header-h) / 2 - 22px);
-    right:calc(var(--safe-right) + var(--margin));
-    bottom:auto;
-    left:auto;
-    width:var(--short-tools-width);
-    height:44px;
-    flex-direction:row;
-    justify-content:flex-end;
-    gap:4px;
-  }
-  .thread-tool-group,.pane-thread[data-layout="split"] .thread-tool-group { flex-direction:row; width:136px; padding:0; gap:2px; border:0; background:none; box-shadow:none; }
-  .thread-tools .glass-btn,.pane-thread[data-layout="split"] .thread-tool-group .glass-btn { background:var(--field); }
-  .thread-tools .thread-tool-back { border:0; }
-  .pane-thread[data-layout="split"] .thread-tool-group .info { margin-left:0; }
-  .room-welcome { top:calc(var(--safe-top) + 78px); }
-  .composer { padding-top:8px; }
+.thread[data-tools="header"] { --thread-top:max(78px,calc(2rem + 40px)); --thread-header-h:max(52px,calc(1.6rem + 24px)); --header-top:9px; --rail-width:0px; --thread-tools-h:0px; --header-tools-width:var(--short-tools-width); }
+.thread[data-tools="header"] .thread-nav { padding-bottom:0; border-bottom:0; }
+.thread[data-tools="header"] .thread-title { gap:8px; min-height:44px; }
+.thread[data-tools="header"] .thread-title .avatar { --size:32px; }
+.thread[data-tools="header"] .thread-title .name { font-size:var(--t-subhead); }
+.thread[data-tools="header"] .thread-title .sub { margin-top:3px; font-size:10px; }
+.thread[data-tools="header"] .thread-tools {
+  top:calc(var(--safe-top) + var(--header-top) + var(--thread-header-h) / 2 - 22px);
+  right:calc(var(--safe-right) + var(--margin)); bottom:auto; left:auto;
+  width:var(--short-tools-width); height:44px;
+  flex-direction:row; justify-content:flex-end; gap:4px;
 }
+.thread[data-tools="header"] .thread-tool-group { flex-direction:row; width:136px; padding:0; gap:2px; border:0; background:none; box-shadow:none; }
+.thread[data-tools="header"] .thread-tools .glass-btn { background:var(--field); }
+.thread[data-tools="header"] .thread-tool-back { border:0; }
+.thread[data-tools="header"] .thread-tool-group .info { margin-left:0; }
+.thread[data-tools="header"] .room-welcome { top:calc(var(--safe-top) + var(--thread-top)); }
+.thread[data-tools="header"] .composer { padding-top:8px; }
+.thread[data-tools="header"][data-tight="true"] { --short-tools-width:92px; }
+.thread[data-tools="header"][data-tight="true"] .thread-tool-group { display:none; }
+.thread[data-tools="header"][data-tight="true"] .thread-tool-overflow { display:grid; }
+.pane-thread[data-layout="split"] .thread[data-tools="header"][data-tight="true"] { --short-tools-width:44px; }
 
 /* Width queries keep very wide desktop panes comfortable without changing
    the sketch's side-by-side relationship at inner-display widths. */
 @container conversation (min-width:700px) {
-  .thread-scroll { padding-left:max(32px,calc((100% - 760px)/2)); padding-right:max(32px,calc((100% - 760px)/2)); }
-  .thread-nav { left:max(32px,calc((100% - 760px)/2)); right:max(32px,calc((100% - 760px)/2)); }
-  .pane-thread[data-layout="split"] .thread-tools { left:max(32px,calc((100% - 760px)/2)); right:max(32px,calc((100% - 760px)/2)); }
+  .thread { --reading-inset:max(32px,calc((100% - var(--safe-left) - var(--safe-right) - 760px)/2)); }
+  .thread-scroll { padding-left:calc(var(--safe-left) + var(--reading-inset)); padding-right:calc(var(--safe-right) + var(--reading-inset) + var(--rail-width)); }
+  .thread-nav { left:calc(var(--safe-left) + var(--reading-inset)); right:calc(var(--safe-right) + var(--reading-inset) + var(--rail-width) + var(--header-tools-width)); }
+  .thread[data-tools="strip"] .thread-tools { left:calc(var(--safe-left) + var(--reading-inset)); right:calc(var(--safe-right) + var(--reading-inset)); }
 }
 
 @media(prefers-reduced-motion:reduce) {
