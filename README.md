@@ -77,7 +77,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **在线状态**与**已读回执**（私聊重新打开后仍显示“已读”）；**“正在输入”实时预览**（Honk 式：对方能看到你正在打的字）
 - **回应**：长按消息从 ❤️ 😂 👍 😮 😢 🙏 中选一个，或双击送出 ❤️；每人每条消息一个，实时同步
 - **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
-- **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
+- **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，可配置 TURN 中继
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
 - **通知**：新消息 Web Push（需加到主屏幕并配置 VAPID）
 - **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
@@ -147,18 +147,26 @@ npx wrangler deploy
 
 ### 开启语音 / 视频通话（Cloudflare Realtime）
 
-1. 在 Cloudflare 仪表盘创建一个 **Realtime（Calls）** 应用，拿到 App ID 和 App Secret。
-2. 设置密钥并重新部署：
+1. 在 Cloudflare 仪表盘进入 **Realtime → Serverless SFU**，创建应用并保存 App ID 和 App Secret。
+   项目使用 SFU 应用的凭据；RealtimeKit 的应用 ID 和密钥属于另一套接口。
+   [SFU 控制台](https://dash.cloudflare.com/?to=/:account/realtime/sfu) · [官方说明](https://developers.cloudflare.com/realtime/sfu/get-started/)
+2. 打开 **Workers & Pages → wechatduo → 设置 → 变量与密钥**，将 `REALTIME_APP_ID` 和
+   `REALTIME_APP_SECRET` 添加为 **Secret**，保存并部署。这些是 Worker 的运行时配置。
+   也可以在仓库根目录用 Wrangler 设置：
 
    ```bash
    npx wrangler secret put REALTIME_APP_ID
    npx wrangler secret put REALTIME_APP_SECRET
-   # 可选：更好的 NAT 穿透（Realtime 的 TURN key）
+   # 可选：在 Realtime → TURN 创建 TURN Key，改善受限网络下的连通性
    npx wrangler secret put REALTIME_TURN_KEY_ID
    npx wrangler secret put REALTIME_TURN_KEY_TOKEN
    ```
 
-未配置时，通话入口会提示“通话服务未配置”，其余功能照常。
+3. 刷新聊天页面，用两台设备、两个账号测试，双方保持页面打开。语音需允许麦克风，视频还需允许摄像头。
+
+未配置时，通话入口会提示“通话服务未配置”，其余功能照常。变量存在只表示入口已启用，不代表上游认证成功。
+SFU 凭据被拒绝时会提示核对同一个 Serverless SFU 应用的 App ID / App Secret；TURN 凭据错误会单独提示。
+未配置可选 TURN 时使用公共 STUN，受限网络建议补齐 TURN。权限、设备占用、媒体协商和网络失败会分别显示提示。
 
 ### 开启新消息通知（可选）
 
@@ -207,6 +215,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   并把宽度在 466 ↔ 951 之间逐步拖动，确认折叠不会被误判为键盘、弹层不压在折痕上。
 - 折叠模拟：在地址后加 `?fold=vertical`（书本）或 `?fold=horizontal`（笔记本），或在控制台调用
   `(await import('/js/ui/viewport.js')).emulateFold({ axis: 'vertical' })`。
+- 通话回归：`node tools/e2e/calls.cjs` 使用本地浏览器模拟 SFU 与虚拟麦克风 / 摄像头，
+  检查真实 WebRTC 协商、错误提示和通话切换时序；不调用生产 SFU，也不验证生产凭据。
 
 ## 安全
 
