@@ -124,5 +124,23 @@ await p.setViewportSize({width:951,height:669});await unposed();await p.click('.
 for(const w of [951,901,851,800,751,700]){await p.setViewportSize({width:w,height:669});await sleep(120);const b=await p.locator('.sheet').boundingBox();assert.ok(b.x+b.width<=w/2+1||b.x>=w/2-1,`sheet clear of the crease at ${w} `+JSON.stringify(b))}
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 
-assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
+// With the system's edge column (84pt down the right, open or closed): unfolded, a sheet over the conversation
+// centres on its content, beside the column of controls; folded, it spans the app's side with even margins and
+// the receding app's controls step aside rather than showing half-covered beside it.
+await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>{document.documentElement.style.setProperty('--safe-right','84px');dispatchEvent(new Event('resize'))});await sleep(300)
+const railLeft=()=>p.evaluate(()=>Math.min(...[...document.querySelectorAll('.thread .duo-rail .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().left)))
+const railOpacity=()=>p.evaluate(()=>+getComputedStyle(document.querySelector('.thread .duo-rail')).opacity)
+let rail=await railLeft();await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
+let b=await p.locator('.sheet').boundingBox(),pane=await p.locator('.pane[data-col="thread"]').boundingBox()
+assert.ok(b.x>=pane.x+17&&b.x+b.width<=Math.min(rail,951-84)-17,'unfolded sheet beside the column '+JSON.stringify({b,rail}))
+assert.ok(Math.abs(b.x+b.width/2-(pane.x+(pane.width-Math.max(84,pane.x+pane.width-rail))/2))<2,'unfolded sheet centred on the column content '+JSON.stringify({b,pane,rail}))
+await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
+await p.setViewportSize({width:466,height:678});await unposed();await sleep(300);await settled('thread')
+await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(700)
+b=await p.locator('.sheet').boundingBox();assert.ok(Math.abs(b.x-8)<1&&Math.abs(466-84-8-(b.x+b.width))<1,'folded sheet spans the app side '+JSON.stringify(b))
+assert.ok(await railOpacity()<0.05,'receding controls step aside')
+await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'});await sleep(500);assert.equal(await railOpacity(),1,'controls return with the app')
+await p.evaluate(()=>{document.documentElement.style.removeProperty('--safe-right');dispatchEvent(new Event('resize'))})
+
+assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; sheets beside the edge column and its controls; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

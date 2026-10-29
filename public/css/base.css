@@ -115,6 +115,11 @@ img { -webkit-user-drag: none; }
   transition-duration: 460ms;
 }
 .app.sheet-drag .shell { transition: none; }
+/* The receding app's controls step aside for the sheet's, so none show
+   half-covered in the edge column; they return as the sheet is dragged away. */
+.app .duo-rail { transition: opacity 260ms ease-out; }
+.app.sheeted .duo-rail { opacity: calc(1 - var(--sp-k, 1)); }
+.app.sheet-drag .duo-rail { transition: none; }
 
 .pane {
   position: absolute;

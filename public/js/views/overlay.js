@@ -357,18 +357,31 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
     menu.style.maxWidth = `${Math.max(0, bounds.width)}px`
     menu.style.maxHeight = `${Math.max(0, bounds.height)}px`
     const mw = menu.offsetWidth, mh = menu.offsetHeight
-    const below = r.y + r.h + 6
-    const above = r.y - 6 - mh
-    let top = !preferAbove && below + mh <= maxY ? below : above >= minY ? above : Math.max(minY, maxY - mh)
     const anchorCenter = r.x + r.w / 2
-    let left = anchorCenter < (minX + maxX) / 2 ? r.x : r.x + r.w - mw
-    left = Math.max(minX, Math.min(left, maxX - mw))
-    top = Math.max(minY, Math.min(top, maxY - mh))
+    let left, top
+    const beside = Math.min(r.x - 8, maxX) - mw
+    if (trigger?.closest('.duo-rail') && beside >= minX) {
+      // From a control in the trailing column: beside it, level with it,
+      // growing out of its side, so the column's other controls stay clear.
+      left = beside
+      top = r.y + mh <= maxY ? r.y : r.y + r.h - mh
+      top = Math.max(minY, Math.min(top, maxY - mh))
+      menu.style.setProperty('--ox', `${mw}px`)
+      menu.style.setProperty('--oy', `${Math.min(Math.max(r.y + r.h / 2 - top, 0), mh)}px`)
+      menu.style.setProperty('--menu-lift', '0px')
+    } else {
+      const below = r.y + r.h + 6
+      const above = r.y - 6 - mh
+      top = !preferAbove && below + mh <= maxY ? below : above >= minY ? above : Math.max(minY, maxY - mh)
+      left = anchorCenter < (minX + maxX) / 2 ? r.x : r.x + r.w - mw
+      left = Math.max(minX, Math.min(left, maxX - mw))
+      top = Math.max(minY, Math.min(top, maxY - mh))
+      menu.style.setProperty('--ox', `${Math.min(Math.max(anchorCenter - left, 0), mw)}px`)
+      menu.style.setProperty('--oy', `${top >= r.y ? 0 : mh}px`)
+      menu.style.setProperty('--menu-lift', top >= r.y ? '-4px' : '4px')
+    }
     menu.style.left = `${Math.round(left)}px`
     menu.style.top = `${Math.round(top)}px`
-    menu.style.setProperty('--ox', `${Math.min(Math.max(anchorCenter - left, 0), mw)}px`)
-    menu.style.setProperty('--oy', `${top >= r.y ? 0 : mh}px`)
-    menu.style.setProperty('--menu-lift', top >= r.y ? '-4px' : '4px')
     placeHighlight()
   }
   function schedulePosition() {
