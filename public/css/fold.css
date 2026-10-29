@@ -1,0 +1,55 @@
+/* Unfolded, overlays stay inside the pane they were opened from (see
+   js/ui/fold.js): the hinge never runs through a dialog, a photo, the
+   drawing paper or a call. The other half stays visible, dimmed, so the
+   relationship between list and conversation is never lost. */
+.overlays[data-layout="split"] .sheet[data-region] {
+  left: calc(var(--region-left) + var(--region-width) / 2);
+  width: min(500px, calc(var(--region-width) - 36px));
+}
+.overlays[data-layout="split"] .menu-safe-frame[data-region] {
+  left: max(calc(var(--safe-left) + 10px), calc(var(--region-left) + 10px));
+  right: max(calc(var(--safe-right) + 10px), calc(100% - var(--region-left) - var(--region-width) + 10px));
+}
+.overlays[data-layout="split"] .toast[data-region] {
+  left: calc(var(--region-left) + var(--region-width) / 2);
+  max-width: calc(var(--region-width) - 32px);
+}
+.overlays[data-layout="split"] :is(.viewer, .draw, .call)[data-region] {
+  left: var(--region-left);
+  right: auto;
+  width: var(--region-width);
+  /* The far half recedes with the overlay's own backdrop (--shade). */
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / calc(var(--shade, 1) * .38));
+}
+.overlays[data-layout="split"] .draw[data-region] { --safe-left: 0px; }
+.overlays[data-layout="split"] .viewer[data-region="thread"],
+.overlays[data-layout="split"] .call[data-region="thread"] { --safe-left: 0px; }
+
+/* ---------------------------------------------------------------- posture morph
+   Folding and unfolding (js/ui/viewport.js). The conversation keeps nearly
+   the same width on both screens, so it simply travels between the outer
+   display and the right half; its name, avatar, tools and field travel on
+   their own paths to their new places, and on unfolding the list arrives
+   from the left edge, where it was folded away. */
+:root[data-posture] .app { right: auto; width: var(--posture-w, 100%); }
+:root[data-posture] .pane-thread { view-transition-name: duo-thread; }
+:root[data-posture] .thread:not([hidden]) .thread-title .name { view-transition-name: duo-name; }
+:root[data-posture] .thread:not([hidden]) .thread-title .sub { view-transition-name: duo-sub; }
+:root[data-posture] .thread:not([hidden]) .thread-person .avatar { view-transition-name: duo-avatar; }
+:root[data-posture] .thread:not([hidden]) .thread-tool-back { view-transition-name: duo-back; }
+:root[data-posture] .thread:not([hidden]) .tool-audio { view-transition-name: duo-audio; }
+:root[data-posture] .thread:not([hidden]) .tool-video { view-transition-name: duo-video; }
+:root[data-posture] .thread:not([hidden]) .attach { view-transition-name: duo-attach; }
+:root[data-posture] .thread:not([hidden]) .composer .field { view-transition-name: duo-field; }
+:root[data-posture="unfold"] .pane-list { view-transition-name: duo-list; }
+
+:root[data-posture]::view-transition-group(*) { animation-duration: 440ms; animation-timing-function: var(--spring-smooth); }
+/* Keep each snapshot's proportions while its box changes shape (a round
+   rail button becoming a labelled chip), centred and cross-faded. */
+:root[data-posture]::view-transition-old(*),
+:root[data-posture]::view-transition-new(*) { width: auto; height: 100%; left: 50%; translate: -50% 0; }
+:root[data-posture]::view-transition-group(duo-thread) { animation-duration: 480ms; }
+:root[data-posture="unfold"]::view-transition-group(duo-list) { animation: none; }
+:root[data-posture="unfold"]::view-transition-old(duo-list) { display: none; }
+:root[data-posture="unfold"]::view-transition-new(duo-list) { animation: duo-list-in 500ms var(--spring-smooth) both; }
+@keyframes duo-list-in { from { opacity: 0; transform: translateX(-40px); } }

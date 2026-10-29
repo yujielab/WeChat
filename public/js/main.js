@@ -112,7 +112,14 @@ function handle(msg) {
     case 'read':
       // Peer read our messages in this DM.
       markThreadRead(msg.room, msg.by)
+      if (msg.ts > (state.chats.get(msg.room)?.peerRead || 0)) patchRoom(msg.room, { peerRead: msg.ts })
       break
+    case 'react': {
+      // Only the reactions change: the message keeps its place, read state and unread count.
+      const known = state.threads.get(msg.msg.room)?.byId.get(msg.msg.id)
+      if (known) upsertMessage({ ...known, reactions: msg.msg.reactions || [] })
+      break
+    }
     case 'presence':
       markPresence(msg.uid, msg.online)
       break

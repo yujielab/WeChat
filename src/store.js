@@ -5,6 +5,8 @@
 
 const now = () => Date.now()
 export const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 20)
+/** The tapbacks a message can carry; one per person, replaced when they pick another. */
+export const REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏']
 
 export class Store {
   constructor(exec) {
@@ -68,6 +70,13 @@ export class Store {
       edited INTEGER NOT NULL DEFAULT 0
     )`)
     s(`CREATE INDEX IF NOT EXISTS idx_msg_room_ts ON messages (room, ts)`)
+    s(`CREATE TABLE IF NOT EXISTS reactions (
+      msg TEXT NOT NULL,
+      user TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      ts INTEGER NOT NULL,
+      PRIMARY KEY (msg, user)
+    )`)
     s(`CREATE TABLE IF NOT EXISTS push_subs (
       id TEXT PRIMARY KEY,
       user TEXT NOT NULL,
@@ -267,6 +276,7 @@ export class Store {
       if (room.kind === 'dm') {
         const peerId = this.roomMembers(room.id).find(u => u !== user)
         row.peer = this.pub(this.getUser(peerId))
+        row.peerRead = this.membership(room.id, peerId)?.last_read || 0
         if (row.peer) {
           row.name = row.peer.display
           row.avatar = row.peer.avatar
@@ -294,7 +304,10 @@ export class Store {
   }
   getMessage(id) {
     const r = this.exec(`SELECT * FROM messages WHERE id=?`, id)[0]
-    return r ? this.#msg(r) : null
+    if (!r) return null
+    const m = this.#msg(r)
+    m.reactions = this.#reactionGroups(this.exec(`SELECT msg, user, emoji FROM reactions WHERE msg=? ORDER BY ts, rowid`, id))[id] || []
+    return m
   }
   lastMessage(room) {
     const r = this.exec(`SELECT * FROM messages WHERE room=? ORDER BY ts DESC, id DESC LIMIT 1`, room)[0]
@@ -311,7 +324,40 @@ export class Store {
       rows = this.exec(`SELECT * FROM messages WHERE room=? ORDER BY ts DESC, id DESC LIMIT ?`, room, limit)
       rows.reverse()
     }
-    return rows.map(r => this.#msg(r))
+    const list = rows.map(r => this.#msg(r))
+    if (!list.length) return list
+    // One query per page, bounded by the page's time span rather than one
+    // bound parameter per message (Durable Object SQL allows only 100).
+    const groups = this.#reactionGroups(this.exec(
+      `SELECT r.msg, r.user, r.emoji FROM reactions r JOIN messages m ON m.id = r.msg
+       WHERE m.room=? AND m.ts BETWEEN ? AND ? ORDER BY r.ts, r.rowid`,
+      room, list[0].ts, list[list.length - 1].ts
+    ))
+    for (const m of list) m.reactions = groups[m.id] || []
+    return list
+  }
+  /** Set (or with no emoji, clear) one person's reaction to a message. */
+  setReaction(id, user, emoji) {
+    if (emoji) {
+      this.exec(
+        `INSERT INTO reactions (msg, user, emoji, ts) VALUES (?,?,?,?)
+         ON CONFLICT(msg, user) DO UPDATE SET emoji=excluded.emoji, ts=excluded.ts`,
+        id, user, emoji, now()
+      )
+    } else {
+      this.exec(`DELETE FROM reactions WHERE msg=? AND user=?`, id, user)
+    }
+    return this.getMessage(id)
+  }
+  #reactionGroups(rows) {
+    const out = {}
+    for (const r of rows) {
+      const list = (out[r.msg] ||= [])
+      const group = list.find(g => g.emoji === r.emoji)
+      if (group) group.users.push(r.user)
+      else list.push({ emoji: r.emoji, users: [r.user] })
+    }
+    return out
   }
   setMessageState(id, state) {
     this.exec(`UPDATE messages SET state=? WHERE id=?`, state, id)
@@ -321,6 +367,7 @@ export class Store {
     const m = this.getMessage(id)
     if (!m || m.sender !== by) return null
     this.exec(`UPDATE messages SET state='revoked', body='', meta='' WHERE id=?`, id)
+    this.exec(`DELETE FROM reactions WHERE msg=?`, id)
     return this.getMessage(id)
   }
   #msg(r) {

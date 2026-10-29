@@ -73,6 +73,40 @@ test('messages: store, last, unread, read, paging, revoke', () => {
   assert.equal(s.getMessage(m3.id).body, '')
 })
 
+test('reactions: one per person, grouped per emoji, paged with messages, cleared on revoke', () => {
+  const s = makeStore()
+  const a = mkUser(s, 'alice'); const b = mkUser(s, 'bob'); const c = mkUser(s, 'carol')
+  const g = s.createGroup({ name: 'trip', creator: a.id, members: [b.id, c.id] })
+  const m1 = s.addMessage({ room: g, sender: a.id, ts: 1000, type: 'text', body: 'hi' })
+  const m2 = s.addMessage({ room: g, sender: b.id, ts: 2000, type: 'text', body: 'yo' })
+  assert.deepEqual(s.getMessage(m1.id).reactions, [])
+  s.setReaction(m1.id, b.id, '❤️')
+  s.setReaction(m1.id, c.id, '❤️')
+  assert.deepEqual(s.getMessage(m1.id).reactions, [{ emoji: '❤️', users: [b.id, c.id] }])
+  // Picking another emoji replaces the person's previous reaction.
+  s.setReaction(m1.id, c.id, '😂')
+  assert.deepEqual(s.getMessage(m1.id).reactions, [{ emoji: '❤️', users: [b.id] }, { emoji: '😂', users: [c.id] }])
+  s.setReaction(m2.id, a.id, '👍')
+  const page = s.listMessages(g, { limit: 10 })
+  assert.deepEqual(page.map(m => m.reactions.length), [2, 1])
+  assert.deepEqual(s.listMessages(g, { after: 1000, limit: 10 })[0].reactions, [{ emoji: '👍', users: [a.id] }])
+  // Clearing and revoking remove reactions.
+  s.setReaction(m1.id, b.id, '')
+  assert.deepEqual(s.getMessage(m1.id).reactions, [{ emoji: '😂', users: [c.id] }])
+  s.revokeMessage(m1.id, a.id)
+  assert.deepEqual(s.getMessage(m1.id).reactions, [])
+})
+
+test('dm rows carry how far the peer has read', () => {
+  const s = makeStore()
+  const a = mkUser(s, 'alice'); const b = mkUser(s, 'bob')
+  const dm = s.getOrCreateDM(a.id, b.id)
+  assert.equal(s.listRoomsFor(a.id).find(r => r.id === dm).peerRead, 0)
+  s.markRead(dm, b.id, 4200)
+  assert.equal(s.listRoomsFor(a.id).find(r => r.id === dm).peerRead, 4200)
+  assert.equal(s.listRoomsFor(b.id).find(r => r.id === dm).peerRead, 0)
+})
+
 test('rooms sort pinned-first then by latest activity; hidden dm reappears', () => {
   const s = makeStore()
   const a = mkUser(s, 'alice'); const b = mkUser(s, 'bob'); const c = mkUser(s, 'carol')

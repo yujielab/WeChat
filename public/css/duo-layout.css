@@ -170,3 +170,49 @@
   :root:not([data-motion="full"]) .thread-tools .glass-btn { transition:none; }
 }
 :root[data-motion="reduce"] .thread-tools .glass-btn { transition:none; }
+
+/* ---------------------------------------------------------------- sketch regions
+   Header, conversation and composer are three bands. Messages end at the
+   writing band instead of sliding beneath it, and a hairline marks where
+   writing begins — the same line on the folded and unfolded screens. */
+.thread-scroll { bottom:calc(var(--composer-h,76px) + var(--thread-tools-h)); }
+.thread-scroll,
+:root:not([data-kb="1"]) .thread-scroll { padding-bottom:calc(var(--trace-h,0px) + 14px); }
+.thread .edge-bottom { display:none; }
+.thread .composer::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--line); }
+.thread .upload-trace { bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + 8px); }
+
+/* Labels, the drawing shortcut and the person pill belong to the unfolded strip. */
+.tool-label, .thread-tool-draw, .thread-person-hint { display:none; }
+.thread-person-pill { display:contents; }
+.thread-tools .glass-btn.attach { background:var(--field); }
+.thread-tools .attach .icon { width:21px; height:21px; transition:transform 360ms var(--ease-morph); }
+.thread-tools .attach.is-open { background:var(--ink); color:var(--on-ink); }
+.thread-tools .attach.is-open .icon { transform:rotate(45deg); }
+
+/* Unfolded (sketch 2): the name and status are centred under the inner
+   camera; the person moves to a pill at the trailing edge and opens the
+   chat's details. Below the conversation, three labelled chips lead and the
+   plus closes the row, so the field above the keyboard runs full width. */
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] { --person-pill-w:104px; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title { position:relative; justify-content:center; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title .t { align-items:center; text-align:center; padding-inline:var(--person-pill-w); }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-person-pill {
+  position:absolute; right:0; top:50%; translate:0 -50%;
+  display:flex; align-items:center; gap:7px; height:44px; padding:4px 14px 4px 4px; border-radius:22px;
+  background:var(--field); color:var(--label-2); font-size:.706rem; font-weight:560; white-space:nowrap;
+}
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-person-hint { display:inline; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title .avatar { --size:36px; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title.is-online .thread-person::after { right:-2px; bottom:-1px; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tool-group .glass-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:7px; width:auto; padding:0 16px 0 14px; border-radius:22px;
+  font-size:.765rem; font-weight:560; letter-spacing:.02em;
+}
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tool-group .glass-btn .icon { width:17px; height:17px; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .tool-label { display:inline; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tool-group .glass-btn.info { display:none; }
+.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tools { gap:8px; }
+@media(hover:hover) and (pointer:fine) {
+  .pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title:hover .thread-person-pill { background:color-mix(in srgb,var(--field) 82%,var(--label) 6%); }
+}

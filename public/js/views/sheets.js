@@ -101,7 +101,7 @@ export function openSettings({ onLogout }) {
     h('div', { style: { height: '20px' } }),
     group(cell('退出登录', null, { destructive: true, onClick: () => onLogout() }))
   )
-  openSheet({ title: '设置', content, tall: true })
+  openSheet({ title: '设置', content, tall: true, side: 'list' })
 }
 
 function editProfile() {
@@ -216,7 +216,7 @@ export function openNewChat({ loadContacts, onOpen }) {
     list,
     results
   )
-  const sheet = openSheet({ title: '新聊天', content, tall: true })
+  const sheet = openSheet({ title: '新聊天', content, tall: true, side: 'list' })
 
   loadContacts().then(cs => {
     list.replaceChildren(cs.length ? group(...cs.map(c => contactCell(c, () => openDM(c.id)))) : foot('还没有联系人，上面搜索用户名添加。'))
@@ -297,7 +297,7 @@ export async function openRoomInfo(roomId, { onOpen, loadContacts }) {
   if (!c) return
   const isGroup = c.kind === 'group'
   const body = h('div', {})
-  const sheet = openSheet({ title: isGroup ? '群聊信息' : '联系人', content: body, tall: isGroup })
+  const sheet = openSheet({ title: isGroup ? '群聊信息' : '联系人', content: body, tall: isGroup, side: 'thread' })
 
   let room = c, members = []
   try {

@@ -568,3 +568,23 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   .seg button { font-size: var(--t-caption); }
   .profile, .sheet .profile.profile-btn { margin-inline: 14px; width: calc(100% - 28px); }
 }
+
+/* Reactions lead the message menu: one row, the current choice held in ink. */
+.menu-reactions { display: flex; justify-content: space-between; gap: 2px; margin: 0 0 6px; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
+.menu-reaction {
+  width: 42px; height: 44px; flex: none; display: grid; place-items: center;
+  border-radius: 14px; font-size: 23px; line-height: 1;
+  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy), background-color 140ms ease-out;
+}
+.menu-reaction[aria-checked="true"] { background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.menu-reaction:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.menu-reaction.is-pressed { transform: scale(0.88); transition-duration: var(--press-dur); }
+@media (hover: hover) and (pointer: fine) {
+  .menu-reaction:hover { transform: translateY(-2px) scale(1.16); }
+}
+.menu.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * 22ms) backwards; }
+@keyframes reaction-offer { from { opacity: 0; transform: translateY(6px) scale(0.6); } }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .menu.on .menu-reaction { animation: none; }
+}
+:root[data-motion="reduce"] .menu.on .menu-reaction { animation: none; }

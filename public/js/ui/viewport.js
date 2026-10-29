@@ -7,6 +7,11 @@
 //   "stack" (folded outer display, Split View halves, narrow windows).
 //   Folding/unfolding changes the width without a rotation, so this listens
 //   to size, not orientation.
+// * Folding and unfolding morph instead of cutting: where the browser has
+//   view transitions, the conversation's title, tools and field travel to
+//   their new places while the list slides in (or out) from the left.
+
+import { reducedMotion } from './dom.js'
 
 const root = document.documentElement
 const vv = window.visualViewport
@@ -24,13 +29,48 @@ function measure() {
   else delete root.dataset.kb
   const next = window.innerWidth >= SPLIT_MIN ? 'split' : 'stack'
   if (next !== layout) {
-    const prev = layout
     layout = next
-    // Snap, don't animate, when the device folds/unfolds or rotates.
+    // Element transitions never replay across a posture change; the morph
+    // below (or nothing, with reduced motion) carries the continuity.
     root.classList.add('no-anim')
-    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')))
-    for (const fn of listeners) fn(next, prev)
+    if (applied && !posture && document.startViewTransition && !reducedMotion() && document.visibilityState === 'visible') {
+      // The browser has already resized; hold the app at its previous width
+      // for the outgoing snapshot, so it shows the posture the person just
+      // saw rather than that layout squeezed into the new screen.
+      root.style.setProperty('--posture-w', `${lastWidth}px`)
+      root.dataset.posture = next === 'split' ? 'unfold' : 'fold'
+      posture = document.startViewTransition(() => {
+        root.style.removeProperty('--posture-w')
+        applyLayout()
+      })
+      posture.ready.catch(() => {})
+      posture.finished.catch(() => {}).finally(() => {
+        posture = null
+        delete root.dataset.posture
+        applyLayout()
+        settle()
+      })
+    } else {
+      // A second change mid-morph applies at once; the pending update then
+      // finds nothing left to do.
+      applyLayout()
+      if (!posture) settle()
+    }
   }
+  lastWidth = window.innerWidth
+}
+
+let applied = null
+let posture = null
+let lastWidth = window.innerWidth
+function applyLayout() {
+  if (layout === applied) return
+  const prev = applied
+  applied = layout
+  for (const fn of listeners) fn(layout, prev)
+}
+function settle() {
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')))
 }
 
 function hasTextFocus() {

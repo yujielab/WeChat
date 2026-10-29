@@ -30,7 +30,7 @@ export function openAttachments({ files = [], onSend } = {}) {
     h('p', { class: 'attachment-note' }, '图片会先压缩，再发送到当前聊天。'))
   let cleanupField = () => {}
   const ctl = openSheet({
-    title: '分享图片', content, label: '预览并发送图片',
+    title: '分享图片', content, label: '预览并发送图片', side: 'thread',
     onClose() {
       cleanupField()
       for (const item of selected.values()) URL.revokeObjectURL(item.url)

@@ -8,6 +8,7 @@ import { haptic } from '../ui/haptics.js'
 import { state, chatInfo, nameOf } from '../store.js'
 import { api } from '../api.js'
 import { toast } from './overlay.js'
+import { placeOnSide } from '../ui/fold.js'
 import { avatar } from './avatar.js'
 
 export function createCalls({ socketSend }) {
@@ -171,7 +172,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
   const incomingActions = h('div', { class: 'call-incoming' })
 
   let hasVideo = false
-  function mount() { document.getElementById('overlays').append(root); requestAnimationFrame(() => root.classList.add('on')) }
+  function mount() { document.getElementById('overlays').append(root); placeOnSide(root, 'thread'); requestAnimationFrame(() => root.classList.add('on')) }
 
   return {
     showOutgoing(room, media) {

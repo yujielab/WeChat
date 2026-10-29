@@ -56,10 +56,13 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   const empty = h('div', { class: 'list-empty', hidden: true })
   const results = h('div', { class: 'search-results', hidden: true })
   const pinLabel = h('div', { class: 'pinned-label', hidden: true }, icon('pin'), '留在身边')
-  const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, empty, results)
+  // Unfolded, one shared capsule marks the open conversation and glides
+  // between rows (and along with a row as it reorders) instead of jumping.
+  const capsule = h('span', { class: 'row-highlight', 'aria-hidden': 'true' })
+  const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, capsule, empty, results)
 
   const meBtn = h('button', { class: 'glass glass-btn me-btn', type: 'button', 'aria-label': '设置' })
-  const filterBtn = h('button', { class: 'bar-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
+  const filterBtn = h('button', { class: 'bar-btn filter-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
   const composeBtn = h('button', { class: 'bar-btn tint compose-btn', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
   const brand = h('div', { class: 'list-brand', 'aria-label': 'Duo' }, h('span', { class: 'list-brand-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble')), h('span', { class: 'list-wordmark' }, 'Duo'), inlineTitle)
@@ -114,9 +117,16 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     filterTabs.classList.add('ready')
   }
 
+  let statusText = ''
   function updateFilters() {
     for (const [key, button] of filterButtons) button.setAttribute('aria-pressed', key === state.filter ? 'true' : 'false')
     positionFilterThumb()
+    // Unfolded, the filter lives in the menu: its button and the inline title
+    // carry the active choice instead of a row of tabs.
+    const active = FILTERS[state.filter] && state.filter !== 'all' ? FILTERS[state.filter].label : ''
+    filterBtn.classList.toggle('active', Boolean(active))
+    filterBtn.setAttribute('aria-label', active ? `筛选：${active}` : '筛选')
+    inlineTitle.textContent = `${statusText ? `消息（${statusText}）` : '消息'}${active ? ` · ${active}` : ''}`
   }
   new ResizeObserver(positionFilterThumb).observe(filterTabs)
 
@@ -331,6 +341,8 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       }
     }
 
+    placeHighlight()
+
     const noChats = list.length === 0 && pins.length === 0
     empty.hidden = !noChats
     empty.classList.toggle('skeleton', noChats && loading)
@@ -347,6 +359,27 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       )
     }
   }
+
+  let highlightFrame = 0
+  function placeHighlight({ instant = false } = {}) {
+    cancelAnimationFrame(highlightFrame)
+    highlightFrame = requestAnimationFrame(() => {
+      const el = selected && rowEls.get(selected)
+      const show = Boolean(el?.isConnected && !rows.hidden && pane.dataset.layout === 'split')
+      capsule.classList.toggle('on', show)
+      if (!show) {
+        capsule.classList.remove('ready')
+        return
+      }
+      // Measured after any FLIP has set the row back to its final place.
+      const top = el.offsetTop
+      if (instant || !capsule.classList.contains('ready')) capsule.classList.remove('ready')
+      capsule.style.transform = `translate3d(0, ${top}px, 0)`
+      capsule.style.height = `${el.offsetHeight}px`
+      if (!capsule.classList.contains('ready')) requestAnimationFrame(() => capsule.classList.add('ready'))
+    })
+  }
+  new ResizeObserver(() => placeHighlight({ instant: true })).observe(rows)
 
   function enter(el, i) {
     el.style.setProperty('--s', String(i))
@@ -515,6 +548,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     pane.classList.add('searching')
     head.hidden = filterTabs.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
+    placeHighlight()
     renderResults()
   })
   input.addEventListener('input', () => {
@@ -615,6 +649,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
         el._r.inner.setAttribute('aria-current', cid === id ? 'true' : 'false')
       }
       for (const el of pinned.children) el.classList.toggle('selected', el.dataset.id === id)
+      placeHighlight()
     },
     setMe(me) {
       meBtn.replaceChildren(avatar(me?.avatar, me?.display || '我', { size: 36 }))
@@ -628,10 +663,12 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       status.hidden = !text
       status.classList.toggle('warn', warn)
       status.replaceChildren(...(spinner ? [h('span', { class: 'spinner' })] : []), text || '')
-      inlineTitle.textContent = text ? `消息（${text}）` : '消息'
+      statusText = text || ''
+      updateFilters()
     },
     setLayout(layout) {
       pane.dataset.layout = layout
+      placeHighlight({ instant: true })
       // The same action moves next to search on the inner screen. Keep its
       // focus and listener identity as the available space changes.
       const focused = document.activeElement === composeBtn
