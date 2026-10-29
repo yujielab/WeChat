@@ -23,8 +23,10 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   const closeBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
   const shareBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '分享或存储' }, icon('share'))
   const counter = gallery.length ? h('span', { class: 'viewer-gallery-count', 'aria-live': 'polite' }) : null
-  const top = h('div', { class: 'viewer-bar top' }, closeBtn, counter, shareBtn)
-  const root = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1' }, bg, stage, top)
+  // Close leads and Share follows; on the outer display and the inner
+  // display in landscape they run down the trailing edge (duo-layout.css).
+  const top = h('div', { class: 'viewer-bar top' }, closeBtn, shareBtn)
+  const root = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1' }, bg, stage, top, counter)
   const previous = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '上一张照片' }, icon('chevron-left')) : null
   const next = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '下一张照片' }, icon('chevron-right')) : null
   const thumbnailBar = gallery.length ? h('div', { class: 'viewer-gallery-thumbnails', role: 'group', 'aria-label': '照片列表' }) : null
@@ -35,8 +37,9 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     thumbnailBar.append(button)
     return button
   })
-  if (gallery.length) root.append(h('div', { class: 'viewer-bar bottom viewer-gallery-bottom' },
-    h('div', { class: 'viewer-gallery-navigation' }, previous, next), thumbnailBar))
+  if (gallery.length) root.append(
+    h('div', { class: 'viewer-bar viewer-gallery-navigation' }, previous, next),
+    h('div', { class: 'viewer-bar bottom viewer-gallery-bottom' }, thumbnailBar))
   layer.append(root)
   placeOnSide(root, foldSide(thumb))
   const app = document.getElementById('app')

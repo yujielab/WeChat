@@ -26,6 +26,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
   const thread = createThread(threadPane, {
     onBack: () => { if (history.state?.chat) history.back(); else closeChat() },
     onInfo: id => openRoomInfo(id, { onOpen: rid => openChat(rid), loadContacts }),
+    onCompose: () => openNewChat({ loadContacts, onOpen: id => openChat(id) }),
     onCall,
     socketSend
   })

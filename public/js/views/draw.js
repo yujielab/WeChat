@@ -27,7 +27,7 @@ export function openDrawing({ onSend }) {
   const undoBtn = toolBtn('undo', '撤销', () => undo())
   const clearBtn = toolBtn('trash', '清空', () => clearAll())
   const closeBtn = h('button', { class: 'glass glass-btn draw-close', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
-  const sendBtn = h('button', { class: 'draw-send solid-press', type: 'button', disabled: true }, icon('arrow-up'), '发送')
+  const sendBtn = h('button', { class: 'draw-send solid-press', type: 'button', title: '发送', 'aria-label': '发送', disabled: true }, icon('arrow-up'), h('span', { class: 'draw-send-label', 'aria-hidden': 'true' }, '发送'))
 
   const palette = h('div', { class: 'draw-palette glass glass-thick' }, ...swatches)
   const sizes = h('div', { class: 'draw-sizes glass glass-thick' }, ...sizeBtns)

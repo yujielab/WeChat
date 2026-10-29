@@ -1,14 +1,14 @@
-// Message composer: glass "+" button and capsule field with a send button that
-// morphs in when there's text. Enter sends (the keyboard shows 发送), except
-// while a Chinese IME is composing; Shift+Enter inserts a newline.
+// Message composer: a capsule field with a send button that morphs in when
+// there's text; photo and drawing actions live in the conversation's bars.
+// Enter sends (the keyboard shows 发送), except while a Chinese IME is
+// composing; Shift+Enter inserts a newline.
 
 import { h, icon } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
-import { openMenu } from './overlay.js'
 import { openAttachments } from './attachments.js'
 
-export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
+export function createComposer({ onSend, onImages, onHeight, onType }) {
   const textarea = h('textarea', {
     rows: 1,
     placeholder: '说点什么…',
@@ -19,14 +19,13 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   })
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': '发送' }, icon('arrow-up'))
   const field = h('div', { class: 'field glass' }, textarea, send)
-  const attach = h('button', { class: 'attach glass glass-btn', type: 'button', 'aria-label': '添加内容', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('plus'))
-  const form = h('form', { class: 'composer', autocomplete: 'off' }, field, attach)
+  const form = h('form', { class: 'composer', autocomplete: 'off' }, field)
 
   let chat = null
   let draftTimer = 0
   let readonly = false
-  let attachmentMenu = null
   let attachmentSheet = null
+  let docked = null
 
   function openImages(files = []) {
     if (readonly || !chat) return false
@@ -95,31 +94,11 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
   textarea.addEventListener('focus', () => form.classList.add('is-focused'))
   textarea.addEventListener('blur', () => form.classList.remove('is-focused'))
 
-  attach.addEventListener('click', () => {
-    if (readonly) return
-    if (attachmentMenu && !attachmentMenu.closed) return attachmentMenu.close()
-    attach.classList.add('is-open')
-    attach.setAttribute('aria-expanded', 'true')
-    const menu = openMenu(attach, [[
-      { label: '照片', icon: 'photo', onSelect: () => openImages() },
-      { label: '画板', icon: 'brush', onSelect: () => onDraw?.() }
-    ]], {
-      preferAbove: true,
-      onClose: () => {
-        if (attachmentMenu !== menu) return
-        attach.classList.remove('is-open')
-        attach.setAttribute('aria-expanded', 'false')
-        attachmentMenu = null
-      }
-    })
-    attachmentMenu = menu
-  })
   new ResizeObserver(() => onHeight?.(form.offsetHeight)).observe(form)
 
   return {
     el: form,
     setChat(id, { readonly: ro = false } = {}) {
-      attachmentMenu?.close()
       attachmentSheet?.close()
       if (chat && chat !== id) {
         clearTimeout(draftTimer)
@@ -129,7 +108,6 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
       readonly = ro
       form.classList.toggle('readonly', ro)
       textarea.disabled = ro
-      attach.disabled = ro
       textarea.placeholder = ro ? '暂时无法发送消息' : '说点什么…'
       textarea.value = id ? getDraft(id) : ''
       autosize()
@@ -138,13 +116,12 @@ export function createComposer({ onSend, onImages, onHeight, onType, onDraw }) {
       if (chat) setDraft(chat, textarea.value)
     },
     openImages,
-    /** Move the plus into another toolbar (or back), keeping focus and listeners. */
-    dockAttach(container) {
-      const destination = container || form
-      if (attach.parentElement === destination) return
-      const focused = document.activeElement === attach
-      destination.append(attach)
-      if (focused) attach.focus({ preventScroll: true })
+    /** Carry a bar section beside the field (horizontal bars), or release it. */
+    dock(section) {
+      if (section === docked) return
+      if (docked?.parentElement === form && !section) docked.remove()
+      docked = section
+      if (section) form.append(section)
     },
     focus() {
       textarea.focus({ preventScroll: true })

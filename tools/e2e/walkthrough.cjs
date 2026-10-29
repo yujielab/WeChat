@@ -39,11 +39,11 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await reg(A, amy, '艾米'); await reg(B, ben, '本'); await sleep(400)
 
   // settings (from the list, before a chat is open)
-  await A.click('.me-btn'); await A.waitForSelector('.sheet'); await sleep(500); await shot(A, '07-settings')
+  await A.click('.pane-list [data-item="settings"]'); await A.waitForSelector('.sheet'); await sleep(500); await shot(A, '07-settings')
   await A.keyboard.press('Escape'); await sleep(400)
 
   // open a DM
-  await A.click('.list-topbar .bar-btn.tint'); await A.waitForSelector('.sheet'); await sleep(400)
+  await A.click('.pane-list [data-item="compose"]'); await A.waitForSelector('.sheet'); await sleep(400)
   await A.fill('.sheet-search input', ben); await sleep(600); await shot(A, '02-newchat')
   await A.click(`.sheet .cell:has-text("@${ben}")`); await A.waitForSelector('.thread:not([hidden])'); await sleep(400)
   await B.click('.row'); await B.waitForSelector('.thread:not([hidden])'); await sleep(300)
@@ -56,7 +56,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await shot(A, '04-thread')
 
   // drawing board
-  await A.click('.composer .attach'); await sleep(250); await A.click('.menu-item:has-text("画板")')
+  await A.click('.thread [data-item="draw"]')
   await A.waitForSelector('.draw.on'); await sleep(300)
   const box = await (await A.$('.draw-canvas')).boundingBox()
   await A.mouse.move(box.x + 60, box.y + 90); await A.mouse.down()
@@ -70,7 +70,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await A.click('.draw-send'); await sleep(1000); await shot(A, '06-thread-drawing')
 
   // call UI (needs REALTIME_* dummy vars on the dev server)
-  await A.click('.thread-tools .glass-btn[aria-label="语音通话"]').catch(() => {})
+  await A.click('.thread [data-item="audio"]').catch(() => {})
   await sleep(700); await shot(B, '08-incoming-call')
   await A.click('.call .hang').catch(() => {}); await sleep(300)
 

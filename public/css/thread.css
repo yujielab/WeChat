@@ -47,26 +47,6 @@
   pointer-events: none;
 }
 .thread-nav > * { pointer-events: auto; }
-.thread-nav .back {
-  justify-self: start;
-  width: auto;
-  min-width: var(--hit);
-  padding: 0 10px 0 8px;
-  border-radius: calc(var(--hit) / 2);
-  display: inline-flex;
-  gap: 0;
-  color: var(--label);
-}
-.thread-nav .back .icon { width: 22px; height: 22px; }
-.thread-nav .back .count {
-  font-size: var(--t-subhead);
-  font-weight: var(--w-semibold);
-  font-variant-numeric: tabular-nums;
-  margin-left: -1px;
-}
-.thread-nav .back .count:empty { display: none; }
-.pane-thread[data-layout="split"] .thread-nav .back { display: none; }
-.thread-nav .info { justify-self: end; }
 .thread-title {
   width: 100%;
   min-width: 0;
@@ -410,18 +390,6 @@
   padding: 12px calc(var(--margin) + var(--safe-right)) calc(max(var(--safe-bottom), 16px)) calc(var(--margin) + var(--safe-left));
 }
 :root[data-kb="1"] .composer { padding-bottom: 8px; }
-.composer .attach {
-  width: 50px;
-  height: 50px;
-  margin-bottom: 3px;
-  position: relative;
-  background: var(--field);
-  box-shadow: none;
-}
-.composer .attach .icon { width: 23px; height: 23px; transition: transform 360ms var(--ease-morph); }
-.composer .attach.is-open { background: var(--ink); color: var(--on-ink); }
-.composer .attach.is-open .icon { transform: rotate(45deg); }
-.composer .attach::before, .composer .attach::after { display: none; }
 /* A white pill floating on a soft contact shadow (the glass recipe). */
 .field {
   flex: 1;
@@ -538,12 +506,6 @@
 
 /* ---------------------------------------------------------------- new-model additions */
 
-/* Call buttons grouped at the trailing edge of the nav. */
-.thread-nav .nav-actions { justify-self: end; display: flex; align-items: center; gap: 4px; }
-.thread-nav .nav-actions .glass-btn { width: 44px; height: 44px; box-shadow: none; background: var(--field); }
-.thread-nav .nav-actions .glass-btn::before, .thread-nav .nav-actions .glass-btn::after { display: none; }
-.thread-nav .nav-actions .glass-btn .icon { width: 19px; height: 19px; }
-.pane-thread[data-layout="split"] .thread-nav { grid-template-columns: minmax(0, 1fr) auto; }
 
 .thread-title .sub.typing { color: var(--blue); }
 
@@ -592,13 +554,6 @@
   :root:not([data-motion="full"]) .bubble.ghost::after { animation: none; }
 }
 
-/* Use the conversation's actual width, including a narrow unfolded pane. The
-   title remains the complete room-info entry when the extra info icon tucks away. */
-@container conversation (max-width: 440px) {
-  .thread-nav .info { display: none; }
-  .thread-nav { gap: 8px; }
-  .thread-title { gap: 8px; }
-}
 @container conversation (min-width: 700px) {
   .thread-scroll { padding-left: max(32px, calc((100% - 760px) / 2)); padding-right: max(32px, calc((100% - 760px) / 2)); }
   .composer { left: max(0px, calc((100% - 820px) / 2)); right: max(0px, calc((100% - 820px) / 2)); }
@@ -619,13 +574,11 @@
   :root:not([data-motion="full"]) .msgs.swap,
   :root:not([data-motion="full"]) .thread-title.swap .t,
   :root:not([data-motion="full"]) .thread-title.swap .avatar { animation: fade-in 120ms linear; }
-  :root:not([data-motion="full"]) .composer .attach .icon,
   :root:not([data-motion="full"]) .send { transition: none; }
 }
 :root[data-motion="reduce"] .msgs.swap,
 :root[data-motion="reduce"] .thread-title.swap .t,
 :root[data-motion="reduce"] .thread-title.swap .avatar { animation: fade-in 120ms linear; }
-:root[data-motion="reduce"] .composer .attach .icon,
 :root[data-motion="reduce"] .send { transition: none; }
 :root[data-motion="reduce"] .bubble.ghost,
 :root[data-motion="reduce"] .bubble.ghost::after { animation: none; }

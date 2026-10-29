@@ -1,218 +1,287 @@
-/* Duo conversation: a reachable side rail on a tall, narrow canvas; the same
-   controls settle above the composer when the conversation opens beside a list.
-   Camera and folding clearances come from the shell's measured safe regions. */
-.pane-thread { container-type:size; }
-.thread { --thread-top:max(96px,calc(3.4rem + 32px)); --thread-header-h:max(64px,calc(2.6rem + 16px)); --header-top:14px; --rail-width:66px; --thread-tools-h:0px; --header-tools-width:0px; --short-tools-width:184px; }
-.thread-nav,
-.pane-thread[data-layout="split"] .thread-nav {
-  grid-template-columns:minmax(0,1fr);
-  top:calc(var(--safe-top) + var(--header-top));
-  left:calc(var(--margin) + var(--safe-left));
-  right:calc(var(--margin) + var(--safe-right) + var(--rail-width) + var(--header-tools-width));
-  height:var(--thread-header-h);
-  padding-bottom:12px;
-  border-bottom:1px solid var(--line);
-}
-.thread-title { min-height:50px; gap:11px; }
-.thread-title .avatar { --size:44px; }
-.thread-title .name { font-size:1.059rem; line-height:1.25; letter-spacing:-.025em; }
-.thread-title .sub { font-size:var(--t-caption); margin-top:5px; }
-.thread-title:focus-visible { outline-offset:4px; }
-.thread-nav { background:var(--bg); }
-.thread>.edge-top { display:none; }
-.thread .ts { margin:14px 0 8px; }
-.thread .ts + .m.first { --gap:0px; }
+/* iPhone Duo layout, after Apple's Human Interface Guidelines ("Designing
+   for iPhone Duo"):
+   - Bars move to the trailing edge wherever the window is wide or short (the
+     outer display, the inner display in landscape) and stay as standard top
+     and bottom bars only where there is vertical room (data-bars, set by
+     js/ui/viewport.js; items by js/ui/bars.js).
+   - The top of that column belongs to the camera and status bar: the outer
+     camera is always there; on the inner display only the status bar is.
+   - Content takes the asymmetric space beside the column, inside safe areas.
+   - Unfolded, the list is the narrower leading pane; partially folded, both
+     panes meet the folding region at equal widths (base.css). */
 
-.thread-tools {
-  position:absolute;
-  z-index:calc(var(--z-chrome) + 1);
-  top:calc(var(--safe-top) + var(--thread-top) + 12px);
-  right:calc(var(--safe-right) + 6px);
-  bottom:calc(var(--composer-h,76px) + 24px);
-  width:54px;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  gap:14px;
-  pointer-events:none;
+:root {
+  --rail-w: 52px;
+  --rail-inset: 10px;
+  --rail-gap: 12px;
+  /* Camera + status bar at the top of the column on the outer display;
+     status bar alone on the inner display (its camera hides when inactive). */
+  --rail-reserve-outer: 150px;
+  --rail-reserve-inner: 104px;
 }
-.thread-tools>* { pointer-events:auto; }
-.thread-tool-group {
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:4px;
-  width:54px;
-  padding:5px;
-  border:1px solid var(--line);
-  border-radius:29px;
-  background:var(--surface);
-  box-shadow:0 4px 14px -8px rgb(0 0 0 / .12);
+.pane { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
+.shell[data-layout="split"] .pane-thread { --rail-reserve: var(--rail-reserve-inner); }
+/* Rotated, the outer display carries its camera at the foot of the column,
+   and the status bar steps away: Back moves to the very top. */
+:root[data-orientation="landscape"] .shell[data-layout="stack"] .pane { --rail-reserve: 12px; --rail-foot: 64px; }
+
+/* ---------------------------------------------------------------- bar items */
+.bar-section { display: flex; align-items: center; gap: 10px; }
+.bar-section[data-axis="vertical"], .bar-section[data-axis="vertical"] .bar-group { flex-direction: column; }
+.bar-group { display: flex; align-items: center; }
+.bar-group.capsule {
+  gap: 2px;
+  padding: 4px;
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), 0 4px 14px -8px rgb(0 0 0 / .12);
 }
-.thread-tools .glass-btn {
-  flex:none;
-  width:44px;
-  min-width:44px;
-  height:44px;
-  min-height:44px;
-  border-radius:50%;
-  background:transparent;
-  box-shadow:none;
-  -webkit-backdrop-filter:none;
-  backdrop-filter:none;
-  color:var(--label);
+.bar-item {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), 0 4px 14px -8px rgb(0 0 0 / .12);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--label);
 }
-.thread-tools .glass-btn::before,.thread-tools .glass-btn::after { display:none; }
-.thread-tools .glass-btn .icon { width:19px; height:19px; }
-.thread-tools .thread-tool-back { position:relative; border:1px solid var(--line); background:var(--surface); }
-.thread-tools .thread-tool-back .icon { width:21px; height:21px; }
-.thread-tool-back .count { position:absolute; top:-4px; right:-5px; min-width:17px; padding:2px 4px; border-radius:9px; background:var(--ink); color:var(--on-ink); font-size:9px; line-height:1.1; font-weight:600; box-shadow:0 0 0 2px var(--bg); }
-.thread-tool-back .count:empty { display:none; }
-.thread-tools .glass-btn:focus-visible { outline:2px solid var(--label-2); outline-offset:1px; }
-.thread-tools .glass-btn:active { background:var(--field); }
-@media(hover:hover) and (pointer:fine) {
-  .thread-tools .glass-btn:hover { background:var(--field); }
+.bar-item::before, .bar-item::after { display: none; }
+.bar-group.capsule .bar-item { background: transparent; box-shadow: none; }
+.bar-item .icon { width: 20px; height: 20px; }
+.bar-item.prominent, .bar-item.active { background: var(--ink); color: var(--on-ink); box-shadow: 0 3px 8px rgb(0 0 0 / .1); }
+.bar-item:disabled { opacity: .4; }
+.bar-item:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+.bar-item:not(.prominent):not(.active):active { background: var(--field); }
+@media (hover: hover) and (pointer: fine) {
+  .bar-item:not(.prominent):not(.active):hover { background: var(--field); }
+}
+.bar-badge {
+  position: absolute;
+  top: -4px;
+  right: -5px;
+  min-width: 17px;
+  padding: 2px 4px;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 9px;
+  line-height: 1.1;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
-.thread-safe-frame { position:absolute; inset:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); pointer-events:none; visibility:hidden; }
-.thread-tool-overflow { display:none; }
+/* ---------------------------------------------------------------- the column */
+.duo-rail {
+  position: absolute;
+  z-index: calc(var(--z-chrome) + 1);
+  top: max(var(--safe-top), var(--rail-reserve));
+  bottom: max(var(--safe-bottom), var(--rail-foot));
+  right: calc(var(--safe-right) + var(--rail-inset));
+  width: var(--rail-w);
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.duo-rail > * { pointer-events: auto; }
+.thread[data-bars="vertical"] > .duo-rail,
+.pane-list[data-bars="vertical"] > .duo-rail { display: flex; }
+:root[data-kb="1"] .duo-rail { bottom: 8px; }
+
+/* ---------------------------------------------------------------- conversation */
+.thread { --head-top: 12px; --head-h: max(64px, calc(2.6rem + 16px)); --content-right: calc(var(--safe-right) + var(--margin)); }
+.thread[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+
+/* The heading is content: avatar, name and status at the top of the
+   conversation, beside the column; with horizontal bars it shares the top
+   bar with Back and the call actions. */
+.thread-nav {
+  position: absolute;
+  z-index: var(--z-chrome);
+  top: calc(var(--safe-top) + var(--head-top));
+  left: calc(var(--margin) + var(--safe-left));
+  right: var(--content-right);
+  height: var(--head-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.thread-nav > .bar-section { display: contents; }
+.thread-nav .bar-group { order: 1; }
+.thread-nav .bar-group.lead { order: -1; }
+.thread-title { flex: 1; min-width: 0; min-height: 50px; gap: 11px; padding: 0; }
+.thread-title .avatar { --size: 44px; }
+.thread-title .name { font-size: 1.059rem; line-height: 1.25; letter-spacing: -.025em; }
+.thread-title .sub { font-size: var(--t-caption); margin-top: 5px; }
+.thread-title:focus-visible { outline-offset: 4px; }
+.thread[data-bars="horizontal"] .thread-title .avatar { --size: 36px; }
+.thread>.edge-top { display: none; }
+.thread .ts { margin: 14px 0 8px; }
+.thread .ts + .m.first { --gap: 0px; }
+
+/* Messages end at the writing band; a hairline marks where writing begins. */
 .thread-scroll {
-  top:calc(var(--safe-top) + var(--header-top) + var(--thread-header-h));
-  padding-top:max(0px,calc(var(--thread-top) - var(--header-top) - var(--thread-header-h)));
-  -webkit-mask-image:none;
-  mask-image:none;
-  padding-right:calc(var(--margin) + var(--safe-right) + var(--rail-width));
-  padding-bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + var(--trace-h,0px) + 18px);
+  top: calc(var(--safe-top) + var(--head-top) + var(--head-h));
+  bottom: var(--composer-h, 76px);
+  padding: 0 var(--content-right) calc(var(--trace-h, 0px) + 14px) calc(var(--margin) + var(--safe-left) + 2px);
+  -webkit-mask-image: none;
+  mask-image: none;
 }
-:root:not([data-kb="1"]) .thread-scroll { padding-bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + var(--trace-h,0px) + 14px); }
-.room-welcome { right:calc(24px + var(--safe-right) + var(--rail-width)); bottom:calc(var(--composer-h,84px) + var(--thread-tools-h) + 24px); }
-.thread .edge-bottom { height:calc(var(--composer-h,76px) + var(--thread-tools-h) + 4px); }
-.thread .upload-trace { right:calc(var(--margin) + var(--safe-right) + var(--rail-width)); bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + 8px); }
-.thread .jump { right:calc(var(--margin) + var(--safe-right) + var(--rail-width)); bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + var(--trace-h,0px) + 12px); }
+.thread .composer { padding-right: var(--content-right); gap: 8px; }
+.thread .composer::before { content: ''; position: absolute; top: 0; left: 0; right: calc(var(--content-right) - var(--rail-gap)); height: 1px; background: var(--line); }
+.thread[data-bars="horizontal"] .composer::before { right: 0; }
+.composer textarea { min-height: calc(1.45em + 18px); }
+/* With horizontal bars, drawing and photos sit beside the field. */
+.composer > .bar-section { flex: none; margin-bottom: 6px; gap: 6px; }
+.composer > .bar-section .bar-group.capsule { box-shadow: none; background: var(--field); }
+.room-welcome { right: var(--content-right); bottom: calc(var(--composer-h, 84px) + 24px); }
+.thread .upload-trace { right: var(--content-right); bottom: calc(var(--composer-h, 76px) + 8px); }
+.thread .jump { right: var(--content-right); bottom: calc(var(--composer-h, 76px) + var(--trace-h, 0px) + 12px); }
 
 /* The sender stays legible at the end of a message run, on either side. */
-.m.has-avatar { gap:10px; padding-inline:0; }
-.m.has-avatar .m-avatar { display:block; width:32px; }
-.m.has-avatar .m-avatar .avatar { --size:32px; }
-.m.has-avatar:not(.last) .m-avatar .avatar { visibility:hidden; }
-.m.has-avatar .m-col { max-width:min(calc(100% - 42px),27em); }
-.m.has-avatar:has(.m-status) .m-col { max-width:min(calc(100% - 76px),27em); }
-.msgs:has(>.m.out.has-avatar)>.m-meta { margin-right:44px; }
-.m.has-avatar .bubble { border-radius:20px; }
-.m.has-avatar.in.last .bubble:not(.jumbo):not(.media) { border-bottom-left-radius:7px; }
-.m.has-avatar.out.last .bubble:not(.jumbo):not(.media) { border-bottom-right-radius:7px; }
-.m.has-avatar .bubble.media { max-width:100%; }
-.m.has-avatar .bubble.media:not(.photo-stack) img { max-width:100%; height:auto; }
-.m.has-avatar .bubble.media .ph { max-width:100%; }
+.m.has-avatar { gap: 10px; padding-inline: 0; }
+.m.has-avatar .m-avatar { display: block; width: 32px; }
+.m.has-avatar .m-avatar .avatar { --size: 32px; }
+.m.has-avatar:not(.last) .m-avatar .avatar { visibility: hidden; }
+.m.has-avatar .m-col { max-width: min(calc(100% - 42px), 27em); }
+.m.has-avatar:has(.m-status) .m-col { max-width: min(calc(100% - 76px), 27em); }
+.msgs:has(>.m.out.has-avatar)>.m-meta { margin-right: 44px; }
+.m.has-avatar .bubble { border-radius: 20px; }
+.m.has-avatar.in.last .bubble:not(.jumbo):not(.media) { border-bottom-left-radius: 7px; }
+.m.has-avatar.out.last .bubble:not(.jumbo):not(.media) { border-bottom-right-radius: 7px; }
+.m.has-avatar .bubble.media { max-width: 100%; }
+.m.has-avatar .bubble.media:not(.photo-stack) img { max-width: 100%; height: auto; }
+.m.has-avatar .bubble.media .ph { max-width: 100%; }
 
-/* The plus sits on the same trailing axis as the side rail. */
-.composer { gap:10px; }
-.composer .field { order:1; }
-.composer .attach { order:2; margin-bottom:3px; }
-.composer textarea { min-height:calc(1.45em + 18px); }
-.pane-thread[data-layout="stack"] .composer { padding-right:calc(var(--safe-right) + 8px); }
+/* Partially folded like a laptop (a horizontal folding region): the
+   conversation reads above the fold and writing happens below it, so no
+   message or control sits in the bend. While typing, the keyboard owns the
+   lower half and the usual layout returns. */
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); }
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer { top: var(--fold-end); bottom: auto; padding-top: 16px; }
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer::before { display: none; }
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .jump { bottom: calc(100% - var(--fold-start) + 12px); }
 
-/* An unfolded conversation gets a low tool strip: more room to read at the
-   top, while the controls remain adjacent to the writing task. */
-.pane-thread[data-layout="split"] .thread { --short-tools-width:136px; }
-.thread[data-tools="strip"] { --rail-width:0px; --thread-tools-h:56px; }
-.thread[data-tools="strip"] .thread-tools {
-  top:auto;
-  left:calc(var(--margin) + var(--safe-left));
-  right:calc(var(--margin) + var(--safe-right));
-  bottom:calc(var(--composer-h,76px) + 8px);
-  width:auto;
-  height:44px;
-  flex-direction:row;
-  justify-content:stretch;
-}
-.pane-thread[data-layout="split"] .thread-tool-back { display:none; }
-.thread[data-tools="strip"] .thread-tool-group { flex:1; flex-direction:row; gap:6px; width:auto; padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
-.thread[data-tools="strip"] .thread-tool-group .info { margin-left:auto; }
-.thread[data-tools="strip"] .thread-tool-group .glass-btn { background:var(--field); }
-
-/* Keyboard and shallow-window layouts use their actual conversation height.
-   The tools become a compact header row rather than consuming reading height. */
-.thread[data-tools="header"] { --thread-top:max(78px,calc(2rem + 40px)); --thread-header-h:max(52px,calc(1.6rem + 24px)); --header-top:9px; --rail-width:0px; --thread-tools-h:0px; --header-tools-width:var(--short-tools-width); }
-.thread[data-tools="header"] .thread-nav { padding-bottom:0; border-bottom:0; }
-.thread[data-tools="header"] .thread-title { gap:8px; min-height:44px; }
-.thread[data-tools="header"] .thread-title .avatar { --size:32px; }
-.thread[data-tools="header"] .thread-title .name { font-size:var(--t-subhead); }
-.thread[data-tools="header"] .thread-title .sub { margin-top:3px; font-size:10px; }
-.thread[data-tools="header"] .thread-tools {
-  top:calc(var(--safe-top) + var(--header-top) + var(--thread-header-h) / 2 - 22px);
-  right:calc(var(--safe-right) + var(--margin)); bottom:auto; left:auto;
-  width:var(--short-tools-width); height:44px;
-  flex-direction:row; justify-content:flex-end; gap:4px;
-}
-.thread[data-tools="header"] .thread-tool-group { flex-direction:row; width:136px; padding:0; gap:2px; border:0; background:none; box-shadow:none; }
-.thread[data-tools="header"] .thread-tools .glass-btn { background:var(--field); }
-.thread[data-tools="header"] .thread-tool-back { border:0; }
-.thread[data-tools="header"] .thread-tool-group .info { margin-left:0; }
-.thread[data-tools="header"] .room-welcome { top:calc(var(--safe-top) + var(--thread-top)); }
-.thread[data-tools="header"] .composer { padding-top:8px; }
-.thread[data-tools="header"][data-tight="true"] { --short-tools-width:92px; }
-.thread[data-tools="header"][data-tight="true"] .thread-tool-group { display:none; }
-.thread[data-tools="header"][data-tight="true"] .thread-tool-overflow { display:grid; }
-.pane-thread[data-layout="split"] .thread[data-tools="header"][data-tight="true"] { --short-tools-width:44px; }
-
-/* Width queries keep very wide desktop panes comfortable without changing
-   the sketch's side-by-side relationship at inner-display widths. */
-@container conversation (min-width:700px) {
-  .thread { --reading-inset:max(32px,calc((100% - var(--safe-left) - var(--safe-right) - 760px)/2)); }
-  .thread-scroll { padding-left:calc(var(--safe-left) + var(--reading-inset)); padding-right:calc(var(--safe-right) + var(--reading-inset) + var(--rail-width)); }
-  .thread-nav { left:calc(var(--safe-left) + var(--reading-inset)); right:calc(var(--safe-right) + var(--reading-inset) + var(--rail-width) + var(--header-tools-width)); }
-  .thread[data-tools="strip"] .thread-tools { left:calc(var(--safe-left) + var(--reading-inset)); right:calc(var(--safe-right) + var(--reading-inset)); }
+/* Width queries keep very wide panes comfortable to read. */
+@container conversation (min-width: 700px) {
+  .thread { --reading-inset: max(32px, calc((100% - var(--safe-left) - var(--safe-right) - 760px) / 2)); }
+  .thread-scroll { padding-left: calc(var(--safe-left) + var(--reading-inset)); }
 }
 
-@media(prefers-reduced-motion:reduce) {
-  :root:not([data-motion="full"]) .thread-tools .glass-btn { transition:none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .bar-item { transition: none; }
 }
-:root[data-motion="reduce"] .thread-tools .glass-btn { transition:none; }
+:root[data-motion="reduce"] .bar-item { transition: none; }
 
-/* ---------------------------------------------------------------- sketch regions
-   Header, conversation and composer are three bands. Messages end at the
-   writing band instead of sliding beneath it, and a hairline marks where
-   writing begins — the same line on the folded and unfolded screens. */
-.thread-scroll { bottom:calc(var(--composer-h,76px) + var(--thread-tools-h)); }
-.thread-scroll,
-:root:not([data-kb="1"]) .thread-scroll { padding-bottom:calc(var(--trace-h,0px) + 14px); }
-.thread .edge-bottom { display:none; }
-.thread .composer::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--line); }
-.thread .upload-trace { bottom:calc(var(--composer-h,76px) + var(--thread-tools-h) + 8px); }
+/* ---------------------------------------------------------------- modal surfaces
+   Sheets, the photo viewer, the drawing board and calls follow the same rule
+   as the app: where bars are vertical, Close leads a column on the trailing
+   edge below the camera and status bar, prominent actions follow, and the
+   content takes the space beside it. On the inner display a sheet placed on
+   the leading side keeps a horizontal bar; one on the trailing side doesn't. */
+.overlays { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
+.overlays[data-layout="split"] { --rail-reserve: var(--rail-reserve-inner); }
+:root[data-orientation="landscape"] .overlays[data-layout="stack"] { --rail-reserve: 12px; --rail-foot: 64px; }
 
-/* Labels, the drawing shortcut and the person pill belong to the unfolded strip. */
-.tool-label, .thread-tool-draw, .thread-person-hint { display:none; }
-.thread-person-pill { display:contents; }
-.thread-tools .glass-btn.attach { background:var(--field); }
-.thread-tools .attach .icon { width:21px; height:21px; transition:transform 360ms var(--ease-morph); }
-.thread-tools .attach.is-open { background:var(--ink); color:var(--on-ink); }
-.thread-tools .attach.is-open .icon { transform:rotate(45deg); }
+:root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head,
+:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-side="thread"] .sheet-head {
+  grid-template-columns: minmax(0, 1fr) 44px;
+  padding-top: 10px;
+}
+:root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head h2,
+:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-side="thread"] .sheet-head h2 {
+  grid-column: 1;
+  text-align: left;
+  font-size: var(--t-title-2);
+}
+:root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head .end,
+:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-side="thread"] .sheet-head .end { grid-column: 2; }
 
-/* Unfolded (sketch 2): the name and status are centred under the inner
-   camera; the person moves to a pill at the trailing edge and opens the
-   chat's details. Below the conversation, three labelled chips lead and the
-   plus closes the row, so the field above the keyboard runs full width. */
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] { --person-pill-w:104px; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title { position:relative; justify-content:center; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title .t { align-items:center; text-align:center; padding-inline:var(--person-pill-w); }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-person-pill {
-  position:absolute; right:0; top:50%; translate:0 -50%;
-  display:flex; align-items:center; gap:7px; height:44px; padding:4px 14px 4px 4px; border-radius:22px;
-  background:var(--field); color:var(--label-2); font-size:.706rem; font-weight:560; white-space:nowrap;
+/* The viewer stays full width; its controls float in the column. */
+:root[data-bars="vertical"] .viewer-bar.top {
+  top: max(var(--safe-top), var(--rail-reserve));
+  left: auto;
+  right: calc(var(--safe-right) + var(--rail-inset));
+  width: var(--rail-w);
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
 }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-person-hint { display:inline; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title .avatar { --size:36px; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title.is-online .thread-person::after { right:-2px; bottom:-1px; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tool-group .glass-btn {
-  display:inline-flex; align-items:center; justify-content:center; gap:7px; width:auto; padding:0 16px 0 14px; border-radius:22px;
-  font-size:.765rem; font-weight:560; letter-spacing:.02em;
+:root[data-bars="vertical"] .viewer-gallery-count { left: calc(var(--safe-left) + 16px); translate: none; }
+:root[data-bars="vertical"] .viewer-bar.viewer-gallery-navigation {
+  top: auto;
+  bottom: max(var(--safe-bottom), var(--rail-foot));
+  left: auto;
+  right: calc(var(--safe-right) + var(--rail-inset));
+  width: var(--rail-w);
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
 }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tool-group .glass-btn .icon { width:17px; height:17px; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .tool-label { display:inline; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tool-group .glass-btn.info { display:none; }
-.pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-tools { gap:8px; }
-@media(hover:hover) and (pointer:fine) {
-  .pane-thread[data-layout="split"] .thread[data-tools="strip"] .thread-title:hover .thread-person-pill { background:color-mix(in srgb,var(--field) 82%,var(--label) 6%); }
+:root[data-bars="vertical"] .viewer-bar.viewer-gallery-bottom { right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w)); }
+
+/* Drawing: Close, then Send (a symbol here: text stays in horizontal bars),
+   then Undo and Clear; the colours and sizes stay with the paper. */
+:root[data-bars="vertical"] .draw { --draw-column: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+:root[data-bars="vertical"] .draw-head {
+  position: absolute;
+  z-index: 2;
+  top: max(var(--safe-top), var(--rail-reserve));
+  right: calc(var(--safe-right) + var(--rail-inset));
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
 }
+:root[data-bars="vertical"] .draw-head .draw-close { width: 44px; height: 44px; }
+:root[data-bars="vertical"] .draw-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:root[data-bars="vertical"] .draw-send { width: 44px; height: 44px; padding: 0; border-radius: 50%; justify-content: center; }
+:root[data-bars="vertical"] .draw-send .icon { width: 19px; height: 19px; }
+:root[data-bars="vertical"] .draw-send-label { display: none; }
+:root[data-bars="vertical"] .draw-tools {
+  position: absolute;
+  z-index: 2;
+  top: calc(max(var(--safe-top), var(--rail-reserve)) + 118px);
+  right: calc(var(--safe-right) + var(--rail-inset));
+  width: var(--rail-w);
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), 0 4px 14px -8px rgb(0 0 0 / .12);
+}
+:root[data-bars="vertical"] .draw-stage { margin: calc(var(--safe-top) + 12px) var(--draw-column) 0 calc(var(--margin) + var(--safe-left)); }
+:root[data-bars="vertical"] .draw-bar { padding-right: var(--draw-column); }
+
+/* Calls are immersive and use the full width; their controls take the
+   column — End first, as Close would — and the heading and self-view move
+   to the leading side, clear of the camera (always on the outer display,
+   and on the inner display whenever the camera is in use). */
+:root[data-bars="vertical"] .call-controls,
+:root[data-bars="vertical"] .call-incoming {
+  position: absolute;
+  z-index: 3;
+  top: max(var(--safe-top), var(--rail-reserve));
+  right: calc(var(--safe-right) + var(--rail-inset) - 6px);
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 0;
+}
+:root[data-bars="vertical"] .call-controls .hang,
+:root[data-bars="vertical"] .call-incoming .hang { order: -1; }
+:root[data-bars="vertical"] .call-stage { padding-right: calc(var(--safe-right) + var(--rail-inset) + 64px); }
+:root[data-bars="vertical"] .call-head { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--safe-right) + var(--rail-inset) + 76px); text-align: left; }
+:root[data-bars="vertical"] .call-local { top: auto; right: auto; bottom: calc(max(var(--safe-bottom), 14px) + 4px); left: calc(var(--margin) + var(--safe-left)); }

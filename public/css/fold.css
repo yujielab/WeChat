@@ -36,10 +36,10 @@
 :root[data-posture] .thread:not([hidden]) .thread-title .name { view-transition-name: duo-name; }
 :root[data-posture] .thread:not([hidden]) .thread-title .sub { view-transition-name: duo-sub; }
 :root[data-posture] .thread:not([hidden]) .thread-person .avatar { view-transition-name: duo-avatar; }
-:root[data-posture] .thread:not([hidden]) .thread-tool-back { view-transition-name: duo-back; }
-:root[data-posture] .thread:not([hidden]) .tool-audio { view-transition-name: duo-audio; }
-:root[data-posture] .thread:not([hidden]) .tool-video { view-transition-name: duo-video; }
-:root[data-posture] .thread:not([hidden]) .attach { view-transition-name: duo-attach; }
+:root[data-posture] .thread:not([hidden]) [data-item="back"] { view-transition-name: duo-back; }
+:root[data-posture] .thread:not([hidden]) [data-item="audio"] { view-transition-name: duo-audio; }
+:root[data-posture] .thread:not([hidden]) [data-item="video"] { view-transition-name: duo-video; }
+:root[data-posture] .thread:not([hidden]) [data-item="photo"] { view-transition-name: duo-photo; }
 :root[data-posture] .thread:not([hidden]) .composer .field { view-transition-name: duo-field; }
 :root[data-posture="unfold"] .pane-list { view-transition-name: duo-list; }
 

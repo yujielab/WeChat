@@ -19,6 +19,8 @@ import { bindImageDropTarget } from './attachments.js'
 import { createUploadTrace } from '../ui/upload-trace.js'
 import { createHalftone } from '../ui/halftone.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
+import { createBars } from '../ui/bars.js'
+import { getBars, onBars } from '../ui/viewport.js'
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -57,7 +59,7 @@ function withReaction(groups = [], uid, emoji) {
 const sameRun = (a, b) =>
   a && b && !isSys(a) && !isSys(b) && a.out === b.out && a.from === b.from && b.ts - a.ts < RUN_GAP
 
-export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
+export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSend }) {
   pane.classList.add('pane-thread')
   let current = null
   let newCount = 0
@@ -77,76 +79,90 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   const scroller = h('div', { class: 'scroll thread-scroll', role: 'log', 'aria-label': '消息' }, msgs)
   scroller.style.overflowAnchor = 'none'
 
-  const backCount = h('span', { class: 'count tabular' })
-  const back = h('button', { class: 'glass glass-btn back thread-tool-back', type: 'button', 'aria-label': '返回聊天列表' }, icon('chevron-left'), backCount)
+  // The conversation's heading is content: it stays with the messages on
+  // every display, and opens the chat's details.
   const titleName = h('span', { class: 'name' })
   const titleSub = h('span', { class: 'sub' })
-  // Unfolded, the avatar becomes a pill at the header's trailing edge so the
-  // name can sit centred under the inner camera.
   const titleAvatar = h('span', { class: 'thread-person' })
-  const titlePersonHint = h('span', { class: 'thread-person-hint', 'aria-hidden': 'true' })
-  const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, h('span', { class: 'thread-person-pill' }, titleAvatar, titlePersonHint), h('span', { class: 't' }, titleName, titleSub))
-  const toolLabel = text => h('span', { class: 'tool-label', 'aria-hidden': 'true' }, text)
-  const audioCall = h('button', { class: 'glass glass-btn tool-audio', type: 'button', 'aria-label': '语音通话' }, icon('phone'), toolLabel('语音'))
-  const videoCall = h('button', { class: 'glass glass-btn tool-video', type: 'button', 'aria-label': '视频通话' }, icon('video'), toolLabel('视频'))
-  const drawTool = h('button', { class: 'glass glass-btn thread-tool-draw', type: 'button', 'aria-label': '画板' }, icon('brush'), toolLabel('画板'))
-  const infoBtn = h('button', { class: 'glass glass-btn info', type: 'button', 'aria-label': '聊天信息' }, icon('info'))
-  const moreTools = h('button', { class: 'glass glass-btn thread-tool-overflow', type: 'button', 'aria-label': '更多聊天操作', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('ellipsis'))
-  const navActions = h('div', { class: 'nav-actions thread-tool-group' }, audioCall, videoCall, drawTool, infoBtn)
-  const tools = h('nav', { class: 'thread-tools', 'aria-label': '聊天操作' }, back, navActions, moreTools)
+  const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
+
+  // Bars (Apple HIG, Designing for iPhone Duo): Back leads, the calls are the
+  // prominent actions, details follow; drawing and photos belong with the
+  // field below. Folded or short, they run down the trailing edge; with
+  // vertical room they are standard top and bottom bars. Unfolded beside the
+  // list, the column also carries New Chat, as Mail and Notes do.
+  const draw = () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
+  const unreadBadge = () => {
+    const n = current ? unreadTotal(current) : 0
+    return n ? (n > 99 ? '99+' : String(n)) : ''
+  }
+  const bars = createBars({
+    label: '聊天操作',
+    items: [
+      { id: 'back', icon: 'chevron-left', title: '返回聊天列表', primary: true, badge: unreadBadge, onSelect: () => onBack() },
+      { id: 'audio', icon: 'phone', title: '语音通话', priority: 6, onSelect: () => current && onCall?.(current, 'audio') },
+      { id: 'video', icon: 'video', title: '视频通话', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
+      { id: 'info', icon: 'info', title: '聊天信息', priority: 2, onSelect: () => current && onInfo(current) },
+      { id: 'draw', icon: 'brush', title: '画板', priority: 3, onSelect: () => current && draw() },
+      { id: 'photo', icon: 'photo', title: '照片', priority: 7, onSelect: () => current && composer.openImages() },
+      { id: 'compose', icon: 'compose', title: '新聊天', priority: 8, prominent: true, onSelect: () => onCompose?.() }
+    ],
+    arrange: axis => {
+      const split = pane.dataset.layout === 'split'
+      if (axis === 'vertical') {
+        return split
+          ? { top: [['audio', 'video'], ['info']], bottom: [['draw', 'photo'], ['compose']] }
+          : { top: [['back'], ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
+      }
+      return { top: [...(split ? [] : [['back']]), ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
+    }
+  })
+  const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': '聊天操作' })
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
 
-  const draw = () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
   const composer = createComposer({
     onSend: text => sendText(text),
     onImages: files => sendImages(files),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
-    onType: text => sendTyping(text),
-    onDraw: draw
+    onType: text => sendTyping(text)
   })
 
   const edgeTop = edge('top')
-  const edgeBottom = edge('bottom', true)
   const welcomeName = h('h2', {}, '从一句问候开始')
   const welcome = h('div', { class: 'room-welcome', hidden: true },
     h('div', { class: 'room-welcome-mark', 'aria-hidden': 'true' }, icon('bubble')),
     welcomeName,
     h('p', {}, '写一句话，画一个心情。\n此刻，就从这里聊起。'))
   const uploadTrace = createUploadTrace()
-  const safeFrame = h('span', { class: 'thread-safe-frame', 'aria-hidden': 'true', inert: true })
-  const root = h('div', { class: 'thread', hidden: true }, safeFrame, scroller, welcome, edgeTop, nav, tools, edgeBottom, composer.el, jump, uploadTrace.el)
-  let safeWidth = 0, safeHeight = 0
-  let toolsMenu = null
-  function arrangeTools(previousFocus = document.activeElement) {
-    if (!safeWidth || !safeHeight) return
-    const mode = safeHeight <= 500 || safeWidth < 260 ? 'header' : pane.dataset.layout === 'split' || safeWidth < 400 ? 'strip' : 'rail'
-    const tight = safeWidth < 400
-    const changed = root.dataset.tools !== mode || root.dataset.tight !== String(tight)
-    root.dataset.tools = mode
-    root.dataset.tight = String(tight)
-    // The unfolded strip ends with the plus, so the field can run full width.
-    composer.dockAttach(pane.dataset.layout === 'split' && mode === 'strip' ? tools : null)
-    if (tools.contains(previousFocus) && !previousFocus.getClientRects().length) {
-      const target = previousFocus === back ? titleBtn : moreTools.getClientRects().length ? moreTools : audioCall
-      target.focus({ preventScroll: true })
-    }
-    if (!changed) return
-    if (toolsMenu && !toolsMenu.closed) {
-      const previous = toolsMenu
-      const hadFocus = previous.el.contains(document.activeElement)
-      previous.close().then(() => {
-        if (hadFocus && document.activeElement === document.body && current) titleBtn.focus({ preventScroll: true })
-      })
-    }
+  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, rail, composer.el, jump, uploadTrace.el)
+
+  // Bars follow the window's axis; the conversation pane beside the list
+  // keeps its column, the list keeps horizontal bars (see shell / chatList).
+  let barsFrame = 0
+  function arrangeBars() {
+    cancelAnimationFrame(barsFrame)
+    barsFrame = requestAnimationFrame(() => {
+      const axis = getBars() || 'vertical'
+      root.dataset.bars = axis
+      if (axis === 'vertical') {
+        if (bars.top.parentElement !== rail) bars.move(() => { composer.dock(null); rail.append(bars.top, bars.bottom) })
+        bars.layout('vertical', rail.clientHeight)
+      } else {
+        if (bars.top.parentElement !== nav) bars.move(() => { nav.append(bars.top); composer.dock(bars.bottom) })
+        // The title keeps at least 150px; the field keeps at least 200px.
+        bars.layout('horizontal', {
+          top: Math.max(0, nav.clientWidth - 150),
+          bottom: Math.max(0, composer.el.clientWidth - 200)
+        })
+      }
+    })
   }
-  new ResizeObserver(([entry]) => {
-    safeWidth = entry.contentRect.width
-    safeHeight = entry.contentRect.height
-    arrangeTools()
-  }).observe(safeFrame)
+  new ResizeObserver(arrangeBars).observe(rail)
+  new ResizeObserver(arrangeBars).observe(nav)
+  onBars(arrangeBars)
   bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
   new ResizeObserver(() => {
     root.style.setProperty('--trace-h', `${uploadTrace.el.hidden ? 0 : uploadTrace.el.getBoundingClientRect().height + 8}px`)
@@ -163,23 +179,8 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
         h('span', {}, icon('phone'), '通话'))))
   pane.append(empty, root)
 
-  back.addEventListener('click', () => onBack())
   titleBtn.addEventListener('click', () => current && onInfo(current))
-  infoBtn.addEventListener('click', () => current && onInfo(current))
   jump.addEventListener('click', () => scrollToBottom(true))
-  drawTool.addEventListener('click', () => current && draw())
-  audioCall.addEventListener('click', () => current && onCall?.(current, 'audio'))
-  videoCall.addEventListener('click', () => current && onCall?.(current, 'video'))
-  moreTools.addEventListener('click', () => {
-    if (!current) return
-    if (toolsMenu && !toolsMenu.closed) return toolsMenu.close()
-    const chat = current
-    toolsMenu = openMenu(moreTools, [[
-      { label: '语音通话', icon: 'phone', onSelect: () => current === chat && onCall?.(chat, 'audio') },
-      { label: '视频通话', icon: 'video', onSelect: () => current === chat && onCall?.(chat, 'video') },
-      { label: '聊天信息', icon: 'info', onSelect: () => current === chat && onInfo(chat) }
-    ]])
-  })
 
   let lastWidth = 0, lastHeight = 0
   new ResizeObserver(([e]) => {
@@ -577,7 +578,6 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
   }
 
   function close() {
-    toolsMenu?.close()
     composer.flushDraft()
     composer.blur()
     stopVoice()
@@ -600,14 +600,13 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
     const c = chatInfo(current) || { id: current, name: '聊天' }
     const room = c.kind === 'group'
     titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 40 }))
-    titlePersonHint.textContent = room ? (c.count ? `${c.count} 人` : '成员') : '资料'
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
     if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '群聊') : (c.online ? '此刻在线' : '私聊')
     titleBtn.setAttribute('aria-label', `${c.name}，查看聊天信息`)
-    const n = unreadTotal(current)
-    backCount.textContent = n ? (n > 99 ? '99+' : String(n)) : ''
-    back.setAttribute('aria-label', n ? `返回聊天列表，${n} 条未读` : '返回聊天列表')
+    // The unread badge on Back is status: it changes what overflows first.
+    bars.refresh()
+    arrangeBars()
   }
 
   // ------------------------------------------------------------ read state
@@ -1134,10 +1133,10 @@ export function createThread(pane, { onBack, onInfo, onCall, socketSend }) {
       empty.hidden = false
     },
     setLayout(layout) {
-      const previousFocus = document.activeElement
       pane.dataset.layout = layout
-      arrangeTools(previousFocus)
+      arrangeBars()
     },
+    bars,
     focusComposer() {
       composer.focus()
     },

@@ -147,12 +147,18 @@ img { -webkit-user-drag: none; }
   pointer-events: none;
 }
 
-/* Split (unfolded): list on the left, conversation on the right. The list
-   width is tuned so the conversation keeps a comfortable ~40em measure. */
+/* Split (unfolded): list on the leading side, conversation on the trailing
+   side. Fully open, the list is the narrower pane; partially folded, both
+   panes meet the folding region at equal widths and nothing sits in the
+   bend (data-fold / --fold-start / --fold-end from js/ui/viewport.js). */
 .shell[data-layout="split"] {
-  --list-w: clamp(300px, calc(48% - 8px), 420px);
-  --fold-gap: 16px;
+  --list-w: clamp(300px, 36%, 400px);
+  --fold-gap: 0px;
   background: var(--paper);
+}
+:root[data-fold="vertical"] .shell[data-layout="split"] {
+  --list-w: var(--fold-start);
+  --fold-gap: calc(var(--fold-end) - var(--fold-start));
 }
 .shell[data-layout="split"] .pane-list {
   left: 0;
@@ -167,13 +173,6 @@ img { -webkit-user-drag: none; }
   border-left: var(--hairline) solid var(--line);
 }
 
-/* If the browser reports the hinge as two viewport segments, put the split on it. */
-@media (horizontal-viewport-segments: 2) {
-  .shell[data-layout="split"] {
-    --list-w: env(viewport-segment-width 0 0, calc(48% - 8px));
-    --fold-gap: max(0px, calc(env(viewport-segment-left 1 0, 50vw) - env(viewport-segment-right 0 0, 50vw)));
-  }
-}
 
 /* No transitions while folding/unfolding or rotating. */
 /* Resetting animation here would replay completed entrances when this class
