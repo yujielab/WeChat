@@ -18,21 +18,22 @@
   /* Camera + status bar at the top of the column on the outer display;
      status bar alone on the inner display (its camera hides when inactive). */
   --rail-reserve-outer: 162px;
-  --rail-reserve-inner: 104px;
+  --rail-reserve-inner: 112px;
 }
 /* Where the column goes. Without a column of the system's own, the rail
    takes its place inside the safe area and content stops beside it
-   (--rail-content). Upright on the outer display, iOS keeps a column down the
-   right edge for the status bar and the Dynamic Island, reported as the right
-   inset (84pt, its centre 50pt in from the edge, measured on device): the
-   rail joins that column, centred under the status bar, and content runs up
-   to the inset like everywhere else. Computed per pane and per overlay so a
-   column beside the fold uses its own insets. */
+   (--rail-content). On both displays iOS keeps a column down the right edge
+   for the status bar and the Dynamic Island, reported as the right inset
+   (84pt, its centre 50pt in from the edge, measured on device folded and
+   open): the rail joins that column, centred under the status bar, and
+   content runs up to the inset like everywhere else. Computed per pane and
+   per overlay so a column on the leading side of the fold, which has no
+   inset of its own, keeps the rail inside. */
 .pane, .overlays, .viewer, .draw, .call {
   --rail-right: calc(var(--safe-right) + var(--rail-inset));
   --rail-content: calc(var(--rail-right) + var(--rail-w) + var(--rail-gap));
 }
-:root[data-edge-column] :is(.pane:not([data-role="leading"]), .overlays, .viewer, .draw, .call) {
+:root[data-edge-column] :is(.pane:not([data-role="leading"]), .overlays, .viewer:not([data-place="leading"]), .call:not([data-place="leading"]), .draw) {
   --rail-right: max(4px, calc(var(--safe-right) - 34px - var(--rail-w) / 2));
   --rail-content: max(calc(var(--safe-right) + var(--margin)), calc(var(--rail-right) + var(--rail-w) + var(--rail-gap)));
 }

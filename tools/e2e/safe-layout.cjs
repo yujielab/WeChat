@@ -31,9 +31,10 @@ for(const c of [
 await p.evaluate(c=>{if(c.kb)Object.defineProperty(visualViewport,'height',{get:()=>c.kb,configurable:true});else delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))},c);await p.waitForTimeout(250);const H=c.kb||c.h,B=c.kb?0:c.bottom;
 const d=await p.evaluate(()=>{const r=e=>{const b=e.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,w:b.width,h:b.height}};const thread=document.querySelector('.thread'),nav=document.querySelector('.thread-nav');return{axis:thread.dataset.bars,reserve:document.querySelector('.thread-rail').getBoundingClientRect().top,foot:document.querySelector('.thread-rail').getBoundingClientRect().bottom,thread:r(thread),header:r(nav),scroll:r(document.querySelector('.thread-scroll')),field:r(document.querySelector('.composer .field')),title:r(document.querySelector('.thread-title')),items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>({id:e.dataset.item||'more',...r(e)})),overflow:thread.scrollWidth>thread.clientWidth,underHeader:Boolean(document.elementFromPoint(nav.getBoundingClientRect().left+100,nav.getBoundingClientRect().bottom-2)?.closest('.m'))}});console.log(JSON.stringify({case:c,axis:d.axis,items:d.items.map(i=>i.id)}));
 assert.equal(d.axis,c.axis,'bar axis');assert.ok(d.scroll.y>=d.header.bottom-.5);assert.equal(d.underHeader,false);assert.equal(d.overflow,false);
-// Upright with a wide right inset (the outer display's own column for the status bar and Dynamic Island),
-// the bars join that column; everywhere else they stay inside the safe area. Content always does.
-const edge=c.w<c.h&&c.right>=64
+// With a wide right inset (the Duo's own column for the status bar and Dynamic Island, open or closed) the
+// bars join that column, except in the leading column of a split view; everywhere else they stay inside the
+// safe area. Content always does.
+const edge=c.right>=64&&!c.lead
 for(const b of[...d.items,d.field]){const limit=edge&&b!==d.field?c.w-4:Math.min(c.w-c.right,d.thread.right);assert.ok(b.x>=d.thread.x-.5&&b.right<=limit+.5,'safe horizontal '+b.id);assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
 for(const b of d.items)assert.ok(b.w>=44&&b.h>=44,'44pt '+b.id)
 const ids=d.items.map(i=>i.id)
