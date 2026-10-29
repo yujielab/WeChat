@@ -79,7 +79,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
 - **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
-- **通知**：新消息 Web Push（需加到主屏幕并配置 VAPID）
+- **通知**：新消息与来电用 **Declarative Web Push**（Safari 18.4 起由系统直接显示，应用退出或在后台也能收到；其他浏览器经 Service Worker 显示同一条消息），带应用角标；需加到主屏幕并配置 VAPID
 - **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
 - **iPhone Duo**：按 Apple HIG 设计——后缘垂直控制与优先级溢出、外屏单栏 / 内屏分栏、折叠区与相机避让、弹层按位置选择栏的方向
 
@@ -91,7 +91,7 @@ iPhone (PWA)  ──HTTPS / WebSocket──▶  Worker（瘦代理）  ──▶
   Service Worker：离线壳 + 推送          转发到 Hub            · 可休眠 WebSocket 实时收发 + 在线状态
                                                              · 媒体校验后读写 R2
                         WebRTC 媒体 ◀──▶ Cloudflare Realtime  · 通话信令中转 + /rtc 代理（App Secret 只在服务端）
-                        离线成员 ◀────── Web Push（VAPID）
+                        离线成员 ◀────── Declarative Web Push（VAPID）：新消息、来电、未接来电
 ```
 
 - **Worker（`src/index.js`）**：只做转发与同源校验，所有状态都在一个 Durable Object 里。
@@ -101,7 +101,9 @@ iPhone (PWA)  ──HTTPS / WebSocket──▶  Worker（瘦代理）  ──▶
 - **媒体（`src/media.js`）**：上传按会话成员与大小校验后流式写入 **R2**；下载带 sandbox CSP + nosniff，
   按会话成员鉴权。
 - **通话（`src/call.js`）**：信令走 WebSocket；媒体经 `/rtc/*` 代理到 **Cloudflare Realtime SFU**，
-  App Secret 不下发浏览器；TURN 凭证由 Realtime TURN key 下发。
+  App Secret 不下发浏览器；TURN 凭证由 Realtime TURN key 下发。响铃中的通话存在 Durable Object 里：
+  对方应用没开、或打开了却没回应“正在响铃”时，改用通知呼叫；对方转到后台不会挂断，点通知回来会继续响铃。
+  主叫看到对方是“响铃中”“已通过通知提醒”还是“没有打开应用，也没有开启通知”。
 - **账号加密（`src/auth.js`）**：PBKDF2-HMAC-SHA256（100k 轮，Workers WebCrypto 的迭代上限）哈希密码；HMAC 签名会话令牌，
   携带 epoch，可“全端退出”。
 
@@ -185,7 +187,7 @@ iOS 需先用 Safari“添加到主屏幕”，再从主屏幕打开，在“设
 
 ```bash
 npm run dev          # wrangler dev，打开 http://127.0.0.1:8787 ，点“创建账号”
-npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量）
+npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量、声明式消息）+ 通话信令
 ```
 
 - 本地 `wrangler dev` 自带内存版 Durable Object SQLite 和 R2，无需额外配置即可跑通聊天与媒体。

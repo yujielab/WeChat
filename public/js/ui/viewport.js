@@ -179,6 +179,10 @@ function insetRight() {
     insetProbe.setAttribute('aria-hidden', 'true')
     insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;height:0;width:var(--safe-right)'
     document.body.append(insetProbe)
+    // The insets can settle after launch without any resize (iOS 27.2 hands a
+    // Home Screen app its safe area a moment later), so the probe itself is
+    // watched: when the right inset changes, everything is measured again.
+    new ResizeObserver(() => measure()).observe(insetProbe)
   }
   return insetProbe.offsetWidth
 }
@@ -196,6 +200,9 @@ export function initViewport() {
   vv?.addEventListener('scroll', measure)
   window.addEventListener('resize', measure)
   window.addEventListener('orientationchange', () => setTimeout(measure, 300))
+  // Returning from the background or the app switcher can bring new insets too.
+  window.addEventListener('pageshow', () => measure())
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) measure() })
   document.addEventListener('focusin', () => setTimeout(measure, 50))
   document.addEventListener('focusout', () => {
     setTimeout(() => {

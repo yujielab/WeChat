@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v13'
+const SHELL = 'shell-v14'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -31,6 +31,8 @@ const SHELL_FILES = [
   '/js/store.js',
   '/js/ui/dom.js',
   '/js/ui/symbols.js',
+  '/js/ui/push.js',
+  '/js/ui/dots.js',
   '/js/ui/format.js',
   '/js/ui/haptics.js',
   '/js/ui/viewport.js',
@@ -117,6 +119,10 @@ async function mediaFirst(req) {
   return res
 }
 
+// Pushes are Declarative Web Push messages (src/push/webpush.js). Where the
+// browser supports them it shows them itself and this never runs; elsewhere
+// the same JSON arrives here and is shown the same way. Older messages
+// ({ title, body, room }) still read.
 self.addEventListener('push', event => {
   let data = {}
   try {
@@ -124,26 +130,32 @@ self.addEventListener('push', event => {
   } catch {
     data = { title: 'Duo', body: event.data?.text() || '' }
   }
+  const n = data.web_push === 8030 && data.notification ? data.notification : data
+  const navigate = n.navigate || (data.room ? `/?chat=${encodeURIComponent(data.room)}` : '/')
+  const badge = Number(n.app_badge ?? data.count)
   event.waitUntil((async () => {
-    if (typeof data.count === 'number' && self.navigator.setAppBadge) {
-      self.navigator.setAppBadge(data.count).catch(() => {})
+    if (Number.isFinite(badge) && self.navigator.setAppBadge) {
+      self.navigator.setAppBadge(badge).catch(() => {})
     }
     // iOS revokes subscriptions whose pushes don't show a notification, so
     // always show one; the server only pushes while no window is in front.
-    await self.registration.showNotification(data.title || 'Duo', {
-      body: data.body || '',
-      tag: data.tag || 'duo',
+    await self.registration.showNotification(n.title || 'Duo', {
+      body: n.body || '',
+      tag: n.tag || 'duo',
       renotify: true,
+      silent: Boolean(n.silent),
+      lang: n.lang,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: { room: data.room || null }
+      data: { navigate }
     })
   })())
 })
 
 self.addEventListener('notificationclick', event => {
   event.notification.close()
-  const room = event.notification.data?.room
+  const target = new URL(event.notification.data?.navigate || '/', self.location.origin)
+  const room = target.searchParams.get('chat') || event.notification.data?.room || null
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     for (const c of clients) {
@@ -153,6 +165,6 @@ self.addEventListener('notificationclick', event => {
         return
       }
     }
-    await self.clients.openWindow(room ? `/?chat=${encodeURIComponent(room)}` : '/')
+    await self.clients.openWindow(target.href)
   })())
 })

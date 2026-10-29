@@ -94,6 +94,13 @@ export class Store {
   kvSet(k, v) {
     this.exec(`INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, k, JSON.stringify(v))
   }
+  kvDelete(k) {
+    this.exec(`DELETE FROM kv WHERE k=?`, k)
+  }
+  /** [key, value] pairs whose key starts with `prefix`. */
+  kvList(prefix) {
+    return this.exec(`SELECT k, v FROM kv WHERE substr(k, 1, ?)=?`, prefix.length, prefix).map(r => [r.k, JSON.parse(r.v)])
+  }
 
   // ---------------------------------------------------------------- users
   createUser({ username, display, salt, hash }) {
@@ -395,6 +402,14 @@ export class Store {
   }
   listSubs(user) {
     return this.exec(`SELECT id, data FROM push_subs WHERE user=?`, user).map(r => ({ id: r.id, sub: JSON.parse(r.data) }))
+  }
+  /** Unread messages across the conversations a user hasn't hidden or muted (the app badge). */
+  unreadTotal(user) {
+    return this.exec(
+      `SELECT COUNT(*) AS n FROM messages m JOIN room_members r ON r.room=m.room
+       WHERE r.user=? AND r.hidden=0 AND r.muted=0 AND m.ts>r.last_read AND m.sender<>? AND m.type<>'system'`,
+      user, user
+    )[0].n
   }
   removeSub(id) {
     this.exec(`DELETE FROM push_subs WHERE id=?`, id)

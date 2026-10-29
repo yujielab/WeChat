@@ -127,7 +127,9 @@ await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detac
 // With the system's edge column (84pt down the right, open or closed): unfolded, a sheet over the conversation
 // centres on its content, beside the column of controls; folded, it spans the app's side with even margins and
 // the receding app's controls step aside rather than showing half-covered beside it.
-await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>{document.documentElement.style.setProperty('--safe-right','84px');dispatchEvent(new Event('resize'))});await sleep(300)
+// The inset arrives after launch with no resize (as on iOS 27.2): the column is still joined.
+await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>document.documentElement.style.setProperty('--safe-right','84px'));await sleep(300)
+assert.equal(await p.evaluate(()=>document.documentElement.hasAttribute('data-edge-column')),true,'late inset joins the edge column')
 const railLeft=()=>p.evaluate(()=>Math.min(...[...document.querySelectorAll('.thread .duo-rail .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().left)))
 const railOpacity=()=>p.evaluate(()=>+getComputedStyle(document.querySelector('.thread .duo-rail')).opacity)
 let rail=await railLeft();await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
@@ -142,5 +144,5 @@ assert.ok(await railOpacity()<0.05,'receding controls step aside')
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'});await sleep(500);assert.equal(await railOpacity(),1,'controls return with the app')
 await p.evaluate(()=>{document.documentElement.style.removeProperty('--safe-right');dispatchEvent(new Event('resize'))})
 
-assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; sheets beside the edge column and its controls; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
+assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; an inset that settles late still joins the edge column; sheets beside the edge column and its controls; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
