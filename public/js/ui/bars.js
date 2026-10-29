@@ -56,6 +56,7 @@ export function createBars({ label, items, arrange }) {
       label: item.title + (badgeText(item) ? `（${badgeText(item)}）` : ''),
       icon: item.icon,
       checked: item.toggle ? Boolean(item.state.active) : undefined,
+      toggle: item.toggle,
       disabled: item.state.disabled,
       onSelect: () => item.onSelect?.(more)
     }))], { title: label })

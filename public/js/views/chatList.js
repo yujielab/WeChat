@@ -14,15 +14,17 @@ import { openMenu, toast } from './overlay.js'
 import { createBars } from '../ui/bars.js'
 import { getBars, onBars } from '../ui/viewport.js'
 
-const FILTERS = {
+export const FILTERS = {
   all: { label: '全部', test: () => true },
   unread: { label: '未读', test: c => c.unread > 0 },
   people: { label: '私聊', test: c => !c.room },
   groups: { label: '群聊', test: c => c.room }
 }
 
-export function createChatList(pane, { onOpen, onSettings, onCompose, loadContacts }) {
+export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, loadContacts }) {
   pane.classList.add('pane-list')
+  // Rows swipe themselves; a back swipe starts at the column's leading edge.
+  pane.dataset.edgeSwipe = ''
   let selected = null
   let searching = false
   let query = ''
@@ -32,8 +34,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
   const title = h('h1', { class: 'large-title' }, '消息', h('span', { class: 'title-period', 'aria-hidden': 'true' }, '.'))
-  const subtitle = h('p', { class: 'list-subtitle' }, '和在意的人，保持联系。')
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status), subtitle)
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
   const filterButtons = new Map()
@@ -68,25 +69,28 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }))
 
   // Bars (Apple HIG, Designing for iPhone Duo). Folded, they run down the
-  // trailing edge: settings and filters at the top, search and New Chat at
-  // the bottom, where they were on a standard iPhone. Beside an open
-  // conversation the list keeps horizontal bars above itself, and New Chat
-  // moves to the conversation's column, as in Mail and Notes.
+  // trailing edge: Back to the sidebar and filters at the top, search and
+  // New Chat at the bottom, where they were on a standard iPhone. As the
+  // leading column beside a conversation, the list keeps horizontal bars
+  // above itself, and New Chat moves to the conversation's column, as in
+  // Mail and Notes. Beside the sidebar it has neither Back nor filters: the
+  // sidebar, with its scopes, is right there.
   const bars = createBars({
     label: '聊天列表操作',
     items: [
       { id: 'cancel', icon: 'xmark', title: '取消搜索', primary: true, onSelect: () => exitSearch() },
-      { id: 'settings', icon: 'person', title: '设置', priority: 2, onSelect: () => onSettings() },
+      { id: 'back', icon: 'chevron-left', title: '边栏', primary: true, onSelect: () => onBack() },
       { id: 'filter', icon: 'filter', title: '筛选', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
       { id: 'search', icon: 'search', title: '搜索', priority: 6, onSelect: () => openSearch() },
       { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
     arrange: axis => {
+      const nav = pane.dataset.layout === 'trailing' ? [] : [['back'], ['filter']]
       if (axis === 'vertical') {
-        return searching ? { top: [['cancel']], bottom: [] } : { top: [['settings', 'filter']], bottom: [['search'], ['compose']] }
+        return searching ? { top: [['cancel']], bottom: [] } : { top: nav, bottom: [['search'], ['compose']] }
       }
-      const composeHere = !(pane.dataset.layout === 'split' && getBars() === 'vertical')
-      return { top: [['settings', 'filter'], ...(composeHere ? [['compose']] : [])], bottom: [] }
+      const composeHere = !(pane.dataset.layout === 'leading' && getBars() === 'vertical')
+      return { top: [...nav, ...(composeHere ? [['compose']] : [])], bottom: [] }
     }
   })
   const rail = h('nav', { class: 'duo-rail list-rail', 'aria-label': '聊天列表操作' })
@@ -125,7 +129,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
     barsFrame = requestAnimationFrame(() => {
-      const axis = pane.dataset.layout === 'split' ? 'horizontal' : getBars() || 'vertical'
+      const axis = pane.dataset.layout === 'leading' ? 'horizontal' : getBars() || 'vertical'
       pane.dataset.bars = axis
       if (axis === 'vertical') {
         if (bars.top.parentElement !== rail) bars.move(() => rail.append(bars.top, bars.bottom))
@@ -146,6 +150,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     if (searching) exitSearch()
     state.filter = key
     render()
+    onFilter?.(key)
   }
 
   function positionFilterThumb() {
@@ -390,10 +395,9 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, icon(state.filter === 'all' ? 'compose' : 'bubble'), state.filter === 'all' ? '发起新聊天' : '查看全部聊天')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
       const emptyTitle = state.filter === 'all' ? '从一句你好开始' : state.filter === 'unread' ? '都看过了，真好' : `还没有${filter.label}`
-      const emptyCopy = state.filter === 'all' ? '找到朋友，分享今天的小事。\n文字、手绘，或一通电话。' : state.filter === 'unread' ? '没有未读消息，享受这一刻。' : '下一次相聚，可以从这里开始。'
       empty.replaceChildren(
         h('div', { class: 'empty-art', 'aria-hidden': 'true' }, h('span', { class: 'empty-bubble' }, icon('bubble')), h('span', { class: 'empty-spark' }, icon(state.filter === 'unread' ? 'check' : 'brush'))),
-        h('h2', {}, emptyTitle), h('p', {}, emptyCopy), action
+        h('h2', {}, emptyTitle), action
       )
     }
   }
@@ -403,7 +407,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     cancelAnimationFrame(highlightFrame)
     highlightFrame = requestAnimationFrame(() => {
       const el = selected && rowEls.get(selected)
-      const show = Boolean(el?.isConnected && !rows.hidden && pane.dataset.layout === 'split')
+      const show = Boolean(el?.isConnected && !rows.hidden && pane.dataset.layout === 'leading')
       capsule.classList.toggle('on', show)
       if (!show) {
         capsule.classList.remove('ready')
@@ -698,9 +702,6 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       for (const el of pinned.children) el.classList.toggle('selected', el.dataset.id === id)
       placeHighlight()
     },
-    setMe(me) {
-      bars.set('settings', { title: me?.display ? `设置（${me.display}）` : '设置' })
-    },
     setStatus({ text, spinner = false, warn = false } = {}) {
       if (loading !== spinner) {
         loading = spinner
@@ -718,6 +719,8 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       arrangeBars()
       requestAnimationFrame(positionFilterThumb)
     },
+    setFilter: selectFilter,
+    openSearch,
     focusSearch() {
       input.focus()
     }

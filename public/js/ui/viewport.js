@@ -31,13 +31,20 @@ let layout = null
 let bars = null
 let fold = { axis: 'none', start: 0, end: 0 }
 let foldOverride = null
+let lastVVWidth = vv ? vv.width : window.innerWidth
 
 function measure() {
   const h = vv ? vv.height : window.innerHeight
   const top = vv ? vv.offsetTop : 0
   root.style.setProperty('--vvh', `${Math.round(h)}px`)
   root.style.setProperty('--vvt', `${Math.round(top)}px`)
-  const kb = window.innerHeight - h > 120 && hasTextFocus()
+  // A resize that changes the width is a fold, an unfold or a rotation, never
+  // the keyboard (keyboards don't change width): it starts from no keyboard,
+  // and the next height-only change decides again.
+  const w = vv ? vv.width : window.innerWidth
+  const reshaped = Math.abs(w - lastVVWidth) > 1
+  lastVVWidth = w
+  const kb = !reshaped && window.innerHeight - h > 120 && hasTextFocus()
   if (kb) root.dataset.kb = '1'
   else delete root.dataset.kb
   measureFold()

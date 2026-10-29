@@ -12,7 +12,6 @@ import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { renderBubble, hasTail, mediaSize } from './bubbles.js'
 import { createComposer, prepareImage } from './composer.js'
-import { openDrawing } from './draw.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
@@ -59,7 +58,7 @@ function withReaction(groups = [], uid, emoji) {
 const sameRun = (a, b) =>
   a && b && !isSys(a) && !isSys(b) && a.out === b.out && a.from === b.from && b.ts - a.ts < RUN_GAP
 
-export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSend }) {
+export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, socketSend }) {
   pane.classList.add('pane-thread')
   let current = null
   let newCount = 0
@@ -90,9 +89,11 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
   // Bars (Apple HIG, Designing for iPhone Duo): Back leads, the calls are the
   // prominent actions, details follow; drawing and photos belong with the
   // field below. Folded or short, they run down the trailing edge; with
-  // vertical room they are standard top and bottom bars. Unfolded beside the
-  // list, the column also carries New Chat, as Mail and Notes do.
-  const draw = () => openDrawing({ onSend: (blob, size) => sendDrawing(blob, size) })
+  // vertical room they are standard top and bottom bars. As the trailing
+  // column beside the list, the column has no Back and carries New Chat, as
+  // Mail and Notes do; as the leading column beside the details or the
+  // drawing board, its bars are horizontal. Details and the drawing board
+  // open in the next column, so their items show whether it's open.
   const unreadBadge = () => {
     const n = current ? unreadTotal(current) : 0
     return n ? (n > 99 ? '99+' : String(n)) : ''
@@ -103,19 +104,19 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
       { id: 'back', icon: 'chevron-left', title: '返回聊天列表', primary: true, badge: unreadBadge, onSelect: () => onBack() },
       { id: 'audio', icon: 'phone', title: '语音通话', priority: 6, onSelect: () => current && onCall?.(current, 'audio') },
       { id: 'video', icon: 'video', title: '视频通话', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
-      { id: 'info', icon: 'info', title: '聊天信息', priority: 2, onSelect: () => current && onInfo(current) },
-      { id: 'draw', icon: 'brush', title: '画板', priority: 3, onSelect: () => current && draw() },
+      { id: 'info', icon: 'info', title: '聊天信息', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
+      { id: 'draw', icon: 'brush', title: '画板', priority: 3, toggle: true, onSelect: () => current && onDraw(current) },
       { id: 'photo', icon: 'photo', title: '照片', priority: 7, onSelect: () => current && composer.openImages() },
       { id: 'compose', icon: 'compose', title: '新聊天', priority: 8, prominent: true, onSelect: () => onCompose?.() }
     ],
     arrange: axis => {
-      const split = pane.dataset.layout === 'split'
+      const trailing = pane.dataset.layout === 'trailing'
       if (axis === 'vertical') {
-        return split
+        return trailing
           ? { top: [['audio', 'video'], ['info']], bottom: [['draw', 'photo'], ['compose']] }
           : { top: [['back'], ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
       }
-      return { top: [...(split ? [] : [['back']]), ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
+      return { top: [...(trailing ? [] : [['back']]), ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
     }
   })
   const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': '聊天操作' })
@@ -134,18 +135,17 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
   const welcomeName = h('h2', {}, '从一句问候开始')
   const welcome = h('div', { class: 'room-welcome', hidden: true },
     h('div', { class: 'room-welcome-mark', 'aria-hidden': 'true' }, icon('bubble')),
-    welcomeName,
-    h('p', {}, '写一句话，画一个心情。\n此刻，就从这里聊起。'))
+    welcomeName)
   const uploadTrace = createUploadTrace()
   const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, rail, composer.el, jump, uploadTrace.el)
 
-  // Bars follow the window's axis; the conversation pane beside the list
-  // keeps its column, the list keeps horizontal bars (see shell / chatList).
+  // Bars follow the window's axis, except in the leading column of a split
+  // view, which keeps horizontal bars (see shell / chatList).
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
     barsFrame = requestAnimationFrame(() => {
-      const axis = getBars() || 'vertical'
+      const axis = pane.dataset.layout === 'leading' ? 'horizontal' : getBars() || 'vertical'
       root.dataset.bars = axis
       if (axis === 'vertical') {
         if (bars.top.parentElement !== rail) bars.move(() => { composer.dock(null); rail.append(bars.top, bars.bottom) })
@@ -170,13 +170,7 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
   const empty = h('div', { class: 'thread-empty' },
     h('div', { class: 'thread-empty-content' },
       createHalftone({ compact: true }),
-      h('span', { class: 'thread-empty-eyebrow' }, 'DUO · 在一起，聊下去'),
-      h('h2', {}, '每一句，都有回音。'),
-      h('p', {}, '在左侧选择一段对话，\n把文字、手绘和声音留给在意的人。'),
-      h('div', { class: 'thread-empty-features' },
-        h('span', {}, icon('bubble'), '文字'),
-        h('span', {}, icon('brush'), '手绘'),
-        h('span', {}, icon('phone'), '通话'))))
+      h('h2', {}, '每一句，都有回音。')))
   pane.append(empty, root)
 
   titleBtn.addEventListener('click', () => current && onInfo(current))
@@ -525,7 +519,7 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
     reconcile()
     scrollToBottom()
     // Side by side there is no push; the new conversation settles in place.
-    if (pane.dataset.layout === 'split' && !reducedMotion()) {
+    if (pane.dataset.layout !== 'single' && !reducedMotion()) {
       for (const el of [msgs, titleBtn]) {
         el.classList.remove('swap')
         void el.offsetWidth
@@ -602,7 +596,7 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
     titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 40 }))
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
-    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '群聊') : (c.online ? '此刻在线' : '私聊')
+    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '') : (c.online ? '此刻在线' : '')
     titleBtn.setAttribute('aria-label', `${c.name}，查看聊天信息`)
     // The unread badge on Back is status: it changes what overflows first.
     bars.refresh()
@@ -610,11 +604,19 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
   }
 
   // ------------------------------------------------------------ read state
+  // Messages count as read only while the conversation's column is on
+  // screen; a read held back meanwhile goes out when it comes back.
   let readTimer = 0
+  let readHeld = false
   function markReadSoon(force = false) {
     clearTimeout(readTimer)
     readTimer = setTimeout(() => {
       if (!current || document.visibilityState !== 'visible') return
+      if (pane.inert) {
+        readHeld = true
+        return
+      }
+      readHeld = false
       const c = state.chats.get(current)
       if (!force && !c?.unread) return
       if (c?.unread) patchRoom(current, { unread: 0 })
@@ -1132,11 +1134,14 @@ export function createThread(pane, { onBack, onInfo, onCall, onCompose, socketSe
       root.hidden = true
       empty.hidden = false
     },
+    /** single | leading | trailing: the column's place in the window (see ui/strip.js). */
     setLayout(layout) {
       pane.dataset.layout = layout
       arrangeBars()
+      if (readHeld && current) markReadSoon(true)
     },
     bars,
+    sendDrawing: (blob, size) => sendDrawing(blob, size),
     focusComposer() {
       composer.focus()
     },

@@ -473,22 +473,16 @@
   padding: 32px;
 }
 .thread-empty-content { max-width: 360px; }
-.thread-empty-eyebrow { display: block; margin-top: 30px; font-size: 10px; letter-spacing: 0.16em; font-weight: 600; color: var(--label-2); }
-.thread-empty h2 { margin: 14px 0 15px; color: var(--label); font-size: clamp(23px, 3vw, 32px); font-weight: 650; letter-spacing: -0.045em; }
-.thread-empty p { margin: 0; white-space: pre-line; line-height: 1.8; font-size: var(--t-footnote); color: var(--label-2); }
+.thread-empty h2 { margin: 30px 0 0; color: var(--label); font-size: clamp(23px, 3vw, 32px); font-weight: 650; letter-spacing: -0.045em; }
 .duo-conversation-mark { height: 126px; width: 150px; position: relative; margin: 0 auto; }
 .duo-conversation-mark > span { position: absolute; display: grid; place-items: center; width: 104px; height: 92px; border-radius: 30px; box-shadow: 0 4px 12px -5px rgb(0 0 0 / 0.12); }
 .duo-conversation-mark .icon { width: 49px; height: 49px; }
 .duo-mark-back { top: 0; left: 0; background: var(--bg-elevated); color: var(--label-2); border: 1px solid var(--line); transform: rotate(-10deg); }
 .duo-mark-front { right: 0; bottom: 0; background: var(--ink); color: var(--on-ink); transform: rotate(9deg); }
-.thread-empty-features { display: flex; justify-content: center; gap: 21px; margin-top: 29px; color: var(--label-2); font-size: 11px; }
-.thread-empty-features span { display: inline-flex; align-items: center; gap: 6px; }
-.thread-empty-features .icon { width: 15px; height: 15px; }
 .room-welcome { position: absolute; inset: calc(var(--safe-top) + 100px) 24px calc(var(--composer-h, 84px) + 24px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
 .room-welcome-mark { display: grid; place-items: center; width: 62px; height: 62px; border-radius: 22px; background: var(--field); color: var(--label-2); transform: rotate(-7deg); }
 .room-welcome-mark .icon { width: 28px; height: 28px; }
-.room-welcome h2 { margin: 22px 0 10px; font-size: var(--t-title-3); font-weight: 600; letter-spacing: -0.04em; }
-.room-welcome p { margin: 0; white-space: pre-line; font-size: var(--t-footnote); line-height: 1.8; color: var(--label-2); }
+.room-welcome h2 { margin: 22px 0 0; font-size: var(--t-title-3); font-weight: 600; letter-spacing: -0.04em; }
 
 .readonly-note {
   text-align: center;
@@ -563,13 +557,12 @@
   .thread-nav { top: calc(var(--safe-top) + 8px); height: 48px; }
   .composer { padding-top: 6px; padding-bottom: max(var(--safe-bottom), 8px); }
   .room-welcome { top: calc(var(--safe-top) + 76px); }
-  .room-welcome-mark, .room-welcome p { display: none; }
+  .room-welcome-mark { display: none; }
   .room-welcome h2 { margin: 0; }
-  .thread-empty-features { margin-top: 15px; }
   .duo-conversation-mark { transform: scale(0.7); margin-top: -18px; margin-bottom: -22px; }
-  .thread-empty-eyebrow { margin-top: 15px; }
+  .thread-empty h2 { margin-top: 15px; }
 }
-:root[data-kb="1"] .room-welcome-mark, :root[data-kb="1"] .room-welcome p { display: none; }
+:root[data-kb="1"] .room-welcome-mark { display: none; }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .msgs.swap,
   :root:not([data-motion="full"]) .thread-title.swap .t,

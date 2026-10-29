@@ -7,8 +7,9 @@
    - The top of that column belongs to the camera and status bar: the outer
      camera is always there; on the inner display only the status bar is.
    - Content takes the asymmetric space beside the column, inside safe areas.
-   - Unfolded, the list is the narrower leading pane; partially folded, both
-     panes meet the folding region at equal widths (base.css). */
+   - Unfolded, two adjacent columns of the strip share the screen equally
+     and meet the folding region when partially folded (base.css); the
+     leading one keeps horizontal bars, the trailing one follows the window. */
 
 :root {
   --rail-w: 52px;
@@ -20,7 +21,7 @@
   --rail-reserve-inner: 104px;
 }
 .pane { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
-.shell[data-layout="split"] .pane-thread { --rail-reserve: var(--rail-reserve-inner); }
+.shell[data-layout="split"] .pane { --rail-reserve: var(--rail-reserve-inner); }
 /* Rotated, the outer display carries its camera at the foot of the column,
    and the status bar steps away: Back moves to the very top. */
 :root[data-orientation="landscape"] .shell[data-layout="stack"] .pane { --rail-reserve: 12px; --rail-foot: 64px; }
@@ -50,6 +51,7 @@
 }
 .bar-item::before, .bar-item::after { display: none; }
 .bar-group.capsule .bar-item { background: transparent; box-shadow: none; }
+.bar-group.capsule .bar-item.active { background: var(--ink); color: var(--on-ink); }
 .bar-item .icon { width: 20px; height: 20px; }
 .bar-item.prominent, .bar-item.active { background: var(--ink); color: var(--on-ink); box-shadow: 0 3px 8px rgb(0 0 0 / .1); }
 .bar-item:disabled { opacity: .4; }
@@ -113,7 +115,10 @@
   border-bottom: 1px solid var(--line);
   background: var(--bg);
 }
-.thread-nav > .bar-section { display: contents; }
+.thread-nav > .bar-section,
+.list-topbar > .bar-section { display: contents; }
+.list-topbar .bar-group { order: 1; }
+.list-topbar .bar-group.lead { order: -1; }
 .thread-nav .bar-group { order: 1; }
 .thread-nav .bar-group.lead { order: -1; }
 .thread-title { flex: 1; min-width: 0; min-height: 50px; gap: 11px; padding: 0; }
@@ -184,25 +189,26 @@
    Sheets, the photo viewer, the drawing board and calls follow the same rule
    as the app: where bars are vertical, Close leads a column on the trailing
    edge below the camera and status bar, prominent actions follow, and the
-   content takes the space beside it. On the inner display a sheet placed on
-   the leading side keeps a horizontal bar; one on the trailing side doesn't. */
+   content takes the space beside it. On the inner display a sheet placed
+   over the leading column keeps a horizontal bar; one over the trailing
+   column doesn't. */
 .overlays { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
 .overlays[data-layout="split"] { --rail-reserve: var(--rail-reserve-inner); }
 :root[data-orientation="landscape"] .overlays[data-layout="stack"] { --rail-reserve: 12px; --rail-foot: 64px; }
 
 :root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head,
-:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-side="thread"] .sheet-head {
+:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head {
   grid-template-columns: minmax(0, 1fr) 44px;
   padding-top: 10px;
 }
 :root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head h2,
-:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-side="thread"] .sheet-head h2 {
+:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head h2 {
   grid-column: 1;
   text-align: left;
   font-size: var(--t-title-2);
 }
 :root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head .end,
-:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-side="thread"] .sheet-head .end { grid-column: 2; }
+:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head .end { grid-column: 2; }
 
 /* The viewer stays full width; its controls float in the column. */
 :root[data-bars="vertical"] .viewer-bar.top {

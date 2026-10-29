@@ -10,10 +10,9 @@
 .halftone-controls button { min-height:38px; min-width:64px; padding:0 13px; border-radius:999px; color:var(--label-2); font-size:.706rem; font-weight:500; transition:background-color 180ms ease,color 180ms ease,box-shadow 180ms ease; }
 .halftone-controls button[aria-pressed="true"] { color:var(--label); background:var(--field); box-shadow:0 1px 2px rgb(0 0 0 / .035); }
 .halftone-controls button:focus-visible { outline:2px solid var(--label-2); outline-offset:2px; }
-.halftone-caption { color:var(--label-2); font-size:.647rem; letter-spacing:.03em; }
 .halftone-art.compact { width:min(100%,230px); gap:0; }
 .thread-empty .halftone-art { margin-inline:auto; }
-.halftone-art.compact .halftone-controls,.halftone-art.compact .halftone-caption { display:none; }
+.halftone-art.compact .halftone-controls { display:none; }
 @media(pointer:coarse) {
   .halftone-controls button { min-height:44px; }
 }

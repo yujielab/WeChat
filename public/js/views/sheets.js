@@ -1,5 +1,5 @@
-// Sheets: settings, new chat / new group, and room info. All use the shared
-// floating sheet from overlay.js.
+// Settings and new chat / new group on the shared floating sheet from
+// overlay.js, and a conversation's details, rendered into the details column.
 
 import { h, icon } from '../ui/dom.js'
 import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appearance.js'
@@ -92,7 +92,7 @@ export function openSettings({ onLogout }) {
         { label: '深色', value: 'dark' },
         { label: '自动', value: 'system' }
       ], prefs.theme, setTheme, '外观')),
-      cell('降低透明度', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), '降低透明度'), { sub: '用实色代替玻璃材质' }),
+      cell('降低透明度', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), '降低透明度')),
       cell('减少动态效果', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), '减少动态效果')),
       cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈'))
     ),
@@ -101,7 +101,7 @@ export function openSettings({ onLogout }) {
     h('div', { style: { height: '20px' } }),
     group(cell('退出登录', null, { destructive: true, onClick: () => onLogout() }))
   )
-  openSheet({ title: '设置', content, tall: true, side: 'list' })
+  openSheet({ title: '设置', content, tall: true })
 }
 
 function editProfile() {
@@ -292,12 +292,17 @@ export function openNewGroup({ loadContacts, onOpen }) {
 }
 
 // ---------------------------------------------------------------- room info
-export async function openRoomInfo(roomId, { onOpen, loadContacts }) {
+export const roomInfoTitle = roomId => (state.chats.get(roomId)?.kind === 'group' ? '群聊信息' : '联系人')
+
+/**
+ * A conversation's details, rendered into `body`. host: { el, close } — the
+ * surface showing them (the details column), closed when the conversation is
+ * left or removed.
+ */
+export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
   const c = state.chats.get(roomId)
   if (!c) return
   const isGroup = c.kind === 'group'
-  const body = h('div', {})
-  const sheet = openSheet({ title: isGroup ? '群聊信息' : '联系人', content: body, tall: isGroup, side: 'thread' })
 
   let room = c, members = []
   try {
@@ -323,12 +328,12 @@ export async function openRoomInfo(roomId, { onOpen, loadContacts }) {
       grid.append(h('div', { class: 'member' }, avatar(m.avatar, m.display, { size: 48 }), h('span', {}, m.display)))
     }
     const addBtn = h('button', { class: 'member add', type: 'button', 'aria-label': '添加成员' }, h('span', { class: 'member-add' }, icon('plus')), h('span', {}, '添加'))
-    addBtn.addEventListener('click', () => addMembers(roomId, members.map(m => m.id), loadContacts, sheet))
+    addBtn.addEventListener('click', () => addMembers(roomId, members.map(m => m.id), loadContacts))
     grid.append(addBtn)
     blocks.push(groupTitle('成员'), grid)
-    blocks.push(h('div', { style: { height: '14px' } }), group(cell('退出群聊', null, { destructive: true, onClick: () => leaveRoom(roomId, sheet) })))
+    blocks.push(h('div', { style: { height: '14px' } }), group(cell('退出群聊', null, { destructive: true, onClick: () => leaveRoom(roomId, host) })))
   } else {
-    blocks.push(h('div', { style: { height: '14px' } }), group(cell('删除会话', null, { destructive: true, onClick: () => { setFlag(roomId, { hidden: 1 }); sheet.close() } })))
+    blocks.push(h('div', { style: { height: '14px' } }), group(cell('删除会话', null, { destructive: true, onClick: () => { setFlag(roomId, { hidden: 1 }); host.close() } })))
   }
   body.replaceChildren(...blocks)
 
@@ -339,7 +344,7 @@ export async function openRoomInfo(roomId, { onOpen, loadContacts }) {
   }
 }
 
-async function addMembers(roomId, existing, loadContacts, parentSheet) {
+async function addMembers(roomId, existing, loadContacts) {
   const picked = new Set()
   const list = h('div', {})
   const add = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, '添加')
@@ -361,9 +366,9 @@ async function addMembers(roomId, existing, loadContacts, parentSheet) {
   })
 }
 
-async function leaveRoom(roomId, sheet) {
-  if (!await confirmAction(sheet.el, { title: '退出这个群聊？', confirm: '退出群聊' })) return
-  try { await api.post(`/api/room/${roomId}/leave`); patchRoom(roomId, { hidden: true }); sheet.close() }
+async function leaveRoom(roomId, host) {
+  if (!await confirmAction(host.el, { title: '退出这个群聊？', confirm: '退出群聊' })) return
+  try { await api.post(`/api/room/${roomId}/leave`); patchRoom(roomId, { hidden: true }); host.close() }
   catch (err) { toast(err.message, { type: 'error' }) }
 }
 

@@ -1,15 +1,16 @@
 // Drawing board — a clean white canvas you sketch on and send. Strokes are
 // velocity-smoothed (slower = thicker) and drawn through midpoints for a fluid,
 // ink-like line. Exports a PNG and hands it back via onSend(blob, {w,h}).
+// It lives in the details column, beside the conversation it's drawn for.
 
 import { h, icon } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
-import { placeOnSide } from '../ui/fold.js'
 
 const COLORS = ['#18181b', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#5856d6', '#ff2d92', '#ffffff']
 const SIZES = [3, 6, 12, 22]
 
-export function openDrawing({ onSend }) {
+/** Build the board into `host`; onClose() when Close or Send is chosen. Returns { el, destroy }. */
+export function createDrawing(host, { onSend, onClose }) {
   const canvas = h('canvas', { class: 'draw-canvas' })
   const stage = h('div', { class: 'draw-stage' }, canvas)
 
@@ -33,12 +34,8 @@ export function openDrawing({ onSend }) {
   const sizes = h('div', { class: 'draw-sizes glass glass-thick' }, ...sizeBtns)
   const tools = h('div', { class: 'draw-tools' }, undoBtn, clearBtn)
   const head = h('div', { class: 'draw-head' }, closeBtn, h('div', { class: 'draw-title' }, '画板'), sendBtn)
-  const root = h('div', { class: 'draw', role: 'dialog', 'aria-modal': 'true', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, tools))
-
-  const overlays = document.getElementById('overlays')
-  overlays.append(root)
-  placeOnSide(root, 'thread')
-  requestAnimationFrame(() => root.classList.add('on'))
+  const root = h('div', { class: 'draw on', role: 'region', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, tools))
+  host.append(root)
 
   // ---- canvas setup (HiDPI, white paper)
   const ctx = canvas.getContext('2d')
@@ -131,22 +128,22 @@ export function openDrawing({ onSend }) {
     for (const b of sizeBtns) b.classList.toggle('on', b === btn)
   }
 
-  function close() {
-    ro.disconnect()
-    root.classList.remove('on')
-    setTimeout(() => root.remove(), 260)
-  }
-  closeBtn.addEventListener('click', close)
+  closeBtn.addEventListener('click', () => onClose())
   sendBtn.addEventListener('click', async () => {
     if (!dirty) return
     sendBtn.disabled = true
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'))
     if (blob) onSend(blob, { w: canvas.width, h: canvas.height })
-    close()
+    onClose()
   })
-  document.addEventListener('keydown', function esc(e) {
-    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc) }
-  })
+
+  return {
+    el: root,
+    destroy() {
+      ro.disconnect()
+      root.remove()
+    }
+  }
 }
 
 function toolBtn(ic, label, onClick) {

@@ -2,7 +2,7 @@
  *
  * iPhone Duo has two very different canvases:
  *   folded   – outer display, ~466 × 678 pt: one column, short and wide
- *   unfolded – inner display, ~890 × 626 pt: list + conversation side by side
+ *   unfolded – inner display, ~890 × 626 pt: two columns side by side
  * The shell switches at 700px wide (see js/ui/viewport.js), which also covers
  * a 50/50 Split View on the inner display (~445 pt, single column).
  */
@@ -96,6 +96,9 @@ img { -webkit-user-drag: none; }
   inset: 0;
   display: block;
   overflow: hidden;
+  /* Columns slide by transform; focusing something in one that is still
+     sliding in must not scroll the strip itself. */
+  overflow: clip;
   transform-origin: 50% 0;
   transition: transform 380ms var(--ease-morph), border-radius 380ms var(--ease-morph);
 }
@@ -117,61 +120,32 @@ img { -webkit-user-drag: none; }
   position: absolute;
   top: 0;
   bottom: 0;
+  left: 0;
+  width: 100%;
   overflow: hidden;
+  overflow: clip;
   background: var(--bg);
   contain: layout paint;
+  outline: none;
 }
+/* One strip of columns (js/ui/strip.js) — sidebar | list | conversation |
+   details — slid along behind a window: one column folded, two adjacent
+   columns of equal width unfolded. Columns outside the window aren't drawn. */
+.pane.off { visibility: hidden; }
+.shell { --gap: 0px; }
+.shell[data-anim] .pane { will-change: transform; }
+/* Folded, the columns meet edge to edge; a hairline marks the seam while
+   they slide. */
+.shell[data-layout="stack"][data-anim] .pane { box-shadow: -1px 0 0 var(--separator), -12px 0 40px -12px rgb(0 0 0 / 0.18); }
 
-/* Stack (folded / narrow): panes overlap; the thread slides over the list. */
-.shell[data-layout="stack"] .pane-list { left: 0; right: 0; }
-.shell[data-layout="stack"] .pane-thread {
-  left: 0;
-  right: 0;
-  transform: translate3d(100%, 0, 0);
-  visibility: hidden;
-  box-shadow: -1px 0 0 var(--separator), -12px 0 40px -12px rgb(0 0 0 / 0.18);
-}
-.shell[data-layout="stack"][data-thread="open"] .pane-thread { transform: none; visibility: visible; }
-.shell[data-layout="stack"][data-thread="open"] .pane-list {
-  transform: translate3d(-28%, 0, 0);
-  visibility: hidden;
-}
-.shell[data-layout="stack"][data-anim] .pane-thread,
-.shell[data-layout="stack"][data-anim] .pane-list { visibility: visible; }
-.shell[data-layout="stack"] .pane-list::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgb(0 0 0 / 0.14);
-  opacity: var(--dim, 0);
-  pointer-events: none;
-}
-
-/* Split (unfolded): list on the leading side, conversation on the trailing
-   side. Fully open, the list is the narrower pane; partially folded, both
-   panes meet the folding region at equal widths and nothing sits in the
-   bend (data-fold / --fold-start / --fold-end from js/ui/viewport.js). */
-.shell[data-layout="split"] {
-  --list-w: clamp(300px, 36%, 400px);
-  --fold-gap: 0px;
-  background: var(--paper);
-}
-:root[data-fold="vertical"] .shell[data-layout="split"] {
-  --list-w: var(--fold-start);
-  --fold-gap: calc(var(--fold-end) - var(--fold-start));
-}
-.shell[data-layout="split"] .pane-list {
-  left: 0;
-  width: var(--list-w);
-  --safe-right: 0px;
-  border-right: var(--hairline) solid var(--line);
-}
-.shell[data-layout="split"] .pane-thread {
-  --safe-left: 0px;
-  left: calc(var(--list-w) + var(--fold-gap));
-  right: 0;
-  border-left: var(--hairline) solid var(--line);
-}
+/* Unfolded, partially folded, both columns meet the folding region and
+   nothing sits in the bend (data-fold / --fold-start / --fold-end from
+   js/ui/viewport.js). */
+.shell[data-layout="split"] { background: var(--paper); }
+:root[data-fold="vertical"] .shell[data-layout="split"] { --gap: calc(var(--fold-end) - var(--fold-start)); }
+.shell[data-layout="split"] .pane { width: calc((100% - var(--gap)) / 2); }
+.pane[data-role="leading"] { --safe-right: 0px; border-right: var(--hairline) solid var(--line); }
+.pane[data-role="trailing"] { --safe-left: 0px; border-left: var(--hairline) solid var(--line); }
 
 
 /* No transitions while folding/unfolding or rotating. */

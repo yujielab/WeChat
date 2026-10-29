@@ -36,7 +36,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  assert.equal(await a.inputValue('#auth-c'),captured.code)
  await a.unroute('**/auth/register')
  const uniq=Date.now().toString(36)
- const reg=async(p,user,name)=>{await p.goto(BASE);await p.click('.auth-foot button');await p.fill('#auth-u',user);await p.fill('#auth-d',name);await p.fill('#auth-p','hunter2');await p.click('.auth-submit');await p.waitForSelector('.shell')}
+ const reg=async(p,user,name)=>{await p.goto(BASE);await p.click('.auth-tab:has-text("创建账号")');await p.fill('#auth-u',user);await p.fill('#auth-d',name);await p.fill('#auth-p','hunter2');await p.click('.auth-submit');await p.waitForSelector('.shell')}
  await reg(a,`refa_${uniq}`,'艾米');await reg(b,`refb_${uniq}`,'本')
  await a.setViewportSize({width:466,height:678})
  await a.click('.pane-list [data-item="compose"]');await a.fill('.sheet-search input',`refb_${uniq}`)
