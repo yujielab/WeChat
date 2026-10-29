@@ -154,3 +154,11 @@ final result: passed
 - 分栏的前置栏没有右侧安全区，仍把控制列放在栏内；放在前置一侧的查看器与通话同理。
 - 内屏列顶预留从 104 调到 112px，与状态栏留出间隙。
 - Service Worker 缓存版本升到 `shell-v10`，让已安装的应用一次换到新的 CSS / JS。
+
+## 浮动输入框
+
+- 对话的输入框改为浮动控件：消息一直延伸到栏底，从输入框下面滚过；输入框带投影悬浮，身后一段渐隐让滑过的文字不和它重叠。
+  键盘弹出时它紧贴在键盘（及系统辅助栏）上方 8pt。
+- 键盘上方的“∧ ∨ ✓”是 iOS 的表单辅助栏，网页无法隐藏：WebKit 在小屏 iPhone 上对所有文本输入（input、textarea、
+  contenteditable）都要求显示它（`_elementTypeRequiresAccessoryView` 返回 `currentUserInterfaceIdiomIsSmallScreen()`），
+  只有嵌入网页的原生应用能通过 `accessoryViewShouldNotShow` 关掉。iPad 一类的大屏不显示。

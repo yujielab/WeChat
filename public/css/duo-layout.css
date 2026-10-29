@@ -148,17 +148,28 @@
 .thread .ts { margin: 14px 0 8px; }
 .thread .ts + .m.first { --gap: 0px; }
 
-/* Messages end at the writing band; a hairline marks where writing begins. */
+/* The field floats: messages run on under it to the bottom of the column,
+   and a short wash behind it keeps text sliding beneath from colliding with
+   the field. With the keyboard up it rides just above the keyboard. */
 .thread-scroll {
   top: calc(var(--safe-top) + var(--head-top) + var(--head-h));
-  bottom: var(--composer-h, 76px);
-  padding: 0 var(--content-right) calc(var(--trace-h, 0px) + 14px) calc(var(--margin) + var(--safe-left) + 2px);
+  bottom: 0;
+  padding: 0 var(--content-right) calc(var(--composer-h, 76px) + var(--trace-h, 0px) + 14px) calc(var(--margin) + var(--safe-left) + 2px);
   -webkit-mask-image: none;
   mask-image: none;
 }
-.thread .composer { padding-right: var(--content-right); gap: 8px; }
-.thread .composer::before { content: ''; position: absolute; top: 0; left: 0; right: calc(var(--content-right) - var(--rail-gap)); height: 1px; background: var(--line); }
-.thread[data-bars="horizontal"] .composer::before { right: 0; }
+:root:not([data-kb="1"]) .thread-scroll { padding-bottom: calc(var(--composer-h, 76px) + var(--trace-h, 0px) + 14px); }
+.thread .composer { padding-right: var(--content-right); gap: 8px; isolation: isolate; }
+.thread .composer::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -18px 0 0;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 0%, transparent), color-mix(in srgb, var(--bg) 88%, transparent) 55%);
+  pointer-events: none;
+}
+.thread .field { box-shadow: 0 0 0 1px var(--line), 0 10px 30px -12px rgb(20 20 22 / 0.28), 0 2px 6px -3px rgb(20 20 22 / 0.12); }
+.thread .composer.is-focused .field { box-shadow: 0 0 0 1px color-mix(in srgb, var(--label) 26%, var(--line)), 0 10px 30px -12px rgb(20 20 22 / 0.3), 0 2px 6px -3px rgb(20 20 22 / 0.12); }
 .composer textarea { min-height: calc(1.45em + 18px); }
 /* With horizontal bars, drawing and photos sit beside the field. */
 .composer > .bar-section { flex: none; margin-bottom: 6px; gap: 6px; }
@@ -186,7 +197,7 @@
    conversation reads above the fold and writing happens below it, so no
    message or control sits in the bend. While typing, the keyboard owns the
    lower half and the usual layout returns. */
-:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); }
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); padding-bottom: calc(var(--trace-h, 0px) + 14px); }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer { top: var(--fold-end); bottom: auto; padding-top: 16px; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer::before { display: none; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .jump { bottom: calc(100% - var(--fold-start) + 12px); }

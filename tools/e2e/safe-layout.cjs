@@ -28,7 +28,7 @@ for(const c of [
  {w:466,h:678,right:84,bottom:52,axis:'vertical',zoom:true}
 ]){await p.setViewportSize({width:c.w,height:c.h});await p.evaluate(c=>{const root=document.documentElement;for(const[k,v]of Object.entries({'--safe-top':'0px','--safe-left':'0px','--safe-right':c.right+'px','--safe-bottom':c.bottom+'px'}))root.style.setProperty(k,v);root.style.fontSize=c.zoom?'212.5%':'106.25%';const two=c.split||c.lead,role=c.split?'trailing':c.lead?'leading':'single',pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout=two?'split':'stack';pane.dataset.role=role;pane.style.transform=c.split?'translate3d(calc(100% + var(--gap)),0,0)':'';testThread.setLayout(role)},c);await settle();
 // The keyboard shrinks only the visual viewport; the layout viewport (and so the bar axis) stays.
-await p.evaluate(c=>{if(c.kb)Object.defineProperty(visualViewport,'height',{get:()=>c.kb,configurable:true});else delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))},c);await p.waitForTimeout(250);const H=c.kb||c.h,B=c.kb?0:c.bottom;
+await p.evaluate(c=>{const field=document.querySelector('.composer textarea');if(c.kb){field.focus({preventScroll:true});Object.defineProperty(visualViewport,'height',{get:()=>c.kb,configurable:true})}else{field.blur();delete visualViewport.height}visualViewport.dispatchEvent(new Event('resize'))},c);await p.waitForTimeout(250);const H=c.kb||c.h,B=c.kb?0:c.bottom;
 const d=await p.evaluate(()=>{const r=e=>{const b=e.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,w:b.width,h:b.height}};const thread=document.querySelector('.thread'),nav=document.querySelector('.thread-nav');return{axis:thread.dataset.bars,reserve:document.querySelector('.thread-rail').getBoundingClientRect().top,foot:document.querySelector('.thread-rail').getBoundingClientRect().bottom,thread:r(thread),header:r(nav),scroll:r(document.querySelector('.thread-scroll')),field:r(document.querySelector('.composer .field')),title:r(document.querySelector('.thread-title')),items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>({id:e.dataset.item||'more',...r(e)})),overflow:thread.scrollWidth>thread.clientWidth,underHeader:Boolean(document.elementFromPoint(nav.getBoundingClientRect().left+100,nav.getBoundingClientRect().bottom-2)?.closest('.m'))}});console.log(JSON.stringify({case:c,axis:d.axis,items:d.items.map(i=>i.id)}));
 assert.equal(d.axis,c.axis,'bar axis');assert.ok(d.scroll.y>=d.header.bottom-.5);assert.equal(d.underHeader,false);assert.equal(d.overflow,false);
 // With a wide right inset (the Duo's own column for the status bar and Dynamic Island, open or closed) the
@@ -56,17 +56,19 @@ if(c.axis==='vertical'){
 if(c.overflow){
  // Overflow is bottom-up by priority; Back never overflows; the menu holds the rest.
  assert.ok(ids.includes('more'),'overflow button');if(!c.split)assert.ok(ids.includes('back'))
- await p.click('.thread .bar-more');await p.locator('.menu.on').waitFor();await p.waitForTimeout(200);const b=await p.locator('.menu').boundingBox();assert.ok(b.x>=9&&b.x+b.width<=c.w-c.right-9&&b.y>=9&&b.y+b.height<=H-B-9,'menu safe region')
+ // With the keyboard up, tapping 更多 takes focus from the field and the keyboard goes away; the
+ // menu itself is exercised in the short windows instead.
+ if(!c.kb){await p.click('.thread .bar-more');await p.locator('.menu.on').waitFor();await p.waitForTimeout(200);const b=await p.locator('.menu').boundingBox();assert.ok(b.x>=9&&b.x+b.width<=c.w-c.right-9&&b.y>=9&&b.y+b.height<=H-B-9,'menu safe region')
  const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('聊天信息'),'details in overflow '+labels)
- await p.getByRole('menuitemcheckbox',{name:'聊天信息',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'info:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
+ await p.getByRole('menuitemcheckbox',{name:'聊天信息',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'info:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)}
 }else assert.ok(!ids.includes('more'),'nothing overflows')
 if(c.name)await p.screenshot({path:path.join(OUT,c.name+'.png')})
 }
 
-// Focus follows an item into the overflow menu and back out of it.
+// Focus follows an item into the overflow menu and back out of it as the window gets shorter and taller.
 await p.setViewportSize({width:466,height:678});await p.evaluate(()=>{const root=document.documentElement;delete visualViewport.height;root.style.fontSize='106.25%';root.style.setProperty('--safe-right','0px');root.style.setProperty('--safe-bottom','0px');const pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout='stack';pane.dataset.role='single';pane.style.transform='';testThread.setLayout('single')});await settle()
-await p.locator('.thread [data-item="info"]').focus();await p.evaluate(()=>{Object.defineProperty(visualViewport,'height',{get:()=>360,configurable:true});visualViewport.dispatchEvent(new Event('resize'))});await p.waitForTimeout(300);assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
-await p.evaluate(()=>{delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))});await p.waitForTimeout(300);assert.equal(await p.locator('.thread [data-item="info"]').evaluate(e=>e===document.activeElement),true)
+await p.locator('.thread [data-item="info"]').focus();await p.setViewportSize({width:466,height:360});await settle();assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
+await p.setViewportSize({width:466,height:678});await settle();assert.equal(await p.locator('.thread [data-item="info"]').evaluate(e=>e===document.activeElement),true)
 // The same item keeps its identity (and focus) when bars change axis.
 await p.locator('.thread [data-item="audio"]').focus();await p.setViewportSize({width:626,height:890});await settle();assert.equal(await p.evaluate(()=>document.querySelector('.thread').dataset.bars),'horizontal');assert.equal(await p.locator('.thread [data-item="audio"]').evaluate(e=>e===document.activeElement),true)
 assert.deepEqual(errors,[]);console.log('PASS: HIG bar axis per window, safe regions with 44pt targets, camera/status clearance, trailing column beside content, bottom-up overflow keeping Back, overflow focus, axis change keeps focus')
