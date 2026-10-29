@@ -162,3 +162,39 @@ final result: passed
 - 键盘上方的“∧ ∨ ✓”是 iOS 的表单辅助栏，网页无法隐藏：WebKit 在小屏 iPhone 上对所有文本输入（input、textarea、
   contenteditable）都要求显示它（`_elementTypeRequiresAccessoryView` 返回 `currentUserInterfaceIdiomIsSmallScreen()`），
   只有嵌入网页的原生应用能通过 `accessoryViewShouldNotShow` 关掉。iPad 一类的大屏不显示。
+
+## 符号与符号动效（按 SF Symbols 规则重画）
+
+SF Symbols 的图形只许在 Apple 平台的应用里使用，网页不能直接拿来用；所以按它的规则自己重画了 48 个符号，并在网页上
+复现它的渲染模式与动效词汇。
+
+- 绘制：`tools/gen-symbols.py` 生成 `index.html` 里的符号表。统一 24 单位网格、圆头圆角；全部是路径，描边带
+  `pathLength="1"`（起点到终点即绘制方向，用于 Draw On/Off）；只有平涂，不烘焙阴影或渐变；每层标注
+  `s` / `f`（描边 / 填充）、`l2` / `l3`（次级 / 三级层）、`v0…`（可变颜色的点亮顺序）、`k`（挖空）。
+  X 与 X.slash 是同一个符号：斜线画上时用遮罩在下层擦出缝隙，所以不再有单独的 `*-slash` 图形。
+- 绘入：`icon()` 把符号逐层内联到页面（不再用 `<use>`），每层可单独着色与动画。
+- 粗细：线宽是一个变量 `--sym-w`，容器可以让符号与旁边文字同粗（边栏当前项随粗体标签加粗）；未指定时单笔画字形
+  （箭头、勾、叉、加号、放大镜、筛选、尖括号）高一档，与多笔画符号的灰度一致。
+- 渲染模式：默认单色；工具栏与边栏用分层（次级层 50%、三级层 30%）；感叹号为挖空的多色。
+- 动效（`ui/symbols.js`，Web Animations）：Bounce / Bounce Down、Pulse、Variable Color（逐层累积点亮）、Appear /
+  Disappear、Draw On / Off 按层错开播放；Replace 为缩小淡出后弹入，Magic Replace 只画上或擦去斜线、外形不动。
+  持续动效（Variable Color、重复 Bounce）都由启动方负责停止。减弱动态效果时全部不播放，斜线直接切换。
+
+| 位置 | 原来 | 对应 SF Symbol | 模式 / 配置 | 处理 |
+| --- | --- | --- | --- | --- |
+| 对话与列表工具栏 | 单色线条 | phone · video · info.circle · pencil.and.scribble · photo · square.and.pencil · line.3.horizontal.decrease | 分层 | 重画；点按 Bounce（返回、关闭不弹，靠移动回应） |
+| 返回 / 关闭 | 单独线宽 | chevron.left · xmark | 单色，单笔画高一档 | 重画 |
+| 边栏范围 | 单色 | bubble.left · app.badge · person · person.2 | 分层；当前项加粗 | 重画；点按 Bounce |
+| 发送键 | 静态箭头 | arrow.up | 单色，粗 | 有字时 Draw On，清空时 Draw Off |
+| 回到最新 | 静态 | chevron.down | 单色 | 有新消息时 Bounce Down |
+| 语音播放 / 暂停 | 替换节点 | play.fill ↔ pause.fill | 单色 | Replace |
+| 通话静音 / 摄像头 | 两个独立图形 | mic.fill ↔ mic.slash.fill · video ↔ video.slash | 单色，斜线擦出缝隙 | Magic Replace |
+| 来电接听 / 挂断 | 线条听筒 · 偏小的挂断 | phone.fill · phone.down.fill | 单色 | 响铃时接听键重复 Bounce，接听、拒绝或结束即停；挂断重画为完整听筒 |
+| 连接中 | 旋转指示器 | wifi | 可变颜色 v0–v3 | Variable Color，连上即停 |
+| 列表免打扰标记 | 独立图形 | bell.slash | 单色 | 静音 Appear，取消 Disappear |
+| 提示 | 静态 | checkmark · exclamationmark.circle.fill | 单色 · 多色 | 成功 Draw On，出错 Bounce |
+| 选择联系人 | 缩放过渡 | checkmark | 单色 | 选中时 Draw On |
+| 空状态与新对话问候 | 静态 | bubble.left · pencil.and.scribble · checkmark | 单色 | 出现时 Draw On（刷新不重播） |
+| 画板工具 | 静态 | arrow.uturn.backward · trash | 单色 | 点按 Bounce |
+
+- Service Worker 缓存版本升到 `shell-v12`，并缓存新增的 `css/symbols.css` 与 `js/ui/symbols.js`。

@@ -4,6 +4,7 @@
 // tracks once and pulls everyone else's — no mesh.
 
 import { h, icon } from '../ui/dom.js'
+import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
 import { state, chatInfo, nameOf } from '../store.js'
 import { api } from '../api.js'
@@ -172,6 +173,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
   const incomingActions = h('div', { class: 'call-incoming' })
 
   let hasVideo = false
+  let ringing = null
   function mount() { document.getElementById('overlays').append(root); placeOnSide(root, 'thread'); requestAnimationFrame(() => root.classList.add('on')) }
 
   return {
@@ -190,15 +192,17 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
       name.textContent = caller?.display || '来电'
       status.textContent = media === 'video' ? '邀请你视频通话' : '邀请你语音通话'
       poster.append(avatar(caller?.id, caller?.display || '', { size: 112 }))
-      const yes = h('button', { class: 'call-btn accept', type: 'button', 'aria-label': '接听' }, icon(media === 'video' ? 'video' : 'phone'))
+      const yes = h('button', { class: 'call-btn accept', type: 'button', 'aria-label': '接听' }, icon(media === 'video' ? 'video' : 'phone-fill'))
       const no = h('button', { class: 'call-btn hang', type: 'button', 'aria-label': '拒绝' }, icon('phone-down'))
-      yes.addEventListener('click', () => { incomingActions.remove(); controls.hidden = false; accept() })
-      no.addEventListener('click', decline)
+      yes.addEventListener('click', () => { ringing?.stop(); incomingActions.remove(); controls.hidden = false; accept() })
+      no.addEventListener('click', () => { ringing?.stop(); decline() })
       incomingActions.append(no, yes)
       controls.hidden = true
       root.append(incomingActions)
       camBtn.el.hidden = !hasVideo
       mount()
+      // The answer button keeps bouncing while the call rings.
+      ringing = symbolEffect(yes.querySelector('.icon'), 'bounce', { repeat: true })
     },
     setStatus(text) { status.textContent = text },
     attachLocal(stream, video) {
@@ -213,6 +217,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
       remoteVideo.play?.().catch(() => {})
     },
     destroy() {
+      ringing?.stop()
       root.classList.remove('on')
       setTimeout(() => root.remove(), 260)
     }
@@ -226,7 +231,7 @@ function toggle(iconOn, iconOff, label, initial, onChange) {
     on = !on
     el.classList.toggle('active', on)
     el.setAttribute('aria-pressed', String(on))
-    el.replaceChildren(icon(on ? iconOn : iconOff))
+    replaceSymbol(el.querySelector('.icon'), on ? iconOn : iconOff)
     onChange(on)
   })
   return { el }

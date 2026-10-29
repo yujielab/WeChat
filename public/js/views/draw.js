@@ -4,6 +4,7 @@
 // It lives in the details column, beside the conversation it's drawn for.
 
 import { h, icon } from '../ui/dom.js'
+import { symbolEffect } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
 
 const COLORS = ['#18181b', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#5856d6', '#ff2d92', '#ffffff']
@@ -148,6 +149,9 @@ export function createDrawing(host, { onSend, onClose }) {
 
 function toolBtn(ic, label, onClick) {
   const b = h('button', { class: 'draw-tool glass glass-btn', type: 'button', 'aria-label': label }, icon(ic))
-  b.addEventListener('click', onClick)
+  b.addEventListener('click', () => {
+    symbolEffect(b.querySelector('.icon'), 'bounce')
+    onClick()
+  })
   return b
 }

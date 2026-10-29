@@ -1,0 +1,72 @@
+/* Symbols (see tools/gen-symbols.py for the drawings, ui/dom.js for how one
+   is drawn, ui/symbols.js for the effects).
+
+   Every symbol is drawn inline as layers: .s strokes and .f fills, .l2 / .l3
+   secondary and tertiary layers, .v0… variable-color layers (lit in that
+   order by ui/symbols.js), .k knock-outs.
+   The stroke weight is one number on the 24-unit grid (--sym-w), so a
+   container can match its symbols to the text beside them the way SF
+   Symbols match weights; without one, single-stroke glyphs sit a step
+   heavier so they hold the same color as the busier ones. */
+
+.icon {
+  --sym-glyph: 1.9;
+  --sym-weight: var(--sym-w, var(--sym-glyph));
+  overflow: visible;
+}
+.icon:is([data-symbol^="chevron"], [data-symbol="xmark"], [data-symbol="plus"], [data-symbol="filter"], [data-symbol="search"]) { --sym-glyph: 2.2; }
+.icon[data-symbol="check"] { --sym-glyph: 2.3; }
+.icon[data-symbol="arrow-up"] { --sym-glyph: 2.5; }
+
+.icon .s {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: calc(var(--sym-weight) * 1px);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon .f { fill: currentColor; }
+.icon .s.k { stroke: var(--sym-knock, #fff); stroke-width: calc((var(--sym-weight) + 0.5) * 1px); }
+.icon .f.k { fill: var(--sym-knock, #fff); }
+
+/* Effects move layers about the middle of the grid. */
+.icon .sym,
+.icon .sym-layers > * {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+/* ---------------------------------------------------------- rendering modes
+   Monochrome by default. Hierarchical (toolbars, the sidebar) keeps one
+   color and steps the secondary and tertiary layers back; palette gives
+   them colors of their own (--sym-c2 / --sym-c3). */
+.icon .l2 { color: var(--sym-c2, currentColor); opacity: var(--sym-o2, 1); }
+.icon .l3 { color: var(--sym-c3, currentColor); opacity: var(--sym-o3, 1); }
+.bar-item .icon,
+.side-scope-icon .icon { --sym-o2: 0.5; --sym-o3: 0.3; }
+
+/* ---------------------------------------------------------- slash
+   X and X.slash are one symbol: the slash draws on across it (Draw On) and
+   erases a gap in the layers behind it as it goes, and draws off again the
+   way it came — Magic Replace, run by toggling [data-slashed]. */
+.icon .sym-slash,
+.icon .sym-cut {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transition: stroke-dashoffset 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 0s linear 300ms;
+}
+.icon .sym-slash { stroke: currentColor; stroke-width: calc(var(--sym-weight) * 1px); }
+.icon .sym-cut { stroke: #000; stroke-width: calc((var(--sym-weight) + 3.4) * 1px); }
+.icon[data-slashed] :is(.sym-slash, .sym-cut) {
+  stroke-dashoffset: 0;
+  opacity: 1;
+  transition: stroke-dashoffset 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .icon :is(.sym-slash, .sym-cut) { transition: none; }
+}
+:root[data-motion="reduce"] .icon :is(.sym-slash, .sym-cut) { transition: none; }

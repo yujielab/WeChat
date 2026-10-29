@@ -1,6 +1,7 @@
 // Conversation view.
 
 import { h, icon, clear, reducedMotion, announce, edge } from '../ui/dom.js'
+import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { threadTime } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
@@ -138,6 +139,13 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     welcomeName)
   const uploadTrace = createUploadTrace()
   const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, rail, composer.el, jump, uploadTrace.el)
+
+  // The welcome's symbol draws on each time the welcome comes into view.
+  function showWelcome(show) {
+    const appearing = show && welcome.hidden
+    welcome.hidden = !show
+    if (appearing) symbolEffect(welcome.querySelector('.icon'), 'draw-on')
+  }
 
   // Bars follow the window's axis, except in the leading column of a split
   // view, which keeps horizontal bars (see shell / chatList).
@@ -397,7 +405,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     }
     decorate(visible)
     placeMeta(list)
-    welcome.hidden = !(t.loaded && !list.length)
+    showWelcome(t.loaded && !list.length)
     if (t.loaded && !list.length) olderEl.textContent = ''
     else if (t.loaded && !t.hasMore) olderEl.textContent = ''
     else if (!t.loading) olderEl.textContent = ''
@@ -502,7 +510,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     typingTimer = 0
     titleSub.classList.remove('typing')
     clearGhost()
-    welcome.hidden = true
+    showWelcome(false)
     newCount = 0
     jumpBadge.hidden = true
     jump.classList.remove('on')
@@ -748,14 +756,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     ghostEl = null
     if (current) {
       const t = thread(current)
-      welcome.hidden = !(t.loaded && !t.list.length)
+      showWelcome(t.loaded && !t.list.length)
     }
   }
   function setTyping(room, uid, text = '') {
     if (room !== current) return
     clearTimeout(typingTimer)
     if (text) {
-      welcome.hidden = true
+      showWelcome(false)
       // Live text: a ghost incoming bubble that updates as the peer types.
       if (!ghostEl) {
         const who = isGroup(current) ? h('div', { class: 'm-sender' }, nameOf(uid, current)) : null
@@ -1034,7 +1042,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     if (!audio) return
     audio.pause()
     const node = nodes.get(playing)
-    node?.querySelector('.voice-btn')?.replaceChildren(icon('play'))
+    replaceSymbol(node?.querySelector('.voice-btn .icon'), 'play')
     node?.querySelectorAll('.wave i').forEach(i => i.classList.remove('on'))
     audio = null
     playing = null
@@ -1046,7 +1054,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     playing = m.id
     audio = new Audio(m.url)
     const bars = [...bub.querySelectorAll('.wave i')]
-    bub.querySelector('.voice-btn').replaceChildren(icon('pause'))
+    replaceSymbol(bub.querySelector('.voice-btn .icon'), 'pause')
     audio.addEventListener('timeupdate', () => {
       const p = audio && audio.duration ? audio.currentTime / audio.duration : 0
       bars.forEach((b, i) => b.classList.toggle('on', i / bars.length < p))
@@ -1086,6 +1094,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
       jumpBadge.textContent = newCount > 99 ? '99+' : String(newCount)
       jumpBadge.hidden = false
       jump.classList.add('on')
+      symbolEffect(jump.querySelector('.icon'), 'bounce-down')
     }
     announce(`${m.fromName ? `${m.fromName}：` : ''}${m.text || '新消息'}`)
   })

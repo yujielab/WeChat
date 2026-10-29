@@ -1,6 +1,7 @@
 // Sheets, anchored menus, confirmations and toasts.
 
 import { h, icon, transitionEnd, reducedMotion, stagger } from '../ui/dom.js'
+import { symbolEffect } from '../ui/symbols.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { getLayout } from '../ui/viewport.js'
 import { placeOnSide, foldSide } from '../ui/fold.js'
@@ -484,7 +485,12 @@ export function toast(text, { type = '', iconName, duration = 2400 } = {}) {
   if (type === 'error') haptic()
   const t = { dismiss }
   current = t
-  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')))
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.classList.add('on')
+    // A check draws on; anything else bounces to say it needs a look.
+    const sym = el.querySelector('.icon')
+    if (sym) symbolEffect(sym, sym.dataset.symbol === 'check' ? 'draw-on' : 'bounce')
+  }))
   const timer = setTimeout(dismiss, duration)
   async function dismiss() {
     clearTimeout(timer)

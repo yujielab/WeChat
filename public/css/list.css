@@ -26,7 +26,7 @@
 .large-title { margin: 0; font-size: 1.882rem; font-weight: 730; line-height: 1.17; letter-spacing: -1.5px; color: var(--label); }
 .title-period { color: var(--label-3); margin-left: 1px; }
 .conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
-.conn-status .spinner { width: 11px; height: 11px; border-width: 1.5px; }
+.conn-status .icon { width: 14px; height: 14px; }
 .conn-status.warn { color: var(--orange); }
 
 /* The capsule follows the actual button geometry instead of assuming equal labels. */

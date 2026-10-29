@@ -11,6 +11,7 @@
 //    otherwise, and items showing a badge stay visible longer.
 
 import { h, icon } from './dom.js'
+import { symbolEffect } from './symbols.js'
 import { openMenu } from '../views/overlay.js'
 
 const BUTTON = 44
@@ -35,7 +36,11 @@ export function createBars({ label, items, arrange }) {
       dataset: { item: item.id },
       'aria-haspopup': item.menu ? 'menu' : undefined
     }, icon(item.icon), h('span', { class: 'bar-badge tabular', 'aria-hidden': 'true', hidden: true }))
-    button.addEventListener('click', () => item.onSelect?.(button))
+    button.addEventListener('click', () => {
+      // Actions acknowledge the tap with a bounce; navigation answers by moving.
+      if (!item.primary) symbolEffect(button.querySelector('.icon'), 'bounce')
+      item.onSelect?.(button)
+    })
     byId.set(item.id, { ...item, button, state: {} })
     order.push(item.id)
   }

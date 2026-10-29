@@ -33,15 +33,62 @@ export function append(el, children) {
 
 const SVG = 'http://www.w3.org/2000/svg'
 
+/**
+ * A symbol from the sprite in index.html, drawn inline so each layer can be
+ * styled and animated (rendering modes, Draw On/Off; see ui/symbols.js).
+ * "x-slash" draws x with its slash.
+ */
 export function icon(name, cls = '') {
-  const svg = document.createElementNS(SVG, 'svg')
-  svg.setAttribute('class', `icon i-${name} ${cls}`.trim())
-  svg.setAttribute('aria-hidden', 'true')
-  const use = document.createElementNS(SVG, 'use')
-  use.setAttribute('href', `#i-${name}`)
-  svg.append(use)
+  const svg = drawSymbol(svgEl('svg', { 'aria-hidden': 'true', viewBox: '0 0 24 24' }), name)
+  if (cls) svg.classList.add(...cls.split(/\s+/).filter(Boolean))
   return svg
 }
+
+let maskId = 0
+/**
+ * (Re)draw a symbol into an icon in place, keeping its other classes:
+ * <g class="sym"> (the whole symbol) holds <g class="sym-layers"> (one
+ * element per layer, indexed --i) and, for symbols that take one, the slash.
+ */
+export function drawSymbol(svg, name) {
+  const slashed = name.endsWith('-slash') && document.getElementById(`i-${name.slice(0, -6)}`)
+  const base = slashed ? name.slice(0, -6) : name
+  const symbol = document.getElementById(`i-${base}`)
+  for (const c of [...svg.classList]) if (c.startsWith('i-')) svg.classList.remove(c)
+  svg.classList.add('icon', `i-${name}`)
+  svg.dataset.symbol = base
+  const whole = svgEl('g', { class: 'sym' })
+  const layers = svgEl('g', { class: 'sym-layers' })
+  let i = 0
+  for (const node of symbol?.children || []) {
+    const layer = node.cloneNode(true)
+    layer.style.setProperty('--i', String(i++))
+    layers.append(layer)
+  }
+  whole.append(layers)
+  const parts = [whole]
+  if (symbol?.hasAttribute('data-slash')) {
+    // The slash erases a gap in the base as it draws: a mask stroke that
+    // follows it, wider by the gap on either side.
+    const id = `sym-cut-${++maskId}`
+    const mask = svgEl('mask', { id, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: 24, height: 24 })
+    mask.append(svgEl('rect', { width: 24, height: 24, fill: '#fff' }), slashPath('sym-cut'))
+    layers.setAttribute('mask', `url(#${id})`)
+    whole.append(slashPath('sym-slash'))
+    parts.unshift(mask)
+  }
+  svg.replaceChildren(...parts)
+  svg.toggleAttribute('data-slashed', Boolean(slashed))
+  return svg
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG, tag)
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v))
+  return el
+}
+
+const slashPath = cls => svgEl('path', { class: cls, d: 'M4 4l16 16', pathLength: 1 })
 
 /** Scroll-edge wash (see glass.css): four stacked blur layers. */
 export function edge(side, on = false) {
