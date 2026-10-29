@@ -10,23 +10,54 @@
 // * Folding and unfolding morph instead of cutting: where the browser has
 //   view transitions, the conversation's title, tools and field travel to
 //   their new places while the list slides in (or out) from the left.
+// * Decides where bars go (Apple HIG, Designing for iPhone Duo): toolbars and
+//   navigation controls move to the trailing edge ("vertical") wherever the
+//   window is wide or short — the outer display, the inner display in
+//   landscape — and stay as standard top / bottom bars only where there is
+//   vertical room, like the inner display in portrait (data-bars).
+// * Reports the folding region when the device is partially open, from the
+//   browser's viewport segments (data-fold, --fold-start / --fold-end).
 
 import { reducedMotion } from './dom.js'
 
 const root = document.documentElement
 const vv = window.visualViewport
 const SPLIT_MIN = 700
+// Height below which a portrait window has no room for top and bottom bars.
+const TALL_MIN = 760
 const listeners = new Set()
+const barListeners = new Set()
 let layout = null
+let bars = null
+let fold = { axis: 'none', start: 0, end: 0 }
+let foldOverride = null
+let lastVVWidth = vv ? vv.width : window.innerWidth
 
 function measure() {
   const h = vv ? vv.height : window.innerHeight
   const top = vv ? vv.offsetTop : 0
   root.style.setProperty('--vvh', `${Math.round(h)}px`)
   root.style.setProperty('--vvt', `${Math.round(top)}px`)
-  const kb = window.innerHeight - h > 120 && hasTextFocus()
+  // A resize that changes the width is a fold, an unfold or a rotation, never
+  // the keyboard (keyboards don't change width): it starts from no keyboard,
+  // and the next height-only change decides again.
+  const w = vv ? vv.width : window.innerWidth
+  const reshaped = Math.abs(w - lastVVWidth) > 1
+  lastVVWidth = w
+  const kb = !reshaped && window.innerHeight - h > 120 && hasTextFocus()
   if (kb) root.dataset.kb = '1'
   else delete root.dataset.kb
+  measureFold()
+  // The layout viewport, not the visual one: the keyboard must not move bars.
+  const nextBars = window.innerWidth >= window.innerHeight || window.innerHeight < TALL_MIN ? 'vertical' : 'horizontal'
+  // The column stays with the hardware: on the outer display in landscape the
+  // camera is at its foot rather than its head (see duo-layout.css).
+  root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  if (nextBars !== bars) {
+    bars = nextBars
+    root.dataset.bars = bars
+    for (const fn of barListeners) fn(bars)
+  }
   const next = window.innerWidth >= SPLIT_MIN ? 'split' : 'stack'
   if (next !== layout) {
     layout = next
@@ -73,12 +104,70 @@ function settle() {
   requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')))
 }
 
+// ---------------------------------------------------------------- fold
+// The folding region exists only while the device is partially open. The
+// browser exposes it as two viewport segments; a probe resolves their env()
+// edges to pixels. emulateFold() stands in for hardware when testing.
+let probe = null
+const segments = {
+  vertical: matchMedia('(horizontal-viewport-segments: 2)'),
+  horizontal: matchMedia('(vertical-viewport-segments: 2)')
+}
+for (const query of Object.values(segments)) query.addEventListener?.('change', () => measure())
+
+function measureFold() {
+  let next = { axis: 'none', start: 0, end: 0 }
+  if (foldOverride) {
+    const length = foldOverride.axis === 'vertical' ? window.innerWidth : window.innerHeight
+    const size = foldOverride.size ?? 24
+    next = { axis: foldOverride.axis, start: Math.round((length - size) / 2), end: Math.round((length + size) / 2) }
+  } else if (segments.vertical.matches || segments.horizontal.matches) {
+    const axis = segments.vertical.matches ? 'vertical' : 'horizontal'
+    if (!probe) {
+      probe = document.createElement('div')
+      probe.setAttribute('aria-hidden', 'true')
+      probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;width:0;height:0'
+      document.body.append(probe)
+    }
+    probe.style.width = axis === 'vertical' ? 'env(viewport-segment-right 0 0, 0px)' : '0'
+    probe.style.height = axis === 'horizontal' ? 'env(viewport-segment-bottom 0 0, 0px)' : '0'
+    probe.style.left = axis === 'vertical' ? 'env(viewport-segment-left 1 0, 0px)' : '0'
+    probe.style.top = axis === 'horizontal' ? 'env(viewport-segment-top 0 1, 0px)' : '0'
+    const start = axis === 'vertical' ? probe.offsetWidth : probe.offsetHeight
+    const end = axis === 'vertical' ? probe.offsetLeft : probe.offsetTop
+    if (end > start) next = { axis, start, end }
+  }
+  if (next.axis === fold.axis && next.start === fold.start && next.end === fold.end) return
+  fold = next
+  if (fold.axis === 'none') {
+    delete root.dataset.fold
+    root.style.removeProperty('--fold-start')
+    root.style.removeProperty('--fold-end')
+  } else {
+    root.dataset.fold = fold.axis
+    root.style.setProperty('--fold-start', `${fold.start}px`)
+    root.style.setProperty('--fold-end', `${fold.end}px`)
+  }
+}
+
+/** Pretend the device is partially folded (axis: 'vertical' | 'horizontal'), or clear it. */
+export function emulateFold(options = null) {
+  foldOverride = options && options.axis !== 'none' ? options : null
+  measure()
+}
+
+export function getFold() {
+  return { ...fold }
+}
+
 function hasTextFocus() {
   const el = document.activeElement
   return Boolean(el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(el.type))))
 }
 
 export function initViewport() {
+  const asked = new URLSearchParams(location.search).get('fold')
+  if (asked === 'vertical' || asked === 'horizontal') foldOverride = { axis: asked }
   measure()
   vv?.addEventListener('resize', measure)
   vv?.addEventListener('scroll', measure)
@@ -101,6 +190,15 @@ export function getLayout() {
 export function onLayout(fn) {
   listeners.add(fn)
   return () => listeners.delete(fn)
+}
+
+export function getBars() {
+  return bars
+}
+
+export function onBars(fn) {
+  barListeners.add(fn)
+  return () => barListeners.delete(fn)
 }
 
 export const isStandalone = () =>

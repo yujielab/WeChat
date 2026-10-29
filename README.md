@@ -13,35 +13,54 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 的交互细节：图片可拖入或粘贴，预览后确认发送；邀请码保留完整原生输入，辅以分段焦点轨道；
 点阵插画可切换心情；菜单高亮跟随鼠标和键盘；发送记录展示实际处理、上传和发送阶段及耗时。
 
-双屏布局按 Duo 草图调整：折叠时在右侧集中返回与通话操作，展开时使用紧凑会话列表和底部工具条；
-短窗口或键盘出现时工具回到顶部。双方头像标记消息分组，连续已发送照片合为可翻页、可逐张展开的照片叠。
-布局变化保留草稿、选区和阅读锚点；安全区使用浏览器提供的几何，支持报告双段视口的设备。
-系统侧边区域挤占可用宽度时，工具改用横栏；低高度窄窗口收进“更多聊天操作”。
-消息滚动区从标题栏下方开始，时间戳与首条消息之间不再重复留白。
+双屏界面按 Apple《[针对 iPhone Duo 设计](https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo)》重新设计：
 
-展开时，列表与对话共用同一条标题分隔线和同一条底部基线；筛选收进筛选菜单，列表从分隔线下直接开始。
-对话标题居中在内屏摄像头下方，对方头像成为右上角的“资料”胶囊；底部依次是语音、视频、画板标签和“+”，
-输入框占满整行。设置、资料、照片、画板和通话只出现在打开它的那一半屏幕，折叠区不会穿过任何弹层。
-折叠与展开之间以视图过渡衔接：对话在外屏与内屏右半边之间移动，列表从左侧展开；减少动态效果时直接切换。
-列表中的选中胶囊在会话之间滑动。照片叠像一小沓相片向一侧散开，发送者头像压在封面一角；
-消息可以回应（长按菜单选择，或双击送出 ❤️），回应显示在气泡边缘；私聊的“已读”在重新打开后依然保留。
+- **一条横向的栏带**：边栏 | 列表 | 对话 | 详情 四栏排成一条，屏幕是在这条栏带上滑动的窗口——合上时看一栏，
+  打开时看相邻两栏（等宽）。前进时窗口向右滑一栏，“返回”、从左缘轻扫或浏览器后退时向左滑；轻扫 1:1 跟手，
+  松手时按速度决定完成还是弹回。折叠 / 展开时，正在使用的那一栏留在屏幕上：例如打开时看着对话与详情，
+  合上后看到的是详情；打开时在对话里输入，合上后仍是对话。
+  - **边栏**：头像与名字（打开设置）、全部 / 未读 / 私聊 / 群聊（只有未读带数字），独占屏幕时还有搜索与新聊天。
+  - **详情**：对话的“聊天信息”（免打扰、置顶、成员、退出 / 删除）和画板都在对话旁边这一栏打开，
+    边看对话边画；合上时“关闭”变为“返回”。
+  - 前置栏的控制横排、后置栏跟随窗口；与边栏并排时列表不再重复筛选与品牌，对话在视野外时新消息重新计为未读。
+- **少用说明文字**：让布局自己说明——去掉副标题、分组说明、重复的占位提示和功能介绍；详情栏不加标题（顶部的头像与名字已经说明是谁），
+  私聊标题下只在对方在线时显示状态。
+- **垂直控制**：外屏与横向展开的内屏上，工具栏与导航控制移到后缘（右侧）的一列：顶部留给外屏相机与状态栏，
+  其下依次是“返回”、通话、聊天信息，底部是画板、照片；与列表并排时这一列末端还有“新聊天”（与“邮件”“备忘录”一致）。
+  只有纵向空间充足的窗口（内屏竖放、普通 iPhone）保留标准的顶栏与底栏。外屏横放时相机在这一列底部，“返回”移到最上方。
+- **溢出**：空间不足时，项目按优先级从下往上收进唯一的“更多”（省略号只用于溢出），“返回”与带角标的项目保留得最久；
+  焦点跟随项目进出溢出菜单。每个项目都有符号与标题，标题用于溢出菜单、辅助功能与提示。
+- **分栏浏览**：前置栏（如列表）的控制横排在其上方、搜索在底部；部分折叠时两栏以折叠区为界，
+  内容与弹层都不跨越折叠区（通过浏览器的视口分段检测）。像笔记本一样折起时，消息在折痕上方，输入在下方。
+- **弹层**：外屏上表单、照片查看器、画板与通话的“关闭”都位于后缘一列的顶部；内屏上放在前置栏一侧的表单保持横向栏，
+  放在后置栏一侧的则使用垂直栏。通话时标题与自拍预览移到前缘，避开相机。
+- 双方头像标记消息分组，连续照片合为照片叠；消息可以回应（长按菜单或双击 ❤️），私聊“已读”重开后仍保留。
+  折叠与展开之间以视图过渡衔接，布局变化保留草稿、选区与阅读位置；减少动态效果时直接切换。
 
 <img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Duo 桌面登录界面：品牌介绍与独立账号表单">
 
+| 合上：对话 | 打开：列表 + 对话 | 滑一栏：对话 + 详情 | 合上：详情 |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/24-strip-closed-chat.png" width="160" alt="合上时只显示对话一栏"> | <img src="docs/screenshots/25-strip-open-list-chat.png" width="300" alt="打开时列表与对话两栏等宽"> | <img src="docs/screenshots/26-strip-open-chat-details.png" width="300" alt="窗口滑到对话与聊天信息"> | <img src="docs/screenshots/27-strip-closed-details.png" width="160" alt="合上后留在详情，返回在列顶"> |
+
+| 打开：边栏 + 列表 |
+| --- |
+| <img src="docs/screenshots/28-strip-open-sidebar.png" width="420" alt="边栏的范围与数量，列表在旁"> |
+
 | 折叠（外屏 466×678） | 展开（内屏 890×626） |
 | --- | --- |
-| <img src="docs/screenshots/15-duo-folded.png" width="240" alt="右侧工具栏与照片叠放"> | <img src="docs/screenshots/16-duo-unfolded.png" width="420" alt="紧凑列表与展开对话"> |
+| <img src="docs/screenshots/15-duo-folded.png" width="240" alt="后缘一列：返回、通话、信息，底部画板与照片"> | <img src="docs/screenshots/16-duo-unfolded.png" width="420" alt="列表与对话两栏等宽，对话后缘的垂直控制"> |
 | <img src="docs/screenshots/05-drawboard.png" width="240"> | <img src="docs/screenshots/18-duo-dark.png" width="420" alt="双屏布局深色模式"> |
 | <img src="docs/screenshots/03-live-typing.png" width="240"> | <img src="docs/screenshots/17-duo-gallery.png" width="420" alt="照片组逐张浏览"> |
 | <img src="docs/screenshots/07-settings.png" width="240"> | <img src="docs/screenshots/01-auth.png" width="240"> |
 
-| 模拟系统侧边 / 底部安全区 | 低高度下收纳工具 |
-| --- | --- |
-| <img src="docs/screenshots/19-safe-layout.png" width="240" alt="安全区较大时使用横向工具栏"> | <img src="docs/screenshots/21-safe-keyboard.png" width="320" alt="低高度下保留返回与更多操作"> |
+| 非零侧边 / 底部安全区 | 键盘弹出：从下往上收进“更多” | 外屏横放：相机在列底 |
+| --- | --- | --- |
+| <img src="docs/screenshots/19-safe-layout.png" width="220" alt="安全区内的后缘控制列"> | <img src="docs/screenshots/21-safe-keyboard.png" width="220" alt="保留返回与更多操作"> | <img src="docs/screenshots/22-outer-landscape.png" width="320" alt="横放时返回位于列顶"> |
 
-| 弹层留在发起的一侧 |
-| --- |
-| <img src="docs/screenshots/22-duo-sheet-side.png" width="420" alt="展开时设置面板只占列表一侧，对话一侧保留回应与照片叠"> |
+| 部分折叠（书本）：两栏以折叠区为界 | 部分折叠（笔记本）：消息在上，输入在下 |
+| --- | --- |
+| <img src="docs/screenshots/22-duo-sheet-side.png" width="420" alt="新聊天表单留在列表一侧，不跨越折叠区"> | <img src="docs/screenshots/23-duo-laptop.png" width="300" alt="折痕上方是消息，下方是输入框"> |
 
 | 图片发送前预览 | 真实阶段与耗时 |
 | --- | --- |
@@ -60,7 +79,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
 - **通知**：新消息 Web Push（需加到主屏幕并配置 VAPID）
 - **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
-- **iPhone Duo**：折叠单栏推入 / 返回，展开列表 + 对话双栏；折叠态保持当前对话；弹层不跨越折叠区，折叠 / 展开带过渡
+- **iPhone Duo**：按 Apple HIG 设计——后缘垂直控制与优先级溢出、外屏单栏 / 内屏分栏、折叠区与相机避让、弹层按位置选择栏的方向
 
 ## 架构
 
@@ -171,10 +190,17 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 交互回归：`node tools/e2e/design-details.cjs` 验证图片预览、拖放 / 粘贴、真实上传、失败重试、
   任意长度邀请码和 320px 窄屏；只连接本地服务，截图写入 `screenshots-design/`。
 - 双屏回归：`node tools/e2e/duo-layout.cjs` 验证照片叠放与展开、双账号回应与已读、相册切换与焦点恢复、
-  展开后弹层与相册所在的一侧、两栏共用的标题线与底部基线、选中胶囊、
-  折叠前后的草稿 / 选区 / 阅读位置、小窗口发送和右侧返回；只连接本地服务。
-- 安全区回归：`node tools/e2e/safe-layout.cjs` 复现非零侧边 / 底部安全区，检查消息裁切、
-  窄屏 / 低高度工具布局、菜单边界、200% 字号；使用前端示例数据，不创建服务端账号。
+  分栏比例与后缘控制顺序、模拟书本 / 笔记本折叠时的分栏与弹层位置、内屏竖放的标准栏、
+  折叠前后的草稿 / 选区 / 阅读位置、小窗口发送和列顶“返回”；只连接本地服务。
+- 安全区回归：`node tools/e2e/safe-layout.cjs` 按窗口尺寸检查控制所在的轴、安全区与 44pt 点按区域、
+  相机 / 状态栏避让、内容不被控制列遮挡、从下往上的溢出与焦点、200% 字号；使用前端示例数据，不创建服务端账号。
+- 栏带回归：`node tools/e2e/strip.cjs` 依次走一遍 合上看对话 → 打开（列表 + 对话）→ 滑到对话 + 详情 → 合上看详情 →
+  轻扫回到对话，并检查浏览器前进 / 后退、边栏范围、视野外的未读、折叠时保留正在使用的那一栏、减少动态效果；
+  再按 [iphone-duo-web](https://github.com/trustworkscompany-dev/iphone-duo-web-skill) 的设备矩阵
+  （466×678、678×466、951×669、890×626、669×951、626×890、475×669、669×475）检查栏数、居中的折痕间隙、溢出与 44pt 控制，
+  并把宽度在 466 ↔ 951 之间逐步拖动，确认折叠不会被误判为键盘、弹层不压在折痕上。
+- 折叠模拟：在地址后加 `?fold=vertical`（书本）或 `?fold=horizontal`（笔记本），或在控制台调用
+  `(await import('/js/ui/viewport.js')).emulateFold({ axis: 'vertical' })`。
 
 ## 安全
 
@@ -190,8 +216,11 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 暂不支持录制语音消息（可发文字、图片、手绘；可打语音 / 视频通话）。
 - 单个 Durable Object 承载全部状态，适合个人与中小群体自建；超大规模需要分片。
 - 非端到端加密：消息在服务端（你自己的 Cloudflare 账号）以明文存储。
-- 无法在真机上验证的部分：iOS 键盘动画、`<input switch>` 触感、`viewport-segments`、Apple 推送送达、
-  真实 Realtime SFU 接通质量（开发环境无法访问 Realtime 服务）、真机摄像头的实际位置。
+- iPhone Duo 上的 Safari 没有折叠 API（不支持 CSS Viewport Segments 与 Device Posture）：折叠 / 展开只表现为宽度变化。
+  栏带、等宽两栏与弹层分侧都只依赖宽度，在 Safari 上完整可用；书本 / 笔记本半折时让开折痕的细化只在提供视口分段的浏览器
+  （Chromium）上生效，属于渐进增强。内屏的点网格是 951×669 还是 890×626 尚未确定，两者都已测试。
+- 无法在真机上验证的部分：iOS 键盘动画、`<input switch>` 触感、Apple 推送送达、
+  真实 Realtime SFU 接通质量（开发环境无法访问 Realtime 服务）、真机摄像头与安全区的实际数值。
 - 折叠 / 展开过渡依赖浏览器的视图过渡（View Transitions，Safari 18 / Chromium 111 起）；不支持时直接切换。
 
 ## 目录
@@ -201,10 +230,10 @@ src/            index.js（瘦代理）· hub.js（Durable Object）· store.js�
                 auth.js（账号加密）· media.js（R2）· call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
-    ui/         视口与折叠、弹簧、手势、按压、外观、格式、触感
-    views/      auth · chatList · thread · bubbles · composer · overlay · sheets · shell
-                viewer · call（通话）· draw（画板）· avatar
-tools/          gen-vapid.mjs · gen-springs.mjs · e2e/walkthrough.cjs
+    ui/         视口与折叠、栏带（strip）、工具栏、弹簧、按压、外观、格式、触感
+    views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
+                overlay · sheets · shell · viewer · call（通话）· draw（画板）· avatar
+tools/          gen-vapid.mjs · gen-springs.mjs · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip）
 test/           store · auth · webpush
 ```
 

@@ -69,6 +69,7 @@
 }
 .draw-palette::-webkit-scrollbar, .draw-sizes::-webkit-scrollbar { display: none; }
 .draw-sizes { justify-content: center; }
+.draw-palette { justify-content: space-between; gap: 6px; }
 .draw-tools { display: flex; justify-content: center; gap: 12px; }
 
 .draw-color {

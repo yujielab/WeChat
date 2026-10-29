@@ -28,7 +28,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
   const shot = async (p, n) => { await sleep(800); await p.screenshot({ path: path.join(OUT, `${n}.png`) }); console.log('shot', n) }
   async function reg(p, u, d) {
     await p.goto(BASE); await p.waitForSelector('.auth')
-    await p.click('.auth-foot button')
+    await p.click('.auth-tab:has-text("创建账号")')
     await p.fill('#auth-u', u); await p.fill('#auth-d', d); await p.fill('#auth-p', 'hunter2')
     await p.click('.auth-form button[type=submit]'); await p.waitForSelector('.shell', { timeout: 10000 })
   }
@@ -38,12 +38,14 @@ const uniq = Math.random().toString(36).slice(2, 7)
   const amy = `amy_${uniq}`, ben = `ben_${uniq}`
   await reg(A, amy, '艾米'); await reg(B, ben, '本'); await sleep(400)
 
-  // settings (from the list, before a chat is open)
-  await A.click('.me-btn'); await A.waitForSelector('.sheet'); await sleep(500); await shot(A, '07-settings')
+  // settings (from the sidebar, one column back from the list)
+  await A.click('.pane-list [data-item="back"]'); await A.waitForSelector('.shell[data-focus=sidebar]:not([data-anim])')
+  await A.click('.side-me'); await A.waitForSelector('.sheet'); await sleep(500); await shot(A, '07-settings')
   await A.keyboard.press('Escape'); await sleep(400)
+  await A.click('.side-scope[data-scope="all"]'); await A.waitForSelector('.shell[data-focus=list]:not([data-anim])')
 
   // open a DM
-  await A.click('.list-topbar .bar-btn.tint'); await A.waitForSelector('.sheet'); await sleep(400)
+  await A.click('.pane-list [data-item="compose"]'); await A.waitForSelector('.sheet'); await sleep(400)
   await A.fill('.sheet-search input', ben); await sleep(600); await shot(A, '02-newchat')
   await A.click(`.sheet .cell:has-text("@${ben}")`); await A.waitForSelector('.thread:not([hidden])'); await sleep(400)
   await B.click('.row'); await B.waitForSelector('.thread:not([hidden])'); await sleep(300)
@@ -55,9 +57,9 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await B.fill('.composer textarea', '收到！延迟很低'); await B.keyboard.press('Enter'); await sleep(700)
   await shot(A, '04-thread')
 
-  // drawing board
-  await A.click('.composer .attach'); await sleep(250); await A.click('.menu-item:has-text("画板")')
-  await A.waitForSelector('.draw.on'); await sleep(300)
+  // drawing board (the details column, slid in beside the conversation)
+  await A.click('.thread [data-item="draw"]')
+  await A.waitForSelector('.shell[data-focus=artifact]:not([data-anim]) .draw'); await sleep(300)
   const box = await (await A.$('.draw-canvas')).boundingBox()
   await A.mouse.move(box.x + 60, box.y + 90); await A.mouse.down()
   for (let i = 0; i < 22; i++) await A.mouse.move(box.x + 60 + i * 11, box.y + 90 + Math.sin(i / 2) * 46)
@@ -67,10 +69,10 @@ const uniq = Math.random().toString(36).slice(2, 7)
   for (let i = 0; i < 18; i++) await A.mouse.move(box.x + 80 + i * 10, box.y + 210 + Math.cos(i / 2) * 38)
   await A.mouse.up()
   await shot(A, '05-drawboard')
-  await A.click('.draw-send'); await sleep(1000); await shot(A, '06-thread-drawing')
+  await A.click('.draw-send'); await A.waitForSelector('.shell[data-focus=thread]:not([data-anim])'); await sleep(800); await shot(A, '06-thread-drawing')
 
   // call UI (needs REALTIME_* dummy vars on the dev server)
-  await A.click('.thread-tools .glass-btn[aria-label="语音通话"]').catch(() => {})
+  await A.click('.thread [data-item="audio"]').catch(() => {})
   await sleep(700); await shot(B, '08-incoming-call')
   await A.click('.call .hang').catch(() => {}); await sleep(300)
 

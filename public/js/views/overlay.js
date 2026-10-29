@@ -284,7 +284,7 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
       const btn = h('button', {
         class: ['menu-item', it.destructive && 'destructive'],
         type: 'button',
-        role: checkable ? 'menuitemradio' : 'menuitem',
+        role: checkable ? (it.toggle ? 'menuitemcheckbox' : 'menuitemradio') : 'menuitem',
         'aria-checked': checkable ? String(Boolean(it.checked)) : undefined,
         disabled: it.disabled
       },

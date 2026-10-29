@@ -1,0 +1,95 @@
+/* The strip's first and last columns (js/views/sidebar.js, artifact.js).
+   Both follow the same bar rules as the list and the conversation: a column
+   on the trailing edge wherever the window's bars are vertical, horizontal
+   bars as the leading column of a split view or with vertical room. */
+
+/* ---------------------------------------------------------------- sidebar */
+.pane-sidebar { --side-inset: 22px; --content-right: calc(var(--safe-right) + var(--side-inset)); background: var(--paper); }
+.pane-sidebar[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+.pane-sidebar[data-bars="vertical"] > .duo-rail { display: flex; }
+.side-scroll { padding: calc(var(--safe-top) + 26px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 24px) calc(var(--safe-left) + var(--side-inset)); }
+.pane-sidebar[data-bars="horizontal"]:not([data-layout="leading"]) .side-scroll { padding-top: calc(var(--safe-top) + 72px); }
+.side-topbar {
+  position: absolute;
+  z-index: var(--z-chrome);
+  top: calc(var(--safe-top) + 12px);
+  left: calc(var(--safe-left) + var(--side-inset));
+  right: var(--content-right);
+  height: 44px;
+  display: none;
+  align-items: center;
+  justify-content: flex-end;
+}
+.pane-sidebar[data-bars="horizontal"] .side-topbar { display: flex; }
+.side-head { margin-bottom: 18px; }
+.side-title { font-size: 1.882rem; }
+
+.side-me {
+  width: 100%;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  text-align: left;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), 0 6px 22px -16px rgb(0 0 0 / .2);
+}
+.side-me:active { background: var(--field); }
+.side-me:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+.side-me-avatar { flex: none; display: flex; }
+.side-me-name { flex: 1; min-width: 0; font-size: var(--t-headline); font-weight: var(--w-semibold); letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-me .chev { color: var(--label-3); display: inline-flex; }
+.side-me .chev .icon { width: 14px; height: 14px; }
+
+.side-scopes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.side-scope {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 14px;
+  text-align: left;
+  color: var(--label);
+  font-size: var(--t-body);
+  transition: background-color 160ms ease-out;
+}
+.side-scope:active { background: var(--fill-4); }
+.side-scope:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.side-scope.current { background: var(--ink); color: var(--on-ink); font-weight: var(--w-semibold); }
+.side-scope-icon { flex: none; width: 24px; display: grid; place-items: center; color: var(--label-2); }
+.side-scope.current .side-scope-icon { color: inherit; }
+.side-scope-icon .icon { width: 19px; height: 19px; }
+.side-scope-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 11px; background: var(--blue); color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); }
+@media (hover: hover) and (pointer: fine) {
+  .side-scope:not(.current):hover { background: var(--fill-4); }
+}
+
+/* ---------------------------------------------------------------- details */
+.pane-artifact { background: var(--bg); }
+.art-body { position: absolute; inset: 0; }
+.art-body[data-kind="info"] { --content-right: calc(var(--safe-right) + var(--margin)); }
+.art-body[data-bars="vertical"] { --content-right: calc(var(--safe-right) + var(--rail-inset) + var(--rail-w) + var(--rail-gap)); }
+.art-body[data-bars="vertical"] > .duo-rail { display: flex; }
+/* No heading: Close (or Back) alone, above the profile with horizontal
+   bars, in the trailing column with vertical ones. */
+.art-head {
+  position: absolute;
+  z-index: var(--z-chrome);
+  top: calc(var(--safe-top) + 12px);
+  left: calc(var(--margin) + var(--safe-left));
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+.art-body[data-bars="vertical"] .art-head { display: none; }
+.art-scroll { top: calc(var(--safe-top) + 64px); padding: 8px calc(var(--content-right) - var(--margin)) calc(max(var(--safe-bottom), 16px) + 20px) var(--safe-left); }
+.art-body[data-bars="vertical"] .art-scroll { top: calc(var(--safe-top) + 12px); }
+
+/* The drawing board takes the whole column; its own controls follow the
+   window's bars (duo-layout.css). */
+.pane-artifact .draw { position: absolute; inset: 0; z-index: auto; opacity: 1; transform: none; transition: none; }

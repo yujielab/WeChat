@@ -95,12 +95,11 @@ function masks(points) {
 
 export function createHalftone({ compact = false } = {}) {
   const canvas = h('canvas', { 'aria-hidden': 'true' })
-  const stage = h('button', { class: 'halftone-stage', type: 'button' }, canvas,
+  const stage = h('button', { class: 'halftone-stage', type: 'button', 'aria-label': '换个心情' }, canvas,
     h('span', { class: 'halftone-fallback', 'aria-hidden': 'true' }, icon('bubble')))
   const controls = h('div', { class: 'halftone-controls', role: 'group', 'aria-label': '插画心情' })
   const live = h('span', { class: 'sr-only', 'aria-live': 'polite' })
-  const el = h('div', { class: ['halftone-art', compact && 'compact'] }, stage, controls,
-    h('span', { class: 'halftone-caption' }, '点一下，换个心情'), live)
+  const el = h('div', { class: ['halftone-art', compact && 'compact'] }, stage, controls, live)
   const buttons = SHAPES.map((shape, index) => {
     const button = h('button', { type: 'button', 'aria-pressed': index === 0 ? 'true' : 'false' }, shape.label)
     button.addEventListener('click', () => select(index))

@@ -1,6 +1,6 @@
-// Conversation list: a compact inner-screen index and a fuller outer-screen
-// heading, pinned avatars, rows with swipe
-// actions, a filter menu and live search (names, remarks and pinyin).
+// Conversation list: a large-title heading, pinned avatars, rows with swipe
+// actions, filters and live search (names, remarks and pinyin), with its
+// bars arranged for the display (see ui/bars.js).
 
 import { h, icon, clear, reducedMotion, edge, stagger } from '../ui/dom.js'
 import { listTime } from '../ui/format.js'
@@ -11,16 +11,20 @@ import { state, on, sortedChats, getDraft, patchRoom, upsertRoom } from '../stor
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
+import { createBars } from '../ui/bars.js'
+import { getBars, onBars } from '../ui/viewport.js'
 
-const FILTERS = {
+export const FILTERS = {
   all: { label: '全部', test: () => true },
   unread: { label: '未读', test: c => c.unread > 0 },
   people: { label: '私聊', test: c => !c.room },
   groups: { label: '群聊', test: c => c.room }
 }
 
-export function createChatList(pane, { onOpen, onSettings, onCompose, loadContacts }) {
+export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, loadContacts }) {
   pane.classList.add('pane-list')
+  // Rows swipe themselves; a back swipe starts at the column's leading edge.
+  pane.dataset.edgeSwipe = ''
   let selected = null
   let searching = false
   let query = ''
@@ -30,8 +34,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
   const title = h('h1', { class: 'large-title' }, '消息', h('span', { class: 'title-period', 'aria-hidden': 'true' }, '.'))
-  const subtitle = h('p', { class: 'list-subtitle' }, '和在意的人，保持联系。')
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status), subtitle)
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
   const filterButtons = new Map()
@@ -61,13 +64,36 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   const capsule = h('span', { class: 'row-highlight', 'aria-hidden': 'true' })
   const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, capsule, empty, results)
 
-  const meBtn = h('button', { class: 'glass glass-btn me-btn', type: 'button', 'aria-label': '设置' })
-  const filterBtn = h('button', { class: 'bar-btn filter-btn', type: 'button', 'aria-label': '筛选' }, icon('filter'))
-  const composeBtn = h('button', { class: 'bar-btn tint compose-btn', type: 'button', 'aria-label': '新聊天' }, icon('compose'))
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
   const brand = h('div', { class: 'list-brand', 'aria-label': 'Duo' }, h('span', { class: 'list-brand-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble')), h('span', { class: 'list-wordmark' }, 'Duo'), inlineTitle)
-  const topActions = h('div', { class: 'bar-group' }, filterBtn, composeBtn)
-  const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }), meBtn, topActions)
+  const topbar = h('div', { class: 'list-topbar' }, brand, h('div', { class: 'spacer' }))
+
+  // Bars (Apple HIG, Designing for iPhone Duo). Folded, they run down the
+  // trailing edge: Back to the sidebar and filters at the top, search and
+  // New Chat at the bottom, where they were on a standard iPhone. As the
+  // leading column beside a conversation, the list keeps horizontal bars
+  // above itself, and New Chat moves to the conversation's column, as in
+  // Mail and Notes. Beside the sidebar it has neither Back nor filters: the
+  // sidebar, with its scopes, is right there.
+  const bars = createBars({
+    label: '聊天列表操作',
+    items: [
+      { id: 'cancel', icon: 'xmark', title: '取消搜索', primary: true, onSelect: () => exitSearch() },
+      { id: 'back', icon: 'chevron-left', title: '边栏', primary: true, onSelect: () => onBack() },
+      { id: 'filter', icon: 'filter', title: '筛选', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
+      { id: 'search', icon: 'search', title: '搜索', priority: 6, onSelect: () => openSearch() },
+      { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
+    ],
+    arrange: axis => {
+      const nav = pane.dataset.layout === 'trailing' ? [] : [['back'], ['filter']]
+      if (axis === 'vertical') {
+        return searching ? { top: [['cancel']], bottom: [] } : { top: nav, bottom: [['search'], ['compose']] }
+      }
+      const composeHere = !(pane.dataset.layout === 'leading' && getBars() === 'vertical')
+      return { top: [...nav, ...(composeHere ? [['compose']] : [])], bottom: [] }
+    }
+  })
+  const rail = h('nav', { class: 'duo-rail list-rail', 'aria-label': '聊天列表操作' })
 
   const input = h('input', {
     type: 'search',
@@ -85,12 +111,10 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
 
   const edgeTop = edge('top')
   const edgeBottom = edge('bottom', true)
-  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar)
+  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar, rail)
 
-  meBtn.addEventListener('click', () => onSettings())
-  composeBtn.addEventListener('click', () => onCompose())
-  filterBtn.addEventListener('click', () => {
-    openMenu(filterBtn, [
+  function openFilterMenu(anchor) {
+    openMenu(anchor, [
       Object.entries(FILTERS).map(([key, f]) => ({
         label: f.label,
         checked: state.filter === key,
@@ -98,8 +122,27 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
           selectFilter(key)
         }
       }))
-    ])
-  })
+    ], { title: '筛选' })
+  }
+
+  let barsFrame = 0
+  function arrangeBars() {
+    cancelAnimationFrame(barsFrame)
+    barsFrame = requestAnimationFrame(() => {
+      const axis = pane.dataset.layout === 'leading' ? 'horizontal' : getBars() || 'vertical'
+      pane.dataset.bars = axis
+      if (axis === 'vertical') {
+        if (bars.top.parentElement !== rail) bars.move(() => rail.append(bars.top, bars.bottom))
+        bars.layout('vertical', rail.clientHeight)
+      } else {
+        if (bars.top.parentElement !== topbar) bars.move(() => { topbar.append(bars.top); bars.bottom.remove() })
+        bars.layout('horizontal', { top: Math.max(0, topbar.clientWidth - brand.offsetWidth - 16), bottom: Infinity })
+      }
+    })
+  }
+  new ResizeObserver(arrangeBars).observe(rail)
+  new ResizeObserver(arrangeBars).observe(topbar)
+  onBars(arrangeBars)
 
   function selectFilter(key) {
     if (!FILTERS[key]) return
@@ -107,6 +150,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     if (searching) exitSearch()
     state.filter = key
     render()
+    onFilter?.(key)
   }
 
   function positionFilterThumb() {
@@ -124,8 +168,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     // Unfolded, the filter lives in the menu: its button and the inline title
     // carry the active choice instead of a row of tabs.
     const active = FILTERS[state.filter] && state.filter !== 'all' ? FILTERS[state.filter].label : ''
-    filterBtn.classList.toggle('active', Boolean(active))
-    filterBtn.setAttribute('aria-label', active ? `筛选：${active}` : '筛选')
+    bars.set('filter', { title: active ? `筛选：${active}` : '筛选', state: { active: Boolean(active) } })
     inlineTitle.textContent = `${statusText ? `消息（${statusText}）` : '消息'}${active ? ` · ${active}` : ''}`
   }
   new ResizeObserver(positionFilterThumb).observe(filterTabs)
@@ -352,10 +395,9 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, icon(state.filter === 'all' ? 'compose' : 'bubble'), state.filter === 'all' ? '发起新聊天' : '查看全部聊天')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
       const emptyTitle = state.filter === 'all' ? '从一句你好开始' : state.filter === 'unread' ? '都看过了，真好' : `还没有${filter.label}`
-      const emptyCopy = state.filter === 'all' ? '找到朋友，分享今天的小事。\n文字、手绘，或一通电话。' : state.filter === 'unread' ? '没有未读消息，享受这一刻。' : '下一次相聚，可以从这里开始。'
       empty.replaceChildren(
         h('div', { class: 'empty-art', 'aria-hidden': 'true' }, h('span', { class: 'empty-bubble' }, icon('bubble')), h('span', { class: 'empty-spark' }, icon(state.filter === 'unread' ? 'check' : 'brush'))),
-        h('h2', {}, emptyTitle), h('p', {}, emptyCopy), action
+        h('h2', {}, emptyTitle), action
       )
     }
   }
@@ -365,7 +407,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     cancelAnimationFrame(highlightFrame)
     highlightFrame = requestAnimationFrame(() => {
       const el = selected && rowEls.get(selected)
-      const show = Boolean(el?.isConnected && !rows.hidden && pane.dataset.layout === 'split')
+      const show = Boolean(el?.isConnected && !rows.hidden && pane.dataset.layout === 'leading')
       capsule.classList.toggle('on', show)
       if (!show) {
         capsule.classList.remove('ready')
@@ -549,6 +591,7 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     head.hidden = filterTabs.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
     placeHighlight()
+    arrangeBars()
     renderResults()
   })
   input.addEventListener('input', () => {
@@ -561,12 +604,20 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
   })
   cancel.addEventListener('click', exitSearch)
 
+  // With vertical bars, Search is a button; the field opens above the list
+  // and Close takes the top of the column until the search ends.
+  function openSearch() {
+    pane.classList.add('search-open')
+    input.focus()
+  }
+
   function exitSearch() {
     searching = false
     query = ''
     input.value = ''
     input.blur()
-    pane.classList.remove('searching')
+    pane.classList.remove('searching', 'search-open')
+    arrangeBars()
     head.hidden = filterTabs.hidden = rows.hidden = false
     results.hidden = true
     clear(results)
@@ -651,10 +702,6 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
       for (const el of pinned.children) el.classList.toggle('selected', el.dataset.id === id)
       placeHighlight()
     },
-    setMe(me) {
-      meBtn.replaceChildren(avatar(me?.avatar, me?.display || '我', { size: 36 }))
-      meBtn.setAttribute('aria-label', `${me?.display || '我的'}，设置`)
-    },
     setStatus({ text, spinner = false, warn = false } = {}) {
       if (loading !== spinner) {
         loading = spinner
@@ -669,14 +716,11 @@ export function createChatList(pane, { onOpen, onSettings, onCompose, loadContac
     setLayout(layout) {
       pane.dataset.layout = layout
       placeHighlight({ instant: true })
-      // The same action moves next to search on the inner screen. Keep its
-      // focus and listener identity as the available space changes.
-      const focused = document.activeElement === composeBtn
-      const destination = layout === 'split' ? bottombar : topActions
-      if (composeBtn.parentElement !== destination) destination.append(composeBtn)
-      if (focused) composeBtn.focus({ preventScroll: true })
+      arrangeBars()
       requestAnimationFrame(positionFilterThumb)
     },
+    setFilter: selectFilter,
+    openSearch,
     focusSearch() {
       input.focus()
     }
