@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v14'
+const SHELL = 'shell-v15'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -19,8 +19,6 @@ const SHELL_FILES = [
   '/css/draw.css',
   '/css/attachments.css',
   '/css/invite-code.css',
-  '/css/halftone.css',
-  '/css/upload-trace.css',
   '/css/duo-layout.css',
   '/css/photo-stack.css',
   '/css/columns.css',
@@ -40,9 +38,7 @@ const SHELL_FILES = [
   '/js/ui/spring.js',
   '/js/ui/strip.js',
   '/js/ui/appearance.js',
-  '/js/ui/halftone.js',
   '/js/ui/invite-code.js',
-  '/js/ui/upload-trace.js',
   '/js/ui/fold.js',
   '/js/ui/bars.js',
   '/js/views/overlay.js',
@@ -128,7 +124,7 @@ self.addEventListener('push', event => {
   try {
     data = event.data?.json() || {}
   } catch {
-    data = { title: 'Duo', body: event.data?.text() || '' }
+    data = { title: 'Cuven', body: event.data?.text() || '' }
   }
   const n = data.web_push === 8030 && data.notification ? data.notification : data
   const navigate = n.navigate || (data.room ? `/?chat=${encodeURIComponent(data.room)}` : '/')
@@ -139,7 +135,7 @@ self.addEventListener('push', event => {
     }
     // iOS revokes subscriptions whose pushes don't show a notification, so
     // always show one; the server only pushes while no window is in front.
-    await self.registration.showNotification(n.title || 'Duo', {
+    await self.registration.showNotification(n.title || 'Cuven', {
       body: n.body || '',
       tag: n.tag || 'duo',
       renotify: true,

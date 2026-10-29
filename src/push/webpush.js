@@ -106,7 +106,7 @@ async function vapidAuthorization(env, endpoint) {
  * `navigate` must be an absolute URL: activating the notification opens it.
  */
 export function declarativeMessage({ title, body = '', navigate, tag, badge, silent = false }) {
-  const notification = { title: String(title || 'Duo'), body: String(body), navigate: String(navigate), lang: 'zh-CN', dir: 'ltr', silent: Boolean(silent) }
+  const notification = { title: String(title || 'Cuven'), body: String(body), navigate: String(navigate), lang: 'zh-CN', dir: 'ltr', silent: Boolean(silent) }
   if (tag) notification.tag = String(tag)
   if (Number.isInteger(badge) && badge >= 0) notification.app_badge = String(badge)
   return { web_push: 8030, notification }

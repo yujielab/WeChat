@@ -1,8 +1,7 @@
-// Dot fields — the halftone illustration and the image sheet's magnetic
-// field — drawn with WebGPU where the browser has it (Safari 26 and later):
-// every dot of a frame is one instance of a single draw, its disc cut and
-// antialiased in the fragment shader, instead of a path and a fill per dot
-// on the main thread. Without WebGPU, or if the GPU device is lost, the same
+// The image sheet's dot field, drawn with WebGPU where the browser has it
+// (Safari 26 and later): every dot of a frame is one instance of a single
+// draw, its disc cut and antialiased in the fragment shader, instead of a
+// path and a fill per dot on the main thread. Without WebGPU, or if the GPU device is lost, the same
 // dots go through Canvas 2D.
 //
 // Both renderers take a frame as begin(width, height, scale, color), then
@@ -207,8 +206,7 @@ export function dotRenderer(canvas, use) {
     current = plain
     use(current)
   }
-  // Only once the field is on screen: one hidden at launch (the empty
-  // conversation's illustration) doesn't start the GPU.
+  // Only once the field is on screen: the GPU starts when it's needed.
   const seen = new IntersectionObserver(entries => {
     if (!entries.some(e => e.isIntersecting)) return
     seen.disconnect()

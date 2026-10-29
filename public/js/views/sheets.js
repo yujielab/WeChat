@@ -168,17 +168,17 @@ function changePassword() {
 
 // ---------------------------------------------------------------- notifications
 async function renderPush(slot) {
-  const configured = Boolean(state.vapid)
+  // Without push on the server there's nothing to switch on: no row at all.
+  if (!state.vapid) return slot.replaceChildren()
   const supported = pushSupported()
   const sub = supported ? await currentSubscription() : null
-  let note = '新消息和来电会在锁屏和通知中心提醒你，应用关闭后也会。'
-  let disabled = false
-  if (!configured) { note = '服务器未配置 VAPID 密钥，通知不可用（见 README）。'; disabled = true }
-  else if (!supported) { note = isStandalone() ? '此设备不支持网页推送。' : '请先用 Safari 的“添加到主屏幕”安装本应用，再从主屏幕打开以开启通知。'; disabled = true }
-  else if (Notification.permission === 'denied') { note = '通知权限已被拒绝，请在系统“设置 › 通知”中允许。'; disabled = true }
+  // A note only when the switch can't be used, saying how to make it usable.
+  let note = null
+  if (!supported) note = isStandalone() ? '此设备不支持通知。' : '将 Cuven 添加到主屏幕后即可开启通知。'
+  else if (Notification.permission === 'denied') note = '请在“设置 › 通知”中允许 Cuven 发送通知。'
   const sw = toggle(Boolean(sub), on => (on ? turnOn() : turnOff()), '通知')
-  sw.disabled = disabled
-  slot.replaceChildren(group(cell('通知', sw, { icon: 'bell', color: 'var(--red)' })), foot(note))
+  sw.disabled = Boolean(note)
+  slot.replaceChildren(group(cell('通知', sw, { icon: 'bell', color: 'var(--red)' })), ...(note ? [foot(note)] : []))
 }
 async function turnOn() {
   try {
@@ -210,7 +210,7 @@ export function openNewChat({ loadContacts, onOpen }) {
   const sheet = openSheet({ title: '新聊天', content, tall: true, side: 'list' })
 
   loadContacts().then(cs => {
-    list.replaceChildren(cs.length ? group(...cs.map(c => contactCell(c, () => openDM(c.id)))) : foot('还没有联系人，上面搜索用户名添加。'))
+    list.replaceChildren(cs.length ? group(...cs.map(c => contactCell(c, () => openDM(c.id)))) : foot('没有联系人'))
   })
 
   let seq = 0
@@ -259,7 +259,7 @@ export function openNewGroup({ loadContacts, onOpen }) {
   const sheet = openSheet({ title: '新建群聊', content, tall: true })
 
   loadContacts().then(cs => {
-    list.replaceChildren(cs.length ? group(...cs.map(c => pickRow(c))) : foot('先添加联系人才能建群。'))
+    list.replaceChildren(cs.length ? group(...cs.map(c => pickRow(c))) : foot('没有联系人'))
   })
   function pickRow(c) {
     const check = h('span', { class: 'pick-check' }, icon('check'))
@@ -352,7 +352,7 @@ async function addMembers(roomId, existing, loadContacts) {
     } })
     el.prepend(avatar(c.avatar, c.display, { size: 40 }))
     return el
-  })) : foot('没有可添加的联系人。'))
+  })) : foot('没有可添加的联系人'))
   add.addEventListener('click', async () => {
     add.disabled = true
     try { await api.post(`/api/room/${roomId}/invite`, { members: [...picked] }); sheet.close() }

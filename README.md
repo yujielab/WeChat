@@ -1,4 +1,4 @@
-# Duo · Cloudflare 自建即时通讯
+# Cuven · Cloudflare 自建即时通讯
 
 一个完全跑在 **Cloudflare** 上的自建即时通讯 App：注册账号、加好友、单聊和群聊、
 发图片和手绘、语音 / 视频通话。没有第三方服务，消息和媒体都存在你自己的
@@ -9,9 +9,8 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 触下反馈与弹簧回弹、浮动输入框、可跟手关闭的纸感弹层。登录、消息、手绘和设置
 使用同一套间距与材料层级，支持深色、减少动态效果及窄窗口。
 
-融入 Magnetic Dropzone、Input OTP、Halftone Dots、Dropdown Menu 和 Trace Waterfall
-的交互细节：图片可拖入或粘贴，预览后确认发送；邀请码保留完整原生输入，辅以分段焦点轨道；
-点阵插画可切换心情；菜单高亮跟随鼠标和键盘；发送记录展示实际处理、上传和发送阶段及耗时。
+融入 Magnetic Dropzone、Input OTP 和 Dropdown Menu 的交互细节：图片可拖入或粘贴，
+预览后确认发送；邀请码保留完整原生输入，辅以分段焦点轨道；菜单高亮跟随鼠标和键盘。
 
 双屏界面按 Apple《[针对 iPhone Duo 设计](https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo)》重新设计：
 
@@ -39,7 +38,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - 双方头像标记消息分组，连续照片合为照片叠；消息可以回应（长按菜单或双击 ❤️），私聊“已读”重开后仍保留。
   折叠与展开之间以视图过渡衔接，布局变化保留草稿、选区与阅读位置；减少动态效果时直接切换。
 
-<img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Duo 桌面登录界面：品牌介绍与独立账号表单">
+<img src="docs/screenshots/11-auth-desktop.png" width="880" alt="Cuven 桌面登录界面">
 
 | 合上：对话 | 打开：列表 + 对话 | 滑一栏：对话 + 详情 | 合上：详情 |
 | --- | --- | --- | --- |
@@ -64,9 +63,9 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 | --- | --- |
 | <img src="docs/screenshots/22-duo-sheet-side.png" width="420" alt="新聊天表单留在列表一侧，不跨越折叠区"> | <img src="docs/screenshots/23-duo-laptop.png" width="300" alt="折痕上方是消息，下方是输入框"> |
 
-| 图片发送前预览 | 真实阶段与耗时 |
+| 图片发送前预览 | 发送中 |
 | --- | --- |
-| <img src="docs/screenshots/12-attachment-preview.png" width="240" alt="带点阵拖放区的图片预览"> | <img src="docs/screenshots/13-send-waterfall.png" width="440" alt="图片处理、上传和消息发送的耗时记录"> |
+| <img src="docs/screenshots/12-attachment-preview.png" width="240" alt="带点阵拖放区的图片预览"> | <img src="docs/screenshots/13-image-sending.png" width="440" alt="图片发送中"> |
 
 > 截图来自本地 `wrangler dev`，账号和消息都是演示数据。
 
@@ -141,7 +140,7 @@ npx wrangler deploy
   `npx wrangler preview secret` 设置。
 - 旧版已执行 `v1`（`WeChatSession`），升级由新增的 `v2` 创建 `Hub`。
   保留历史迁移和旧类导出，不要把 `v1` 改成 `Hub`，也不要删除旧 namespace。
-  旧微信存储保留但不再使用；Duo 的账号和消息从独立的 Hub 数据库开始。
+  旧微信存储保留但不再使用；Cuven 的账号和消息从独立的 Hub 数据库开始。
 
 如果部署仍失败，打开 Cloudflare → Workers & Pages → `wechatduo` → Builds 中的失败构建，
 查看最后的错误：缺少 `Hub` 类 / namespace 通常与迁移链有关；R2 bucket 不存在则需先创建上述桶。
@@ -191,8 +190,9 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 ```
 
 - 本地 `wrangler dev` 自带内存版 Durable Object SQLite 和 R2，无需额外配置即可跑通聊天与媒体。
-- 想本地试通话 UI：`npx wrangler dev --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy`
-  （信令与来电界面可用；真正接通需要真实的 Realtime 应用）。
+- 没有配置通话服务时，通话按钮不会出现。想本地试通话 UI 用 `npm run dev:e2e`
+  （即 `wrangler dev --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy`）：信令与来电界面可用，
+  真正接通需要真实的 Realtime 应用。端到端测试（`tools/e2e/`）都跑在它上面。
 - 界面走查脚本：`node tools/e2e/walkthrough.cjs docs/screenshots` 用 Playwright（Chromium）
   注册两个账号，跑一遍登录 → 找人 → 实时收发 → 手绘 → 通话界面 → 展开 / 深色，并截图。
 - 交互回归：`node tools/e2e/design-details.cjs` 验证图片预览、拖放 / 粘贴、真实上传、失败重试、

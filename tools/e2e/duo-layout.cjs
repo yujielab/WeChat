@@ -1,6 +1,6 @@
 // Local Duo flow (Apple HIG, Designing for iPhone Duo): real accounts/media, photo grouping, reactions,
 // gallery, split view and folding region, bars on the trailing edge, overlays per side, drafts and reading anchors.
-// Start npm run dev, then node tools/e2e/duo-layout.cjs [outdir].
+// Start npm run dev:e2e (calls switched on), then node tools/e2e/duo-layout.cjs [outdir].
 // The request helper explicitly forwards local-session cookies because APIRequestContext
 // excludes Secure cookies over HTTP, while Chromium permits them on loopback.
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('fs')
@@ -25,7 +25,7 @@ for(const p of[a,b])p.on('pageerror',e=>errors.push(e.message))
 await a.goto(BASE+'/?chat='+room);await b.goto(BASE+'/?chat='+room);await a.locator('.thread:not([hidden])').waitFor();await b.locator('.thread:not([hidden])').waitFor()
 const images=await b.evaluate(()=>['心意','日常','见面'].map((t,i)=>{const c=document.createElement('canvas');c.width=600;c.height=400;const g=c.getContext('2d');g.fillStyle=['#d8e4d8','#e5d9ce','#d7dfea'][i];g.fillRect(0,0,600,400);g.strokeStyle='#263d2f';g.lineWidth=3;g.beginPath();g.ellipse(300,185,100+i*20,90-i*10,i*.3,0,Math.PI*2);g.stroke();g.fillStyle='#263d2f';g.font='26px sans-serif';g.textAlign='center';g.fillText(t,300,200);g.font='12px sans-serif';g.fillText('A LITTLE CLOSER',300,340);return c.toDataURL('image/png').split(',')[1]}))
 await b.click('.thread [data-item="photo"]');await b.locator('.attachment-file-input').setInputFiles(images.map((v,i)=>({name:`moment-${i+1}.png`,mimeType:'image/png',buffer:Buffer.from(v,'base64')})));await b.click('.attachment-send')
-await a.locator('.photo-stack[data-count="3"]').waitFor();await b.locator('.photo-stack[data-count="3"]').waitFor();await b.locator('.upload-trace-label:has-text("已发送")').waitFor()
+await a.locator('.photo-stack[data-count="3"]').waitFor();await b.locator('.photo-stack[data-count="3"]').waitFor()
 assert.equal(await a.locator('.photo-stack').count(),1)
 // The album carries its sender on the cover's corner and a count below (sketch 1).
 assert.equal(await a.locator('.m.has-stack .photo-stack-from').evaluate(el=>el.textContent.startsWith('本 · ')),true);assert.equal(await a.locator('.m.has-stack .m-avatar').isVisible(),false)

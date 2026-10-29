@@ -42,7 +42,7 @@ export function openAttachments({ files = [], onSend } = {}) {
     const n = selected.size
     count.textContent = n ? `已选择 ${n} 张图片` : ''
     send.disabled = submitting || !n
-    send.replaceChildren(icon('arrow-up'), submitting ? '正在加入聊天…' : n ? `发送 ${n} 张图片` : '发送图片')
+    send.replaceChildren(icon('arrow-up'), submitting ? '正在发送…' : n ? `发送 ${n} 张图片` : '发送图片')
     dropzone.classList.toggle('has-images', n > 0)
   }
 
@@ -86,7 +86,7 @@ export function openAttachments({ files = [], onSend } = {}) {
 
   function over(on) {
     dropzone.classList.toggle('is-over', on)
-    title.textContent = on ? '松开，看看这张图片' : '添加图片'
+    title.textContent = on ? '松开以添加' : '添加图片'
   }
   pick.addEventListener('click', () => { if (!submitting) { fileInput.value = ''; fileInput.click() } })
   fileInput.addEventListener('change', () => addFiles(fileInput.files))
@@ -151,8 +151,7 @@ export function openAttachments({ files = [], onSend } = {}) {
 export function bindImageDropTarget(root, { onFiles, enabled = () => true } = {}) {
   let depth = 0
   const prompt = h('div', { class: 'chat-image-drop', 'aria-hidden': 'true' },
-    h('div', {}, h('span', { class: 'chat-image-drop-mark' }, icon('photo')),
-      h('strong', {}, '松开，分享图片'), h('span', {}, '先预览，再发送')))
+    h('div', {}, h('span', { class: 'chat-image-drop-mark' }, icon('photo')), h('strong', {}, '松开以添加图片')))
   root.append(prompt)
   const active = event => enabled() && hasFiles(event)
   const reset = () => { depth = 0; prompt.classList.remove('on') }

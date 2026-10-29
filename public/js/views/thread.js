@@ -16,8 +16,6 @@ import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
-import { createUploadTrace } from '../ui/upload-trace.js'
-import { createHalftone } from '../ui/halftone.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 import { createBars } from '../ui/bars.js'
 import { getBars, onBars } from '../ui/viewport.js'
@@ -112,12 +110,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     ],
     arrange: axis => {
       const trailing = pane.dataset.layout === 'trailing'
+      // Calls only where the server can carry them.
+      const calls = state.calls?.enabled ? [['audio', 'video']] : []
       if (axis === 'vertical') {
         return trailing
-          ? { top: [['audio', 'video'], ['info']], bottom: [['draw', 'photo'], ['compose']] }
-          : { top: [['back'], ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
+          ? { top: [...calls, ['info']], bottom: [['draw', 'photo'], ['compose']] }
+          : { top: [['back'], ...calls, ['info']], bottom: [['draw', 'photo']] }
       }
-      return { top: [...(trailing ? [] : [['back']]), ['audio', 'video'], ['info']], bottom: [['draw', 'photo']] }
+      return { top: [...(trailing ? [] : [['back']]), ...calls, ['info']], bottom: [['draw', 'photo']] }
     }
   })
   const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': '聊天操作' })
@@ -133,19 +133,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
   })
 
   const edgeTop = edge('top')
-  const welcomeName = h('h2', {}, '从一句问候开始')
-  const welcome = h('div', { class: 'room-welcome', hidden: true },
-    h('div', { class: 'room-welcome-mark', 'aria-hidden': 'true' }, icon('bubble')),
-    welcomeName)
-  const uploadTrace = createUploadTrace()
-  const root = h('div', { class: 'thread', hidden: true }, scroller, welcome, edgeTop, nav, rail, composer.el, jump, uploadTrace.el)
-
-  // The welcome's symbol draws on each time the welcome comes into view.
-  function showWelcome(show) {
-    const appearing = show && welcome.hidden
-    welcome.hidden = !show
-    if (appearing) symbolEffect(welcome.querySelector('.icon'), 'draw-on')
-  }
+  const root = h('div', { class: 'thread', hidden: true }, scroller, edgeTop, nav, rail, composer.el, jump)
 
   // Bars follow the window's axis, except in the leading column of a split
   // view, which keeps horizontal bars (see shell / chatList).
@@ -172,13 +160,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
   new ResizeObserver(arrangeBars).observe(nav)
   onBars(arrangeBars)
   bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
-  new ResizeObserver(() => {
-    root.style.setProperty('--trace-h', `${uploadTrace.el.hidden ? 0 : uploadTrace.el.getBoundingClientRect().height + 8}px`)
-  }).observe(uploadTrace.el)
-  const empty = h('div', { class: 'thread-empty' },
-    h('div', { class: 'thread-empty-content' },
-      createHalftone({ compact: true }),
-      h('h2', {}, '每一句，都有回音。')))
+  // No conversation open: the column is plain paper.
+  const empty = h('div', { class: 'thread-empty' })
   pane.append(empty, root)
 
   titleBtn.addEventListener('click', () => current && onInfo(current))
@@ -405,7 +388,6 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     }
     decorate(visible)
     placeMeta(list)
-    showWelcome(t.loaded && !list.length)
     if (t.loaded && !list.length) olderEl.textContent = ''
     else if (t.loaded && !t.hasMore) olderEl.textContent = ''
     else if (!t.loading) olderEl.textContent = ''
@@ -505,12 +487,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     composer.flushDraft()
     stopVoice()
     current = id
-    uploadTrace.setChat(id)
     clearTimeout(typingTimer)
     typingTimer = 0
     titleSub.classList.remove('typing')
     clearGhost()
-    showWelcome(false)
     newCount = 0
     jumpBadge.hidden = true
     jump.classList.remove('on')
@@ -589,7 +569,6 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     clearGhost()
     current = null
     composer.setChat(null)
-    uploadTrace.setChat(null)
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -604,7 +583,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     titleAvatar.replaceChildren(avatar(c.avatar, c.name, { room, size: 40 }))
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
-    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '') : (c.online ? '此刻在线' : '')
+    if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} 位成员` : '') : (c.online ? '在线' : '')
     titleBtn.setAttribute('aria-label', `${c.name}，查看聊天信息`)
     // The unread badge on Back is status: it changes what overflows first.
     bars.refresh()
@@ -674,22 +653,16 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
   async function sendImages(files) {
     const chat = current
     if (!chat) return
-    for (const [index, f] of files.entries()) {
-      const trace = uploadTrace.begin(chat, `${f.name || '图片'}${files.length > 1 ? ` · ${index + 1}/${files.length}` : ''}`)
-      trace.stage(0)
+    for (const f of files) {
       try {
-        const prepared = await prepareImage(f)
-        await sendPrepared(chat, prepared, trace)
+        await sendPrepared(chat, await prepareImage(f))
       } catch (err) {
-        trace.fail(err)
-        toast(err.message || '无法处理这张图片，请重新选择。', { type: 'error' })
+        toast(err.message || '无法处理这张图片', { type: 'error' })
       }
     }
   }
 
-  async function sendPrepared(chat, { file, w, h: hh }, trace) {
-    const prepared = !trace
-    trace ||= uploadTrace.begin(chat, file.name || '图片', { prepared: true })
+  async function sendPrepared(chat, { file, w, h: hh }) {
     const cid = newCid()
     const preview = URL.createObjectURL(file)
     state.previews.set(cid, preview)
@@ -699,15 +672,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     bumpList(local)
     if (chat === current) scrollToBottom()
     try {
-      trace.stage(prepared ? 0 : 1)
       const up = await uploadMedia('image', file, { room: chat, name: file.name || 'photo.jpg', w, h: hh })
-      trace.stage(prepared ? 1 : 2)
       const r = await api.post('/api/messages', { room: chat, type: 'image', meta: { ...up.meta, url: up.url }, localId: cid })
       if (r.msg) replaceMessage(local.id, normMsg(r.msg))
       retryFiles.delete(cid)
-      trace.finish()
     } catch (err) {
-      trace.fail(err)
       upsertMessage({ ...local, status: 'failed' })
       toast(err.message || '图片发送失败', { type: 'error' })
     }
@@ -728,7 +697,6 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     const chat = current
     if (!chat) return
     const file = new File([blob], 'drawing.png', { type: 'image/png' })
-    const trace = uploadTrace.begin(chat, '随手画 · drawing.png', { prepared: true })
     const cid = newCid()
     const preview = URL.createObjectURL(file)
     state.previews.set(cid, preview)
@@ -737,14 +705,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     bumpList(local)
     scrollToBottom()
     try {
-      trace.stage(0)
       const up = await uploadMedia('image', file, { room: chat, name: 'drawing.png', w, h })
-      trace.stage(1)
       const r = await api.post('/api/messages', { room: chat, type: 'drawing', meta: { ...up.meta, url: up.url }, localId: cid })
       if (r.msg) replaceMessage(local.id, normMsg(r.msg))
-      trace.finish()
     } catch (err) {
-      trace.fail(err)
       upsertMessage({ ...local, status: 'failed' })
       toast(err.message || '发送失败', { type: 'error' })
     }
@@ -754,16 +718,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
   function clearGhost() {
     ghostEl?.remove()
     ghostEl = null
-    if (current) {
-      const t = thread(current)
-      showWelcome(t.loaded && !t.list.length)
-    }
   }
   function setTyping(room, uid, text = '') {
     if (room !== current) return
     clearTimeout(typingTimer)
     if (text) {
-      showWelcome(false)
       // Live text: a ghost incoming bubble that updates as the peer types.
       if (!ghostEl) {
         const who = isGroup(current) ? h('div', { class: 'm-sender' }, nameOf(uid, current)) : null
@@ -851,7 +810,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
       case 'link': {
         const url = safeUrl(m.url)
         if (url) window.open(url, '_blank', 'noopener,noreferrer')
-        else toast('请在手机上查看', { iconName: 'info' })
+        else toast('无法打开这个链接', { type: 'error' })
         break
       }
       case 'file':
@@ -861,7 +820,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
         window.open(`https://maps.apple.com/?q=${encodeURIComponent(m.title || '')}`, '_blank', 'noopener')
         break
       case 'money':
-        toast('请在手机上查看', { iconName: 'info' })
+        toast('暂不支持查看这条消息', { iconName: 'info' })
         break
     }
   })

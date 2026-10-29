@@ -3,7 +3,7 @@
 // or treating its incompatible SQLite schema as the new Hub's database.
 export class WeChatSession {
   fetch() {
-    return new Response('The WeChat client has been retired. Reload to use Duo.', {
+    return new Response('The WeChat client has been retired. Reload to use Cuven.', {
       status: 410,
       headers: { 'cache-control': 'no-store' }
     })

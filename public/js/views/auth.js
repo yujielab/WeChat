@@ -1,12 +1,8 @@
-// Account gate: the same paper, ink and tactile controls as the messenger.
-import { h, icon, stagger, reducedMotion } from '../ui/dom.js'
+// Account gate: the app's name, then sign in or create an account, with the
+// same paper, ink and tactile controls as the messenger.
+import { h, stagger, reducedMotion } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
-import { createHalftone } from '../ui/halftone.js'
 import { enhanceInviteInput } from '../ui/invite-code.js'
-
-function mark() {
-  return h('span', { class: 'duo-mark', 'aria-hidden': 'true' }, icon('bubble'), icon('bubble'))
-}
 
 export function renderAuth(app, { needsCode = false, onSuccess }) {
   let mode = 'login'
@@ -14,12 +10,11 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
   let modeAnimation = null
   let cardAnimation = null
   let errorAnimation = null
-  const title = h('h1', {})
   const username = field({ id: 'u', type: 'text', label: '用户名', autocomplete: 'username', enterkeyhint: 'next' })
   username.input.required = true
   username.input.maxLength = 24
   const display = field({ id: 'd', type: 'text', label: '昵称', optional: true, autocomplete: 'nickname', enterkeyhint: 'next' })
-  const password = field({ id: 'p', type: 'password', label: '密码', placeholder: '至少 6 位', autocomplete: 'current-password', enterkeyhint: 'go' })
+  const password = field({ id: 'p', type: 'password', label: '密码', autocomplete: 'current-password', enterkeyhint: 'go' })
   password.input.required = true
   password.input.minLength = 6
   const showPassword = h('button', { class: 'password-toggle', type: 'button', 'aria-label': '显示密码', 'aria-pressed': 'false' }, '显示')
@@ -35,21 +30,16 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
   const invite = enhanceInviteInput(code.input)
   const error = h('div', { class: 'field-error', role: 'alert', id: 'auth-error' })
   const submitLabel = h('span')
-  const submit = h('button', { class: 'btn primary solid-press auth-submit', type: 'submit' }, submitLabel, icon('chevron-right'))
+  const submit = h('button', { class: 'btn primary solid-press auth-submit', type: 'submit' }, submitLabel)
   const form = h('form', { class: 'auth-form', 'aria-describedby': 'auth-error' }, username.wrap, display.wrap, password.wrap, code.wrap, error, submit)
   const loginTab = h('button', { type: 'button', class: 'auth-tab', 'aria-pressed': 'true' }, '登录')
   const registerTab = h('button', { type: 'button', class: 'auth-tab', 'aria-pressed': 'false' }, '创建账号')
   const tabs = h('div', { class: 'auth-tabs', role: 'group', 'aria-label': '账号操作' }, h('span', { class: 'auth-tab-indicator', 'aria-hidden': 'true' }), loginTab, registerTab)
-  // The tabs say which form this is; the heading and the art say the rest.
-  const card = h('section', { class: 'auth-card', 'aria-label': 'Duo 账号' },
-    tabs, h('div', { class: 'auth-heading' }, title), form)
-  const art = h('div', { class: 'auth-art' }, createHalftone())
-  const story = h('section', { class: 'auth-story' },
-    h('h2', {}, '小事，也值得', h('br'), '好好聊。'), art)
-  const main = h('main', { class: 'auth', dataset: { mode } },
-    h('header', { class: 'auth-brand' }, h('div', { class: 'duo-wordmark' }, mark(), h('span', {}, 'Duo'))),
-    h('div', { class: 'auth-layout' }, story, card))
-  const parts = [main.querySelector('.auth-brand'), story, card]
+  // The tabs say which form this is.
+  const name = h('h1', { class: 'auth-name' }, 'Cuven')
+  const card = h('section', { class: 'auth-card', 'aria-label': '账号' }, tabs, form)
+  const main = h('main', { class: 'auth', dataset: { mode } }, h('div', { class: 'auth-layout' }, name, card))
+  const parts = [name, card]
   for (const part of parts) part.classList.add('reveal')
   stagger(parts)
   app.replaceChildren(main)
@@ -57,14 +47,14 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
   function apply() {
     const reg = mode === 'register'
     main.dataset.mode = mode
-    title.textContent = reg ? '从一句你好开始。' : '欢迎回来。'
     display.wrap.hidden = !reg
     display.input.disabled = !reg
     code.wrap.hidden = !(reg && needsCode)
     code.input.disabled = !(reg && needsCode)
     code.input.required = reg && needsCode
     password.input.autocomplete = reg ? 'new-password' : 'current-password'
-    submitLabel.textContent = reg ? '创建账号' : '登录 Duo'
+    password.input.placeholder = reg ? '至少 6 位' : ''
+    submitLabel.textContent = reg ? '创建账号' : '登录'
     loginTab.setAttribute('aria-pressed', String(!reg))
     registerTab.setAttribute('aria-pressed', String(reg))
     error.textContent = ''
@@ -112,7 +102,6 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) throw new Error(data.error || '暂时无法完成，请稍后重试')
-      submit.replaceChildren(icon('check'), h('span', {}, '准备好了'))
       onSuccess(data.me)
     } catch (err) {
       invite.setState('idle')
@@ -125,7 +114,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
       pending = false
       submit.disabled = loginTab.disabled = registerTab.disabled = false
       main.classList.remove('is-submitting')
-      submit.replaceChildren(submitLabel, icon('chevron-right'))
+      submit.replaceChildren(submitLabel)
     }
   })
 }
