@@ -15,19 +15,16 @@ export function openAttachments({ files = [], onSend } = {}) {
   let depth = 0
   const fileInput = h('input', { class: 'attachment-file-input', type: 'file', accept: 'image/*', multiple: true, hidden: true })
   const canvas = h('canvas', { 'aria-hidden': 'true' })
-  const title = h('span', { class: 'attachment-drop-title' }, '把图片带到这里')
-  const hint = h('span', { class: 'attachment-drop-hint' }, '拖入、粘贴，或点按选择。')
+  const title = h('span', { class: 'attachment-drop-title' }, '添加图片')
   const pick = h('button', { class: 'attachment-pick', type: 'button', 'aria-label': '选择图片' },
-    h('span', { class: 'attachment-drop-icon', 'aria-hidden': 'true' }, icon('photo')), title, hint)
+    h('span', { class: 'attachment-drop-icon', 'aria-hidden': 'true' }, icon('photo')), title)
   const dropzone = h('div', { class: 'attachment-dropzone', 'aria-label': '图片选择区域' }, canvas, pick, fileInput)
   const error = h('p', { class: 'attachment-error', role: 'alert' })
   const preview = h('div', { class: 'attachment-previews', role: 'list', 'aria-label': '待发送图片' })
-  const count = h('span', { class: 'attachment-count', 'aria-live': 'polite' }, '还未选择图片')
+  // The count is for assistive technology; the send button already shows it.
+  const count = h('span', { class: 'sr-only', 'aria-live': 'polite' })
   const send = h('button', { class: 'btn primary solid-press attachment-send', type: 'button', disabled: true }, icon('arrow-up'), '发送图片')
-  const content = h('div', { class: 'attachment-content' },
-    h('p', { class: 'attachment-intro' }, '先看看，再分享给对方。'), dropzone, error, preview,
-    h('div', { class: 'attachment-footer' }, count, send),
-    h('p', { class: 'attachment-note' }, '图片会先压缩，再发送到当前聊天。'))
+  const content = h('div', { class: 'attachment-content' }, dropzone, error, preview, h('div', { class: 'attachment-footer' }, count, send))
   let cleanupField = () => {}
   const ctl = openSheet({
     title: '分享图片', content, label: '预览并发送图片', side: 'thread',
@@ -42,7 +39,7 @@ export function openAttachments({ files = [], onSend } = {}) {
 
   function update() {
     const n = selected.size
-    count.textContent = n ? `已选择 ${n} 张图片` : '还未选择图片'
+    count.textContent = n ? `已选择 ${n} 张图片` : ''
     send.disabled = submitting || !n
     send.replaceChildren(icon('arrow-up'), submitting ? '正在加入聊天…' : n ? `发送 ${n} 张图片` : '发送图片')
     dropzone.classList.toggle('has-images', n > 0)
@@ -88,8 +85,7 @@ export function openAttachments({ files = [], onSend } = {}) {
 
   function over(on) {
     dropzone.classList.toggle('is-over', on)
-    title.textContent = on ? '松开，看看这张图片' : '把图片带到这里'
-    hint.textContent = on ? '先预览，确认后才会发送。' : '拖入、粘贴，或点按选择。'
+    title.textContent = on ? '松开，看看这张图片' : '添加图片'
   }
   pick.addEventListener('click', () => { if (!submitting) { fileInput.value = ''; fileInput.click() } })
   fileInput.addEventListener('change', () => addFiles(fileInput.files))

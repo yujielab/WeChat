@@ -24,11 +24,16 @@
 
 /* ---------------------------------------------------------------- sheets */
 
-/* Paper sheets sit above the app; glass stays on the small toolbar controls. */
+/* Paper sheets sit above the app; glass stays on the small toolbar controls.
+   Folded, a sheet spans the app's side of the screen with an even margin
+   (the system's edge column keeps the status bar beside it), up to a
+   readable width, centred, when the screen is turned. */
 .sheet {
   position: absolute;
-  left: max(8px, var(--safe-left));
-  right: max(8px, var(--safe-right));
+  left: calc(var(--safe-left) + 8px);
+  right: calc(var(--safe-right) + 8px);
+  max-width: 560px;
+  margin-inline: auto;
   bottom: max(8px, calc(var(--safe-bottom) - 18px));
   max-height: calc(100% - var(--safe-top) - 34px);
   border-radius: 30px;
@@ -435,12 +440,13 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 
 /* ---------------------------------------------------------------- toasts */
 
+/* Centred on the app's side of the screen, clear of the edge column. */
 .toast {
   position: absolute;
   z-index: var(--z-toast);
-  left: 50%;
+  left: calc(var(--safe-left) + (100% - var(--safe-left) - var(--safe-right)) / 2);
   top: calc(var(--safe-top) + 8px);
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - var(--safe-left) - var(--safe-right) - 32px);
   min-height: 46px;
   padding: 11px 18px;
   border-radius: 23px;
@@ -553,7 +559,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 
 /* Space collapses around content, while the sheet remains scrollable. */
 @media (max-height: 480px) {
-  .sheet { top: max(6px, var(--safe-top)); bottom: 6px; max-height: calc(100% - var(--safe-top) - 12px); }
+  .sheet { bottom: 6px; max-height: calc(100% - var(--safe-top) - 12px); }
   .sheet.tall { height: calc(100% - var(--safe-top) - 12px); }
   .grabber { height: 14px; }
   .sheet-head { min-height: 48px; padding-bottom: 6px; }

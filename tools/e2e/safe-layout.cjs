@@ -59,6 +59,8 @@ if(c.overflow){
  // With the keyboard up, tapping 更多 takes focus from the field and the keyboard goes away; the
  // menu itself is exercised in the short windows instead.
  if(!c.kb){await p.click('.thread .bar-more');await p.locator('.menu.on').waitFor();await p.waitForTimeout(200);const b=await p.locator('.menu').boundingBox();assert.ok(b.x>=9&&b.x+b.width<=c.w-c.right-9&&b.y>=9&&b.y+b.height<=H-B-9,'menu safe region')
+ // From the column, the menu opens beside its control and level with it, leaving the column clear.
+ const m=await p.locator('.thread .bar-more').boundingBox();assert.ok(b.x+b.width<=m.x-6&&b.y<=m.y+m.height&&b.y+b.height>=m.y,'menu beside its control '+JSON.stringify({b,m}))
  const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('聊天信息'),'details in overflow '+labels)
  await p.getByRole('menuitemcheckbox',{name:'聊天信息',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'info:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)}
 }else assert.ok(!ids.includes('more'),'nothing overflows')
@@ -71,5 +73,5 @@ await p.locator('.thread [data-item="info"]').focus();await p.setViewportSize({w
 await p.setViewportSize({width:466,height:678});await settle();assert.equal(await p.locator('.thread [data-item="info"]').evaluate(e=>e===document.activeElement),true)
 // The same item keeps its identity (and focus) when bars change axis.
 await p.locator('.thread [data-item="audio"]').focus();await p.setViewportSize({width:626,height:890});await settle();assert.equal(await p.evaluate(()=>document.querySelector('.thread').dataset.bars),'horizontal');assert.equal(await p.locator('.thread [data-item="audio"]').evaluate(e=>e===document.activeElement),true)
-assert.deepEqual(errors,[]);console.log('PASS: HIG bar axis per window, safe regions with 44pt targets, camera/status clearance, trailing column beside content, bottom-up overflow keeping Back, overflow focus, axis change keeps focus')
+assert.deepEqual(errors,[]);console.log('PASS: HIG bar axis per window, safe regions with 44pt targets, camera/status clearance, trailing column beside content, bottom-up overflow keeping Back, overflow focus, menus beside the column, axis change keeps focus')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
