@@ -29,7 +29,7 @@ export class CallBroker {
   }
 
   configured() {
-    return { enabled: Boolean(this.env.REALTIME_APP_ID && this.env.REALTIME_APP_SECRET) }
+    return { enabled: Boolean(clean(this.env.REALTIME_APP_ID) && clean(this.env.REALTIME_APP_SECRET)) }
   }
 
   // ---------------------------------------------------------------- calls in progress
@@ -253,9 +253,9 @@ export class CallBroker {
   async rtc(method, apiPath, body) {
     let res
     try {
-      res = await fetch(`${RTC_BASE}/apps/${encodeURIComponent(String(this.env.REALTIME_APP_ID).trim())}${apiPath}`, {
+      res = await fetch(`${RTC_BASE}/apps/${encodeURIComponent(clean(this.env.REALTIME_APP_ID))}${apiPath}`, {
         method,
-        headers: { Authorization: `Bearer ${String(this.env.REALTIME_APP_SECRET).trim()}`, 'content-type': 'application/json' },
+        headers: { Authorization: `Bearer ${clean(this.env.REALTIME_APP_SECRET)}`, 'content-type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(RTC_TIMEOUT_MS)
       })
@@ -263,32 +263,76 @@ export class CallBroker {
       return j({ ok: false, error: '通话服务没有响应，请稍后再试' }, 504)
     }
     const text = await res.text()
-    if (!res.ok) {
-      // The status tells a service failure apart from a refused microphone;
-      // the service's description goes to the log, its public code along
-      // with the answer so a failure can be told apart from the device.
-      console.warn('realtime', method, apiPath.replace(/sessions\/[\w-]+/, 'sessions/:id'), res.status, text.slice(0, 300))
-      let code
-      try { code = JSON.parse(text).errorCode } catch {}
-      return j({ ok: false, error: `通话服务暂时不可用（${res.status}）`, code: typeof code === 'string' ? code : undefined }, res.status)
+    let code
+    try { code = JSON.parse(text)?.errorCode } catch {}
+    code = typeof code === 'string' ? code : undefined
+    // A refusal can also come back as a 200 that names an error.
+    if (!res.ok || code) {
+      // The service's description goes to the log only (it can carry SDP);
+      // the answer says which side to look at in plain words, with the
+      // service's public code and our reason for the record.
+      const why = refusal(res.status, code, apiPath)
+      console.warn('realtime', method, apiPath.replace(/sessions\/[\w-]+/, 'sessions/:id'), res.status, why.reason, text.slice(0, 300))
+      return j({ ok: false, error: why.error, reason: why.reason, code }, res.ok ? 502 : res.status)
     }
     return new Response(text, { status: res.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
   }
 
   async turn() {
-    if (!this.env.REALTIME_TURN_KEY_ID || !this.env.REALTIME_TURN_KEY_TOKEN) {
-      // No TURN configured: hand back a public STUN server so same-network calls still work.
-      return j({ ok: true, iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }] })
+    // Without TURN (none configured, or refused or unreachable) a public STUN
+    // server still connects calls on open networks.
+    const stun = j({ ok: true, iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }] })
+    const id = clean(this.env.REALTIME_TURN_KEY_ID)
+    const token = clean(this.env.REALTIME_TURN_KEY_TOKEN)
+    if (!id || !token) return stun
+    try {
+      const res = await fetch(`${RTC_BASE}/turn/keys/${encodeURIComponent(id)}/credentials/generate-ice-servers`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ ttl: 86400 }),
+        signal: AbortSignal.timeout(RTC_TIMEOUT_MS)
+      })
+      const data = await res.json().catch(() => null)
+      // A list of servers (the older endpoint gave one): each checked, and
+      // the port-53 addresses browsers block left out.
+      const servers = [data?.iceServers ?? []].flat().map(iceServer).filter(Boolean)
+      if (res.ok && servers.length) return j({ ok: true, iceServers: servers })
+      console.warn('turn', res.status, res.status === 401 || res.status === 403 ? 'TURN_AUTH' : 'TURN_RESPONSE')
+    } catch (err) {
+      console.warn('turn', 'TURN_SERVICE', err.message)
     }
-    const res = await fetch(`${RTC_BASE}/turn/keys/${this.env.REALTIME_TURN_KEY_ID}/credentials/generate`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.env.REALTIME_TURN_KEY_TOKEN}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ ttl: 86400 })
-    })
-    const data = await res.json().catch(() => ({}))
-    const ice = data.iceServers ? [data.iceServers].flat() : [{ urls: 'stun:stun.cloudflare.com:3478' }]
-    return j({ ok: true, iceServers: ice })
+    return stun
   }
+}
+
+// A secret as set: surrounding spaces and line breaks (pasted values) don't count.
+const clean = value => (typeof value === 'string' ? value.trim() : '')
+
+/**
+ * What to say when the SFU refuses: which side to look at, never the
+ * service's own words. reason is ours (see README › 通话出错时).
+ */
+function refusal(status, code, apiPath) {
+  if (status === 401 || status === 403 || code === 'unauthorized') return { reason: 'RTC_AUTH', error: '通话服务配置有误，暂时无法通话' }
+  if (status === 404 || code === 'not_found') {
+    return apiPath === '/sessions/new'
+      ? { reason: 'RTC_APP', error: '通话服务配置有误，暂时无法通话' }
+      : { reason: 'RTC_GONE', error: '这次通话已失效，请重新拨打' }
+  }
+  if (status === 429) return { reason: 'RTC_BUSY', error: '通话请求太频繁，请稍后再试' }
+  if (['decoding_error', 'invalid_params', 'invalid_session_description'].includes(code)) return { reason: 'RTC_NEGOTIATION', error: '通话连接没能建立，请重新拨打' }
+  if (['not_found_track_error', 'empty_track_error', 'session_error'].includes(code)) return { reason: 'RTC_MEDIA', error: '对方的声音或画面还没准备好，请重新拨打' }
+  return { reason: 'RTC_SERVICE', error: '通话服务暂时不可用，请稍后再试' }
+}
+
+// One ICE server as RTCPeerConnection takes it, or null.
+function iceServer(server) {
+  if (!server || typeof server !== 'object') return null
+  const urls = [server.urls].flat().filter(u => typeof u === 'string' && /^(stuns?|turns?):\S+$/.test(u) && !/:53(\?|$)/.test(u))
+  if (!urls.length) return null
+  if (server.username !== undefined && typeof server.username !== 'string') return null
+  if (server.credential !== undefined && typeof server.credential !== 'string') return null
+  return { urls, ...(server.username !== undefined && { username: server.username, credential: server.credential }) }
 }
 
 const j = (data, status = 200) =>
