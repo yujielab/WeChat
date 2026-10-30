@@ -12,6 +12,7 @@ import { toast } from './overlay.js'
 import { placeOnSide } from '../ui/fold.js'
 import { avatar } from './avatar.js'
 import { backdropLayer } from '../ui/backdrops.js'
+import { edgeThemeColor } from '../ui/appearance.js'
 
 // An unanswered call gives up after this long (the server keeps it ringing as long).
 const RING_MS = 45000
@@ -259,7 +260,13 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
 
   let hasVideo = false
   let ringing = null
-  function mount() { document.getElementById('overlays').append(root); placeOnSide(root, 'thread'); requestAnimationFrame(() => root.classList.add('on')) }
+  function mount() {
+    document.getElementById('overlays').append(root)
+    placeOnSide(root, 'thread')
+    // The status column beside the page turns as dark as the call.
+    edgeThemeColor('#000000')
+    requestAnimationFrame(() => root.classList.add('on'))
+  }
 
   return {
     showOutgoing(room, media) {
@@ -315,6 +322,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
     destroy() {
       ringing?.stop()
       root.classList.remove('on')
+      edgeThemeColor(null)
       setTimeout(() => root.remove(), 260)
     }
   }

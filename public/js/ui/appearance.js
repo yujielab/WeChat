@@ -48,7 +48,7 @@ export function setHaptics(on) {
 /** Status bar / browser chrome color follows the effective theme. */
 export function syncThemeColor() {
   const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches)
-  const color = dim ? dimmed(dim) : dark ? '#000000' : '#ffffff'
+  const color = edge || (dim ? dimmed(dim) : dark ? '#000000' : '#ffffff')
   for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', color)
 }
 
@@ -58,6 +58,13 @@ export function syncThemeColor() {
 let dim = null
 export function dimThemeColor(scrim) {
   dim = scrim
+  syncThemeColor()
+}
+// A full-screen surface of its own colour (the call screen, always dark)
+// has the status area match it while it's up.
+let edge = null
+export function edgeThemeColor(color) {
+  edge = color
   syncThemeColor()
 }
 const rgba = value => (value.match(/[\d.]+/g) || []).map(Number)
