@@ -119,9 +119,12 @@ function videoBubble(m, ctx) {
 
 function callBubble(m) {
   const media = m.call?.media === 'video' ? 'video' : 'phone'
-  return h('div', { class: ['bubble call', m.call?.missed && 'missed'], dataset: { kind: 'call' }, role: 'button' },
+  // A missed call is news to the person called; the caller only learns it didn't connect.
+  const missed = m.call?.missed && !m.out
+  const text = m.call?.missed && m.out ? `${media === 'video' ? '视频' : '语音'}通话未接通` : m.text || '通话'
+  return h('div', { class: ['bubble call-log', missed && 'missed'], dataset: { kind: 'call' }, role: 'button' },
     icon(media),
-    h('span', {}, m.text || '通话'))
+    h('span', {}, text))
 }
 
 function card(m, { icon: name, iconClass = '', title, desc }) {

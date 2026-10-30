@@ -131,11 +131,21 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     settleRun?.stop()
     document.removeEventListener('keydown', onKey)
     scrim.classList.remove('on')
-    // A sheet let go mid-drag keeps its momentum (even none) via a spring.
-    if ((velocity || sheet.classList.contains('dragging')) && getLayout() === 'stack' && !reducedMotion()) {
+    // The app is back in use the moment the sheet starts to leave: taps go
+    // through the fading scrim and the sheet, and focus returns now.
+    scrim.style.pointerEvents = sheet.style.pointerEvents = 'none'
+    open.delete(ctl)
+    unlockApp()
+    restoreFocus(prevFocus)
+    // Folded, the sheet always leaves on the spring a drag hands off to, so
+    // Close, Escape, the scrim and a flick all feel the same; a flick keeps
+    // its momentum.
+    if (getLayout() === 'stack' && !reducedMotion()) {
       const from = currentY()
       const to = sheet.offsetHeight + 60
       sheet.classList.add('dragging')
+      // The app grows back frame by frame with the sheet, not on its own timing.
+      if (receded) app().classList.add('sheet-drag')
       const run = spring({ from, to, velocity, damping: 1, response: 0.3, onUpdate: y => { sheet.style.transform = `translate3d(0, ${y}px, 0)`; track(y) } })
       await run.done
       unrecede()
@@ -147,9 +157,6 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     }
     scrim.remove()
     sheet.remove()
-    open.delete(ctl)
-    unlockApp()
-    restoreFocus(prevFocus)
     onClose?.()
   }
 

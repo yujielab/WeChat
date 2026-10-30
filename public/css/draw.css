@@ -34,7 +34,6 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  box-shadow: 0 1px 2px rgb(17 17 20 / 0.18);
 }
 .draw-send .icon { width: 16px; height: 16px; }
 .draw-send:disabled { opacity: 0.4; }
@@ -81,8 +80,9 @@
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.1);
   transition: transform var(--spring-snappy-dur) var(--spring-snappy);
 }
-.draw-color.on { transform: scale(1.18); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--blue); }
-.draw-color[style*="#ffffff"] { box-shadow: inset 0 0 0 1px var(--separator); }
+/* Selection is ink, as everywhere else: a ring that never competes with the colour. */
+.draw-color.on { transform: scale(1.18); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--label); }
+.draw-color[style*="#ffffff"]:not(.on) { box-shadow: inset 0 0 0 1px var(--separator); }
 
 .draw-size {
   width: 36px;
@@ -91,7 +91,7 @@
   display: grid;
   place-items: center;
   flex: none;
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color 160ms ease;
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color var(--dur-quick) ease-out;
 }
 .draw-size span { background: var(--label); border-radius: 50%; display: block; }
 .draw-size.on { background: var(--fill-3); transform: scale(1.05); }

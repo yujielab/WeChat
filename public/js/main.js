@@ -4,6 +4,7 @@ import { initViewport } from './ui/viewport.js'
 import { initPress } from './ui/press.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
+import { storage, reducedMotion } from './ui/dom.js'
 import {
   state, setMe, setRooms, upsertRoom, patchRoom, setContacts, setPresence, markPresence,
   normMsg, previewText, thread, upsertMessage, replaceMessage, removeMessage, chatInfo
@@ -31,21 +32,51 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-onApiEvent(evt => { if (evt === 'unauthorized') location.reload() })
+onApiEvent(evt => {
+  if (evt !== 'unauthorized') return
+  storage(BOOT_CACHE, null)
+  location.reload()
+})
+
+// The last bootstrap, kept so a launch paints the app at once and catches
+// up behind it instead of showing an empty screen for two round trips.
+// Presence is left out: it is only true live.
+const BOOT_CACHE = 'cache:boot'
+function cachedBoot() {
+  try {
+    const b = JSON.parse(storage(BOOT_CACHE) || 'null')
+    return b?.me?.id && Array.isArray(b.rooms) ? b : null
+  } catch {
+    return null
+  }
+}
 
 boot()
 
 async function boot() {
+  const cached = shell ? null : cachedBoot()
+  if (cached) {
+    state.restored = true
+    setMe(cached.me)
+    applyBoot(cached)
+    mountShell()
+  }
   let status
   try {
     status = await fetch('/auth/status', { credentials: 'same-origin' }).then(r => r.json())
   } catch {
-    app.replaceChildren()
-    toast('无法连接服务器，请检查网络', { type: 'error', duration: 6000 })
+    if (shell) shell.setStatus({ text: '连接中…', spinner: true })
+    else {
+      app.replaceChildren()
+      toast('无法连接服务器，请检查网络', { type: 'error', duration: 6000 })
+    }
     setTimeout(boot, 4000)
     return
   }
-  if (status.authed) return start(status.me)
+  if (status.authed && (!state.me || state.me.id === status.me.id)) return start(status.me)
+  // Signed out, or someone else signed in, since the cache was written.
+  storage(BOOT_CACHE, null)
+  if (shell) return location.reload()
   renderAuth(app, { needsCode: status.needsCode, onSuccess: start })
 }
 
@@ -54,7 +85,9 @@ async function start(me) {
   try {
     await refresh()
   } catch (err) {
-    toast(err.message, { type: 'error' })
+    // A restored app says it is still connecting; a blank one says why.
+    if (shell) shell.setStatus({ text: '连接中…', spinner: true })
+    else toast(err.message, { type: 'error' })
     return setTimeout(() => start(me), 3000)
   }
   socket?.close()
@@ -63,18 +96,24 @@ async function start(me) {
     onOpen: () => { state.socket = true; shell?.setStatus({}); refresh().catch(() => {}) },
     onClose: () => { state.socket = false; shell?.setStatus({ text: '连接中…', spinner: true }) }
   })
-  mountShell()
+  enterApp()
+}
+
+// From sign-in the app cross-fades in rather than cutting over.
+function enterApp() {
+  if (shell || !app.querySelector('.auth') || !document.startViewTransition || reducedMotion()) return mountShell()
+  const root = document.documentElement
+  root.dataset.arrive = ''
+  document.startViewTransition(mountShell).finished.finally(() => delete root.dataset.arrive)
 }
 
 async function refresh() {
   const boot = await api.get('/api/bootstrap')
   setMe(boot.me)
   setPresence(boot.presence)
-  setRooms(boot.rooms)
-  setContacts(boot.contacts)
-  state.calls = boot.calls || { enabled: false }
-  state.vapid = boot.vapid || null
+  applyBoot(boot)
   shell?.setMe(state.me)
+  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid }))
   // Once per launch: keep this device's push subscription current.
   if (!pushSynced) {
     pushSynced = true
@@ -83,9 +122,16 @@ async function refresh() {
 }
 let pushSynced = false
 
+function applyBoot(boot) {
+  setRooms(boot.rooms)
+  setContacts(boot.contacts)
+  state.calls = boot.calls || { enabled: false }
+  state.vapid = boot.vapid || null
+}
+
 function mountShell() {
   if (shell) { shell.setMe(state.me); return }
-  calls = createCalls({ socketSend: obj => socket?.send(obj) })
+  calls = createCalls({ socketSend: obj => socket?.send(obj), connected: () => Boolean(socket?.connected) })
   shell = createShell(app, {
     socketSend: obj => socket?.send(obj),
     loadContacts,
@@ -193,6 +239,7 @@ async function loadContacts(force) {
 }
 
 async function logout() {
+  storage(BOOT_CACHE, null)
   await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
   location.reload()
 }

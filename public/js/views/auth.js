@@ -71,7 +71,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
       const after = card.getBoundingClientRect()
       cardAnimation = card.animate?.(
         [{ height: `${before.height}px`, transform: `translateY(${before.top - after.top}px)` }, { height: `${after.height}px`, transform: 'none' }],
-        { duration: 400, easing: 'cubic-bezier(.32,.72,0,1)' })
+        { duration: 320, easing: 'cubic-bezier(.32,.72,0,1)' })
       modeAnimation = form.animate?.(
         [{ opacity: 0.35, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
         { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' })

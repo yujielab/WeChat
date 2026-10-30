@@ -12,7 +12,11 @@
   var theme = read('ui:theme') || 'light'
   if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme)
   var glass = read('ui:glass') || read('ui:glass-auto')
-  if (glass === 'solid') root.setAttribute('data-glass', 'solid')
+  // Devices that can't afford live blur start solid, so nothing swaps later.
+  var nav = navigator
+  var lowEnd = (nav.connection && nav.connection.saveData) || (nav.deviceMemory && nav.deviceMemory <= 2) ||
+    (nav.hardwareConcurrency && nav.hardwareConcurrency <= 2)
+  if (glass === 'solid' || (lowEnd && !read('ui:glass'))) root.setAttribute('data-glass', 'solid')
   var motion = read('ui:motion')
   if (motion === 'reduce' || motion === 'full') root.setAttribute('data-motion', motion)
 })()

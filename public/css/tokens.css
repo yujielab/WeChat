@@ -1,8 +1,8 @@
 /* Design tokens.
- * Colors follow Apple's iOS system palette (light / dark), tuned to the
- * white-paper language of the author's other projects: zinc-tinted ink, 1px
- * hairline borders instead of fills, and glass that is a white tint with a
- * hairline and a soft contact shadow. Sizes are in rem so the whole interface
+ * Apple's iOS system palette, pared back the way SpaceX's site is: pure
+ * black ink and canvas, cool neutrals instead of warm ones, 1px hairlines
+ * instead of fills and shadows, and glass only on the floating controls,
+ * with a hairline rim and the faintest contact shadow. Sizes are in rem so the whole interface
  * scales with the iPhone's Dynamic Type setting (base.css sets the root to
  * -apple-system-body). Springs are sampled from damping/response pairs by
  * tools/gen-springs.mjs.
@@ -13,20 +13,20 @@
 
   /* ---- color: light */
   --bg: #ffffff;
-  --paper: #f7f7f5;
+  --paper: #f5f5f7;
   --surface: #ffffff;
-  --focus-ring: rgb(20 20 22 / 0.07);
+  --focus-ring: rgb(0 0 0 / 0.07);
   --bg-elevated: #ffffff;
-  --bg-grouped: #f4f4f5;
+  --bg-grouped: #f5f5f7;
   --bg-grouped-2: #ffffff;
-  --label: #171719;
-  --label-2: #707071;
-  --label-3: #929293;
+  --label: #0b0b0d;
+  --label-2: #6e6e73;
+  --label-3: #8e8e93;
   --label-4: rgb(60 60 67 / 0.18);
   --separator: rgb(60 60 67 / 0.22);
-  --separator-opaque: #e4e4e7;
-  --line: #e8e8e6;              /* 1px borders on cards, inputs, tiles */
-  --field: #f4f4f5;             /* recessed wells */
+  --separator-opaque: #e3e3e8;
+  --line: #e5e5ea;              /* 1px borders on cards, inputs, tiles */
+  --field: #f2f2f5;             /* recessed wells */
   --fill: rgb(120 120 128 / 0.2);
   --fill-2: rgb(120 120 128 / 0.16);
   --fill-3: rgb(118 118 128 / 0.12);
@@ -45,22 +45,24 @@
 
   /* Primary actions are ink, not blue: blue stays with live things
      (your messages, unread, links), so the two never compete. */
-  --ink: #141416;
+  --ink: #000000;
   --on-ink: #ffffff;
 
   --bubble-out: var(--ink);
   --bubble-out-text: var(--on-ink);
   --bubble-in: #ededf0;
-  --bubble-in-text: #18181b;
+  --bubble-in-text: #0b0b0d;
   --bubble-card: #ffffff;
   --bubble-card-line: var(--line);
   --link-in: #0062cc;
 
   --scrim: rgb(0 0 0 / 0.32);
-  --recede: #d4d4d8;            /* behind the app while a sheet lifts it back */
+  --recede: #d1d1d6;            /* behind the app while a sheet lifts it back */
   --image-outline: rgb(0 0 0 / 0.08);
-  --card-shadow: 0 1px 2px rgb(20 20 30 / 0.045);
-  --pop-shadow: 0 14px 38px rgb(15 15 25 / 0.14), 0 2px 6px rgb(15 15 25 / 0.06);
+  --card-shadow: none;
+  /* The one lift floating controls get: a hairline does the rest. */
+  --chrome-shadow: 0 4px 14px -8px rgb(0 0 0 / 0.12);
+  --pop-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 12px 32px -6px rgb(0 0 0 / 0.14);
 
   /* ---- glass: light (white tint + hairline + contact shadow) */
   --glass-tint: rgb(255 255 255 / 0.72);
@@ -71,9 +73,11 @@
   --glass-rim: rgb(255 255 255 / 0.95);
   --glass-rim-low: rgb(255 255 255 / 0.5);
   --glass-edge-dark: rgb(0 0 0 / 0.035);
-  --glass-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 2px 4px rgb(0 0 0 / 0.025), 0 8px 22px -12px rgb(0 0 0 / 0.15);
-  --glass-shadow-lg: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 2px 6px rgb(15 15 25 / 0.06), 0 14px 38px rgb(15 15 25 / 0.14);
+  --glass-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.03), 0 6px 18px -12px rgb(0 0 0 / 0.16);
+  --glass-shadow-lg: 0 0 0 0.5px rgb(0 0 0 / 0.07), 0 12px 32px -6px rgb(0 0 0 / 0.14);
   --glass-glow: rgb(255 255 255 / 0.85);
+  --glass-reflect: rgb(255 255 255 / 0.26);
+  --glass-caustic: rgb(255 255 255 / 0.12);
   --glass-blur: 22px;
   --glass-blur-lg: 28px;
   --glass-saturate: 1.8;
@@ -90,6 +94,11 @@
   --t-footnote: 0.765rem;        /* 13 */
   --t-caption: 0.706rem;         /* 12 */
   --t-caption-2: 0.647rem;       /* 11 */
+  /* Display face for the wordmark, eyebrows and numerals: DIN where the
+     system has it (SpaceX's D-DIN, iOS's DIN Alternate), SF elsewhere. */
+  --font-display: "D-DIN", "DIN Alternate", "DIN Next LT Pro", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+  --track-wordmark: 0.34em;
+  --track-eyebrow: 0.08em;
   --w-regular: 400;
   --w-medium: 500;
   --w-semibold: 600;
@@ -126,6 +135,9 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --press-dur: 80ms;
+  --dur-quick: 160ms;   /* color and opacity state changes */
+  --dur-ui: 240ms;      /* indicators, toasts, small moves */
+  --dur-move: 320ms;    /* columns and surfaces */
   --reveal-dur: 460ms;
   --reveal-step: 52ms;
 
@@ -182,19 +194,19 @@
 /* ---- color: dark */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #101012;
-    --paper: #101012;
-    --surface: #1b1b1d;
+    --bg: #000000;
+    --paper: #000000;
+    --surface: #0f0f11;
     --focus-ring: rgb(255 255 255 / 0.09);
-    --bg-elevated: #1c1c1e;
+    --bg-elevated: #121214;
     --bg-grouped: #000000;
-    --bg-grouped-2: #1c1c1e;
-    --label: #ffffff;
-    --label-2: rgb(235 235 245 / 0.6);
-    --label-3: rgb(235 235 245 / 0.3);
-    --label-4: rgb(235 235 245 / 0.16);
-    --separator: rgb(84 84 88 / 0.65);
-    --separator-opaque: #38383a;
+    --bg-grouped-2: #121214;
+    --label: #f5f5fa;
+    --label-2: rgb(240 240 250 / 0.6);
+    --label-3: rgb(240 240 250 / 0.34);
+    --label-4: rgb(240 240 250 / 0.16);
+    --separator: rgb(240 240 250 / 0.16);
+    --separator-opaque: #2a2a2e;
     --fill: rgb(120 120 128 / 0.36);
     --fill-2: rgb(120 120 128 / 0.32);
     --fill-3: rgb(118 118 128 / 0.24);
@@ -207,51 +219,54 @@
     --green: #30d158;
     --indigo: #5e5ce6;
     --bubble-out: var(--ink);
-    --bubble-in: #262628;
-    --bubble-in-text: #ffffff;
-    --bubble-card: #1c1c1e;
+    --bubble-in: #1a1a1d;
+    --bubble-in-text: #f5f5fa;
+    --bubble-card: #111113;
     --link-in: #5eb0ff;
-    --scrim: rgb(0 0 0 / 0.5);
-    --image-outline: rgb(255 255 255 / 0.1);
-    --glass-tint: rgb(36 36 40 / 0.5);
-    --glass-tint-strong: rgb(30 30 34 / 0.78);
-    --glass-solid: #1c1c1e;
-    --glass-sheen-top: rgb(255 255 255 / 0.16);
+    --scrim: rgb(0 0 0 / 0.6);
+    --image-outline: rgb(255 255 255 / 0.12);
+    --glass-tint: rgb(24 24 27 / 0.55);
+    --glass-tint-strong: rgb(18 18 20 / 0.82);
+    --glass-solid: #121214;
+    --glass-sheen-top: rgb(255 255 255 / 0.12);
     --glass-sheen-mid: rgb(255 255 255 / 0.02);
-    --glass-rim: rgb(255 255 255 / 0.22);
-    --glass-rim-low: rgb(255 255 255 / 0.08);
+    --glass-rim: rgb(255 255 255 / 0.2);
+    --glass-rim-low: rgb(255 255 255 / 0.1);
     --glass-edge-dark: rgb(0 0 0 / 0.4);
-    --glass-shadow: 0 8px 28px -10px rgb(0 0 0 / 0.6), 0 0 0 0.5px rgb(255 255 255 / 0.06);
-    --glass-shadow-lg: 0 24px 60px -18px rgb(0 0 0 / 0.75), 0 0 0 0.5px rgb(255 255 255 / 0.08);
-    --glass-glow: rgb(255 255 255 / 0.28);
-    --line: rgb(255 255 255 / 0.1);
-    --field: #1c1c1e;
-    --ink: #f2f2f7;
+    --glass-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.08);
+    --glass-shadow-lg: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 24px 60px -20px rgb(0 0 0 / 0.8);
+    --glass-glow: rgb(255 255 255 / 0.22);
+    --glass-reflect: rgb(255 255 255 / 0.07);
+    --glass-caustic: rgb(255 255 255 / 0.03);
+    --line: rgb(240 240 250 / 0.13);
+    --field: #111113;
+    --ink: #f5f5fa;
     --on-ink: #000000;
     --blue-ring: rgb(10 132 255 / 0.28);
     --red-ring: rgb(255 69 58 / 0.24);
     --bubble-card: #1c1c1e;
-    --bubble-card-line: transparent;
+    --bubble-card-line: var(--line);
     --recede: #000000;
     --card-shadow: none;
-    --pop-shadow: 0 14px 38px rgb(0 0 0 / 0.5), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+    --chrome-shadow: none;
+    --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 14px 38px rgb(0 0 0 / 0.6);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #101012;
-  --paper: #101012;
-  --surface: #1b1b1d;
+  --bg: #000000;
+  --paper: #000000;
+  --surface: #0f0f11;
   --focus-ring: rgb(255 255 255 / 0.09);
-  --bg-elevated: #1c1c1e;
+  --bg-elevated: #121214;
   --bg-grouped: #000000;
-  --bg-grouped-2: #1c1c1e;
-  --label: #ffffff;
-  --label-2: rgb(235 235 245 / 0.6);
-  --label-3: rgb(235 235 245 / 0.3);
-  --label-4: rgb(235 235 245 / 0.16);
-  --separator: rgb(84 84 88 / 0.65);
-  --separator-opaque: #38383a;
+  --bg-grouped-2: #121214;
+  --label: #f5f5fa;
+  --label-2: rgb(240 240 250 / 0.6);
+  --label-3: rgb(240 240 250 / 0.34);
+  --label-4: rgb(240 240 250 / 0.16);
+  --separator: rgb(240 240 250 / 0.16);
+  --separator-opaque: #2a2a2e;
   --fill: rgb(120 120 128 / 0.36);
   --fill-2: rgb(120 120 128 / 0.32);
   --fill-3: rgb(118 118 128 / 0.24);
@@ -264,34 +279,37 @@
   --green: #30d158;
   --indigo: #5e5ce6;
   --bubble-out: var(--ink);
-  --bubble-in: #262628;
-  --bubble-in-text: #ffffff;
-  --bubble-card: #1c1c1e;
+  --bubble-in: #1a1a1d;
+  --bubble-in-text: #f5f5fa;
+  --bubble-card: #111113;
   --link-in: #5eb0ff;
-  --scrim: rgb(0 0 0 / 0.5);
-  --image-outline: rgb(255 255 255 / 0.1);
-  --glass-tint: rgb(36 36 40 / 0.5);
-  --glass-tint-strong: rgb(30 30 34 / 0.78);
-  --glass-solid: #1c1c1e;
-  --glass-sheen-top: rgb(255 255 255 / 0.16);
+  --scrim: rgb(0 0 0 / 0.6);
+  --image-outline: rgb(255 255 255 / 0.12);
+  --glass-tint: rgb(24 24 27 / 0.55);
+  --glass-tint-strong: rgb(18 18 20 / 0.82);
+  --glass-solid: #121214;
+  --glass-sheen-top: rgb(255 255 255 / 0.12);
   --glass-sheen-mid: rgb(255 255 255 / 0.02);
-  --glass-rim: rgb(255 255 255 / 0.22);
-  --glass-rim-low: rgb(255 255 255 / 0.08);
+  --glass-rim: rgb(255 255 255 / 0.2);
+  --glass-rim-low: rgb(255 255 255 / 0.1);
   --glass-edge-dark: rgb(0 0 0 / 0.4);
-  --glass-shadow: 0 8px 28px -10px rgb(0 0 0 / 0.6), 0 0 0 0.5px rgb(255 255 255 / 0.06);
-  --glass-shadow-lg: 0 24px 60px -18px rgb(0 0 0 / 0.75), 0 0 0 0.5px rgb(255 255 255 / 0.08);
-  --glass-glow: rgb(255 255 255 / 0.28);
-  --line: rgb(255 255 255 / 0.1);
-  --field: #1c1c1e;
-  --ink: #f2f2f7;
+  --glass-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --glass-shadow-lg: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 24px 60px -20px rgb(0 0 0 / 0.8);
+  --glass-glow: rgb(255 255 255 / 0.22);
+  --glass-reflect: rgb(255 255 255 / 0.07);
+  --glass-caustic: rgb(255 255 255 / 0.03);
+  --line: rgb(240 240 250 / 0.13);
+  --field: #111113;
+  --ink: #f5f5fa;
   --on-ink: #000000;
   --blue-ring: rgb(10 132 255 / 0.28);
   --red-ring: rgb(255 69 58 / 0.24);
   --bubble-card: #1c1c1e;
-  --bubble-card-line: transparent;
+  --bubble-card-line: var(--line);
   --recede: #000000;
   --card-shadow: none;
-  --pop-shadow: 0 14px 38px rgb(0 0 0 / 0.5), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --chrome-shadow: none;
+  --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 14px 38px rgb(0 0 0 / 0.6);
 }
 
 :root[data-theme="light"] { color-scheme: light; }

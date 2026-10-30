@@ -112,6 +112,8 @@ img { -webkit-user-drag: none; }
   --sp-k: var(--sp, 1);
   transform: translateY(calc((var(--safe-top) + 10px) * var(--sp-k))) scale(calc(1 - 0.06 * var(--sp-k)));
   border-radius: calc(22px * var(--sp-k));
+  /* On a black canvas the receding app keeps an edge. */
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) calc(100% * var(--sp-k)), transparent);
   transition-duration: 460ms;
 }
 .app.sheet-drag .shell { transition: none; }
@@ -258,6 +260,9 @@ img { -webkit-user-drag: none; }
   to { opacity: 1; filter: blur(0); transform: none; }
 }
 @keyframes fade-in { from { opacity: 0; } }
+/* Signing in: the form steps back and the app resolves in its place. */
+:root[data-arrive]::view-transition-old(root) { animation: fade-out 160ms var(--ease-out) both; }
+:root[data-arrive]::view-transition-new(root) { animation: reveal 380ms var(--ease-out) both; }
 @keyframes fade-out { to { opacity: 0; } }
 
 /* Reduced motion: keep the state changes, drop the travel. */

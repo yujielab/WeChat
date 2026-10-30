@@ -12,13 +12,13 @@ import { avatar } from './avatar.js'
 import { openSheet, openMenu, confirmAction, toast } from './overlay.js'
 
 // ---------------------------------------------------------------- shared bits
-function cell(label, right, { icon: ic, color, sub, onClick, tint, destructive } = {}) {
+function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) {
   const tag = onClick ? 'button' : 'div'
   const el = h(tag, {
     class: ['cell', ic && 'icon-left', tint && 'tint', destructive && 'destructive'],
     type: onClick ? 'button' : undefined
   },
-  ic ? h('span', { class: 'cell-icon', style: { background: color || 'var(--gray)' } }, icon(ic)) : null,
+  ic ? h('span', { class: 'cell-icon' }, icon(ic)) : null,
   h('span', { class: 'grow' }, label, sub ? h('span', { class: 'sub' }, sub) : null),
   right ?? null)
   if (onClick) el.addEventListener('click', onClick)
@@ -84,8 +84,8 @@ export function openSettings({ onLogout }) {
     profile,
     groupTitle('账号'),
     group(
-      cell('编辑资料', chev(), { icon: 'person', color: 'var(--blue)', onClick: () => editProfile() }),
-      cell('修改密码', chev(), { icon: 'lock', color: 'var(--gray)', onClick: () => changePassword() })
+      cell('编辑资料', chev(), { icon: 'person', onClick: () => editProfile() }),
+      cell('修改密码', chev(), { icon: 'lock', onClick: () => changePassword() })
     ),
     groupTitle('显示与交互'),
     group(
@@ -178,7 +178,7 @@ async function renderPush(slot) {
   else if (Notification.permission === 'denied') note = '请在“设置 › 通知”中允许 Cuven 发送通知。'
   const sw = toggle(Boolean(sub), on => (on ? turnOn() : turnOff()), '通知')
   sw.disabled = Boolean(note)
-  slot.replaceChildren(group(cell('通知', sw, { icon: 'bell', color: 'var(--red)' })), ...(note ? [foot(note)] : []))
+  slot.replaceChildren(group(cell('通知', sw, { icon: 'bell' })), ...(note ? [foot(note)] : []))
 }
 async function turnOn() {
   try {
@@ -202,7 +202,7 @@ export function openNewChat({ loadContacts, onOpen }) {
 
   const content = h('div', {},
     h('div', { class: 'sheet-search' }, h('label', { class: 'glass search-pill' }, icon('search'), search)),
-    group(cell('新建群聊', chev(), { icon: 'people', color: 'var(--green)', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } })),
+    group(cell('新建群聊', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } })),
     groupTitle('联系人'),
     list,
     results
@@ -308,8 +308,8 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
     : h('div', { class: 'profile' }, avatar(c.peer?.avatar, c.peer?.display, { size: 84 }), h('h3', {}, c.peer?.display || c.name), h('p', {}, '@' + (c.peer?.username || '')))
 
   const flags = group(
-    cell('消息免打扰', toggle(c.muted, on => setFlag(roomId, { muted: on ? 1 : 0 }), '免打扰'), { icon: 'bell-slash', color: 'var(--gray)' }),
-    cell('置顶聊天', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), '置顶'), { icon: 'pin', color: 'var(--orange)' })
+    cell('消息免打扰', toggle(c.muted, on => setFlag(roomId, { muted: on ? 1 : 0 }), '免打扰'), { icon: 'bell-slash' }),
+    cell('置顶聊天', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), '置顶'), { icon: 'pin' })
   )
 
   const blocks = [header, flags]

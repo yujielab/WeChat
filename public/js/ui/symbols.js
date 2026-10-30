@@ -68,7 +68,7 @@ const EFFECTS = {
         { strokeDasharray: '1 1', strokeDashoffset: -0.99, opacity: 1, offset: 0.99 },
         { strokeDasharray: '1 1', strokeDashoffset: -1, opacity: 0 }
       ], { duration: 320, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', fill: 'forwards' }]
-    : [[{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.5)' }], { duration: 220, easing: 'ease-in', fill: 'forwards' }]),
+    : [[{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.5)' }], { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }]),
   pulse: svg => whole(svg, [{ opacity: 1 }, { opacity: 0.32 }, { opacity: 1 }], { duration: 1300, easing: 'ease-in-out', iterations: Infinity }),
   // Cumulative: the variable layers light one after another, hold, and dim
   // together. Symbols without them pulse instead.

@@ -14,16 +14,20 @@ import { avatar } from './avatar.js'
 
 // An unanswered call gives up after this long (the server keeps it ringing as long).
 const RING_MS = 45000
+// How many times a pull of the other side's tracks is retried while its media starts.
+const PULL_TRIES = 6
 // How the caller hears each callee was reached, best first.
 const REACH = ['ringing', 'notified', 'unreachable']
 const REACH_TEXT = { ringing: '对方响铃中…', notified: '已通知对方…', unreachable: '对方暂时无法接听' }
 
-export function createCalls({ socketSend }) {
+export function createCalls({ socketSend, connected = () => true }) {
   let active = null // { room, callId, media, role, pc, sessionId, stream, peers, ui, startedAt, ringTimer, reach }
 
   function start(roomId, media = 'audio') {
     if (active) return toast('已有通话进行中', { type: 'error' })
     if (!state.calls?.enabled) return toast('暂时无法通话', { type: 'error' })
+    // The invitation travels on the socket: without it the other side would never ring.
+    if (!connected()) return toast('正在连接，请稍后再试', { type: 'error' })
     const callId = `${Date.now()}${Math.floor(Math.random() * 1000)}`
     active = newCall({ room: roomId, callId, media, role: 'caller' })
     socketSend({ t: 'call', kind: 'invite', room: roomId, callId, media })
@@ -36,7 +40,7 @@ export function createCalls({ socketSend }) {
     if (kind === 'invite') return incoming(msg)
     if (!active || active.callId !== callId) return
     if (kind === 'accept') { clearTimeout(active.ringTimer); active.ui.setStatus('已接通'); active.answered = true; announceTracks() }
-    else if (kind === 'tracks') pullFrom(msg.from, msg.sessionId, msg.tracks)
+    else if (kind === 'tracks') pullFrom(msg)
     else if (REACH.includes(kind)) reached(kind)
     else if (kind === 'decline') endSoon(msg.missed ? '无人接听' : '对方已拒绝')
     else if (kind === 'cancel') end(true)
@@ -81,32 +85,46 @@ export function createCalls({ socketSend }) {
     active.stream = stream
     active.ui.attachLocal(active.stream, wantVideo)
     const ice = await api.post('/rtc/turn').then(r => r.iceServers).catch(() => [{ urls: 'stun:stun.cloudflare.com:3478' }])
+    if (active !== call) { stream.getTracks().forEach(t => t.stop()); return }
     const pc = new RTCPeerConnection({ iceServers: ice, bundlePolicy: 'max-bundle' })
-    active.pc = pc
-    pc.ontrack = e => active.ui.addRemoteTrack(e.track, e.streams[0])
+    call.pc = pc
+    pc.ontrack = e => call.ui.addRemoteTrack(e.track, e.streams[0])
     pc.onconnectionstatechange = () => {
+      if (active !== call) return
       if (['failed', 'closed'].includes(pc.connectionState)) endSoon('连接已断开')
-      if (pc.connectionState === 'connected') active.ui.setStatus(active.media === 'video' ? '' : '通话中')
+      if (pc.connectionState === 'connected') call.ui.setStatus(call.media === 'video' ? '' : '通话中')
     }
-    // Publish local tracks to the SFU.
-    const transceivers = active.stream.getTracks().map(t => pc.addTransceiver(t, { direction: 'sendonly' }))
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-    const session = await api.post('/rtc/sessions/new')
-    active.sessionId = session.sessionId
-    const tracks = transceivers.map(tr => ({
-      location: 'local',
-      mid: tr.mid,
-      trackName: `${state.me.id}-${tr.sender.track.kind}`
-    }))
-    const res = await api.post(`/rtc/sessions/${active.sessionId}/tracks/new`, {
-      sessionDescription: { type: 'offer', sdp: offer.sdp },
-      tracks
+    // Publish local tracks to the SFU: the session's first change, so
+    // anything the other side published waits for it in the queue.
+    await queued(call, async () => {
+      const transceivers = stream.getTracks().map(t => pc.addTransceiver(t, { direction: 'sendonly' }))
+      await pc.setLocalDescription(await pc.createOffer())
+      const session = await api.post('/rtc/sessions/new')
+      call.sessionId = session.sessionId
+      const tracks = transceivers.map(tr => ({ location: 'local', mid: tr.mid, trackName: `${state.me.id}-${tr.sender.track.kind}` }))
+      const res = await api.post(`/rtc/sessions/${call.sessionId}/tracks/new`, {
+        sessionDescription: { type: 'offer', sdp: pc.localDescription.sdp },
+        tracks
+      })
+      // A 200 can still carry a failed track.
+      const failed = res.tracks?.find(t => t.errorCode)
+      if (failed || !res.sessionDescription) throw Object.assign(new Error('通话服务暂时不可用'), { status: 502, code: failed?.errorCode })
+      await pc.setRemoteDescription(res.sessionDescription)
+      call.localTracks = tracks.map(t => t.trackName)
     })
-    await pc.setRemoteDescription(res.sessionDescription)
-    active.localTracks = tracks.map(t => t.trackName)
-    if (active.answered) announceTracks()
-    if (!active.startedAt) active.startedAt = Date.now()
+    if (active !== call) return
+    if (call.answered) announceTracks()
+    if (!call.startedAt) call.startedAt = Date.now()
+    pullWanted(call)
+  }
+
+  // Every change to a call's SFU session runs after the one before it has
+  // finished, answer included: the SFU refuses a change while another is
+  // still being negotiated. A call that has ended runs nothing more.
+  function queued(call, op) {
+    const run = call.queue.then(() => (active === call ? op() : undefined))
+    call.queue = run.catch(() => {})
+    return run
   }
 
   function announceTracks() {
@@ -114,25 +132,51 @@ export function createCalls({ socketSend }) {
     socketSend({ t: 'call', kind: 'tracks', room: active.room, callId: active.callId, sessionId: active.sessionId, tracks: active.localTracks })
   }
 
-  async function pullFrom(uid, sessionId, trackNames) {
-    if (!active?.pc || !sessionId || uid === state.me.id) return
-    active.peers ??= new Set()
-    const key = trackNames.join(',')
-    if (active.peers.has(key)) return
-    active.peers.add(key)
-    try {
-      const res = await api.post(`/rtc/sessions/${active.sessionId}/tracks/new`, {
-        tracks: trackNames.map(trackName => ({ location: 'remote', sessionId, trackName }))
-      })
-      if (res.requiresImmediateRenegotiation && res.sessionDescription) {
-        await active.pc.setRemoteDescription(res.sessionDescription)
-        const answer = await active.pc.createAnswer()
-        await active.pc.setLocalDescription(answer)
-        await api.put(`/rtc/sessions/${active.sessionId}/renegotiate`, { sessionDescription: { type: 'answer', sdp: answer.sdp } })
+  /** The other side published tracks: pull them once this side can. */
+  function pullFrom(msg) {
+    const call = active
+    if (!call || msg.from === state.me.id || typeof msg.sessionId !== 'string' || !Array.isArray(msg.tracks)) return
+    call.wanted.set(msg.from, { sessionId: msg.sessionId, tracks: msg.tracks })
+    pullWanted(call)
+  }
+
+  function pullWanted(call) {
+    // Until this side has published, its session isn't ready to receive.
+    if (active !== call || !call.localTracks) return
+    queued(call, async () => {
+      const want = []
+      for (const { sessionId, tracks } of call.wanted.values()) {
+        for (const trackName of tracks) if (!call.pulled.has(`${sessionId}/${trackName}`)) want.push({ location: 'remote', sessionId, trackName })
       }
-    } catch (err) {
+      if (!want.length) return
+      const res = await api.post(`/rtc/sessions/${call.sessionId}/tracks/new`, { tracks: want })
+      const results = res.tracks || []
+      let missing = 0
+      for (const t of want) {
+        const r = results.find(x => x.trackName === t.trackName && (!x.sessionId || x.sessionId === t.sessionId))
+        if (r && !r.errorCode) call.pulled.add(`${t.sessionId}/${t.trackName}`)
+        else missing++
+      }
+      if (res.requiresImmediateRenegotiation && res.sessionDescription) {
+        await call.pc.setRemoteDescription(res.sessionDescription)
+        await call.pc.setLocalDescription(await call.pc.createAnswer())
+        await api.put(`/rtc/sessions/${call.sessionId}/renegotiate`, { sessionDescription: { type: 'answer', sdp: call.pc.localDescription.sdp } })
+      }
+      if (missing) retryPulls(call)
+      else call.pullTries = 0
+    }).catch(err => {
       console.warn('pull failed', err)
-    }
+      retryPulls(call)
+    })
+  }
+
+  // The other side's media may not be flowing yet when its tracks are
+  // announced: ask again shortly, a few times, backing off.
+  function retryPulls(call) {
+    if (active !== call || call.pullTries >= PULL_TRIES) return
+    call.pullTries++
+    clearTimeout(call.pullTimer)
+    call.pullTimer = setTimeout(() => pullWanted(call), 500 * call.pullTries)
   }
 
   function endSoon(label) {
@@ -141,6 +185,8 @@ export function createCalls({ socketSend }) {
   }
   function fail(err) {
     if (!active) return
+    // The SFU's public code (if any) says which side to look at.
+    console.warn('call failed', err?.status ?? err?.name, err?.data?.code ?? err?.code ?? '')
     const reason = err?.name === 'NotAllowedError' ? '需要麦克风/摄像头权限'
       : err?.name === 'NotFoundError' ? '找不到麦克风或摄像头'
       : err?.status !== undefined ? err.message
@@ -154,6 +200,7 @@ export function createCalls({ socketSend }) {
     const a = active
     active = null
     clearTimeout(a.ringTimer)
+    clearTimeout(a.pullTimer)
     try { a.stream?.getTracks().forEach(t => t.stop()) } catch {}
     try { a.pc?.close() } catch {}
     if (navigator.audioSession) navigator.audioSession.type = 'auto'
@@ -176,7 +223,7 @@ export function createCalls({ socketSend }) {
       const room = chatInfo(info.room)
       ui.showOutgoing(room, info.media)
     }
-    return { ...info, ui, answered: false }
+    return { ...info, ui, answered: false, queue: Promise.resolve(), wanted: new Map(), pulled: new Set(), pullTries: 0 }
   }
 
   return { start, onSignal, get busy() { return Boolean(active) } }

@@ -22,7 +22,8 @@
 }
 .pane-sidebar[data-bars="horizontal"] .side-topbar { display: flex; }
 .side-head { margin-bottom: 18px; }
-.side-title { font-size: 1.882rem; }
+/* The app's name, set as on the sign-in screen: tracked DIN caps. */
+.side-title { font-family: var(--font-display); font-size: 1.412rem; line-height: 1.2; letter-spacing: var(--track-wordmark); text-transform: uppercase; }
 
 .side-me {
   width: 100%;
@@ -34,7 +35,8 @@
   border-radius: 18px;
   text-align: left;
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line), 0 6px 22px -16px rgb(0 0 0 / .2);
+  box-shadow: 0 0 0 1px var(--line);
+  transition: background-color var(--dur-quick) ease-out;
 }
 .side-me:active { background: var(--field); }
 .side-me:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
@@ -55,7 +57,7 @@
   text-align: left;
   color: var(--label);
   font-size: var(--t-body);
-  transition: background-color 160ms ease-out;
+  transition: background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out;
 }
 .side-scope:active { background: var(--fill-4); }
 .side-scope:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
@@ -64,7 +66,7 @@
 .side-scope.current .side-scope-icon { color: inherit; --sym-w: 2.2; } /* semibold, like its label */
 .side-scope-icon .icon { width: 19px; height: 19px; }
 .side-scope-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 11px; background: var(--blue); color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); }
+.side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 11px; background: var(--blue); color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; }
 @media (hover: hover) and (pointer: fine) {
   .side-scope:not(.current):hover { background: var(--fill-4); }
 }

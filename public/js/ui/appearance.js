@@ -48,13 +48,15 @@ export function setHaptics(on) {
 /** Status bar / browser chrome color follows the effective theme. */
 export function syncThemeColor() {
   const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches)
-  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', dark ? '#101012' : '#ffffff')
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', dark ? '#000000' : '#ffffff')
 }
 
 /**
  * Watches real frame times while the user scrolls. If blurred layers make
  * scrolling drop frames repeatedly, switch to the solid interface and
- * remember it (Settings can turn glass back on).
+ * remember it (Settings can turn glass back on). The switch waits until the
+ * app is out of sight: every material on screen changing at once mid-scroll
+ * would read as a flash.
  */
 export function startPerfProbe() {
   if (getPrefs().glass === 'solid' || storage('ui:glass-auto')) return
@@ -92,7 +94,7 @@ export function startPerfProbe() {
     windows++
     if (median > 22 || long > 0.2) slowWindows++
     if (windows >= 3 && slowWindows >= 2) {
-      markSlow('frames')
+      markSlow('frames', { later: true })
       document.removeEventListener('scroll', onScroll, true)
     } else if (windows >= 8) {
       document.removeEventListener('scroll', onScroll, true)
@@ -101,8 +103,15 @@ export function startPerfProbe() {
   document.addEventListener('scroll', onScroll, { capture: true, passive: true })
 }
 
-function markSlow(reason) {
+function markSlow(reason, { later = false } = {}) {
   storage('ui:glass-auto', 'solid')
   storage('ui:glass-auto-reason', reason)
-  root.setAttribute('data-glass', 'solid')
+  if (!later) return root.setAttribute('data-glass', 'solid')
+  const swap = () => {
+    if (document.visibilityState !== 'hidden') return
+    document.removeEventListener('visibilitychange', swap)
+    // Settings may have turned glass back on in the meantime.
+    if (storage('ui:glass-auto') === 'solid') root.setAttribute('data-glass', 'solid')
+  }
+  document.addEventListener('visibilitychange', swap)
 }

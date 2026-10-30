@@ -339,7 +339,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     pinned.hidden = pins.length === 0
     pinLabel.hidden = pinned.hidden
     const pinEls = new Map([...pinned.children].map(el => [el.dataset.id, el]))
-    const firstPins = pinned.children.length === 0 && rowEls.size === 0 && !reducedMotion()
+    // A launch restored from the cache is already in place; it doesn't rise in again.
+    const firstPins = pinned.children.length === 0 && rowEls.size === 0 && !reducedMotion() && !state.restored
     const pinOrder = pins.map((c, i) => {
       const fresh = !pinEls.has(c.id)
       const el = pinEls.get(c.id) || buildPin(c)
@@ -355,7 +356,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
 
     // Rows with FLIP reordering
     const before = new Map()
-    const firstFill = rowEls.size === 0 && !reducedMotion()
+    const firstFill = rowEls.size === 0 && !reducedMotion() && !state.restored
     const animate = !reducedMotion() && rowEls.size > 0
     if (animate) {
       const top = scroll.getBoundingClientRect().top

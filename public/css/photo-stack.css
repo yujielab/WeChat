@@ -26,7 +26,7 @@
   .m.out .photo-stack-open:hover .photo-stack-layer { transform:translateX(calc(var(--depth) * -11px)) rotate(calc(var(--depth) * -3.8deg)); }
 }
 /* A newly arrived album is dealt out from a squared pile. */
-.m.enter .photo-stack-layer { animation:stack-deal 560ms var(--spring-bouncy) 90ms backwards; }
+.m.enter .photo-stack-layer { animation:stack-deal var(--spring-bouncy-dur) var(--spring-bouncy) 90ms backwards; }
 @keyframes stack-deal { from { transform:none; } }
 .bubble.media.photo-stack img { display:block; width:100%; height:100%; object-fit:cover; opacity:1; }
 .photo-stack-fallback { position:absolute; inset:0; display:grid; place-items:center; color:var(--label-2); }
