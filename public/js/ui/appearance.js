@@ -48,7 +48,24 @@ export function setHaptics(on) {
 /** Status bar / browser chrome color follows the effective theme. */
 export function syncThemeColor() {
   const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches)
-  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', dark ? '#000000' : '#ffffff')
+  const color = dim ? dimmed(dim) : dark ? '#000000' : '#ffffff'
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', color)
+}
+
+// While a sheet's scrim dims the app, the status area the system keeps
+// beside the page takes the colour at the app's edge under that scrim, so
+// the screen still reads as one surface.
+let dim = null
+export function dimThemeColor(scrim) {
+  dim = scrim
+  syncThemeColor()
+}
+const rgba = value => (value.match(/[\d.]+/g) || []).map(Number)
+function dimmed(scrim) {
+  const [r, g, b, a = 1] = rgba(getComputedStyle(scrim).backgroundColor)
+  const base = rgba(getComputedStyle(document.getElementById('app')).backgroundColor)
+  const mix = (over, under) => Math.round(over * a + under * (1 - a))
+  return '#' + [mix(r, base[0]), mix(g, base[1]), mix(b, base[2])].map(v => v.toString(16).padStart(2, '0')).join('')
 }
 
 /**

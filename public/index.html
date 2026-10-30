@@ -10,7 +10,12 @@
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Not black-translucent: since iOS 26.1 (WebKit 301994, again on 26.5 and
+       27) a Home Screen app with it gets an opaque status bar anyway and a
+       viewport cut short by the bar's thickness, leaving a strip the page
+       can't paint. With the default style the page fills the rest of the
+       screen. iOS reads this when the app is added to the Home Screen. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Cuven">
   <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="/manifest.webmanifest">

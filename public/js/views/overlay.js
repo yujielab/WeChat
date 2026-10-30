@@ -6,6 +6,7 @@ import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { getLayout } from '../ui/viewport.js'
 import { placeOnSide, foldSide } from '../ui/fold.js'
 import { haptic } from '../ui/haptics.js'
+import { dimThemeColor } from '../ui/appearance.js'
 
 const layer = () => document.getElementById('overlays')
 const app = () => document.getElementById('app')
@@ -96,7 +97,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     tabindex: '-1'
   }, h('div', { class: 'grabber' }), head, body)
 
-  const ctl = { el: sheet, body, closed: false, close }
+  const ctl = { el: sheet, body, scrim, closed: false, close }
   let settleRun = null
   open.add(ctl)
   const prevFocus = document.activeElement
@@ -113,6 +114,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
       receded = true
       recede(true)
     }
+    dimThemeColor(scrim)
     sheet.focus({ preventScroll: true })
   })
   const unrecede = () => {
@@ -131,6 +133,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     settleRun?.stop()
     document.removeEventListener('keydown', onKey)
     scrim.classList.remove('on')
+    dimThemeColor([...open].reverse().find(o => o !== ctl && o.scrim)?.scrim || null)
     // The app is back in use the moment the sheet starts to leave: taps go
     // through the fading scrim and the sheet, and focus returns now.
     scrim.style.pointerEvents = sheet.style.pointerEvents = 'none'
