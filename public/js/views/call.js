@@ -188,13 +188,9 @@ export function createCalls({ socketSend, connected = () => true }) {
   }
   function fail(err) {
     if (!active) return
-    // The SFU's public code (if any) says which side to look at.
-    console.warn('call failed', err?.status ?? err?.name, err?.data?.code ?? err?.code ?? '')
-    const reason = err?.name === 'NotAllowedError' ? '需要麦克风/摄像头权限'
-      : err?.name === 'NotFoundError' ? '找不到麦克风或摄像头'
-      : err?.status !== undefined ? err.message
-      : `无法建立通话${err?.name && err.name !== 'Error' ? `（${err.name}）` : ''}`
-    toast(reason, { type: 'error', duration: 5000 })
+    // The server's reason and the SFU's public code (if any) say which side to look at.
+    console.warn('call failed', err?.status ?? err?.name, err?.data?.reason ?? '', err?.data?.code ?? err?.code ?? '')
+    toast(failureText(active.media, err), { type: 'error', duration: 5000 })
     if (!active.answered) active.endReason = 'failed'
     // The other side stops ringing too.
     end(false)
@@ -319,4 +315,25 @@ function toggle(iconOn, iconOff, label, initial, onChange) {
     onChange(on)
   })
   return { el }
+}
+
+// Why a call couldn't start, in words that say what to do: the device and
+// its permission (named for what this call uses), or the server's own
+// plain answer for a refusal from the call service.
+function failureText(media, err) {
+  const devices = media === 'video' ? '麦克风和摄像头' : '麦克风'
+  switch (err?.name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return `需要允许使用${devices}`
+    case 'NotFoundError':
+      return `找不到可用的${devices}`
+    case 'NotReadableError':
+    case 'AbortError':
+      return `${devices}正被其他应用占用`
+    case 'OverconstrainedError':
+      return '摄像头不支持这次通话的设置'
+  }
+  if (err?.status !== undefined) return err.message || '通话服务暂时不可用，请稍后再试'
+  return '通话连接没能建立，请重新拨打'
 }
