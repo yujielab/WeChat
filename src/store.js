@@ -265,7 +265,7 @@ export class Store {
       if (!room) continue
       const last = this.lastMessage(room.id)
       const unread = this.exec(
-        `SELECT COUNT(*) AS n FROM messages WHERE room=? AND ts>? AND sender<>? AND type<>'system'`,
+        `SELECT COUNT(*) AS n FROM messages WHERE room=? AND ts>? AND sender<>? AND type<>'system' AND state<>'revoked'`,
         room.id, m.last_read, user
       )[0].n
       const row = {
@@ -414,7 +414,7 @@ export class Store {
   unreadTotal(user) {
     return this.exec(
       `SELECT COUNT(*) AS n FROM messages m JOIN room_members r ON r.room=m.room
-       WHERE r.user=? AND r.hidden=0 AND r.muted=0 AND m.ts>r.last_read AND m.sender<>? AND m.type<>'system'`,
+       WHERE r.user=? AND r.hidden=0 AND r.muted=0 AND m.ts>r.last_read AND m.sender<>? AND m.type<>'system' AND m.state<>'revoked'`,
       user, user
     )[0].n
   }

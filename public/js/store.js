@@ -73,7 +73,8 @@ function normLast(m, room) {
 }
 
 export function previewText(m, room) {
-  if (m.state === 'revoked') return '[已撤回]'
+  // A message taken back says who took it back (no "name:" prefix needed).
+  if (m.state === 'revoked') return m.sender === state.me?.id ? '你撤回了一条消息' : `${nameOf(m.sender, room?.id) || '对方'}撤回了一条消息`
   let body = m.type === 'text' ? m.body
     : m.type === 'call' ? callPreview(m)
     : m.type === 'sticker' ? `[表情]${m.meta?.emoji ? ` ${m.meta.emoji}` : ''}`
