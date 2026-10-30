@@ -6,7 +6,7 @@
 import { h, icon } from '../ui/dom.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
-import { state, chatInfo, nameOf } from '../store.js'
+import { state, chatInfo, nameOf, avatarOf } from '../store.js'
 import { api } from '../api.js'
 import { toast } from './overlay.js'
 import { placeOnSide } from '../ui/fold.js'
@@ -63,7 +63,9 @@ export function createCalls({ socketSend, connected = () => true }) {
       return
     }
     active = newCall({ room: msg.room, callId: msg.callId, media: msg.media, role: 'callee', caller: msg.caller })
-    active.ui.showIncoming(msg.caller, msg.media, {
+    // Their photo: as the invitation brought it, else as this device knows them.
+    const caller = { ...msg.caller, avatar: msg.caller?.avatar || avatarOf(msg.caller?.id, msg.room) }
+    active.ui.showIncoming(caller, msg.media, {
       accept: () => { socketSend({ t: 'call', kind: 'accept', room: msg.room, callId: msg.callId }); active.answered = true; begin().catch(fail) },
       decline: () => { socketSend({ t: 'call', kind: 'decline', room: msg.room, callId: msg.callId }); end(true) }
     })
@@ -262,7 +264,8 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
       root.classList.toggle('video', hasVideo)
       name.textContent = room?.name || '通话'
       status.textContent = media === 'video' ? '视频通话 · 正在呼叫…' : '正在呼叫…'
-      poster.append(avatar(room?.peer?.id, room?.name || '', { size: 112, room: room?.kind === 'group' }))
+      // The conversation's own picture: the other person's photo, or the group's.
+      poster.append(avatar(room?.avatar || room?.peer?.avatar, room?.name || '', { size: 112, room: room?.kind === 'group' }))
       camBtn.el.hidden = !hasVideo
       mount()
     },
@@ -271,7 +274,7 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
       root.classList.toggle('video', hasVideo)
       name.textContent = caller?.display || '来电'
       status.textContent = media === 'video' ? '邀请你视频通话' : '邀请你语音通话'
-      poster.append(avatar(caller?.id, caller?.display || '', { size: 112 }))
+      poster.append(avatar(caller?.avatar, caller?.display || '', { size: 112 }))
       const yes = h('button', { class: 'call-btn accept', type: 'button', 'aria-label': '接听' }, icon(media === 'video' ? 'video' : 'phone-fill'))
       const no = h('button', { class: 'call-btn hang', type: 'button', 'aria-label': '拒绝' }, icon('phone-down'))
       yes.addEventListener('click', () => { ringing?.stop(); incomingActions.remove(); controls.hidden = false; accept() })
@@ -293,7 +296,17 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
     },
     addRemoteTrack(track, stream) {
       remoteStream.addTrack(track)
-      if (track.kind === 'video') { root.classList.add('video', 'remote-video'); remoteVideo.hidden = false; poster.hidden = true }
+      if (track.kind === 'video') {
+        root.classList.add('video')
+        remoteVideo.hidden = false
+        // Their photo stays until their picture actually comes through, and
+        // comes back whenever it stops (connecting, a stalled network).
+        const showing = () => root.classList.toggle('remote-video', track.readyState === 'live' && !track.muted)
+        track.addEventListener('mute', showing)
+        track.addEventListener('unmute', showing)
+        track.addEventListener('ended', showing)
+        showing()
+      }
       remoteVideo.play?.().catch(() => {})
     },
     destroy() {
