@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { webcrypto } from 'node:crypto'
-import { Store } from '../src/store.js'
+import { Store, editProblem, EDIT_WINDOW, EDIT_MAX } from '../src/store.js'
 
 globalThis.crypto ??= webcrypto
 
@@ -133,6 +133,40 @@ test('push subscriptions dedupe by endpoint', () => {
   s.addSub(a.id, { endpoint: 'https://p/1', keys: {} })
   s.addSub(a.id, { endpoint: 'https://p/2', keys: {} })
   assert.equal(s.listSubs(a.id).length, 2)
+})
+
+test('a sent text message can be rewritten by its sender; the earlier wordings stay readable', () => {
+  const s = makeStore()
+  const a = mkUser(s, 'alice'); const b = mkUser(s, 'bob')
+  const room = s.getOrCreateDM(a.id, b.id)
+  const sent = s.addMessage({ room, sender: a.id, ts: 1000, type: 'text', body: '明天三点' })
+  s.setKeys(sent.id, ['明天三点'])
+  assert.equal(s.editMessage(sent.id, b.id, '改掉'), null, 'only its sender')
+  const once = s.editMessage(sent.id, a.id, '明天四点', 2000)
+  assert.equal(once.body, '明天四点')
+  assert.equal(once.edited, 1)
+  assert.deepEqual(once.meta.history, [{ text: '明天三点', ts: 1000 }])
+  assert.equal(once.meta.keys, undefined, 'the old wording\'s key words go')
+  assert.equal(s.setKeys(sent.id, ['三点'], '明天三点'), null, 'key words of a replaced wording are not kept')
+  const twice = s.editMessage(sent.id, a.id, '后天四点', 3000)
+  assert.deepEqual(twice.meta.history, [{ text: '明天三点', ts: 1000 }, { text: '明天四点', ts: 2000 }])
+  assert.equal(twice.meta.editedAt, 3000)
+  assert.equal(s.editMessage(sent.id, a.id, '后天四点', 4000).edited, 2, 'the same wording is no edit')
+  assert.equal(s.listMessages(room).at(-1).body, '后天四点')
+  assert.equal(s.listRoomsFor(b.id)[0].unread, 1, 'an edit is nothing new to read')
+})
+
+test('what can be rewritten: your own text, within the window, a few times', () => {
+  const mine = { sender: 'u', type: 'text', state: 'sent', ts: 0, edited: 0 }
+  assert.equal(editProblem(mine, 'u', '新的', 1000), '')
+  assert.ok(editProblem(mine, 'v', '新的', 1000), 'someone else\'s')
+  assert.ok(editProblem({ ...mine, type: 'image' }, 'u', '新的', 1000), 'not a photo')
+  assert.ok(editProblem({ ...mine, state: 'revoked' }, 'u', '新的', 1000), 'not one taken back')
+  assert.ok(editProblem(mine, 'u', '   ', 1000), 'not into nothing')
+  assert.equal(editProblem(mine, 'u', '新的', EDIT_WINDOW), '')
+  assert.match(editProblem(mine, 'u', '新的', EDIT_WINDOW + 1), /15 分钟/)
+  assert.match(editProblem({ ...mine, edited: EDIT_MAX }, 'u', '新的', 1000), /最多编辑/)
+  assert.ok(editProblem(null, 'u', '新的'))
 })
 
 test('a profile cover is public, and kept when other fields change', () => {

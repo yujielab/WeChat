@@ -3,8 +3,10 @@
 // small panel grown out of the button itself, its + turning into ×. With text it
 // becomes Send in the same place. Enter sends (the keyboard shows 发送),
 // except while a Chinese IME is composing; Shift+Enter inserts a newline.
+// Editing a sent message borrows the field (edit()): a strip in it says so,
+// and the button saves.
 
-import { h, icon } from '../ui/dom.js'
+import { h, icon, reducedMotion } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
 import { openAttachments } from './attachments.js'
@@ -28,8 +30,9 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   // editor, so its caret, selection and IME composition never jump.
   const twin = h('div', { class: 'field-twin', 'aria-hidden': 'true' })
   const field = h('div', { class: 'field glass' }, textarea, twin)
-  // What you're likely to type next, drawn after the caret (predict.js).
-  const predictor = createPredictor({ textarea, field, chat: () => chat })
+  // What you're likely to type next, drawn after the caret (predict.js);
+  // never for a message being edited.
+  const predictor = createPredictor({ textarea, field, chat: () => (editing ? null : chat) })
 
   const panelId = `composer-tools-${++panelIds}`
   const toolButtons = new Map()
@@ -58,7 +61,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     'aria-haspopup': 'menu',
     'aria-expanded': 'false',
     'aria-controls': panelId
-  }, icon('plus', 'action-add'), icon('arrow-up', 'action-send'))
+  }, icon('plus', 'action-add'), icon('arrow-up', 'action-send'), icon('check', 'action-save'))
   const form = h('form', { class: 'composer', autocomplete: 'off' }, field, action, panel)
 
   let chat = null
@@ -68,6 +71,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   let docked = null
   let open = false
   let hasText = false
+  let editing = null // { original, draft, onSave, onEnd }
 
   function openImages(files = []) {
     if (readonly || !chat) return false
@@ -112,15 +116,17 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   // ------------------------------------------------------------ the button
   // One button, two jobs: it always holds its place, and only its symbol and
   // fill change.
-  function setHasText(next) {
-    if (next === hasText && action.disabled === readonly) return
+  function setHasText(next, force = false) {
+    const disabled = readonly || Boolean(editing && !next)
+    if (!force && next === hasText && action.disabled === disabled) return
     hasText = next
     if (hasText && open) setOpen(false, { focus: false })
     form.classList.toggle('has-text', hasText)
-    action.disabled = readonly
-    action.type = hasText ? 'submit' : 'button'
-    action.setAttribute('aria-label', hasText ? '发送' : addLabel())
-    if (hasText) {
+    // Editing, it only ever saves (and can't save nothing).
+    action.disabled = disabled
+    action.type = hasText || editing ? 'submit' : 'button'
+    action.setAttribute('aria-label', editing ? '保存修改' : hasText ? '发送' : addLabel())
+    if (hasText || editing) {
       action.removeAttribute('aria-haspopup')
       action.removeAttribute('aria-expanded')
     } else {
@@ -132,7 +138,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   // The panel grows out of the button and shrinks back into it. Toggling
   // mid-way turns it around from where it is (CSS transitions retarget).
   function setOpen(next, { focus = true } = {}) {
-    if (next === open || (next && (hasText || readonly))) return
+    if (next === open || (next && (hasText || readonly || editing))) return
     open = next
     if (open) {
       // Open toward the room there is: up from the foot of the screen, down
@@ -167,6 +173,15 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   function submit() {
     const text = textarea.value
     if (!text.trim() || readonly) return
+    if (editing) {
+      const { original, onSave } = editing
+      const next = text.replace(/\s+$/, '')
+      haptic()
+      endEdit()
+      if (next !== original) onSave(next)
+      textarea.focus({ preventScroll: true })
+      return
+    }
     haptic()
     textarea.value = ''
     predictor.clear()
@@ -181,8 +196,11 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
 
   textarea.addEventListener('input', () => {
     autosize()
-    saveDraftSoon()
     predictor.input()
+    // What is typed into a message being edited is neither the draft nor
+    // shown to the others as it's typed: they see the edit once it's saved.
+    if (editing) return
+    saveDraftSoon()
     // Only what is in the field: a suggestion not taken never leaves this device.
     onType?.(textarea.value)
   })
@@ -208,8 +226,68 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       e.preventDefault()
       e.stopPropagation()
       setOpen(false)
+    } else if (e.key === 'Escape' && editing && !e.isComposing) {
+      e.preventDefault()
+      e.stopPropagation()
+      endEdit()
     }
   })
+
+  // ------------------------------------------------------------ editing a sent message
+  // The field takes the message's words, with a strip above them saying what
+  // is being edited (and ✕ to stop); the button turns into ✓. Whatever was
+  // being written before comes back afterwards.
+  const editQuote = h('span', { class: 'composer-edit-quote' })
+  const editCancel = h('button', { class: 'composer-edit-cancel', type: 'button', 'aria-label': '取消编辑' }, icon('xmark'))
+  const editStrip = h('div', { class: 'composer-edit', role: 'status' },
+    icon('compose', 'composer-edit-icon'),
+    h('span', { class: 'composer-edit-text' }, h('b', {}, '编辑消息'), editQuote),
+    editCancel)
+  editCancel.addEventListener('pointerdown', e => e.preventDefault())
+  editCancel.addEventListener('click', () => {
+    endEdit()
+    textarea.focus({ preventScroll: true })
+  })
+
+  function startEdit({ text, onSave, onEnd }) {
+    if (readonly || !chat) return false
+    if (editing) endEdit()
+    setOpen(false, { focus: false })
+    clearTimeout(draftTimer)
+    editing = { original: text, draft: textarea.value, onSave, onEnd }
+    // The others no longer see what was being typed.
+    onType?.('')
+    predictor.clear()
+    editQuote.textContent = text.replace(/\s+/g, ' ')
+    field.prepend(editStrip)
+    form.classList.add('editing')
+    if (!reducedMotion()) {
+      editStrip.classList.remove('in')
+      void editStrip.offsetWidth
+      editStrip.classList.add('in')
+    }
+    textarea.setAttribute('aria-label', '编辑消息')
+    textarea.value = text
+    autosize()
+    setHasText(textarea.value.trim().length > 0, true)
+    textarea.focus({ preventScroll: true })
+    textarea.setSelectionRange(text.length, text.length)
+    return true
+  }
+
+  function endEdit() {
+    if (!editing) return
+    const { draft, onEnd } = editing
+    editing = null
+    editStrip.remove()
+    form.classList.remove('editing')
+    textarea.setAttribute('aria-label', '消息')
+    textarea.value = draft
+    autosize()
+    setHasText(textarea.value.trim().length > 0, true)
+    predictor.reset()
+    onEnd?.()
+  }
   // Keep focus in the field when tapping the button, so the keyboard doesn't drop.
   action.addEventListener('pointerdown', e => { if (document.activeElement === textarea) e.preventDefault() })
   action.addEventListener('mousedown', e => { if (document.activeElement === textarea) e.preventDefault() })
@@ -232,6 +310,8 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     setChat(id, { readonly: ro = false } = {}) {
       attachmentSheet?.close()
       setOpen(false, { focus: false })
+      // An edit belongs to its conversation: leaving it puts the draft back.
+      endEdit()
       if (chat && chat !== id) {
         clearTimeout(draftTimer)
         setDraft(chat, textarea.value)
@@ -249,8 +329,14 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       requestAnimationFrame(() => field.classList.remove('no-grow'))
     },
     flushDraft() {
-      if (chat) setDraft(chat, textarea.value)
+      if (chat) setDraft(chat, editing ? editing.draft : textarea.value)
     },
+    /** Edit a sent message in the field: { text, onSave(text), onEnd() }. */
+    edit: startEdit,
+    /** Stop editing (the message went, or the conversation changed). */
+    endEdit,
+    /** The message being edited, if any (its original words). */
+    get editing() { return editing ? editing.original : null },
     openImages,
     /** Show which tool's surface is open (the drawing board in the next column). */
     setTool(id, active) {
