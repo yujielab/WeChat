@@ -108,8 +108,24 @@ const uniq = Date.now().toString(36)
       assert.ok(mine.some(e => e.path === `/rtc/sessions/${ids[n]}/renegotiate`), `${n} answers the SFU's offer`)
     }
     assert.ok(log.filter(e => e.page === 'A' && e.body?.tracks?.[0]?.location === 'remote').length >= 2, 'a pull that found no media is retried')
+
+    // A call that can't start says why, in words that say what to do.
+    await A.click('.call .call-btn.hang'); await sleep(1500)
+    await A.evaluate(() => {
+      window.__gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+      navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('in use', 'NotReadableError'))
+    })
+    await A.click('.thread [data-item="audio"]')
+    await A.locator('.toast', { hasText: '麦克风正被其他应用占用' }).waitFor({ timeout: 5000 })
+    await sleep(1500)
+    // The call service refusing: the server's own plain answer (src/call.js refusal).
+    await A.evaluate(() => { navigator.mediaDevices.getUserMedia = window.__gum })
+    await A.route('**/rtc/sessions/new', r => r.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: '通话服务配置有误，暂时无法通话', reason: 'RTC_AUTH', code: 'unauthorized' }) }))
+    await A.click('.thread [data-item="audio"]')
+    await A.locator('.toast', { hasText: '通话服务配置有误，暂时无法通话' }).waitFor({ timeout: 5000 })
+    await sleep(500)
     assert.deepEqual(problems, [])
-    console.log('PASS: publish first; one SFU change at a time per session; callee pulls tracks announced before it was ready; failed pull retried; both sides answer the SFU offer; no page errors')
+    console.log('PASS: publish first; one SFU change at a time per session; callee pulls tracks announced before it was ready; failed pull retried; both sides answer the SFU offer; a busy microphone and a refusing call service each say why; no page errors')
   } finally {
     await browser.close()
   }

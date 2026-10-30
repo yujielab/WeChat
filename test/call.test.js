@@ -129,14 +129,16 @@ test('tracks published before someone joins reach them when they accept', () => 
 })
 
 /** Runs the media proxy against a stand-in for the Realtime API. */
-async function proxy(path, { method = 'POST', body, answer = { status: 201, json: { sessionId: 's1' } } } = {}) {
+async function proxy(path, { method = 'POST', body, env = {}, answer = { status: 201, json: { sessionId: 's1' } } } = {}) {
   const t = setup()
   t.broker.env.REALTIME_APP_ID = 'app-1'
   t.broker.env.REALTIME_APP_SECRET = 'secret-1\n'
+  Object.assign(t.broker.env, env)
   const calls = []
   const real = globalThis.fetch
   globalThis.fetch = async (url, init) => {
     calls.push({ url, ...init })
+    if (answer.offline) throw new TypeError('fetch failed')
     return new Response(JSON.stringify(answer.json), { status: answer.status })
   }
   try {
@@ -158,14 +160,68 @@ test('a session is created with no body, as the SFU requires', async () => {
   assert.equal(r.calls[0].headers.Authorization, 'Bearer secret-1')
 })
 
-test('a refusal from the SFU keeps its status and public code', async () => {
+test('a refusal from the SFU keeps its status and public code, and says which side to look at', async () => {
   const r = await proxy('/rtc/sessions/s1/tracks/new', {
     body: { tracks: [{ location: 'remote', sessionId: 's0', trackName: 'a-audio' }] },
-    answer: { status: 400, json: { errorCode: 'invalid_params', errorDescription: 'details' } }
+    answer: { status: 400, json: { errorCode: 'invalid_params', errorDescription: 'v=0 o=- secret sdp' } }
   })
   assert.equal(r.status, 400)
   assert.equal(r.data.code, 'invalid_params')
-  assert.match(r.data.error, /400/)
+  assert.equal(r.data.reason, 'RTC_NEGOTIATION')
+  assert.equal(r.data.error, '通话连接没能建立，请重新拨打')
+  assert.ok(!JSON.stringify(r.data).includes('sdp'), 'the service\'s own description stays on the server')
+})
+
+test('each kind of refusal gets its own reason and plain words', async () => {
+  const cases = [
+    ['/rtc/sessions/new', { status: 401, json: { errorCode: 'unauthorized' } }, 401, 'RTC_AUTH', '通话服务配置有误，暂时无法通话'],
+    ['/rtc/sessions/new', { status: 404, json: {} }, 404, 'RTC_APP', '通话服务配置有误，暂时无法通话'],
+    ['/rtc/sessions/s1/renegotiate', { status: 404, json: {} }, 404, 'RTC_GONE', '这次通话已失效，请重新拨打'],
+    ['/rtc/sessions/new', { status: 429, json: {} }, 429, 'RTC_BUSY', '通话请求太频繁，请稍后再试'],
+    ['/rtc/sessions/s1/renegotiate', { status: 200, json: { errorCode: 'session_error', errorDescription: 'x' } }, 502, 'RTC_MEDIA', '对方的声音或画面还没准备好，请重新拨打'],
+    ['/rtc/sessions/new', { status: 500, json: {} }, 500, 'RTC_SERVICE', '通话服务暂时不可用，请稍后再试']
+  ]
+  for (const [path, answer, status, reason, error] of cases) {
+    const r = await proxy(path, { method: path.endsWith('renegotiate') ? 'PUT' : 'POST', body: path.endsWith('renegotiate') ? { sessionDescription: { type: 'answer', sdp: 'v=0' } } : undefined, answer })
+    assert.deepEqual([r.status, r.data.reason, r.data.error], [status, reason, error], `${path} ${answer.status}`)
+  }
+  const offline = await proxy('/rtc/sessions/new', { answer: { offline: true } })
+  assert.equal(offline.status, 504)
+})
+
+test('secrets that are only spaces count as not set', () => {
+  const t = setup()
+  t.broker.env.REALTIME_APP_ID = '  '
+  t.broker.env.REALTIME_APP_SECRET = 'secret\n'
+  assert.equal(t.broker.configured().enabled, false)
+  t.broker.env.REALTIME_APP_ID = ' app-1\n'
+  assert.equal(t.broker.configured().enabled, true)
+})
+
+test('TURN comes from the current endpoint as a checked list, and falls back to STUN', async () => {
+  const env = { REALTIME_TURN_KEY_ID: 'key-1\n', REALTIME_TURN_KEY_TOKEN: ' token-1 ' }
+  const servers = [
+    { urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.cloudflare.com:53'] },
+    { urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turn:turn.cloudflare.com:53?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u', credential: 'c' },
+    { urls: ['https://not-ice.example'] }
+  ]
+  const ok = await proxy('/rtc/turn', { env, answer: { status: 201, json: { iceServers: servers } } })
+  assert.equal(ok.calls[0].url, 'https://rtc.live.cloudflare.com/v1/turn/keys/key-1/credentials/generate-ice-servers')
+  assert.equal(ok.calls[0].headers.Authorization, 'Bearer token-1')
+  assert.deepEqual(ok.data.iceServers, [
+    { urls: ['stun:stun.cloudflare.com:3478'] },
+    { urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u', credential: 'c' }
+  ], 'a flat list, port 53 and non-ICE addresses left out')
+
+  const older = await proxy('/rtc/turn', { env, answer: { status: 201, json: { iceServers: { urls: ['turn:turn.cloudflare.com:3478'], username: 'u', credential: 'c' } } } })
+  assert.equal(older.data.iceServers.length, 1, 'the older single-server shape still reads')
+
+  const stun = [{ urls: 'stun:stun.cloudflare.com:3478' }]
+  for (const answer of [{ status: 401, json: { errors: [{ message: 'bad token' }] } }, { status: 201, json: { iceServers: [{ urls: 'nope' }] } }, { offline: true }]) {
+    const r = await proxy('/rtc/turn', { env, answer })
+    assert.deepEqual([r.status, r.data.iceServers], [200, stun], JSON.stringify(answer))
+  }
+  assert.deepEqual((await proxy('/rtc/turn')).data.iceServers, stun, 'none configured')
 })
 
 test('track batches the SFU would refuse never leave the server', async () => {

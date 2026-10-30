@@ -395,29 +395,74 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 }
 :root[data-motion="reduce"] .menu-highlight.ready { transition: none; }
 
-/* Long-press on a message: the bubble lifts above a blurred backdrop. */
+/* Long-press on a message: the conversation blurs away, the message lifts
+   out exactly as it was, its reactions stand above it and its actions sit
+   in a card below it. */
 .ctx-backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 0.08);
-  /* A light veil: it sets the message apart without blurring the
-     conversation into noise. */
-  -webkit-backdrop-filter: blur(6px) saturate(1.1);
-  backdrop-filter: blur(6px) saturate(1.1);
+  background: color-mix(in srgb, var(--bg) 38%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.5);
+  backdrop-filter: blur(26px) saturate(1.5);
   opacity: 0;
-  transition: opacity 190ms ease-out;
+  transition: opacity 200ms ease-out;
 }
 :root[data-glass="solid"] .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 .ctx-backdrop.on { opacity: 1; }
 .ctx-preview {
   position: absolute;
   margin: 0;
-  /* The message lifts a little, at once, without a bounce. */
-  transition: transform 200ms var(--ease-out);
+  /* Moves only as far as it must to make room, at once, without a bounce. */
+  transition: transform 220ms var(--ease-out);
   pointer-events: none;
 }
-.ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.28), 0 2px 6px rgb(15 15 25 / 0.06); }
-.ctx-preview .bubble.tail::after, .ctx-preview .bubble.tail::before { display: none; }
+.ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.24), 0 2px 6px rgb(15 15 25 / 0.06); }
+/* A message taller than the room shows its top, fading out at the cut. */
+.ctx-preview.cut { overflow: hidden; border-radius: 23px; -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent); mask-image: linear-gradient(#000 calc(100% - 36px), transparent); }
+
+/* The reactions: a capsule of their own above the message. */
+.ctx-reactions.menu-reactions {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 86%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: 0 0 0 0.5px var(--line), 0 12px 32px -12px rgb(15 15 25 / 0.28);
+  transform-origin: var(--ox, 0%) 100%;
+  opacity: 0;
+  transform: translateY(6px) scale(.92);
+  transition: opacity 110ms ease-out, transform 140ms var(--ease-out);
+}
+.ctx-reactions.menu-reactions.on { opacity: 1; transform: none; transition: opacity 160ms ease-out, transform 220ms var(--ease-out); }
+.ctx-reactions.glass::before, .ctx-reactions.glass::after { display: none; }
+.ctx-reactions .menu-reaction { width: 44px; height: 44px; border-radius: 50%; font-size: 26px; }
+.ctx-reactions.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * 22ms) backwards; }
+
+/* The actions: a card of rows, each an icon then its name, hairlines
+   between rows and a band between groups. */
+.menu.ctx-menu {
+  width: min(254px, calc(100% - 20px));
+  padding: 0;
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--bg-elevated) 86%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: 0 0 0 0.5px var(--line), 0 18px 44px -16px rgb(15 15 25 / 0.3);
+}
+:root[data-glass="solid"] .menu.ctx-menu, :root[data-glass="solid"] .ctx-reactions.menu-reactions { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.menu.ctx-menu .menu-highlight { border-radius: 0; }
+.menu.ctx-menu .menu-item { min-height: 52px; padding: 0 20px; gap: 14px; border-radius: 0; font-size: var(--t-body); }
+.menu.ctx-menu .menu-item + .menu-item::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: var(--hairline); background: var(--line); }
+.menu.ctx-menu .menu-item .menu-action-icon { order: -1; width: 21px; height: 21px; color: inherit; }
+.menu.ctx-menu .menu-sep { height: 8px; margin: 0; background: color-mix(in srgb, var(--label) 7%, transparent); }
+/* The moving highlight marks the row; no outline on top of it. */
+.menu.ctx-menu .menu-item:focus-visible { outline: none; }
 
 /* ---------------------------------------------------------------- media viewer */
 
