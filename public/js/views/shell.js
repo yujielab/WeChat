@@ -43,7 +43,8 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     onOpen: id => openChat(id),
     onBack: () => back(LIST),
     onFilter: () => sidebar.render(),
-    onCompose: compose
+    onCompose: compose,
+    onSettings: () => openSettings({ onLogout })
   })
   const thread = createThread(panes[THREAD], {
     onBack: () => back(THREAD),
@@ -226,6 +227,13 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     const before = panes.filter(p => !p.classList.contains('off'))
     shell.dataset.layout = layout
     overlays.dataset.layout = layout
+    // Unfolded, the room goes to the list and the conversation: the
+    // sidebar's scopes, search, New Chat and settings are all the list's
+    // there, so unfolding from the sidebar lands on the list.
+    if (layout === 'split' && strip.focus === SIDEBAR) {
+      history.replaceState(entry(LIST), '')
+      strip.go(LIST, { instant: true })
+    }
     strip.setCount(layout === 'split' ? 2 : 1)
     // Unfolding, the column that joins the window arrives from its side.
     clearTimeout(enterTimer)
@@ -262,7 +270,10 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
       const col = COLS.indexOf(name)
       return col < strip.focus ? back(col + 1) : forward(col)
     },
-    setMe(me) { sidebar.setMe(me) },
+    setMe(me) {
+      sidebar.setMe(me)
+      list.setMe(me)
+    },
     setStatus(s) { list.setStatus(s) }
   }
 }

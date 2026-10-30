@@ -19,6 +19,12 @@
 .pane-list.collapsed .list-inline-title { max-width: 7em; opacity: 1; transform: none; }
 .list-head { padding: calc(var(--safe-top) + 30px) calc(var(--list-inset) + var(--safe-right)) 0 calc(var(--list-inset) + var(--safe-left)); }
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* Unfolded: you, and settings, at the end of the heading (the sidebar is
+   the folded screen's). */
+.list-me { flex: none; margin-left: auto; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; }
+.list-me:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+.list-me:active { opacity: .7; }
+.pane-list[data-layout="single"] .list-me, .pane-list:not([data-layout]) .list-me { display: none; }
 .large-title { margin: 0; font-size: 1.882rem; font-weight: var(--w-bold); line-height: 1.17; letter-spacing: -0.02em; color: var(--label); }
 .conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
 .conn-status .icon { width: 14px; height: 14px; }

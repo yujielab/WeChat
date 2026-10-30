@@ -34,10 +34,12 @@ await sleep(300);await shot('24-strip-closed-chat')
 await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='leading');await unposed();await sleep(400)
 s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'thread');assert.ok(Math.abs(s.boxes.list.width-s.boxes.thread.width)<1&&Math.abs(s.boxes.list.right-s.boxes.thread.x)<1,'equal adjacent columns')
 assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info'],'trailing conversation: no Back')
-// The list's bar at its foot: Back and the filter lead, the search field, New Chat ends it.
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-item, .list-bottombar .search-pill')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item||'search')),['back','filter','compose','search'],'list bar items')
-const lb=await p.evaluate(()=>{const r=e=>e.getBoundingClientRect(),q=s=>r(document.querySelector(s));return{back:q('.list-bottombar [data-item="back"]'),pill:q('.list-bottombar .search-pill'),compose:q('.list-bottombar [data-item="compose"]'),pane:q('.pane-list')}})
-assert.ok(lb.back.right<=lb.pill.left&&lb.pill.right<=lb.compose.left&&lb.compose.bottom>=lb.pane.bottom-80,'Back, search, New Chat along the foot '+JSON.stringify(lb))
+// The list's bar at its foot: the search field, then the filter and New Chat (folded, Back to the sidebar leads);
+// settings sits at the end of the list's heading.
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-item, .list-bottombar .search-pill')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item||'search')),['filter','compose','search'],'list bar items')
+const lb=await p.evaluate(()=>{const r=e=>e.getBoundingClientRect(),q=s=>r(document.querySelector(s));return{back:q('.list-bottombar [data-item="filter"]'),pill:q('.list-bottombar .search-pill'),compose:q('.list-bottombar [data-item="compose"]'),pane:q('.pane-list'),me:q('.list-me')}})
+assert.ok(lb.pill.right<=lb.back.left&&lb.back.right<=lb.compose.left&&lb.compose.bottom>=lb.pane.bottom-80,'search, then the filter and New Chat along the foot '+JSON.stringify(lb))
+assert.ok(lb.me.width>=44&&lb.me.right<=lb.pane.right&&lb.me.top<lb.pane.top+120,'settings at the end of the heading')
 await shot('25-strip-open-list-chat')
 
 // Details slide the window one column along: the list leaves on the left, details arrive on the right.
@@ -75,12 +77,13 @@ const scopes=await p.evaluate(()=>[...document.querySelectorAll('.side-scope')].
 assert.deepEqual(scopes.map(r=>r[0]),['all','unread','people','groups']);assert.deepEqual([scopes[0][1],scopes[2][1],scopes[3][1]],['','',''],'only unread carries a number');assert.equal(scopes[0][2],'true')
 await p.click('.side-scope[data-scope="people"]');await settled('list');assert.equal(await p.locator('.filter-tab[data-filter="people"]').getAttribute('aria-pressed'),'true')
 await p.click('.pane-list [data-item="back"]');await settled('sidebar')
-// Unfolded from the sidebar: sidebar and list side by side; the list has no Back and no filters of its own there.
-await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='trailing');await unposed();await sleep(400)
-s=await state();assert.deepEqual(s.roles,['leading','trailing','hidden','hidden'])
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.pane-list .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['compose']);assert.equal(await p.locator('.pane-list .list-filters').isVisible(),false);assert.equal(await p.locator('.list-bottombar .search-pill').isVisible(),true)
-await shot('28-strip-open-sidebar');await p.click('.side-scope[data-scope="all"]')
-await settled('list');s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden'])
+// Unfolded from the sidebar: the room goes to the list and the conversation, not to the sidebar — its scopes
+// are the list's filter menu there, and settings is in the list's heading. The filter carries over.
+await p.setViewportSize({width:890,height:626});await unposed();await sleep(400)
+s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'list')
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.pane-list .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['filter','compose']);assert.equal(await p.locator('.pane-list .list-filters').isVisible(),false);assert.equal(await p.locator('.list-me').isVisible(),true)
+await p.click('.list-bottombar [data-item="filter"]');await p.locator('.menu.on .menu-item:has-text("私聊")').waitFor();await p.locator('.menu.on .menu-item:has-text("全部")').click();await sleep(300)
+await shot('28-strip-unfold-from-sidebar')
 
 // Within the window, the column in use takes focus: write in the conversation, fold, and it stays.
 await p.locator('.pane-list .row').nth(1).click();await settled('thread');await p.click('.pane-list .list-head');await p.evaluate(()=>document.querySelector('.shell').dataset.focus).then(f=>assert.equal(f,'list'))
@@ -94,12 +97,14 @@ await p.evaluate(()=>{document.documentElement.dataset.motion='reduce'});await p
 await p.click('.art-body [data-item="close"]');await settled('thread')
 await p.evaluate(()=>{delete document.documentElement.dataset.motion})
 
-// Out of view beside the sidebar, the open conversation's new messages count as unread; back in view, they're read.
-await p.locator(`.pane-list .row[data-id="${friendRoom}"]`).click();await settled('thread');await p.click('.pane-list [data-item="back"]');await settled('sidebar')
+// Out of view (folded, back on the list), a conversation's new messages count as unread; back in view, they're read.
+await p.setViewportSize({width:466,height:678});await unposed();await sleep(300)
+await p.click('.thread [data-item="back"]');await settled('list')
 await post(friend,BASE+'/api/messages',{data:{room:friendRoom,type:'text',text:'你在看边栏吗？'}})
 await p.locator(`.pane-list .row[data-id="${friendRoom}"] .row-count:has-text("1")`).waitFor()
-await p.click('.side-scope[data-scope="all"]');await settled('list');await p.locator(`.pane-list .row[data-id="${friendRoom}"] .row-count`).waitFor({state:'hidden'})
-await p.locator('.bubble.text:has-text("你在看边栏吗")').waitFor()
+await p.locator(`.pane-list .row[data-id="${friendRoom}"]`).click();await settled('thread');await p.locator('.bubble.text:has-text("你在看边栏吗")').waitFor()
+await p.locator(`.pane-list .row[data-id="${friendRoom}"] .row-count`).waitFor({state:'hidden'})
+await p.setViewportSize({width:890,height:626});await unposed();await sleep(300);await p.click('.pane-list .list-head');await sleep(200)
 
 // Folding past the conversation (rather than going back past it) keeps it: unfolding again finds it beside the list.
 const openId=await p.evaluate(()=>localStorage.getItem('ui:open'));await p.setViewportSize({width:466,height:678});await unposed();assert.deepEqual((await state()).roles,['hidden','single','hidden','hidden'])
