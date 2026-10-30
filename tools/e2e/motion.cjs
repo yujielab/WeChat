@@ -116,6 +116,18 @@ await p.keyboard.press('Escape');await sleep(80)
 assert.match(await p.evaluate(()=>{const m=document.querySelector('.viewer-media');return m?getComputedStyle(m).clipPath:'gone'}),/inset\(|gone/,'closing takes the crop back')
 await sleep(600);assert.equal(await p.evaluate(()=>document.querySelector('.bubble.media img').style.visibility),'','the bubble shows again')
 
+// Frequent actions stay light and quick; the full morphs above are kept for rarer ones with a clear source.
+// Switching conversations: the new one is eased in over ≤180ms, no blur. Sending: the message is there in
+// ≤180ms, no scale or blur. A toolbar tap answers with its press alone, no symbol bounce.
+await p.setViewportSize({width:466,height:678});await sleep(200)
+const swap=await p.evaluate(async()=>{testThread.setLayout('trailing');await testThread.open('r');const a=document.querySelector('.msgs').getAnimations().find(x=>x.animationName==='swap-in');const out=a?{d:a.effect.getTiming().duration,frames:JSON.stringify(a.effect.getKeyframes())}:null;testThread.setLayout('single');return out})
+assert.ok(swap&&swap.d<=180,'switching side by side is quick '+JSON.stringify(swap));assert.ok(!/blur|scale/.test(swap.frames),'switching without blur or scale '+swap.frames)
+await sleep(300);await p.click('.composer textarea');await p.keyboard.type('好');
+const sent=await p.evaluate(()=>new Promise(done=>{const n=document.querySelectorAll('.msgs .m').length;document.querySelector('.composer-action').click();requestAnimationFrame(()=>{const m=[...document.querySelectorAll('.msgs .m')].at(-1);const a=m.getAnimations().find(x=>x.animationName==='m-out');done({more:document.querySelectorAll('.msgs .m').length>n,d:a?.effect.getTiming().duration,frames:a?JSON.stringify(a.effect.getKeyframes()):''})})}))
+assert.ok(sent.more&&sent.d<=180&&!/blur|scale/.test(sent.frames),'a sent message is there at once '+JSON.stringify(sent))
+await p.click('.thread [data-item="info"]');await sleep(30)
+assert.equal(await p.evaluate(()=>document.querySelector('.thread [data-item="info"] .icon').getAnimations().length),0,'a toolbar tap answers with its press alone')
+
 // P1-11 / P2-14: settings has one way into the profile, offers haptics only where the device can play them,
 // and scrolls every row fully into view above the sheet's foot, folded and unfolded.
 for(const vp of[{width:466,height:678},{width:951,height:669},{width:466,height:420}]){
@@ -131,5 +143,5 @@ for(const vp of[{width:466,height:678},{width:951,height:669},{width:466,height:
  await p.keyboard.press('Escape');await sleep(500)
 }
 
-assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; photos open from and close to their bubble with its crop and corners; settings scrolls fully into view with one profile entry and no dead switches')
+assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; photos open from and close to their bubble with its crop and corners; frequent actions (switching, sending, toolbar taps) light and quick; settings scrolls fully into view with one profile entry and no dead switches')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

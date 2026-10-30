@@ -84,7 +84,9 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
       return Promise.resolve(true)
     }
     shell.dataset.anim = ''
-    const run = spring({ from: pos, to: start, velocity, damping: 1, response: 0.42, restDelta: 0.0005, onUpdate: render })
+    // Moving between list, conversation and details is the app's most
+    // frequent navigation: quick, critically damped, no lingering.
+    const run = spring({ from: pos, to: start, velocity, damping: 1, response: 0.34, restDelta: 0.0005, onUpdate: render })
     anim = run
     return run.done.then(done => {
       if (anim === run) {

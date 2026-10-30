@@ -15,6 +15,8 @@ const register=async(ctx,n,d)=>(await(await post(ctx,BASE+'/auth/register',{data
 await register(ac,'conta','艾米');const b=await register(bc,'contb','本')
 const room=(await(await post(ac,BASE+'/api/dm',{data:{user:b.id}})).json()).room.id
 for(let i=0;i<30;i++)await post(i%2?ac:bc,BASE+'/api/messages',{data:{room,type:'text',text:`第${i+1}条：今天聊到的第${i+1}件事。`}})
+const LONG='展开以后，屏幕多出来的地方应该留给更多的上下文，而不是把同样的东西放大。所以列表和对话并排出现，但正文的每一行仍然保持舒服的长度，读起来不用左右大幅转头，合上以后也能接着读同一条消息。'
+await post(bc,BASE+'/api/messages',{data:{room,type:'text',text:LONG}})
 const count=async()=>{const cookies=await ac.cookies();return(await(await ac.request.get(BASE+'/api/messages?room='+room+'&limit=100',{headers:{Cookie:cookies.map(c=>c.name+'='+c.value).join('; ')}})).json()).messages.length}
 const p=await ac.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message))
 await p.goto(BASE);await p.locator('.pane-list .row').first().waitFor()
@@ -42,6 +44,13 @@ await audit('folded list')
 const settled=focus=>p.locator(`.shell[data-focus=${focus}]:not([data-anim])`).waitFor()
 const unposed=()=>p.waitForFunction(()=>{const l=innerWidth>=700?'split':'stack',r=document.documentElement;return document.querySelector('.shell').dataset.layout===l&&!r.dataset.posture&&!r.classList.contains('no-anim')})
 await p.locator('.pane-list .row').first().click();await settled('thread');await sleep(400);await audit('folded conversation')
+
+// Unfolded, the room goes to context, not size: text is not enlarged, and a long message keeps a comfortable
+// line (about 28 characters or fewer) even in a wide window.
+const measure=()=>p.evaluate(()=>{const b=[...document.querySelectorAll('.bubble.text')].find(e=>e.textContent.startsWith('展开以后'));const row=document.querySelector('.pane-list .row .name, .pane-list .row-title, .pane-list .row .t');const fs=parseFloat(getComputedStyle(b).fontSize);const cs=getComputedStyle(b);const inner=b.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);return{fs,perLine:inner/fs,row:row?parseFloat(getComputedStyle(row).fontSize):0}})
+const folded=await measure()
+for(const vp of[{width:951,height:669},{width:1280,height:900}]){await p.setViewportSize(vp);await unposed();await sleep(400);const m=await measure();assert.ok(m.fs<=folded.fs+0.01&&(!folded.row||m.row<=folded.row+0.01),'not enlarged '+JSON.stringify({vp,m,folded}));assert.ok(m.perLine<=28.5,'comfortable line '+JSON.stringify({vp,m}));assert.equal(await p.evaluate(()=>[...document.querySelectorAll('.pane')].filter(e=>!e.classList.contains('off')).map(e=>e.dataset.col).join()),'list,thread','list and conversation together')}
+await p.setViewportSize({width:466,height:678});await unposed();await sleep(400)
 
 // Folded: a draft with the caret after the fourth character, and the reader a little way back.
 const DRAFT='这是一条还没发出的草稿'
@@ -79,6 +88,6 @@ await p.click('.thread [data-item="back"]');await settled('list')
 assert.equal(await p.getAttribute('.filter-tab[data-filter="people"]','aria-pressed'),'true','the filter survives the fold')
 // Back into it: the draft is waiting.
 await p.locator('.pane-list .row').first().click();await settled('thread');assert.equal(await p.inputValue('.composer textarea'),DRAFT)
-assert.equal(await count(),30,'nothing sent twice');assert.deepEqual(errors,[])
-console.log('PASS: folded → unfolded → folded keeps the conversation, draft, caret and focus, the message being read, the list filter and the way back; nothing sent twice; every control named and 44pt; settings grows from your avatar; search folds the bar away and back')
+assert.equal(await count(),31,'nothing sent twice');assert.deepEqual(errors,[])
+console.log('PASS: folded → unfolded → folded keeps the conversation, draft, caret and focus, the message being read, the list filter and the way back; nothing sent twice; every control named and 44pt; settings grows from your avatar; search folds the bar away and back; unfolded adds context, not size, with a comfortable line')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
