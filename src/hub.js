@@ -10,7 +10,7 @@ import {
 import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
-import { stickersConfigured, readSet, readSets, publicSet, catalog, chosenSets, allowedName, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
+import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
@@ -339,11 +339,24 @@ export class Hub {
     const path = url.pathname
     const on = stickersConfigured(this.env)
     const bucket = this.env.MEDIA
+    // Packs someone has (and the add list's covers) are fetched ahead of
+    // time, behind the answer.
+    const warm = (sets, opts) => {
+      const work = warmSets(this.env, bucket, sets, opts)
+      this.ctx.waitUntil?.(work)
+    }
     if (request.method === 'GET' && path === '/api/stickers') {
-      return json({ ok: true, sets: on ? (await readSets(this.env, bucket, this.myStickers(user))).map(publicSet) : [] })
+      if (!on) return json({ ok: true, sets: [] })
+      const sets = await readSets(this.env, bucket, this.myStickers(user))
+      warm(sets)
+      return json({ ok: true, sets: sets.map(publicSet) })
     }
     if (request.method === 'GET' && path === '/api/stickers/catalog') {
-      return json({ ok: true, packs: on ? await catalog(this.env, bucket, this.myStickers(user)) : [] })
+      if (!on) return json({ ok: true, packs: [] })
+      const mine = this.myStickers(user)
+      const sets = await readSets(this.env, bucket, allowedSets(this.env))
+      warm(sets, { covers: true })
+      return json({ ok: true, packs: catalog(sets, mine) })
     }
     if (request.method === 'POST' && path === '/api/stickers/mine' && on) {
       let body = {}
@@ -358,7 +371,9 @@ export class Hub {
         mine = [name, ...mine]
       }
       this.store.kvSet(`stickers:${user.id}`, mine)
-      return json({ ok: true, sets: (await readSets(this.env, bucket, mine)).map(publicSet) })
+      const sets = await readSets(this.env, bucket, mine)
+      if (body.add) warm(sets.filter(s => sameSet(s.name, name)))
+      return json({ ok: true, sets: sets.map(publicSet) })
     }
     const [, , , what, id] = path.split('/')
     if (request.method !== 'GET' || !on || !['img', 'anim'].includes(what)) return json({ ok: false, error: 'not found' }, 404)
