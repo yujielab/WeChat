@@ -516,6 +516,26 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
     }
   }
   scrim.addEventListener('pointerdown', e => { e.preventDefault(); close() })
+  // Only a press that starts on the menu chooses from it. A menu opened by
+  // holding a finger down appears under that finger, and lifting it sends
+  // the browser's click to whatever is there now: that release is not a
+  // choice (it used to start an edit, or take a message back). Keys (a
+  // click with no pointer: detail 0) are always a choice.
+  let pressed = false
+  for (const surface of [menu, aside].filter(Boolean)) {
+    surface.addEventListener('pointerdown', () => { pressed = true })
+    surface.addEventListener('click', e => {
+      if (e.detail === 0 || pressed) return
+      e.preventDefault()
+      e.stopPropagation()
+      // Nor does the item it landed on stay marked as chosen.
+      if (surface.contains(document.activeElement) && document.activeElement !== menu) {
+        menu.focus({ preventScroll: true })
+        active = null
+        menu.classList.remove('has-highlight')
+      }
+    }, true)
+  }
   return ctl
 }
 
