@@ -11,6 +11,7 @@ import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.j
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
 import { assistConfigured, allowSuggestion, suggest, keywords } from './assist.js'
+import { backdrop, readPrefs, patchPrefs } from './prefs.js'
 import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
@@ -161,13 +162,19 @@ export class Hub {
       const patch = {}
       if (body.display !== undefined) patch.display = cleanText(body.display, NAME_MAX) || user.username
       if (body.bio !== undefined) patch.bio = cleanText(body.bio, BIO_MAX)
+      // Only a picture this account uploaded (or, for the cover, one of the
+      // app's own): anything else would have every peer's device fetch an
+      // outside URL.
       if (body.avatar !== undefined) {
-        // Only a picture this account uploaded: anything else would have every
-        // peer's device fetch an outside URL.
         const own = `/api/media/avatar/${user.id}/`
         const valid = body.avatar === '' || (typeof body.avatar === 'string' && body.avatar.startsWith(own) && /^[\w-]+$/.test(body.avatar.slice(own.length)))
         if (!valid) return json({ ok: false, error: '头像无效' }, 400)
         patch.avatar = body.avatar
+      }
+      if (body.cover !== undefined) {
+        const cover = backdrop(body.cover, 'cover', user.id)
+        if (cover === undefined) return json({ ok: false, error: '封面无效' }, 400)
+        patch.cover = cover
       }
       const updated = this.store.setProfile(user.id, patch)
       this.fanoutToPeers(user.id, { t: 'profile', user: this.store.pub(updated) })
@@ -192,8 +199,18 @@ export class Hub {
         vapid: (await this.vapid()).publicKey,
         calls: this.calls.configured(),
         assist: assistConfigured(this.env),
-        stickers: stickersConfigured(this.env)
+        stickers: stickersConfigured(this.env),
+        prefs: readPrefs(this.store.kvGet(`prefs:${user.id}`))
       })
+    }
+    // Backdrops for conversations and calls (src/prefs.js), the same on each
+    // of this account's devices.
+    if (path === '/api/prefs' && method === 'POST') {
+      const r = patchPrefs(this.store.kvGet(`prefs:${user.id}`), body, { uid: user.id, isMember: id => this.store.isMember(id, user.id) })
+      if (r.error) return json({ ok: false, error: r.error }, 400)
+      this.store.kvSet(`prefs:${user.id}`, r.prefs)
+      this.sendToUser(user.id, { t: 'prefs', prefs: r.prefs })
+      return json({ ok: true, prefs: r.prefs })
     }
     if (path === '/api/rooms' && method === 'GET') {
       return json({ ok: true, rooms: this.store.listRoomsFor(user.id) })
@@ -256,7 +273,9 @@ export class Hub {
         return json({ ok: true, room: this.roomFor(roomId, user.id), members: this.store.roomMemberRows(roomId).map(m => ({ ...m, online: this.isOnline(m.id) })) })
       }
       if (action === 'flags' && method === 'POST') {
-        this.store.setMemberFlag(roomId, user.id, { muted: body.muted, pinned: body.pinned, hidden: body.hidden })
+        // unread: marked unread by hand (cleared by reading it, or by anything new).
+        const marked = body.unread === undefined ? undefined : body.unread ? 1 : 0
+        this.store.setMemberFlag(roomId, user.id, { muted: body.muted, pinned: body.pinned, hidden: body.hidden, marked })
         return json({ ok: true })
       }
       if (action === 'read' && method === 'POST') {

@@ -11,6 +11,7 @@ import { api } from '../api.js'
 import { toast } from './overlay.js'
 import { placeOnSide } from '../ui/fold.js'
 import { avatar } from './avatar.js'
+import { backdropLayer } from '../ui/backdrops.js'
 
 // An unanswered call gives up after this long (the server keeps it ringing as long).
 const RING_MS = 45000
@@ -250,7 +251,9 @@ function createCallUI({ onHangup, onToggleMic, onToggleCam }) {
   const controls = h('div', { class: 'call-controls' }, micBtn.el, camBtn.el, hangBtn)
 
   stage.append(remoteVideo, poster, h('div', { class: 'call-head' }, name, status), localVideo)
-  root.append(stage, controls)
+  // Behind it all (until the other side's video covers the picture): the
+  // backdrop chosen for calls, always in its dark drawing.
+  root.append(backdropLayer(state.prefs?.call, 'call-backdrop'), stage, controls)
 
   const incomingActions = h('div', { class: 'call-incoming' })
 

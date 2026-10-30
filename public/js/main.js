@@ -6,7 +6,7 @@ import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
 import { storage, reducedMotion } from './ui/dom.js'
 import {
-  state, setMe, setRooms, upsertRoom, patchRoom, setContacts, setPresence, markPresence,
+  state, setMe, setPrefs, setRooms, upsertRoom, patchRoom, setContacts, setPresence, markPresence,
   normMsg, previewText, thread, upsertMessage, replaceMessage, removeMessage, chatInfo
 } from './store.js'
 import { renderAuth } from './views/auth.js'
@@ -114,7 +114,7 @@ async function refresh() {
   setPresence(boot.presence)
   applyBoot(boot)
   shell?.setMe(state.me)
-  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers, assist: boot.assist }))
+  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers, assist: boot.assist, prefs: boot.prefs }))
   // Once per launch: keep this device's push subscription current.
   if (!pushSynced) {
     pushSynced = true
@@ -132,6 +132,7 @@ function applyBoot(boot) {
   state.vapid = boot.vapid || null
   state.stickers = Boolean(boot.stickers)
   state.assist = Boolean(boot.assist)
+  setPrefs(boot.prefs)
 }
 
 function mountShell() {
@@ -215,6 +216,10 @@ function handle(msg) {
     case 'profile':
       patchPeer(msg.user)
       break
+    case 'prefs':
+      // Backdrops chosen on another of this account's devices.
+      setPrefs(msg.prefs)
+      break
     case 'rooms-dirty':
       refresh().catch(() => {})
       break
@@ -231,10 +236,15 @@ function bumpRoom(m, raw) {
   const existing = state.chats.get(m.chat)
   if (existing) {
     const incUnread = !m.out && state.open !== m.chat && raw.type !== 'system'
+    // Something new replaces a hand-made unread mark, and brings a deleted
+    // conversation back (as on the server).
+    const counted = existing.marked ? 0 : existing.unread || 0
     patchRoom(m.chat, {
       ts: m.ts,
       last: { id: m.id, ts: m.ts, out: m.out, type: m.type, status: m.status, text: previewText(raw, existing) },
-      unread: incUnread ? (existing.unread || 0) + 1 : (state.open === m.chat ? 0 : existing.unread)
+      unread: incUnread ? counted + 1 : (state.open === m.chat ? 0 : existing.unread),
+      ...(raw.type !== 'system' && { hidden: false }),
+      ...(incUnread && { marked: false })
     })
   } else {
     // A brand-new room (first message of a fresh DM/group) — fetch it in.

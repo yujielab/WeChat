@@ -77,16 +77,21 @@
 .row-preview .draft, .row-preview .failed { color: var(--red-text); }
 .row-count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font-size: .647rem; line-height: 1; font-weight: 650; color: #fff; background: var(--blue); }
 .row.muted .row-count { background: var(--fill); color: var(--label-2); }
-.row-actions { position: absolute; inset: 0; display: flex; z-index: 0; visibility: hidden; }
+.row.menu-open .row-inner { background: var(--paper, var(--fill-4)); }
+.pin.menu-open { background: var(--paper, var(--field)); }
+/* Delete sits behind the row's trailing edge, exactly as wide as what the
+   swipe uncovers (chatList.js), so it never peeks around the rounded
+   corners of a row at rest. Its label keeps beside the row as it widens. */
+.row-actions { position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; width: 0; display: flex; overflow: hidden; visibility: hidden; }
 .row.swiping .row-actions { visibility: visible; }
-.row-actions.left { justify-content: flex-start; }
-.row-actions.right { justify-content: flex-end; }
-.row-action { width: 78px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: #fff; font-size: .706rem; font-weight: 550; }
-.row-action .icon { width: 21px; height: 21px; }
-.row-action.blue { background: var(--blue); }
-.row-action.yellow { background: var(--orange); }
-.row-action.red { background: var(--red); }
-.row-action.gray { background: var(--gray); }
+.row-action { flex: 1; min-width: 0; display: flex; align-items: center; color: #fff; background: var(--red); font-size: .706rem; font-weight: 550; }
+.row-action-label { flex: none; width: 78px; max-width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; overflow: hidden; white-space: nowrap; }
+.row-action .icon { flex: none; width: 21px; height: 21px; transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+/* Past the point where letting go deletes. */
+.row.full .row-action .icon { transform: scale(1.14); }
+/* Deleted: the row folds away and the ones below close the gap. */
+.row.removing { pointer-events: none; margin-bottom: 0; transition: height 240ms var(--ease-out), margin-bottom 240ms var(--ease-out), opacity 160ms ease-out; }
+.row.removing.held { opacity: 0; }
 .row.moving { z-index: 2; transition: transform 240ms var(--ease-out); }
 
 /* A useful first screen, not a blank account. */
