@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v21'
+const SHELL = 'shell-v22'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -57,6 +57,7 @@ const SHELL_FILES = [
   '/js/views/shell.js',
   '/js/views/call.js',
   '/js/views/draw.js',
+  '/js/views/stickers.js',
   '/icons/icon.svg'
 ]
 
@@ -77,8 +78,9 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url)
   if (url.origin !== location.origin) return
 
-  // Photos and avatars never change for a given URL: cache first.
-  if (/^\/api\/media\/(image|avatar)\//.test(url.pathname)) {
+  // Photos, avatars and stickers never change for a given URL: cache first.
+  // Parts of a video sticker (Range requests) go to the network.
+  if (/^\/api\/media\/(image|avatar)\//.test(url.pathname) || (/^\/api\/stickers\/(img|anim)\//.test(url.pathname) && !req.headers.has('range'))) {
     event.respondWith(mediaFirst(req))
     return
   }

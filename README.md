@@ -85,6 +85,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **在线状态**与**已读回执**（私聊重新打开后仍显示“已读”）；**“正在输入”实时预览**（Honk 式：对方能看到你正在打的字）
 - **回应**：长按消息从 ❤️ 😂 👍 😮 😢 🙏 中选一个，或双击送出 ❤️；每人每条消息一个，实时同步
 - **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
+- **表情**：Telegram 表情包（静态、视频、动画三种），经自己的 Worker 取来存进 R2；动画表情只在屏幕上时播放
 - **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
 - **通知**：新消息与来电用 **Declarative Web Push**（Safari 18.4 起由系统直接显示，应用退出或在后台也能收到；其他浏览器经 Service Worker 显示同一条消息），带应用角标；需加到主屏幕，推送密钥自动生成
@@ -189,6 +190,24 @@ npx wrangler secret put VAPID_PRIVATE_KEY
 npx wrangler secret put VAPID_SUBJECT   # 可选，例如 mailto:you@example.com
 ```
 
+### 表情（Telegram 表情包）
+
+表情来自 Telegram 的公开表情包，由服务器用一个 Telegram 机器人的令牌去取（浏览器只和自己的服务器打交道，令牌不出服务器）。
+在 Telegram 里找 [@BotFather](https://t.me/BotFather) 新建一个机器人（或用已有的），把令牌设为密钥：
+
+```bash
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+```
+
+默认用 `HandDrawnEmoji` 与 `GameEmoji` 两个包。想换成别的包，在仪表盘加一个普通变量 `STICKER_SETS`，
+填包名（`t.me/addstickers/<包名>` 里的那一段），多个用逗号隔开，最多 8 个、每包前 120 个。
+
+- 包的列表在 R2 里保存 6 小时；每个表情文件第一次有人看时从 Telegram 取一次，之后一直从 R2（`stickers/`）读。
+  Telegram 暂时连不上时继续用上一次的列表；换了表情包后，旧消息里已经存下的表情照样显示。
+- 动画表情（`.tgs`）在服务器上解压成 Lottie JSON，由随应用一起提供的 lottie-web（`public/js/vendor/`）播放；
+  播放器第一次遇到动画表情时才加载。视频表情（`.webm`）静音循环。两者都只在屏幕上时播放，减少动态效果时停在静态图上。
+- 没有设置 `TELEGRAM_BOT_TOKEN` 时，“+”面板里不显示“表情”，其余功能照常。
+
 ### 主屏幕应用占满屏幕
 
 主屏幕应用使用默认状态栏样式（不用 `black-translucent`）。iOS 26.1 起（WebKit 301994，26.5 与 27 上再次出现），
@@ -204,13 +223,15 @@ Cuven，再用 Safari 重新添加一次（登录状态会在添加时从 Safari
 | `REALTIME_APP_ID` / `REALTIME_APP_SECRET` | secret | 语音 / 视频通话（Cloudflare Realtime SFU） |
 | `REALTIME_TURN_KEY_ID` / `REALTIME_TURN_KEY_TOKEN` | secret，可选 | Realtime TURN，改善 NAT 穿透 |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push 通知的密钥与发送方；不设置时自动生成并保存，发送方为应用地址 |
+| `TELEGRAM_BOT_TOKEN` | secret，可选 | 表情：用来读取 Telegram 表情包的机器人令牌；不设置则不显示表情 |
+| `STICKER_SETS` | var，可选 | 表情包名，逗号隔开；默认 `HandDrawnEmoji,GameEmoji` |
 | `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的大致位置 |
 
 ## 本地开发
 
 ```bash
 npm run dev          # wrangler dev，打开 http://127.0.0.1:8787 ，点“创建账号”
-npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量、声明式消息）+ 通话信令与 /rtc 代理 + 输入校验
+npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量、声明式消息）+ 通话信令与 /rtc 代理 + 输入校验 + 表情管线（模拟的 Bot API）
 ```
 
 - 本地 `wrangler dev` 自带内存版 Durable Object SQLite 和 R2，无需额外配置即可跑通聊天与媒体。
@@ -245,11 +266,14 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 改状态的请求与 WebSocket 升级都做同源校验。
 - 媒体下载响应带 `sandbox` CSP 与 `nosniff`，并按会话成员鉴权；上传限制大小与成员。
 - 通话的 Realtime App Secret 只在服务端，浏览器只通过 `/rtc/*` 代理访问。
+- Telegram 机器人令牌只在服务端；浏览器拿到的表情列表不含 Telegram 的文件 id。表情消息只记录表情的 id、种类和 emoji，
+  服务器会校验；表情文件响应同样带 `sandbox` CSP 与 `nosniff`。lottie-web 从本站加载并校验 SRI。
 
 ## 已知限制
 
 - 语音 / 视频通话需要配置 Cloudflare Realtime 应用；未配置时入口会提示。
-- 暂不支持录制语音消息（可发文字、图片、手绘；可打语音 / 视频通话）。
+- 暂不支持录制语音消息（可发文字、图片、手绘、表情；可打语音 / 视频通话）。
+- 视频表情是 WebM（VP9）；浏览器放不了时显示它的静态图或 emoji。开发环境连不上 Telegram，取表情的流程只用模拟的 Bot API 测过。
 - 单个 Durable Object 承载全部状态，适合个人与中小群体自建；超大规模需要分片。
 - 非端到端加密：消息在服务端（你自己的 Cloudflare 账号）以明文存储。
 - iPhone Duo 上的 Safari 没有折叠 API（不支持 CSS Viewport Segments 与 Device Posture）：折叠 / 展开只表现为宽度变化。
@@ -263,14 +287,15 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 
 ```
 src/            index.js（瘦代理）· hub.js（Durable Object）· store.js（SQLite）
-                auth.js（账号加密）· media.js（R2）· call.js（Realtime 信令/代理）· push/
+                auth.js（账号加密）· media.js（R2）· stickers.js（Telegram 表情 → R2）· call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
     ui/         视口与折叠、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
-                overlay · sheets · shell · viewer · call（通话）· draw（画板）· avatar
+                overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· avatar
+    vendor/     lottie-web 5.13.0 light（MIT，原样）
 tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip）
-test/           store · auth · webpush
+test/           store · auth · webpush · call · stickers（表情管线）· *-runtime（Miniflare 上跑整个 Worker）
 ```
 
 ## 致谢
@@ -279,3 +304,5 @@ test/           store · auth · webpush
   Honk（实时打字、无发送键）与 drawesome（手绘）。
 - 语音 / 视频通话基于 [Cloudflare Realtime](https://developers.cloudflare.com/realtime/)（SFU）。
 - Web Push 按 RFC 8291 / 8292 用 WebCrypto 实现。
+- 动画表情用 [lottie-web](https://github.com/airbnb/lottie-web)（MIT，见 `public/js/vendor/lottie-web.LICENSE.md`）播放；
+  表情包来自 Telegram。

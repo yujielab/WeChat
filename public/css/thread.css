@@ -738,3 +738,27 @@
 }
 :root[data-motion="reduce"] .m-reactions.pop,
 :root[data-motion="reduce"] .m-reactions.pop .m-reaction { animation: none; }
+
+/* ---------------------------------------------------------------- stickers
+   A sticker stands on its own; its still picture (or emoji) holds its place
+   until it plays, and for good with reduced motion. */
+.bubble.sticker, .m.out .bubble.sticker { background: none; box-shadow: none; padding: 0; border-radius: 0; }
+.stk { display: block; width: 128px; height: 128px; object-fit: contain; }
+.stk.grid { width: 64px; height: 64px; }
+.stk.lot { position: relative; }
+.stk.lot > img, .stk.lot > .stk-fb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.stk.lot.on > img, .stk.lot.on > .stk-fb { display: none; }
+.stk-fb { display: grid; place-items: center; font-style: normal; font-size: 64px; line-height: 1; }
+.stk.grid .stk-fb, .stk.grid.stk-fb { font-size: 34px; }
+.stk-panel { padding: 0 16px 8px; }
+.stk-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 12px; }
+.stk-tabs::-webkit-scrollbar { display: none; }
+.stk-tab { position: relative; flex: none; min-height: 36px; padding: 0 14px; border-radius: 18px; background: var(--field); color: var(--label-2); font-size: var(--t-subhead); }
+.stk-tab.on { background: var(--ink); color: var(--on-ink); font-weight: var(--w-semibold); }
+/* 44pt to tap, 36pt to see. */
+.stk-tab::before { content: ""; position: absolute; inset: -4px 0; }
+.stk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.stk-cell { aspect-ratio: 1; display: grid; place-items: center; border-radius: 16px; transition: background-color var(--press-out) ease-out; }
+.stk-cell:active { background: var(--field); transition-duration: var(--press-in); }
+.stk-cell:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.stk-empty { margin: 24px 0; text-align: center; color: var(--label-2); }

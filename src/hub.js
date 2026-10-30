@@ -10,6 +10,7 @@ import {
 import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
+import { stickersConfigured, manifest, publicManifest, stickerFile, contentRange, STICKER_ID, STICKER_KINDS } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
@@ -77,6 +78,7 @@ export class Hub {
       const user = await this.authed(request)
       if (!user) return json({ ok: false, error: '未登录' }, 401)
       if (path.startsWith('/api/media/')) return await handleMedia(request, url, user, this)
+      if (path === '/api/stickers' || path.startsWith('/api/stickers/')) return await this.stickers(request, url)
       if (path.startsWith('/api/')) return await this.api(request, url, user)
       if (path.startsWith('/rtc/')) return await this.calls.http(request, url, user)
       return json({ ok: false, error: 'not found' }, 404)
@@ -187,7 +189,8 @@ export class Hub {
         contacts: this.store.listContacts(user.id),
         presence: this.onlineUids(),
         vapid: (await this.vapid()).publicKey,
-        calls: this.calls.configured()
+        calls: this.calls.configured(),
+        stickers: stickersConfigured(this.env)
       })
     }
     if (path === '/api/rooms' && method === 'GET') {
@@ -325,12 +328,54 @@ export class Hub {
     return json({ ok: false, error: 'not found' }, 404)
   }
 
+  // ---------------------------------------------------------------- stickers
+  /**
+   * Telegram sticker packs (src/stickers.js): the list, and each sticker's
+   * file (img: the sticker or, with ?thumb=1, its still picture; anim: an
+   * animated sticker's Lottie JSON), from R2 or fetched once from Telegram.
+   */
+  async stickers(request, url) {
+    if (request.method !== 'GET') return json({ ok: false, error: 'not found' }, 404)
+    if (url.pathname === '/api/stickers') {
+      if (!stickersConfigured(this.env)) return json({ ok: true, sets: [] })
+      return json({ ok: true, ...publicManifest(await manifest(this.env, this.env.MEDIA)) })
+    }
+    const [, , , what, id] = url.pathname.split('/')
+    if (!stickersConfigured(this.env) || !['img', 'anim'].includes(what)) return json({ ok: false, error: 'not found' }, 404)
+    let obj
+    try {
+      obj = await stickerFile(this.env, this.env.MEDIA, decodeURIComponent(id || ''), { thumb: url.searchParams.has('thumb'), anim: what === 'anim', range: request.headers })
+    } catch (err) {
+      console.warn('sticker file', id, err.message)
+      return json({ ok: false, error: '暂时取不到这个表情' }, 502)
+    }
+    if (!obj) return json({ ok: false, error: 'not found' }, 404)
+    const part = contentRange(obj)
+    return new Response(obj.body, {
+      status: part ? 206 : 200,
+      headers: {
+        'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
+        'cache-control': 'private, max-age=31536000, immutable',
+        'accept-ranges': 'bytes',
+        ...(part && { 'content-range': part }),
+        'content-security-policy': "default-src 'none'; sandbox; frame-ancestors 'none'",
+        'x-content-type-options': 'nosniff'
+      }
+    })
+  }
+
   // ---------------------------------------------------------------- message send + fan-out
   async postMessage(body, user) {
     const roomId = body.room
     if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权发送' }, 403)
-    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing'].includes(body.type) ? body.type : 'text'
+    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing', 'sticker'].includes(body.type) ? body.type : 'text'
     if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: '不能发送空消息' }, 400)
+    // A sticker is only a reference to one of the packs: its id, kind and emoji.
+    if (type === 'sticker') {
+      const m = asObject(body.meta)
+      if (!STICKER_ID.test(String(m.id || '')) || !STICKER_KINDS.includes(m.kind)) return json({ ok: false, error: '表情无效' }, 400)
+      body.meta = { id: m.id, kind: m.kind, emoji: cleanText(m.emoji, 16) }
+    }
     // A retry carries the same localId: if the first attempt landed (its
     // answer was lost on the way back), it gets that message, not a copy.
     const localKey = typeof body.localId === 'string' && body.localId ? `${user.id}:${roomId}:${body.localId.slice(0, 64)}` : ''
@@ -569,6 +614,6 @@ export class Hub {
 
   preview(msg) {
     if (msg.type === 'text') return msg.body.slice(0, 120)
-    return { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', system: msg.body }[msg.type] || '[消息]'
+    return { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', sticker: `[表情]${msg.meta?.emoji ? ` ${msg.meta.emoji}` : ''}`, system: msg.body }[msg.type] || '[消息]'
   }
 }

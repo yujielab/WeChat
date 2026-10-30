@@ -4,6 +4,7 @@
 import { h, icon } from '../ui/dom.js'
 import { duration, fileSize, emojiOnly, callSummary } from '../ui/format.js'
 import { state } from '../store.js'
+import { stickerEl } from './stickers.js'
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"'，。！？、；：（）【】《》]+/gi
 
@@ -44,6 +45,8 @@ export function renderBubble(m, ctx) {
       return card(m, { icon: 'doc', iconClass: 'file', title: m.name || '文件', desc: fileSize(m.size) })
     case 'call':
       return callBubble(m)
+    case 'sticker':
+      return stickerBubble(m)
     default:
       return textBubble(m)
   }
@@ -115,6 +118,13 @@ function videoBubble(m, ctx) {
      h('span', { class: 'media-play glass glass-clear glass-btn' }, icon('play')))
   if (m.dur) el.append(h('span', { class: 'media-badge' }, duration(m.dur)))
   return el
+}
+
+// A sticker stands on its own, without a bubble behind it.
+function stickerBubble(m) {
+  const st = m.meta || {}
+  if (!st.id) return textBubble({ ...m, text: st.emoji || '[表情]' })
+  return h('div', { class: 'bubble sticker', dataset: { kind: 'sticker' } }, stickerEl({ id: st.id, kind: st.kind, emoji: st.emoji }, 'msg'))
 }
 
 // A record, not a control: calling back is the heading's job.

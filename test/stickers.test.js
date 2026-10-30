@@ -1,0 +1,182 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { manifest, publicManifest, stickerFile, contentRange, setNames } from '../src/stickers.js'
+
+// An R2 bucket in memory.
+function bucket() {
+  const items = new Map()
+  return {
+    items,
+    async get(key, opts) {
+      const it = items.get(key)
+      if (!it) return null
+      let bytes = it.bytes
+      // Like R2: a Range header in, the part and its range out (the whole
+      // file reads as offset 0, its full length).
+      let range = { offset: 0, length: bytes.length }
+      const asked = opts?.range?.get('range')?.match(/^bytes=(\d*)-(\d*)$/)
+      if (asked) {
+        range = asked[1] === '' ? { suffix: Number(asked[2]) } : { offset: Number(asked[1]), length: (asked[2] ? Number(asked[2]) + 1 : bytes.length) - Number(asked[1]) }
+        const start = range.suffix != null ? bytes.length - range.suffix : range.offset
+        bytes = bytes.slice(start, range.length ? start + range.length : undefined)
+      }
+      return {
+        size: it.bytes.length,
+        range,
+        body: new Blob([bytes]).stream(),
+        httpMetadata: it.httpMetadata,
+        async json() { return JSON.parse(new TextDecoder().decode(bytes)) },
+        async text() { return new TextDecoder().decode(bytes) },
+        async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) }
+      }
+    },
+    async put(key, value, opts = {}) {
+      const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : new Uint8Array(value)
+      items.set(key, { bytes, httpMetadata: opts.httpMetadata })
+    }
+  }
+}
+
+const gzip = async text => new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer())
+const LOTTIE = JSON.stringify({ v: '5.7.4', fr: 60, w: 512, h: 512, layers: [] })
+
+// Telegram's Bot API, as much as the pipeline uses.
+async function withTelegram(fn, { failSets = false } = {}) {
+  const calls = []
+  const files = {
+    F_STATIC: ['stickers/a.webp', new Uint8Array([82, 73, 70, 70, 1])],
+    F_VIDEO: ['stickers/b.webm', new Uint8Array([26, 69, 223, 163, 2])],
+    F_ANIM: ['stickers/c.tgs', await gzip(LOTTIE)],
+    T_ANIM: ['thumbnails/c.webp', new Uint8Array([82, 73, 70, 70, 3])]
+  }
+  const real = globalThis.fetch
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url)
+    calls.push(u.replace(/bot[^/]+/, 'bot…'))
+    if (u.endsWith('/getStickerSet')) {
+      if (failSets) return Response.json({ ok: false, description: 'Too Many Requests' }, { status: 429 })
+      const { name } = JSON.parse(init.body)
+      if (name !== 'HandDrawnEmoji') return Response.json({ ok: false, description: 'STICKERSET_INVALID' }, { status: 400 })
+      return Response.json({ ok: true, result: { name, title: 'Hand Drawn', stickers: [
+        { file_id: 'F_STATIC', file_unique_id: 'AgADstat', emoji: '😀', is_animated: false, is_video: false },
+        { file_id: 'F_VIDEO', file_unique_id: 'AgADvide', emoji: '🎉', is_animated: false, is_video: true },
+        { file_id: 'F_ANIM', file_unique_id: 'AgADanim', emoji: '😎', is_animated: true, is_video: false, thumbnail: { file_id: 'T_ANIM' } },
+        { file_id: 'F_BAD', file_unique_id: 'x', emoji: '?', is_animated: false, is_video: false }
+      ] } })
+    }
+    if (u.endsWith('/getFile')) {
+      const { file_id } = JSON.parse(init.body)
+      return Response.json({ ok: true, result: { file_id, file_path: files[file_id][0] } })
+    }
+    const hit = Object.values(files).find(([p]) => u.endsWith('/' + p))
+    if (u.includes('/file/bot') && hit) return new Response(hit[1])
+    return new Response('not found', { status: 404 })
+  }
+  try {
+    return await fn(calls)
+  } finally {
+    globalThis.fetch = real
+  }
+}
+
+const env = { TELEGRAM_BOT_TOKEN: '123:secret', STICKER_SETS: 'HandDrawnEmoji, missing-set!, NoSuchPack' }
+
+test('pack names come from STICKER_SETS, safe names only, with defaults', () => {
+  assert.deepEqual(setNames(env), ['HandDrawnEmoji', 'NoSuchPack'])
+  assert.deepEqual(setNames({}), ['HandDrawnEmoji', 'GameEmoji'])
+})
+
+test('the list leaves out file ids and packs Telegram refuses, and is kept for a while', async () => {
+  await withTelegram(async calls => {
+    const r2 = bucket()
+    const m = await manifest(env, r2, { now: 1000 })
+    const pub = publicManifest(m)
+    assert.equal(pub.sets.length, 1, 'the missing pack is left out')
+    assert.deepEqual(pub.sets[0].stickers, [
+      { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false },
+      { id: 'AgADvide', emoji: '🎉', kind: 'video', nt: true },
+      { id: 'AgADanim', emoji: '😎', kind: 'animated', nt: false }
+    ])
+    assert.ok(!JSON.stringify(pub).includes('F_'), 'no Telegram file ids reach the browser')
+    const asked = calls.length
+    await manifest(env, r2, { now: 1000 + 3600e3 })
+    assert.equal(calls.length, asked, 'kept, not asked again')
+    await manifest(env, r2, { now: 1000 + 7 * 3600e3 })
+    assert.ok(calls.length > asked, 'asked again once stale')
+  })
+})
+
+test('Telegram unreachable: the last good list is served', async () => {
+  const r2 = bucket()
+  await withTelegram(() => manifest(env, r2, { now: 0 }))
+  await withTelegram(async () => {
+    const m = await manifest(env, r2, { now: 10 * 3600e3 })
+    assert.equal(m.sets.length, 1)
+  }, { failSets: true })
+})
+
+test('each file is fetched from Telegram once, then served from R2; animated stickers as plain Lottie JSON', async () => {
+  await withTelegram(async calls => {
+    const r2 = bucket()
+    const still = await stickerFile(env, r2, 'AgADstat')
+    assert.equal(still.httpMetadata.contentType, 'image/webp')
+    const fetched = calls.filter(c => c.includes('/file/')).length
+    await stickerFile(env, r2, 'AgADstat')
+    assert.equal(calls.filter(c => c.includes('/file/')).length, fetched, 'second time from R2')
+
+    const video = await stickerFile(env, r2, 'AgADvide')
+    assert.equal(video.httpMetadata.contentType, 'video/webm')
+    assert.equal(await stickerFile(env, r2, 'AgADvide', { thumb: true }), null, 'no still picture for this video sticker')
+
+    const anim = await stickerFile(env, r2, 'AgADanim', { anim: true })
+    assert.equal(anim.httpMetadata.contentType, 'application/json')
+    assert.deepEqual(JSON.parse(await anim.text()), JSON.parse(LOTTIE), 'unzipped .tgs')
+    const thumb = await stickerFile(env, r2, 'AgADanim', { thumb: true })
+    assert.equal(thumb.httpMetadata.contentType, 'image/webp')
+    assert.ok(r2.items.has('stickers/AgADanim.json') && r2.items.has('stickers/AgADanim.thumb'))
+
+    assert.equal(await stickerFile(env, r2, 'AgADstat', { anim: true }), null, 'only animated stickers have Lottie')
+    assert.equal(await stickerFile(env, r2, 'nope/../x'), null)
+    assert.equal(await stickerFile(env, r2, 'AgADunknown'), null)
+    assert.ok(!calls.some(c => c.includes('123:secret')), 'stub sees no token in this log')
+  })
+})
+
+test('a kept sticker stays readable after its pack is dropped, without reading the list', async () => {
+  await withTelegram(async calls => {
+    const r2 = bucket()
+    await stickerFile(env, r2, 'AgADstat')
+    await stickerFile(env, r2, 'AgADanim')
+    await stickerFile(env, r2, 'AgADanim', { anim: true })
+    const asked = calls.length
+    const other = { ...env, STICKER_SETS: 'NoSuchPack' }
+    assert.equal((await stickerFile(other, r2, 'AgADstat')).httpMetadata.contentType, 'image/webp')
+    assert.equal((await stickerFile(other, r2, 'AgADanim')).httpMetadata.contentType, 'image/webp', 'its still picture')
+    assert.equal((await stickerFile(other, r2, 'AgADanim', { anim: true })).httpMetadata.contentType, 'application/json')
+    assert.equal(calls.length, asked, 'nothing asked of Telegram')
+  })
+})
+
+test('video stickers come in parts when asked (Safari plays video only that way)', async () => {
+  await withTelegram(async () => {
+    const r2 = bucket()
+    const whole = await stickerFile(env, r2, 'AgADvide', { range: new Headers() })
+    assert.equal(contentRange(whole), null, 'no Range header: the whole file')
+    const head = await stickerFile(env, r2, 'AgADvide', { range: new Headers({ range: 'bytes=0-1' }) })
+    assert.equal(contentRange(head), 'bytes 0-1/5')
+    assert.deepEqual([...new Uint8Array(await head.arrayBuffer())], [26, 69])
+    const tail = await stickerFile(env, r2, 'AgADvide', { range: new Headers({ range: 'bytes=3-' }) })
+    assert.equal(contentRange(tail), 'bytes 3-4/5')
+    assert.equal(contentRange(await stickerFile(env, r2, 'AgADvide', { range: new Headers({ range: 'bytes=-2' }) })), 'bytes 3-4/5')
+    assert.equal(contentRange(await stickerFile(env, r2, 'AgADvide', { range: new Headers({ range: 'bytes=0-' }) })), null, 'all of it: a plain 200')
+  })
+})
+
+test('readers asking at once share one trip to Telegram', async () => {
+  await withTelegram(async calls => {
+    const r2 = bucket()
+    await manifest(env, r2)
+    await Promise.all([1, 2, 3].map(() => stickerFile(env, r2, 'AgADvide')))
+    assert.equal(calls.filter(c => c.endsWith('b.webm')).length, 1)
+  })
+})

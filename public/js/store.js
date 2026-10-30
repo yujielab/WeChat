@@ -30,6 +30,7 @@ export const state = {
   filter: 'all',
   socket: false,
   calls: { enabled: false },
+  stickers: false,
   vapid: null,
   previews: new Map(),    // localId -> object URL for just-sent media
   restored: false         // painted from the cached bootstrap at launch
@@ -74,6 +75,7 @@ export function previewText(m, room) {
   if (m.state === 'revoked') return '[已撤回]'
   let body = m.type === 'text' ? m.body
     : m.type === 'call' ? callPreview(m)
+    : m.type === 'sticker' ? `[表情]${m.meta?.emoji ? ` ${m.meta.emoji}` : ''}`
     : { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', system: m.body }[m.type] || '[消息]'
   if (room?.kind === 'group' && m.type !== 'system' && m.sender !== state.me?.id) {
     const who = nameOf(m.sender, room.id)
