@@ -16,8 +16,8 @@ export function onApiEvent(fn) {
   return () => listeners.delete(fn)
 }
 
-async function request(method, path, body) {
-  const init = { method, credentials: 'same-origin', headers: {} }
+async function request(method, path, body, { signal } = {}) {
+  const init = { method, credentials: 'same-origin', headers: {}, signal }
   if (body instanceof FormData) init.body = body
   else if (body !== undefined) {
     init.headers['content-type'] = 'application/json'
@@ -26,7 +26,8 @@ async function request(method, path, body) {
   let res
   try {
     res = await fetch(path, init)
-  } catch {
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err
     throw new ApiError('网络连接不可用', 0)
   }
   let data = null
@@ -42,7 +43,7 @@ async function request(method, path, body) {
 
 export const api = {
   get: path => request('GET', path),
-  post: (path, body = {}) => request('POST', path, body),
+  post: (path, body = {}, opts) => request('POST', path, body, opts),
   put: (path, body = {}) => request('PUT', path, body)
 }
 

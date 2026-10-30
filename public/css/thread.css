@@ -459,6 +459,20 @@
 .field textarea { transition: height 190ms var(--ease-out); }
 .field.no-grow textarea { transition: none; }
 .field.multiline { border-radius: 22px; }
+/* Input prediction: the rest of the sentence in grey after the caret, drawn
+   over the field (never put in it) in the field's own box, font and scroll. */
+.field-predict {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  color: transparent;
+}
+.field-predict .rest { color: var(--label-3); pointer-events: auto; cursor: pointer; }
+.field textarea.has-prediction::placeholder { color: transparent; }
 .field-twin {
   position: absolute;
   visibility: hidden;
@@ -796,3 +810,16 @@
 .stk.row .skel-blob { width: 100%; }
 .stk-row.skel .stk-row-text { gap: 8px; }
 .skel-bar.short { height: 10px; }
+
+/* Key words of a sent message (src/assist.js): a soft marker in the bubble's
+   own colour, on either side; hidden with the setting off. */
+mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
+:root:not([data-keys="off"]) mark.kw {
+  font-weight: var(--w-semibold);
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  border-radius: 5px;
+  padding: 0 2px;
+  margin: 0 -1px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}

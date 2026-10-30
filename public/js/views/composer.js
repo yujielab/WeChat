@@ -8,6 +8,7 @@ import { h, icon } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
 import { openAttachments } from './attachments.js'
+import { createPredictor } from './predict.js'
 
 // The field shows up to five lines, fewer when the window is short, then
 // scrolls inside.
@@ -27,6 +28,8 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   // editor, so its caret, selection and IME composition never jump.
   const twin = h('div', { class: 'field-twin', 'aria-hidden': 'true' })
   const field = h('div', { class: 'field glass' }, textarea, twin)
+  // What you're likely to type next, drawn after the caret (predict.js).
+  const predictor = createPredictor({ textarea, field, chat: () => chat })
 
   const panelId = `composer-tools-${++panelIds}`
   const toolButtons = new Map()
@@ -166,6 +169,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     if (!text.trim() || readonly) return
     haptic()
     textarea.value = ''
+    predictor.clear()
     autosize()
     clearTimeout(draftTimer)
     if (chat) setDraft(chat, '')
@@ -178,6 +182,8 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   textarea.addEventListener('input', () => {
     autosize()
     saveDraftSoon()
+    predictor.input()
+    // Only what is in the field: a suggestion not taken never leaves this device.
     onType?.(textarea.value)
   })
   textarea.addEventListener('keydown', e => {
@@ -236,6 +242,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       textarea.disabled = ro
       textarea.placeholder = ro ? '无法发送消息' : '消息'
       textarea.value = id ? getDraft(id) : ''
+      predictor.reset()
       // A different conversation's draft takes its height at once.
       field.classList.add('no-grow')
       autosize()
@@ -253,6 +260,8 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       button.setAttribute('aria-checked', String(Boolean(active)))
     },
     closeTools() { setOpen(false, { focus: false }) },
+    /** Someone else wrote in this conversation: an empty field may offer a reply. */
+    offerReply() { predictor.incoming() },
     /** Offer a tool or not (stickers only where the server has packs). */
     setToolShown(id, shown) {
       const button = toolButtons.get(id)

@@ -114,7 +114,7 @@ async function refresh() {
   setPresence(boot.presence)
   applyBoot(boot)
   shell?.setMe(state.me)
-  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers }))
+  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers, assist: boot.assist }))
   // Once per launch: keep this device's push subscription current.
   if (!pushSynced) {
     pushSynced = true
@@ -131,6 +131,7 @@ function applyBoot(boot) {
   state.calls = boot.calls || { enabled: false }
   state.vapid = boot.vapid || null
   state.stickers = Boolean(boot.stickers)
+  state.assist = Boolean(boot.assist)
 }
 
 function mountShell() {
@@ -171,6 +172,12 @@ function handle(msg) {
       markThreadRead(msg.room, msg.by)
       if (msg.ts > (state.chats.get(msg.room)?.peerRead || 0)) patchRoom(msg.room, { peerRead: msg.ts })
       break
+    case 'keys': {
+      // A sent message's key words, a moment after it: shown in place.
+      const known = state.threads.get(msg.room)?.byId.get(msg.id)
+      if (known && Array.isArray(msg.keys)) upsertMessage({ ...known, meta: { ...known.meta, keys: msg.keys } })
+      break
+    }
     case 'react': {
       // Only the reactions change: the message keeps its place, read state and unread count.
       const known = state.threads.get(msg.msg.room)?.byId.get(msg.msg.id)

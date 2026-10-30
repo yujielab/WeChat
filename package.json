@@ -5,8 +5,9 @@
   "type": "module",
   "description": "Cuven: messaging, voice and video calls on Cloudflare Workers, designed for iPhone Duo",
   "scripts": {
-    "dev": "wrangler dev",
-    "dev:e2e": "wrangler dev --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy",
+    "dev": "wrangler dev --local",
+    "dev:ai": "wrangler dev",
+    "dev:e2e": "wrangler dev --local --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy",
     "deploy": "wrangler deploy",
     "test": "node --no-warnings --test \"test/*.test.js\"",
     "vapid": "node tools/gen-vapid.mjs",
