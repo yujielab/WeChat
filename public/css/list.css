@@ -17,7 +17,7 @@
   transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out);
 }
 .pane-list.collapsed .list-inline-title { max-width: 7em; opacity: 1; transform: none; }
-.list-head { padding: calc(var(--safe-top) + 80px) calc(var(--list-inset) + var(--safe-right)) 0 calc(var(--list-inset) + var(--safe-left)); }
+.list-head { padding: calc(var(--safe-top) + 30px) calc(var(--list-inset) + var(--safe-right)) 0 calc(var(--list-inset) + var(--safe-left)); }
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .large-title { margin: 0; font-size: 1.882rem; font-weight: var(--w-bold); line-height: 1.17; letter-spacing: -0.02em; color: var(--label); }
 .conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
@@ -90,18 +90,23 @@
 .list-empty h2 { margin: 0; color: var(--label); font-size: 1.118rem; line-height: 1.4; letter-spacing: -.5px; font-weight: 650; }
 .list-empty p { margin: 10px auto 0; max-width: 240px; font-size: .824rem; line-height: 1.8; white-space: pre-line; }
 .empty-compose { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 18px; padding: 0 20px; border-radius: 24px; color: var(--on-ink); background: var(--ink); font-size: .824rem; font-weight: 600; }
-.list-bottombar { position: absolute; z-index: var(--z-chrome); left: calc(var(--list-inset) + var(--safe-left)); right: calc(var(--list-inset) + var(--safe-right)); bottom: calc(max(var(--safe-bottom), 10px) + 9px); display: flex; align-items: center; gap: 8px; }
+/* The bar at the foot: Back (and the filter, unfolded) lead, the search
+   field takes the middle, New Chat ends it; Cancel replaces them all while
+   searching. */
+.list-bottombar { position: absolute; z-index: var(--z-chrome); left: calc(var(--list-inset) + var(--safe-left)); right: calc(var(--list-inset) + var(--safe-right)); bottom: max(var(--safe-bottom), 16px); display: flex; align-items: center; gap: 8px; }
+.list-bottombar .search-pill { order: 0; }
+.list-bottombar .search-cancel { order: 2; }
 :root[data-kb="1"] .list-bottombar { bottom: 8px; }
-.search-pill { flex: 1; min-width: 0; height: 50px; border-radius: 26px; padding: 0 17px; display: flex; align-items: center; gap: 9px; color: var(--label-2); text-align: left; cursor: text; background: var(--surface, var(--bg)); box-shadow: inset 0 0 0 1px var(--line), var(--chrome-shadow); transition: box-shadow var(--dur-quick) ease-out; }
+.search-pill { flex: 1; min-width: 0; height: 56px; border-radius: 28px; padding: 0 17px; display: flex; align-items: center; gap: 9px; color: var(--label-2); text-align: left; cursor: text; background: var(--surface, var(--bg)); box-shadow: inset 0 0 0 1px var(--line), var(--chrome-shadow); transition: box-shadow var(--dur-quick) ease-out; }
 .search-pill input { flex: 1; min-width: 0; width: 0; height: 100%; border: 0; background: none; font-size: max(16px, .8rem); color: var(--label); outline: none; appearance: none; -webkit-appearance: none; }
 .search-pill .icon { width: 18px; height: 18px; }
 .search-pill input::placeholder { color: var(--label-2); }
 .search-pill input::-webkit-search-cancel-button { display: none; }
 .search-pill:focus-within { box-shadow: inset 0 0 0 1px var(--label-3), 0 0 0 4px var(--focus-ring), var(--chrome-shadow); }
 /* Cancel makes room beside the field both ways, as on iOS. */
-.search-cancel { opacity: 0; transform: scale(.6); pointer-events: none; width: 0; height: 44px; margin-left: -8px; background: var(--surface, var(--bg)); transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out), width var(--dur-ui) var(--ease-out), margin var(--dur-ui) var(--ease-out); }
-.pane-list.searching .search-cancel { opacity: 1; transform: none; pointer-events: auto; width: 44px; margin-left: 0; transition-timing-function: ease-out, var(--spring-snappy), var(--ease-out), var(--ease-out); }
-.search-results { padding-top: calc(var(--safe-top) + 84px); }
+.search-cancel { opacity: 0; transform: scale(.6); pointer-events: none; width: 0; height: 56px; margin-left: -8px; background: var(--surface, var(--bg)); transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out), width var(--dur-ui) var(--ease-out), margin var(--dur-ui) var(--ease-out); }
+.pane-list.searching .search-cancel { opacity: 1; transform: none; pointer-events: auto; width: 56px; margin-left: 0; transition-timing-function: ease-out, var(--spring-snappy), var(--ease-out), var(--ease-out); }
+.search-results { padding-top: calc(var(--safe-top) + 30px); }
 .section-title { margin: 19px var(--list-inset) 8px; color: var(--label-2); font-size: .706rem; font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
 .contact-row { width: calc(100% - 20px); margin: 2px 10px; display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 13px; border-radius: 18px; text-align: left; }
 .contact-row .avatar { --size: 42px; border-radius: 16px; }
@@ -138,7 +143,7 @@ mark { background: none; color: var(--blue); }
   .row-inner:hover, .contact-row:hover, .pin:hover { background: var(--paper, var(--fill-4)); }
 }
 @media (max-height: 560px) {
-  .list-head { padding-top: calc(var(--safe-top) + 74px); }
+  .list-head { padding-top: calc(var(--safe-top) + 24px); }
   .large-title { font-size: 1.765rem; }
   .list-filters { margin-top: 12px; margin-bottom: 12px; }
   .list-empty { padding-top: 16px; }
@@ -161,7 +166,8 @@ mark { background: none; color: var(--blue); }
    title names it, filters live in the filter menu, search sits at its foot. */
 .pane-list[data-layout="leading"] { --list-inset: 18px; --row-avatar: 44px; }
 .pane-list[data-layout="leading"] .list-topbar { top: calc(var(--safe-top) + 12px); gap: 8px; }
-.pane-list[data-layout="leading"] .list-head { padding-top: calc(var(--safe-top) + 66px); margin-bottom: 8px; }
+/* The title shares the conversation heading's row across the fold. */
+.pane-list[data-layout="leading"] .list-head { padding-top: calc(var(--safe-top) + 24px); margin-bottom: 8px; }
 .pane-list[data-layout="leading"] .large-title { font-size: 1.765rem; }
 .pane-list[data-layout="leading"] .conn-status { max-width: 100%; }
 .pane-list[data-layout="leading"] .rows { padding: 6px 10px 0; }
@@ -178,9 +184,6 @@ mark { background: none; color: var(--blue); }
 .pane-list[data-layout="leading"] .pin .avatar { --size: 44px; border-radius: 50%; }
 .pane-list[data-layout="leading"] .pinned-label { margin-bottom: 6px; font-size: .647rem; }
 /* The search band shares the composer's baseline and height across the fold. */
-.pane-list[data-layout="leading"] .list-bottombar { gap: 9px; bottom: max(var(--safe-bottom), 16px); }
-:root[data-kb="1"] .pane-list[data-layout="leading"] .list-bottombar { bottom: 8px; }
-.pane-list[data-layout="leading"] .search-pill { height: 56px; border-radius: 28px; }
 .pane-list[data-layout="leading"] .search-pill { padding-inline: 14px; }
 .pane-list[data-layout="leading"] .search-pill input { font-size: max(16px, .8rem); }
 
@@ -193,7 +196,7 @@ mark { background: none; color: var(--blue); }
   .pane-list:not([data-layout="leading"]) .row { margin-bottom: 3px; }
 }
 @media (max-height: 500px) {
-  .pane-list:not([data-layout="leading"]) .list-head { position: relative; padding-top: calc(var(--safe-top) + 68px); }
+  .pane-list:not([data-layout="leading"]) .list-head { position: relative; padding-top: calc(var(--safe-top) + 56px); }
   .pane-list:not([data-layout="leading"]) .large-title { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .pane-list:not([data-layout="leading"]) .list-inline-title { max-width: 10em; opacity: 1; }
   .pane-list:not([data-layout="leading"]) .list-heading { justify-content: flex-end; }
@@ -215,19 +218,3 @@ mark { background: none; color: var(--blue); }
 :root[data-motion="reduce"] .row-in,
 :root[data-motion="reduce"] .sk::after { animation: none; }
 :root[data-motion="reduce"] .offline-banner { animation: fade-in 120ms linear backwards !important; }
-
-/* Folded (and wherever bars are vertical), the list's bars run down the
-   trailing edge and the content takes the space beside them. Search is a
-   button there; the field opens above the list while searching. */
-.pane-list[data-bars="vertical"] { --content-right: var(--rail-content); }
-.pane-list[data-bars="vertical"] .list-topbar { right: var(--content-right); }
-.pane-list[data-bars="vertical"] .list-scroll { padding-right: calc(var(--content-right) - 10px); padding-bottom: calc(var(--safe-bottom) + 28px); }
-/* No bar above the list here, so the large title leads the column. */
-.pane-list[data-bars="vertical"] .list-head { padding-top: calc(var(--safe-top) + 30px); padding-right: calc(var(--safe-left) + 12px); }
-.pane-list[data-bars="vertical"] .list-bottombar { top: calc(var(--safe-top) + 12px); bottom: auto; right: var(--content-right); }
-.pane-list[data-bars="vertical"]:not(.search-open):not(.searching) .list-bottombar { visibility: hidden; }
-.pane-list[data-bars="vertical"].searching .list-topbar,
-.pane-list[data-bars="vertical"].search-open .list-topbar { visibility: hidden; }
-.pane-list[data-bars="vertical"] .search-cancel { display: none; }
-.pane-list[data-bars="vertical"] .search-results { padding-top: calc(var(--safe-top) + 76px); }
-.pane-list[data-bars="vertical"] > .edge-bottom { display: none; }

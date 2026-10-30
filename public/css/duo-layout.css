@@ -1,56 +1,14 @@
-/* iPhone Duo layout, after Apple's Human Interface Guidelines ("Designing
-   for iPhone Duo"):
-   - Bars move to the trailing edge wherever the window is wide or short (the
-     outer display, the inner display in landscape) and stay as standard top
-     and bottom bars only where there is vertical room (data-bars, set by
-     js/ui/viewport.js; items by js/ui/bars.js).
-   - The top of that column belongs to the camera and status bar: the outer
-     camera is always there; on the inner display only the status bar is.
-   - Content takes the asymmetric space beside the column, inside safe areas.
-   - Unfolded, two adjacent columns of the strip share the screen equally
-     and meet the folding region when partially folded (base.css); the
-     leading one keeps horizontal bars, the trailing one follows the window. */
+/* iPhone Duo layout. Every column keeps its content in reach and its
+   controls at its foot: one floating bar of glass capsules along the bottom
+   edge, inside the safe areas, riding above the keyboard. Headings stay
+   content (the conversation's heading carries its calls). Unfolded, two
+   adjacent columns of the strip share the screen equally and meet the
+   folding region when partially folded (base.css). */
 
-:root {
-  --rail-w: 52px;
-  --rail-inset: 10px;
-  --rail-gap: 12px;
-  /* Camera + status bar at the top of the column on the outer display;
-     status bar alone on the inner display (its camera hides when inactive). */
-  --rail-reserve-outer: 162px;
-  --rail-reserve-inner: 112px;
-}
-/* Where the column goes. Without a column of the system's own, the rail
-   takes its place inside the safe area and content stops beside it
-   (--rail-content). On both displays iOS keeps a column down the right edge
-   for the status bar and the Dynamic Island, reported as the right inset
-   (84pt, its centre 50pt in from the edge, measured on device folded and
-   open): the rail joins that column, centred under the status bar, and
-   content runs up to the inset like everywhere else. Computed per pane and
-   per overlay so a column on the leading side of the fold, which has no
-   inset of its own, keeps the rail inside. */
-.pane, .overlays, .viewer, .draw, .call {
-  --rail-right: calc(var(--safe-right) + var(--rail-inset));
-  --rail-content: calc(var(--rail-right) + var(--rail-w) + var(--rail-gap));
-}
-:root[data-edge-column] :is(.pane:not([data-role="leading"]), .overlays, .viewer:not([data-place="leading"]), .call:not([data-place="leading"]), .draw) {
-  --rail-right: max(4px, calc(var(--safe-right) - 34px - var(--rail-w) / 2));
-  --rail-content: max(calc(var(--safe-right) + var(--margin)), calc(var(--rail-right) + var(--rail-w) + var(--rail-gap)));
-}
-.pane { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
-.shell[data-layout="split"] .pane { --rail-reserve: var(--rail-reserve-inner); }
-/* Rotated, the outer display carries its camera at the foot of the column,
-   and the status bar steps away: Back moves to the very top. */
-:root[data-orientation="landscape"] .shell[data-layout="stack"] .pane { --rail-reserve: 12px; --rail-foot: 64px; }
-/* With the system's column kept outside the page (iOS 27.2), the rule above
-   puts the rail against the page's trailing edge, right beside that column;
-   the camera and status bar are out there too, so the rail runs from the
-   top of the page to its foot. */
-:root[data-edge-column="beside"][data-orientation] .shell[data-layout] .pane { --rail-reserve: 12px; --rail-foot: 14px; }
+.pane, .overlays, .viewer, .draw, .call { --content-right: calc(var(--safe-right) + var(--margin)); }
 
 /* ---------------------------------------------------------------- bar items */
 .bar-section { display: flex; align-items: center; gap: 10px; }
-.bar-section[data-axis="vertical"], .bar-section[data-axis="vertical"] .bar-group { flex-direction: column; }
 .bar-group { display: flex; align-items: center; }
 .bar-group.capsule {
   gap: 2px;
@@ -97,32 +55,39 @@
   box-shadow: 0 0 0 2px var(--bg);
 }
 
-/* ---------------------------------------------------------------- the column */
-.duo-rail {
+/* ---------------------------------------------------------------- bottom bars
+   One row at the foot of each column, all 56pt tall like the message field:
+   a lone item is a circle, a group a capsule, and the search or message
+   field takes the room between. Back (or Close) leads; the rest follows. */
+.dock { --dock-h: 56px; }
+.dock > .bar-section { display: contents; }
+.dock .bar-group { order: 1; flex: none; }
+.dock .bar-group.lead { order: -1; }
+.dock .bar-group.capsule { padding: 6px; gap: 2px; border-radius: calc(var(--dock-h) / 2); }
+.dock .bar-group:not(.capsule) .bar-item { width: var(--dock-h); height: var(--dock-h); min-width: var(--dock-h); }
+.dock .bar-item .icon { width: 22px; height: 22px; }
+.dock .bar-badge { top: -2px; right: -2px; }
+/* Bars of their own, for columns without a field. */
+.side-bottombar, .art-bottombar {
   position: absolute;
-  z-index: calc(var(--z-chrome) + 1);
-  top: max(var(--safe-top), var(--rail-reserve));
-  bottom: max(var(--safe-bottom), var(--rail-foot));
-  right: var(--rail-right);
-  width: var(--rail-w);
-  display: none;
-  flex-direction: column;
-  justify-content: space-between;
+  z-index: var(--z-chrome);
+  left: calc(var(--margin) + var(--safe-left));
+  right: var(--content-right);
+  bottom: max(var(--safe-bottom), 16px);
+  display: flex;
   align-items: center;
+  gap: 8px;
   pointer-events: none;
 }
-.duo-rail > * { pointer-events: auto; }
-.thread[data-bars="vertical"] > .duo-rail,
-.pane-list[data-bars="vertical"] > .duo-rail { display: flex; }
-:root[data-kb="1"] .duo-rail { bottom: 8px; }
+.side-bottombar > *, .art-bottombar > * { pointer-events: auto; }
+.side-bottombar { justify-content: flex-end; }
+:root[data-kb="1"] :is(.side-bottombar, .art-bottombar) { bottom: 8px; }
 
 /* ---------------------------------------------------------------- conversation */
-.thread { --head-top: 12px; --head-h: max(64px, calc(2.6rem + 16px)); --content-right: calc(var(--safe-right) + var(--margin)); }
-.thread[data-bars="vertical"] { --content-right: var(--rail-content); }
+.thread { --head-top: 12px; --head-h: max(64px, calc(2.6rem + 16px)); }
 
 /* The heading is content: avatar, name and status at the top of the
-   conversation, beside the column; with horizontal bars it shares the top
-   bar with Back and the call actions. */
+   conversation, then its calls and details. */
 .thread-nav {
   position: absolute;
   z-index: var(--z-chrome);
@@ -137,18 +102,13 @@
   border-bottom: 1px solid var(--line);
   background: var(--bg);
 }
-.thread-nav > .bar-section,
-.list-topbar > .bar-section { display: contents; }
-.list-topbar .bar-group { order: 1; }
-.list-topbar .bar-group.lead { order: -1; }
+.thread-nav > .bar-section { display: contents; }
 .thread-nav .bar-group { order: 1; }
-.thread-nav .bar-group.lead { order: -1; }
 .thread-title { flex: 1; min-width: 0; min-height: 50px; gap: 11px; padding: 0; }
-.thread-title .avatar { --size: 44px; }
+.thread-title .avatar { --size: 40px; }
 .thread-title .name { font-size: 1.059rem; line-height: 1.25; letter-spacing: -.025em; }
 .thread-title .sub { font-size: var(--t-caption); margin-top: 5px; }
 .thread-title:focus-visible { outline-offset: 4px; }
-.thread[data-bars="horizontal"] .thread-title .avatar { --size: 36px; }
 .thread>.edge-top { display: none; }
 .thread .ts { margin: 14px 0 8px; }
 .thread .ts + .m.first { --gap: 0px; }
@@ -176,9 +136,6 @@
 .thread .field { box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow); transition: box-shadow var(--dur-quick) ease-out; }
 .thread .composer.is-focused .field { box-shadow: 0 0 0 1px var(--label-3), 0 0 0 4px var(--focus-ring), var(--chrome-shadow); }
 .composer textarea { min-height: calc(1.45em + 18px); }
-/* With horizontal bars, drawing and photos sit beside the field. */
-.composer > .bar-section { flex: none; margin-bottom: 6px; gap: 6px; }
-.composer > .bar-section .bar-group.capsule { box-shadow: none; background: var(--field); }
 .thread .jump { right: var(--content-right); bottom: calc(var(--composer-h, 76px) + 12px); }
 
 /* The sender stays legible at the end of a message run, on either side. */
@@ -216,114 +173,19 @@
 }
 :root[data-motion="reduce"] .bar-item { transition: none; }
 
-/* ---------------------------------------------------------------- modal surfaces
-   Sheets, the photo viewer, the drawing board and calls follow the same rule
-   as the app: where bars are vertical, Close leads a column on the trailing
-   edge below the camera and status bar, prominent actions follow, and the
-   content takes the space beside it. On the inner display a sheet placed
-   over the leading column keeps a horizontal bar; one over the trailing
-   column doesn't. */
-.overlays { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
-.overlays[data-layout="split"] { --rail-reserve: var(--rail-reserve-inner); }
-:root[data-orientation="landscape"] .overlays[data-layout="stack"] { --rail-reserve: 12px; --rail-foot: 64px; }
-:root[data-edge-column="beside"][data-orientation] .overlays[data-layout] { --rail-reserve: 12px; --rail-foot: 14px; }
-
-:root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head,
-:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head {
+/* ---------------------------------------------------------------- sheets
+   Folded, and over the trailing column unfolded, a sheet's title leads and
+   Close ends its heading; over the leading column the heading is centred. */
+.overlays[data-layout="stack"] .sheet-head,
+.overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head {
   grid-template-columns: minmax(0, 1fr) 44px;
   padding-top: 10px;
 }
-:root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head h2,
-:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head h2 {
+.overlays[data-layout="stack"] .sheet-head h2,
+.overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head h2 {
   grid-column: 1;
   text-align: left;
   font-size: var(--t-title-2);
 }
-:root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head .end,
-:root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head .end { grid-column: 2; }
-
-/* The viewer stays full width; its controls float in the column. */
-:root[data-bars="vertical"] .viewer-bar.top {
-  top: max(var(--safe-top), var(--rail-reserve));
-  left: auto;
-  right: var(--rail-right);
-  width: var(--rail-w);
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 0;
-}
-:root[data-bars="vertical"] .viewer-gallery-count { left: calc(var(--safe-left) + 16px); translate: none; }
-:root[data-bars="vertical"] .viewer-bar.viewer-gallery-navigation {
-  top: auto;
-  bottom: max(var(--safe-bottom), var(--rail-foot));
-  left: auto;
-  right: var(--rail-right);
-  width: var(--rail-w);
-  flex-direction: column;
-  gap: 10px;
-  padding: 0;
-}
-:root[data-bars="vertical"] .viewer-bar.viewer-gallery-bottom { right: calc(var(--rail-right) + var(--rail-w)); }
-
-/* Drawing: Close, then Send (a symbol here: text stays in horizontal bars),
-   then Undo and Clear; the colours and sizes stay with the paper. */
-:root[data-bars="vertical"] .draw { --draw-column: var(--rail-content); }
-:root[data-bars="vertical"] .draw-head {
-  position: absolute;
-  z-index: 2;
-  top: max(var(--safe-top), var(--rail-reserve));
-  right: var(--rail-right);
-  width: var(--rail-w);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 0;
-}
-:root[data-bars="vertical"] .draw-head .draw-close { width: 44px; height: 44px; }
-:root[data-bars="vertical"] .draw-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-:root[data-bars="vertical"] .draw-send { width: 44px; height: 44px; padding: 0; border-radius: 50%; justify-content: center; }
-:root[data-bars="vertical"] .draw-send .icon { width: 19px; height: 19px; }
-:root[data-bars="vertical"] .draw-send-label { display: none; }
-:root[data-bars="vertical"] .draw-tools {
-  position: absolute;
-  z-index: 2;
-  top: calc(max(var(--safe-top), var(--rail-reserve)) + 118px);
-  right: var(--rail-right);
-  width: var(--rail-w);
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 0;
-  border-radius: 26px;
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
-}
-/* One capsule holds both tools; they don't draw rings of their own inside it. */
-:root[data-bars="vertical"] .draw-tools .draw-tool { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-:root[data-bars="vertical"] .draw-tools .draw-tool::before, :root[data-bars="vertical"] .draw-tools .draw-tool::after { display: none; }
-:root[data-bars="vertical"] .draw-tools .draw-tool:active { background: var(--field); }
-:root[data-bars="vertical"] .draw-stage { margin: calc(var(--safe-top) + 12px) var(--draw-column) 0 calc(var(--margin) + var(--safe-left)); }
-:root[data-bars="vertical"] .draw-bar { padding-right: var(--draw-column); }
-
-/* Calls are immersive and use the full width; their controls take the
-   column — End first, as Close would — and the heading and self-view move
-   to the leading side, clear of the camera (always on the outer display,
-   and on the inner display whenever the camera is in use). */
-:root[data-bars="vertical"] .call-controls,
-:root[data-bars="vertical"] .call-incoming {
-  position: absolute;
-  z-index: 3;
-  top: max(var(--safe-top), var(--rail-reserve));
-  right: calc(var(--rail-right) - 6px);
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 16px;
-  padding: 0;
-}
-:root[data-bars="vertical"] .call-controls .hang,
-:root[data-bars="vertical"] .call-incoming .hang { order: -1; }
-:root[data-bars="vertical"] .call-stage { padding-right: var(--rail-content); }
-:root[data-bars="vertical"] .call-head { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--rail-content) + 12px); text-align: left; }
-:root[data-bars="vertical"] .call-local { top: auto; right: auto; bottom: calc(max(var(--safe-bottom), 14px) + 4px); left: calc(var(--margin) + var(--safe-left)); }
+.overlays[data-layout="stack"] .sheet-head .end,
+.overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head .end { grid-column: 2; }

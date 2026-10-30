@@ -1,26 +1,12 @@
 /* The strip's first and last columns (js/views/sidebar.js, artifact.js).
-   Both follow the same bar rules as the list and the conversation: a column
-   on the trailing edge wherever the window's bars are vertical, horizontal
-   bars as the leading column of a split view or with vertical room. */
+   Like the list and the conversation, each keeps its controls in a bar at
+   its foot (duo-layout.css). */
 
 /* ---------------------------------------------------------------- sidebar */
 .pane-sidebar { --side-inset: 22px; --content-right: calc(var(--safe-right) + var(--side-inset)); background: var(--paper); }
-.pane-sidebar[data-bars="vertical"] { --content-right: var(--rail-content); }
-.pane-sidebar[data-bars="vertical"] > .duo-rail { display: flex; }
-.side-scroll { padding: calc(var(--safe-top) + 26px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 24px) calc(var(--safe-left) + var(--side-inset)); }
-.pane-sidebar[data-bars="horizontal"]:not([data-layout="leading"]) .side-scroll { padding-top: calc(var(--safe-top) + 72px); }
-.side-topbar {
-  position: absolute;
-  z-index: var(--z-chrome);
-  top: calc(var(--safe-top) + 12px);
-  left: calc(var(--safe-left) + var(--side-inset));
-  right: var(--content-right);
-  height: 44px;
-  display: none;
-  align-items: center;
-  justify-content: flex-end;
-}
-.pane-sidebar[data-bars="horizontal"] .side-topbar { display: flex; }
+/* Content clears the bar at the foot (56pt and its margin). */
+.side-scroll { padding: calc(var(--safe-top) + 26px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 80px) calc(var(--safe-left) + var(--side-inset)); }
+.pane-sidebar .side-bottombar { left: calc(var(--safe-left) + var(--side-inset)); }
 .side-head { margin-bottom: 18px; }
 /* The app's name, set as on the sign-in screen: tracked DIN caps. */
 .side-title { font-family: var(--font-display); font-size: 1.412rem; line-height: 1.2; letter-spacing: var(--track-wordmark); text-transform: uppercase; }
@@ -75,23 +61,8 @@
 .pane-artifact { background: var(--bg); }
 .art-body { position: absolute; inset: 0; }
 .art-body[data-kind="info"] { --content-right: calc(var(--safe-right) + var(--margin)); }
-.art-body[data-bars="vertical"] { --content-right: var(--rail-content); }
-.art-body[data-bars="vertical"] > .duo-rail { display: flex; }
-/* No heading: Close (or Back) alone, above the profile with horizontal
-   bars, in the trailing column with vertical ones. */
-.art-head {
-  position: absolute;
-  z-index: var(--z-chrome);
-  top: calc(var(--safe-top) + 12px);
-  left: calc(var(--margin) + var(--safe-left));
-  height: 44px;
-  display: flex;
-  align-items: center;
-}
-.art-body[data-bars="vertical"] .art-head { display: none; }
-.art-scroll { top: calc(var(--safe-top) + 64px); padding: 8px calc(var(--content-right) - var(--margin)) calc(max(var(--safe-bottom), 16px) + 20px) var(--safe-left); }
-.art-body[data-bars="vertical"] .art-scroll { top: calc(var(--safe-top) + 12px); }
+/* No heading: the profile leads, and Close (or Back) is the bar at the foot. */
+.art-scroll { top: calc(var(--safe-top) + 12px); padding: 8px calc(var(--content-right) - var(--margin)) calc(max(var(--safe-bottom), 16px) + 80px) var(--safe-left); }
 
-/* The drawing board takes the whole column; its own controls follow the
-   window's bars (duo-layout.css). */
+/* The drawing board takes the whole column, with its own bars. */
 .pane-artifact .draw { position: absolute; inset: 0; z-index: auto; opacity: 1; transform: none; transition: none; }

@@ -13,7 +13,6 @@ import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
 import { createBars } from '../ui/bars.js'
-import { getBars, onBars } from '../ui/viewport.js'
 
 export const FILTERS = {
   all: { label: '全部', test: () => true },
@@ -70,32 +69,29 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
   const topbar = h('div', { class: 'list-topbar' }, inlineTitle, h('div', { class: 'spacer' }))
 
-  // Bars (Apple HIG, Designing for iPhone Duo). Folded, they run down the
-  // trailing edge: Back to the sidebar and filters at the top, search and
-  // New Chat at the bottom, where they were on a standard iPhone. As the
-  // leading column beside a conversation, the list keeps horizontal bars
-  // above itself, and New Chat moves to the conversation's column, as in
-  // Mail and Notes. Beside the sidebar it has neither Back nor filters: the
-  // sidebar, with its scopes, is right there.
+  // One bar of capsules at the foot of the list, in reach of the thumb:
+  // Back to the sidebar (and the filter, beside a conversation) lead,
+  // the search field takes the middle, New Chat ends it. Beside the sidebar
+  // the list has no Back: the sidebar is right there. While searching, the
+  // field and Cancel have the bar to themselves.
   const bars = createBars({
     label: '聊天列表操作',
     items: [
-      { id: 'cancel', icon: 'xmark', title: '取消搜索', primary: true, onSelect: () => exitSearch() },
       { id: 'back', icon: 'chevron-left', title: '边栏', primary: true, onSelect: () => onBack() },
       { id: 'filter', icon: 'filter', title: '筛选', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
-      { id: 'search', icon: 'search', title: '搜索', priority: 6, onSelect: () => openSearch() },
       { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
-    arrange: axis => {
-      const nav = pane.dataset.layout === 'trailing' ? [] : [['back'], ['filter']]
-      if (axis === 'vertical') {
-        return searching ? { top: [['cancel']], bottom: [] } : { top: nav, bottom: [['search'], ['compose']] }
-      }
-      const composeHere = !(pane.dataset.layout === 'leading' && getBars() === 'vertical')
-      return { top: [...nav, ...(composeHere ? [['compose']] : [])], bottom: [] }
+    arrange: () => {
+      if (searching) return { top: [], bottom: [] }
+      // The filter tabs show when the list has the screen; beside a
+      // conversation the filter is a menu; beside the sidebar its scopes are.
+      const nav = [
+        ...(pane.dataset.layout === 'trailing' ? [] : ['back']),
+        ...(pane.dataset.layout === 'leading' ? ['filter'] : [])
+      ]
+      return { top: [], bottom: [...(nav.length ? [nav] : []), ['compose']] }
     }
   })
-  const rail = h('nav', { class: 'duo-rail list-rail', 'aria-label': '聊天列表操作' })
 
   const input = h('input', {
     type: 'search',
@@ -109,11 +105,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   })
   const pill = h('label', { class: 'glass search-pill' }, icon('search'), input)
   const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': '取消搜索' }, icon('xmark'))
-  const bottombar = h('div', { class: 'list-bottombar' }, pill, cancel)
+  const bottombar = h('nav', { class: 'list-bottombar dock', 'aria-label': '聊天列表操作' }, bars.bottom, pill, cancel)
 
   const edgeTop = edge('top')
   const edgeBottom = edge('bottom', true)
-  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar, rail)
+  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar)
 
   function openFilterMenu(anchor) {
     openMenu(anchor, [
@@ -127,24 +123,13 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     ], { title: '筛选' })
   }
 
+  // The search field keeps at least 120px of the bar, and one more gap beside it.
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
-    barsFrame = requestAnimationFrame(() => {
-      const axis = pane.dataset.layout === 'leading' ? 'horizontal' : getBars() || 'vertical'
-      pane.dataset.bars = axis
-      if (axis === 'vertical') {
-        if (bars.top.parentElement !== rail) bars.move(() => rail.append(bars.top, bars.bottom))
-        bars.layout('vertical', rail.clientHeight)
-      } else {
-        if (bars.top.parentElement !== topbar) bars.move(() => { topbar.append(bars.top); bars.bottom.remove() })
-        bars.layout('horizontal', { top: Math.max(0, topbar.clientWidth - inlineTitle.offsetWidth - 16), bottom: Infinity })
-      }
-    })
+    barsFrame = requestAnimationFrame(() => bars.layout({ bottom: Math.max(0, bottombar.clientWidth - 120 - 8) }))
   }
-  new ResizeObserver(arrangeBars).observe(rail)
-  new ResizeObserver(arrangeBars).observe(topbar)
-  onBars(arrangeBars)
+  new ResizeObserver(arrangeBars).observe(bottombar)
 
   function selectFilter(key) {
     if (!FILTERS[key]) return
@@ -622,10 +607,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   })
   cancel.addEventListener('click', exitSearch)
 
-  // With vertical bars, Search is a button; the field opens above the list
-  // and Close takes the top of the column until the search ends.
+  /** Search from elsewhere (the sidebar): the field at the foot of the list. */
   function openSearch() {
-    pane.classList.add('search-open')
     input.focus()
   }
 
@@ -634,7 +617,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     query = ''
     input.value = ''
     input.blur()
-    pane.classList.remove('searching', 'search-open')
+    pane.classList.remove('searching')
     arrangeBars()
     head.hidden = filterTabs.hidden = rows.hidden = false
     results.hidden = true
