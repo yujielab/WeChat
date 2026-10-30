@@ -35,7 +35,9 @@ const safeUrl = u => {
 }
 
 const isGroup = id => chatInfo(id)?.kind === 'group'
-const isSys = m => m.type === 'system'
+// Not a bubble: the conversation's own notes, and a message taken back
+// (which leaves a note in its place, never an empty bubble).
+const isSys = m => m.type === 'system' || m.status === 'revoked'
 const REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏']
 const REACTION_NAMES = { '❤️': '喜欢', '😂': '大笑', '👍': '赞', '😮': '惊讶', '😢': '难过', '🙏': '感谢' }
 const reactable = m => m && !isSys(m) && !String(m.id).startsWith('local:') && !['sending', 'failed', 'revoked'].includes(m.status)
@@ -231,8 +233,13 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return el
   }
 
+  // Who took it back, said where the bubble was.
+  function revokedNote(m) {
+    return m.out ? '你撤回了一条消息' : `${m.fromName || nameOf(m.from, current) || '对方'}撤回了一条消息`
+  }
+
   function buildNode(m) {
-    if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.recalled || m.text || '')
+    if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.status === 'revoked' ? revokedNote(m) : m.text || '')
     const room = isGroup(current)
     const who = m.fromName || nameOf(m.from, current)
     const retryShown = m.status === 'failed' || (m.status === 'sending' && retrying.has(m.id))
@@ -295,7 +302,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return el
   }
 
-  const groupablePhoto = m => m?.type === 'image' && m.url && !m.recalled && !['sending', 'failed'].includes(m.status) && !String(m.id).startsWith('local:') && !expandedPhotos.has(m.id)
+  const groupablePhoto = m => m?.type === 'image' && m.url && !['sending', 'failed', 'revoked'].includes(m.status) && !String(m.id).startsWith('local:') && !expandedPhotos.has(m.id)
   function expandPhotos(photos) {
     const group = nodes.get(photos[photos.length - 1]?.id)
     const offset = group ? group.getBoundingClientRect().top - scroller.getBoundingClientRect().top : null
@@ -333,7 +340,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // between and within the hour, fold into one compact record that opens
   // upward, so what was tapped stays where it is; every call stays listed
   // inside. A call that went through always stands on its own.
-  const groupableCall = m => m?.type === 'call' && !m.recalled && !String(m.id).startsWith('local:') && (m.call?.result ? m.call.result !== 'completed' : Boolean(m.call?.missed))
+  const groupableCall = m => m?.type === 'call' && m.status !== 'revoked' && !String(m.id).startsWith('local:') && (m.call?.result ? m.call.result !== 'completed' : Boolean(m.call?.missed))
   const CALL_SPAN = 60 * 60 * 1000
   function callGroupNode(calls) {
     const last = calls[calls.length - 1]
@@ -1176,7 +1183,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   async function revoke(m) {
     try {
       const r = await api.post('/api/revoke', { id: m.id })
-      if (r.msg) upsertMessage(r.msg)
+      if (r.msg) upsertMessage(normMsg(r.msg))
     } catch (err) {
       toast(err.message, { type: 'error' })
     }

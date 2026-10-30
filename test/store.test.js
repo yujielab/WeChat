@@ -71,6 +71,9 @@ test('messages: store, last, unread, read, paging, revoke', () => {
   assert.equal(s.revokeMessage(m3.id, b.id), null)
   assert.equal(s.revokeMessage(m3.id, a.id).state, 'revoked')
   assert.equal(s.getMessage(m3.id).body, '')
+  // A message taken back is no longer there to read: not counted, here or on the badge.
+  assert.equal(s.listRoomsFor(b.id).find(r => r.id === dm).unread, 0)
+  assert.equal(s.unreadTotal(b.id), 0)
 })
 
 test('reactions: one per person, grouped per emoji, paged with messages, cleared on revoke', () => {

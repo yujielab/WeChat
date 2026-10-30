@@ -189,13 +189,6 @@
 .m.in .bubble.tail::before { left: -7px; width: 20px; background: inherit; border-bottom-right-radius: 16px 14px; }
 .m.in .bubble.tail::after { left: -10px; width: 10px; background: var(--bg); border-bottom-right-radius: 10px; }
 
-.bubble.recalled {
-  background: none !important;
-  color: var(--label-2) !important;
-  border: var(--hairline) dashed var(--label-3);
-  font-size: var(--t-subhead);
-}
-
 .quote {
   display: block;
   margin: 1px 0 6px;

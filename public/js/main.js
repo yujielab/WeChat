@@ -156,6 +156,16 @@ function handle(msg) {
       break
     case 'msg': {
       const m = normMsg(msg.msg)
+      // A message taken back changes in place: nothing new to count or to
+      // move up the list; the row's preview follows only if it was the last.
+      if (msg.msg.state === 'revoked') {
+        if (state.threads.has(m.chat)) upsertMessage(m)
+        const room = state.chats.get(m.chat)
+        if (room?.last?.id === m.id) patchRoom(m.chat, { last: { ...room.last, status: m.status, text: previewText(msg.msg, room) } })
+        // An unread one is no longer there to read: the server recounts.
+        if (!m.out && room?.unread && state.open !== m.chat) refresh().catch(() => {})
+        break
+      }
       // Replace our own optimistic bubble when the server echoes it back.
       if (msg.localId) {
         const t = state.threads.get(m.chat)
