@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readSet, readSets, publicSet, catalog, chosenSets, allowedName, allowedSets, stickerFile, contentRange, setNames, PRESETS } from '../src/stickers.js'
+import { readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, stickerFile, contentRange, setNames, PRESETS } from '../src/stickers.js'
 
 // An R2 bucket in memory.
 function bucket() {
@@ -30,6 +30,9 @@ function bucket() {
         async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) }
       }
     },
+    async head(key) {
+      return items.has(key) ? { size: items.get(key).bytes.length } : null
+    },
     async put(key, value, opts = {}) {
       const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : new Uint8Array(value)
       items.set(key, { bytes, httpMetadata: opts.httpMetadata })
@@ -41,7 +44,7 @@ const gzip = async text => new Uint8Array(await new Response(new Blob([text]).st
 const LOTTIE = JSON.stringify({ v: '5.7.4', fr: 60, w: 512, h: 512, layers: [] })
 
 // Telegram's Bot API, as much as the pipeline uses.
-async function withTelegram(fn, { failSets = false } = {}) {
+async function withTelegram(fn, { failSets = false, failFiles = false } = {}) {
   const calls = []
   const files = {
     F_STATIC: ['stickers/a.webp', new Uint8Array([82, 73, 70, 70, 1])],
@@ -73,6 +76,7 @@ async function withTelegram(fn, { failSets = false } = {}) {
       return Response.json({ ok: true, result: { file_id, file_path: files[file_id][0] } })
     }
     const hit = Object.values(files).find(([p]) => u.endsWith('/' + p))
+    if (u.includes('/file/bot') && failFiles) return new Response('busy', { status: 429 })
     if (u.includes('/file/bot') && hit) return new Response(hit[1])
     return new Response('not found', { status: 404 })
   }
@@ -140,7 +144,7 @@ test('Telegram unreachable: the last copy of a pack is served', async () => {
 
 test('the add list: every pack in the table Telegram has, with a cover and whether it is added', async () => {
   await withTelegram(async () => {
-    const list = await catalog(env, bucket(), ['UtyaDuck'])
+    const list = catalog(await readSets(env, bucket(), allowedSets(env)), ['UtyaDuck'])
     assert.deepEqual(list, [
       { name: 'HandDrawnEmoji', title: '手绘', count: 3, cover: { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false }, added: false },
       { name: 'UtyaDuck', title: '小黄鸭', count: 1, cover: { id: 'AgADduck', emoji: '🦆', kind: 'animated', nt: true }, added: true }
@@ -190,6 +194,50 @@ test('a kept sticker stays readable after its pack is dropped, without reading t
     assert.equal((await stickerFile(other, r2, 'AgADanim')).httpMetadata.contentType, 'image/webp', 'its still picture')
     assert.equal((await stickerFile(other, r2, 'AgADanim', { anim: true })).httpMetadata.contentType, 'application/json')
     assert.equal(calls.length, asked, 'nothing asked of Telegram')
+  })
+})
+
+test('a pack in someone\'s list is fetched ahead of time, once', async () => {
+  await withTelegram(async calls => {
+    const r2 = bucket()
+    const hand = await readSet(env, r2, 'HandDrawnEmoji')
+    await warmSets(env, r2, [hand])
+    const downloads = () => calls.filter(c => c.includes('/file/bot')).sort()
+    assert.deepEqual(downloads(), [
+      'https://api.telegram.org/file/bot…/stickers/a.webp',
+      'https://api.telegram.org/file/bot…/stickers/b.webm',
+      'https://api.telegram.org/file/bot…/stickers/c.tgs',
+      'https://api.telegram.org/file/bot…/thumbnails/c.webp'
+    ], 'pictures, the still and Lottie of the animated one, the video')
+    for (const key of ['AgADstat.webp', 'AgADvide.webm', 'AgADanim.thumb', 'AgADanim.json']) assert.ok(r2.items.has(`stickers/${key}`), key)
+    const asked = calls.length
+    await warmSets(env, r2, [hand])
+    assert.equal(calls.length, asked, 'done once: not looked at again')
+    await stickerFile(env, r2, 'AgADanim', { anim: true })
+    assert.equal(calls.length, asked, 'readers get it from R2')
+
+    const covers = bucket()
+    await warmSets(env, covers, [await readSet(env, covers, 'UtyaDuck')], { covers: true })
+    assert.deepEqual([...covers.items.keys()].filter(k => !k.includes('/sets/') && !k.includes('/warm/')), ['stickers/AgADduck.json'], 'the add list: only the cover')
+  })
+})
+
+test('a pack Telegram won\'t hand over stops early and is tried again later', async () => {
+  const r2 = bucket()
+  let hand
+  await withTelegram(async calls => {
+    hand = await readSet(env, r2, 'HandDrawnEmoji', { now: 0 })
+    await warmSets(env, r2, [hand], { now: 0 })
+    const mark = JSON.parse(new TextDecoder().decode(r2.items.get('stickers/warm/handdrawnemoji').bytes))
+    assert.ok(mark.failed >= 3, 'the refusals are remembered')
+    assert.ok(!r2.items.has('stickers/AgADstat.webp'))
+    const asked = calls.length
+    await warmSets(env, r2, [hand], { now: 3600e3 })
+    assert.equal(calls.length, asked, 'not again within a few hours')
+  }, { failFiles: true })
+  await withTelegram(async calls => {
+    await warmSets(env, r2, [hand], { now: 7 * 3600e3 })
+    assert.equal(calls.filter(c => c.includes('/file/bot')).length, 4, 'then fetched in full')
   })
 })
 

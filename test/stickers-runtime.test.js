@@ -72,6 +72,19 @@ test('packs are chosen in the app from the table, per person, and a sticker load
     const list = (await request('/api/stickers/catalog', undefined, a)).data.packs
     assert.deepEqual(list.map(p => [p.name, p.title, p.added]), [['HandDrawnEmoji', '手绘', true], ['UtyaDuck', '小黄鸭', false]])
 
+    // Behind those answers, your packs' files and the add list's covers are
+    // fetched ahead of time, before anyone asks for them.
+    const r2 = await mf.getR2Bucket('MEDIA')
+    const kept = async key => {
+      for (let i = 0; i < 40; i++) {
+        if (await r2.head(key)) return true
+        await new Promise(r => setTimeout(r, 50))
+      }
+      return false
+    }
+    assert.ok(await kept('stickers/AgADhand.webp'), 'your pack')
+    assert.ok(await kept('stickers/AgADduck.json'), 'a cover in the add list')
+
     // Adding puts the pack first; only names in the table are read.
     assert.deepEqual(names(await request('/api/stickers/mine', { add: 'utyaduck' }, a)), ['UtyaDuck', 'HandDrawnEmoji'])
     assert.equal((await request('/api/stickers/mine', { add: 'SomeoneElsesPack' }, a)).response.status, 400)

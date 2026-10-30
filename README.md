@@ -211,6 +211,10 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
 - 每个包在 R2 里保存 6 小时（`stickers/sets/`），Telegram 说不存在的包记住 1 小时；每个表情文件第一次有人看时从 Telegram 取一次，
   之后一直从 R2（`stickers/`）读。Telegram 暂时连不上时继续用上一次取到的包；移除了表情包后，旧消息里已经存下的表情照样显示。
 - 表情消息带上所属的包名，所以对方没添加这个包也能看到。
+- **不出现空白**：一个包进了某人的列表，服务器就在后台把它的文件先从 Telegram 取好（图片、动画表情的静态图与 Lottie、视频），
+  可添加列表的封面也一样；应用启动后空闲时先取好自己的表情包、打开面板时那一包的图片（并解码）、可添加列表和动画播放器，
+  所以面板一打开就是完整的。还在路上的内容用形状占位（包名、网格、列表行），不显示“正在载入”；
+  某个表情的图片一时没到，稍等片刻后先显示它的 emoji（没有 emoji 时是一个浅色形状），图片到了再换上，已就绪的不会闪一下。
 - 动画表情（`.tgs`）在服务器上解压成 Lottie JSON，由随应用一起提供的 lottie-web（`public/js/vendor/`）播放；
   播放器第一次遇到动画表情时才加载。视频表情（`.webm`）静音循环。两者都只在屏幕上时播放，减少动态效果时停在静态图上。
 - 没有设置 `TELEGRAM_BOT_TOKEN` 时，“+”面板里不显示“表情”，其余功能照常。
@@ -245,6 +249,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 没有配置通话服务时，通话按钮不会出现。想本地试通话 UI 用 `npm run dev:e2e`
   （即 `wrangler dev --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy`）：信令与来电界面可用，
   真正接通需要真实的 Realtime 应用。端到端测试（`tools/e2e/`）都跑在它上面。
+- 表情加载回归：`node tools/e2e/stickers.cjs` 验证启动后提前取好的内容、面板第一帧就完整且图片立即显示、
+  慢的时候用形状占位、图片晚到时先显示 emoji、图片缺失时保留 emoji、减少动态效果时同样不闪。
 - 界面走查脚本：`node tools/e2e/walkthrough.cjs docs/screenshots` 用 Playwright（Chromium）
   注册两个账号，跑一遍登录 → 找人 → 实时收发 → 手绘 → 通话界面 → 展开 / 深色，并截图。
 - 交互回归：`node tools/e2e/design-details.cjs` 验证图片预览、拖放 / 粘贴、真实上传、失败重试、
@@ -304,7 +310,7 @@ public/         index.html · manifest · sw.js · css/ · icons/
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
                 overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· avatar
     vendor/     lottie-web 5.13.0 light（MIT，原样）
-tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip）
+tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip · motion · continuity · stickers …）
 test/           store · auth · webpush · call · stickers（表情管线）· *-runtime（Miniflare 上跑整个 Worker）
 ```
 

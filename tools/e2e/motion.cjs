@@ -150,7 +150,7 @@ assert.deepEqual(asked,[{add:'UtyaDuck'}]);assert.deepEqual(await rows(),[['手�
 assert.deepEqual(await tabNames(),['小黄鸭','手绘','添加表情包'],'the new pack first')
 await p.click('.sheet.on .stk-tab >> text=手绘');await p.locator('.sheet.on .stk-cell').first().waitFor()
 await p.locator('.sheet.on .stk-cell').first().click();await p.locator('.sheet.on').waitFor({state:'detached'})
-const sentStk=await p.evaluate(()=>{const m=[...document.querySelectorAll('.msgs .m')].at(-1),b=m.querySelector('.bubble');return{kind:b.dataset.kind,img:b.querySelector('img.stk')?.getAttribute('src'),bg:getComputedStyle(b).backgroundColor}})
+const sentStk=await p.evaluate(()=>{const m=[...document.querySelectorAll('.msgs .m')].at(-1),b=m.querySelector('.bubble');return{kind:b.dataset.kind,img:b.querySelector('.stk .stk-pic')?.getAttribute('src'),bg:getComputedStyle(b).backgroundColor}})
 assert.deepEqual(sentStk,{kind:'sticker',img:'/api/stickers/img/AgADstat?set=HandDrawnEmoji',bg:'rgba(0, 0, 0, 0)'},'sent without a bubble, its pack named')
 await p.evaluate(async()=>{const{upsertMessage}=await import('/js/store.js');upsertMessage({id:'stkA',chat:'r',type:'sticker',text:'',meta:{id:'AgADanim',kind:'animated',emoji:'😎'},from:'p',out:false,ts:Date.now(),status:'sent'})})
 await p.waitForFunction(()=>document.querySelector('.m[data-id="stkA"] .stk.lot.on svg'),null,{timeout:5000})

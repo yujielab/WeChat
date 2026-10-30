@@ -4,6 +4,9 @@
 // R2 (animated stickers are kept as plain Lottie JSON, already unzipped), so
 // later readers never wait on Telegram.
 //
+// Once a pack is in someone's list its files are fetched ahead of time
+// (warmSets), so nobody opening it waits on Telegram or sees an empty sticker.
+//
 // Packs come from a table of names (PRESETS, plus STICKER_SETS): everyone
 // starts with STICKER_SETS and adds or removes the others in the app. Only
 // names in that table are ever read, so the server can't be made to fetch an
@@ -18,6 +21,7 @@ const SET_TTL = 6 * 3600 * 1000
 const MISSING_TTL = 3600 * 1000
 const MAX_FILE = 2 * 1024 * 1024
 const PER_SET = 120
+const WARM_AT_ONCE = 3
 export const MAX_CHOSEN = 16
 export const STICKER_ID = /^[A-Za-z0-9_-]{4,64}$/
 export const SET_NAME = /^[A-Za-z0-9_]{1,64}$/
@@ -161,9 +165,9 @@ export function publicSet(s) {
   return { name: s.name, title: presetTitle(s.name) || s.title, stickers: s.stickers.map(publicSticker) }
 }
 
-/** The add list: every pack in the table that can be read, its first sticker as its cover. */
-export async function catalog(env, bucket, chosen) {
-  return (await readSets(env, bucket, allowedSets(env))).map(s => ({
+/** The add list from the table's packs (readSets of allowedSets): each one's first sticker as its cover. */
+export function catalog(sets, chosen) {
+  return sets.map(s => ({
     name: s.name,
     title: presetTitle(s.name) || s.title,
     count: s.stickers.length,
@@ -200,30 +204,78 @@ export async function stickerFile(env, bucket, id, { set = null, thumb = false, 
   }
   const pack = set && allowedName(env, set)
   const st = findSticker(await readSets(env, bucket, pack ? [pack] : setNames(env)), id)
-  if (!st) return null
-  let key, fileId
-  if (anim) {
-    if (st.kind !== 'animated') return null
-    key = `stickers/${id}.json`
-    fileId = st.file
-  } else if (thumb || st.kind === 'animated') {
-    if (!st.thumb) {
-      if (st.kind !== 'static') return null
-      key = `stickers/${id}.webp`
-      fileId = st.file
-    } else {
-      key = `stickers/${id}.thumb`
-      fileId = st.thumb
+  const file = st && fileFor(st, { thumb, anim })
+  if (!file) return null
+  await fetchOnce(env, bucket, file)
+  return bucket.get(file.key, opts)
+}
+
+// Where one of a sticker's files is kept, and which Telegram file it is.
+// Plain: the picture (or, for an animated sticker, its still); thumb: the
+// still; anim: an animated sticker's Lottie. Null when there is no such file.
+function fileFor(st, { thumb = false, anim = false } = {}) {
+  if (anim) return st.kind === 'animated' ? { key: `stickers/${st.id}.json`, fileId: st.file, anim: true } : null
+  if (thumb || st.kind === 'animated') {
+    if (st.thumb) return { key: `stickers/${st.id}.thumb`, fileId: st.thumb }
+    return st.kind === 'static' ? { key: `stickers/${st.id}.webp`, fileId: st.file } : null
+  }
+  return { key: `stickers/${st.id}.${st.kind === 'video' ? 'webm' : 'webp'}`, fileId: st.file }
+}
+
+// Readers asking at once share one trip to Telegram.
+function fetchOnce(env, bucket, file) {
+  if (!inflight.has(file.key)) {
+    inflight.set(file.key, fetchInto(env, bucket, file.key, file.fileId, file.anim).finally(() => inflight.delete(file.key)))
+  }
+  return inflight.get(file.key)
+}
+
+const warming = new Map()
+
+/**
+ * Fetch packs' files ahead of time, a few at a time: what the panel shows
+ * (the picture, or a moving sticker's still) and what plays (an animated
+ * sticker's Lottie, a video sticker's video). covers: only each pack's first
+ * sticker (the add list). Files already kept are skipped; a pack done in full
+ * is marked and not looked at again until it changes, and one with failures
+ * is tried again after a few hours.
+ */
+export function warmSets(env, bucket, sets, { covers = false, now = Date.now() } = {}) {
+  return Promise.all(sets.map(set => {
+    const key = `stickers/warm/${fold(set.name)}${covers ? '.cover' : ''}`
+    if (!warming.has(key)) {
+      warming.set(key, warmSet(env, bucket, set, key, covers ? set.stickers.slice(0, 1) : set.stickers, now)
+        .catch(err => console.warn('stickers warm', set.name, err.message))
+        .finally(() => warming.delete(key)))
     }
-  } else {
-    key = `stickers/${id}.${st.kind === 'video' ? 'webm' : 'webp'}`
-    fileId = st.file
+    return warming.get(key)
+  }))
+}
+
+async function warmSet(env, bucket, set, key, stickers, now) {
+  const sig = stickers.map(st => st.id).join(',')
+  const kept = await bucket.get(key)
+  const mark = kept ? await kept.json().catch(() => null) : null
+  if (mark?.sig === sig && (!mark.failed || now - mark.at < SET_TTL)) return
+  const files = stickers.flatMap(st => [fileFor(st), fileFor(st, { anim: st.kind === 'animated', thumb: st.kind === 'video' })])
+  const queue = [...new Map(files.filter(Boolean).map(f => [f.key, f])).values()]
+  let failed = 0
+  const worker = async () => {
+    // Telegram turning us away three times: stop, and try again later.
+    while (queue.length && failed < 3) {
+      const file = queue.shift()
+      if (await bucket.head(file.key)) continue
+      try {
+        await fetchOnce(env, bucket, file)
+      } catch (err) {
+        failed++
+        console.warn('stickers warm', file.key, err.message)
+      }
+    }
   }
-  if (!inflight.has(key)) {
-    inflight.set(key, fetchInto(env, bucket, key, fileId, anim).finally(() => inflight.delete(key)))
-  }
-  await inflight.get(key)
-  return bucket.get(key, opts)
+  await Promise.all(Array.from({ length: WARM_AT_ONCE }, worker))
+  failed += queue.length
+  await bucket.put(key, JSON.stringify({ at: now, sig, failed }), { httpMetadata: { contentType: 'application/json' } })
 }
 
 /** The Content-Range of a part of a file, or null for the whole of it. */

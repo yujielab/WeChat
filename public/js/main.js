@@ -13,6 +13,7 @@ import { renderAuth } from './views/auth.js'
 import { createShell } from './views/shell.js'
 import { createCalls } from './views/call.js'
 import { syncPush } from './ui/push.js'
+import { prewarmStickers } from './views/stickers.js'
 import { toast, closeAllOverlays } from './views/overlay.js'
 
 const app = document.getElementById('app')
@@ -119,6 +120,8 @@ async function refresh() {
     pushSynced = true
     syncPush(state.vapid)
   }
+  // Stickers ready before anyone opens the panel (once per launch, when idle).
+  if (state.stickers) prewarmStickers()
 }
 let pushSynced = false
 

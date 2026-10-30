@@ -743,13 +743,20 @@
    A sticker stands on its own; its still picture (or emoji) holds its place
    until it plays, and for good with reduced motion. */
 .bubble.sticker, .m.out .bubble.sticker { background: none; box-shadow: none; padding: 0; border-radius: 0; }
-.stk { display: block; width: 128px; height: 128px; object-fit: contain; }
+/* A sticker is a box of its size: its emoji, its picture once decoded, and a
+   video sticker's video once playing (or the Lottie drawing once loaded). */
+.stk { position: relative; display: block; width: 128px; height: 128px; }
 .stk.grid { width: 64px; height: 64px; }
-.stk.lot { position: relative; }
-.stk.lot > img, .stk.lot > .stk-fb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.stk.lot.on > img, .stk.lot.on > .stk-fb { display: none; }
-.stk-fb { display: grid; place-items: center; font-style: normal; font-size: 64px; line-height: 1; }
-.stk.grid .stk-fb, .stk.grid.stk-fb { font-size: 34px; }
+.stk > .stk-pic, .stk > video, .stk > svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.stk > .stk-pic, .stk > video { opacity: 0; transition: opacity 140ms ease-out; }
+.stk.ready > .stk-pic, .stk.playing > video { opacity: 1; }
+.stk.instant > .stk-pic { transition: none; }
+.stk.playing > .stk-pic, .stk.lot.on > .stk-pic { visibility: hidden; }
+/* The emoji stands in only once the picture has taken a moment. */
+.stk-fb { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 64px; line-height: 1; visibility: hidden; }
+.stk.waiting:not(.ready):not(.playing) > .stk-fb { visibility: visible; }
+.stk-fb:empty { inset: 16%; border-radius: 30%; background: var(--field); }
+.stk.grid .stk-fb { font-size: 34px; }
 .stk-panel { padding: 0 16px 8px; }
 .stk-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 12px; }
 .stk-tabs::-webkit-scrollbar { display: none; }
@@ -769,7 +776,7 @@
 .stk-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 6px 0; }
 .stk-row + .stk-row { border-top: 0.5px solid var(--separator); }
 .stk.row { flex: none; width: 48px; height: 48px; }
-.stk.row .stk-fb, .stk.row.stk-fb { font-size: 28px; }
+.stk.row .stk-fb { font-size: 28px; }
 .stk-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .stk-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-body); color: var(--label); }
 .stk-row-sub { font-size: var(--t-footnote); color: var(--label-2); }
@@ -779,3 +786,13 @@
 .stk-add.added { background: var(--field); color: var(--label); font-weight: var(--w-regular); }
 .stk-add:disabled { opacity: 0.5; }
 .stk-add:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+/* While the panel's contents are on their way, their shape stands in. */
+.skel { pointer-events: none; }
+.skel-bar, .skel-blob { display: block; background: var(--separator); opacity: 0.5; }
+.skel-bar { height: 12px; border-radius: 6px; }
+.stk-tab.skel { display: grid; place-items: center; background: var(--field); }
+.stk-tab.skel .skel-bar { height: 10px; }
+.skel-blob { width: 58%; aspect-ratio: 1; border-radius: 30%; }
+.stk.row .skel-blob { width: 100%; }
+.stk-row.skel .stk-row-text { gap: 8px; }
+.skel-bar.short { height: 10px; }
