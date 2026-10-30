@@ -57,6 +57,35 @@ function withReaction(groups = [], uid, emoji) {
 const sameRun = (a, b) =>
   a && b && !isSys(a) && !isSys(b) && a.out === b.out && a.from === b.from && b.ts - a.ts < RUN_GAP
 
+// The bubble as it is on screen, to lift above the blur. A plain copy would
+// lose what it takes from the conversation around it (its row, side and
+// column) and could size or wrap differently; so each element's computed
+// look is written onto its copy, and the copy keeps the bubble's box.
+const FROZEN = [
+  'font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing', 'word-spacing',
+  'text-align', 'text-decoration-line', 'white-space', 'overflow-wrap', 'word-break', 'color',
+  'background-color', 'background-image', 'opacity', 'display', 'flex-direction', 'flex-wrap', 'align-items',
+  'justify-content', 'gap', 'border-top-left-radius', 'border-top-right-radius', 'border-bottom-left-radius',
+  'border-bottom-right-radius', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'object-fit'
+]
+function liftedCopy(bubble, width, height) {
+  const copy = bubble.cloneNode(true)
+  const from = [bubble, ...bubble.querySelectorAll('*')]
+  const to = [copy, ...copy.querySelectorAll('*')]
+  from.forEach((el, i) => {
+    const cs = getComputedStyle(el)
+    for (const p of FROZEN) to[i].style.setProperty(p, cs.getPropertyValue(p))
+    // Blocks inside keep their laid-out size too (photos, cards).
+    if (i && el instanceof HTMLElement && cs.display !== 'inline') {
+      to[i].style.width = `${el.offsetWidth}px`
+      to[i].style.height = `${el.offsetHeight}px`
+    }
+  })
+  copy.classList.remove('is-pressed', 'tail')
+  Object.assign(copy.style, { boxSizing: 'border-box', width: `${width}px`, height: `${height}px`, maxWidth: 'none', margin: '0', transform: 'none', visibility: 'visible' })
+  return copy
+}
+
 export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend }) {
   pane.classList.add('pane-thread')
   let current = null
@@ -997,7 +1026,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         suppressClick = true
         cancelPress()
         haptic()
-        messageMenu(node, m)
+        messageMenu(node, m, { touch: true })
       }, 460)
     }
   }, { passive: true })
@@ -1019,29 +1048,35 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (!m) return
     e.preventDefault()
     cancelLong()
-    messageMenu(node, m)
+    // From the keyboard (the menu key) the first action takes focus.
+    messageMenu(node, m, { touch: e.button === 2 || e.pointerType === 'mouse' || e.pointerType === 'touch' })
   })
 
-  function messageMenu(node, m) {
+  // Long-press: the conversation blurs away, the message lifts out as it is
+  // (same size, same lines), the reactions stand above it and the actions in
+  // a card below it, all moved just enough to fit the screen.
+  function messageMenu(node, m, { touch = false } = {}) {
     const bub = node.querySelector('.bubble')
     if (!bub) return
     const layer = document.getElementById('overlays')
     const origin = layer.getBoundingClientRect()
-    const rect = bub.getBoundingClientRect()
+    // The bubble may still be easing back from its press: its box, not its
+    // drawn (scaled) rect, is its size; the drawn centre is still its centre.
+    const drawn = bub.getBoundingClientRect()
+    const w = bub.offsetWidth
+    const ht = bub.offsetHeight
+    const x = drawn.left + (drawn.width - w) / 2 - origin.left
+    const y = drawn.top + (drawn.height - ht) / 2 - origin.top
+    const rect = new DOMRect(x + origin.left, y + origin.top, w, ht)
     const backdrop = h('div', { class: 'ctx-backdrop' })
-    const clone = bub.cloneNode(true)
-    clone.classList.remove('is-pressed', 'tail')
     const preview = h('div', {
-      class: ['ctx-preview', 'm', m.out ? 'out' : 'in'],
+      class: ['ctx-preview', m.out ? 'out' : 'in'],
       'aria-hidden': 'true', inert: true,
-      style: { left: `${rect.left - origin.left}px`, top: `${rect.top - origin.top}px`, width: `${Math.ceil(rect.width) + 1}px`, padding: '0' }
-    }, clone)
+      style: { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${ht}px` }
+    }, liftedCopy(bub, w, ht))
     layer.append(backdrop, preview)
     bub.style.visibility = 'hidden'
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      backdrop.classList.add('on')
-      if (!reducedMotion()) preview.style.transform = 'scale(1.03)'
-    }))
+    requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('on')))
 
     const items = []
     const main = []
@@ -1077,7 +1112,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         b.addEventListener('click', () => choose(() => react(m, emoji)))
         return b
       })
-      const row = h('div', { class: 'menu-reactions', role: 'group', 'aria-label': '回应' }, buttons)
+      const row = h('div', { class: 'menu-reactions ctx-reactions glass', role: 'group', 'aria-label': '回应' }, buttons)
       row.addEventListener('keydown', e => {
         if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
         e.preventDefault()
@@ -1088,8 +1123,34 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       return row
     } : null
 
+    // Where everything goes: the message stays put when it all fits, and
+    // otherwise moves just enough (a very tall one shows its top, cut to fit).
+    const GAP = 12
+    const RAISE = 8
+    const place = ({ width: mw, height: mh, frame }) => {
+      const bar = layer.querySelector('.ctx-reactions')
+      const above = bar ? bar.offsetHeight + RAISE : 0
+      const shown = Math.max(44, Math.min(ht, frame.bottom - frame.top - above - GAP - mh))
+      const top = Math.max(frame.top + above, Math.min(y, frame.bottom - mh - GAP - shown))
+      preview.style.height = `${shown}px`
+      preview.classList.toggle('cut', shown < ht)
+      preview.style.transform = `translateY(${Math.round(top - y)}px)`
+      // Everything lines up with the message's own side.
+      const side = (width, at) => Math.max(frame.left, Math.min(m.out ? at + w - width : at, frame.right - width))
+      if (bar) {
+        bar.style.left = `${Math.round(side(bar.offsetWidth, x))}px`
+        bar.style.top = `${Math.round(top - above)}px`
+        bar.style.setProperty('--ox', m.out ? '100%' : '0%')
+      }
+      return { left: side(mw, x), top: top + shown + GAP, originX: m.out ? mw : 0 }
+    }
+
     openMenu(rect, items, {
       header,
+      apart: true,
+      place,
+      variant: 'ctx-menu',
+      focusFirst: !touch,
       onClose: () => {
         backdrop.classList.remove('on')
         preview.style.transform = ''

@@ -30,7 +30,7 @@ assert.equal(await a.locator('.photo-stack').count(),1)
 // The album carries its sender on the cover's corner and a count below (sketch 1).
 assert.equal(await a.locator('.m.has-stack .photo-stack-from').evaluate(el=>el.textContent.startsWith('本 · ')),true);assert.equal(await a.locator('.m.has-stack .m-avatar').isVisible(),false)
 // Reactions: picked from the message menu, seen by the other side, double-tap to love, kept after reloading.
-await b.locator('.m.in .bubble.text:has-text("我在。")').click({button:'right'});await b.locator('.menu.on .menu-reaction').first().waitFor();await sleep(250);await b.locator('.menu-reaction[aria-label="喜欢"]').click()
+await b.locator('.m.in .bubble.text:has-text("我在。")').click({button:'right'});await b.locator('.ctx-reactions.on .menu-reaction').first().waitFor();await sleep(250);await b.locator('.menu-reaction[aria-label="喜欢"]').click()
 await a.locator('.m.out .m-reactions .m-reaction:has-text("❤️")').waitFor()
 const love=a.locator('.m.in .bubble.text:has-text("这几张")');await love.click();await love.click()
 await b.locator('.m.out .m-reactions').waitFor();assert.equal(await a.locator('.m.in .m-reactions.mine').count(),1)
