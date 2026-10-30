@@ -15,19 +15,22 @@ const topmost = () => [...open].at(-1)
 
 // Only the frontmost surface receives keyboard navigation. In particular,
 // Escape from an editor should return to Settings, rather than close both.
-function trapTab(event, surface) {
+function trapTab(event, surface, ...more) {
   if (event.key !== 'Tab') return
-  const targets = [...surface.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')]
+  // One surface, or several that act as one (a menu and its reactions).
+  const surfaces = [...more, surface]
+  const targets = surfaces.flatMap(el => [...el.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')])
     .filter(el => el.getClientRects().length && !el.closest('[hidden], [inert]'))
   const first = targets[0]
   const last = targets.at(-1)
+  const inside = surfaces.some(el => el.contains(document.activeElement))
   if (!first) {
     event.preventDefault()
     surface.focus({ preventScroll: true })
-  } else if (event.shiftKey && (document.activeElement === first || !surface.contains(document.activeElement))) {
+  } else if (event.shiftKey && (document.activeElement === first || !inside)) {
     event.preventDefault()
     last.focus({ preventScroll: true })
-  } else if (!event.shiftKey && (document.activeElement === last || !surface.contains(document.activeElement))) {
+  } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
     event.preventDefault()
     first.focus({ preventScroll: true })
   }
@@ -271,13 +274,23 @@ export function closeAllOverlays() {
  */
 let nextMenuId = 0
 
-export function openMenu(anchor, sections, { title, header, preferAbove = false, onClose } = {}) {
+/**
+ * A menu from an anchor (an element, or a rect). header: a custom first row
+ * (e.g. reactions), built with a function that closes the menu and then runs
+ * its choice; apart: that row stands on its own beside the menu rather than
+ * inside it. place({ width, height, frame }): where the menu goes, for a
+ * caller that lays out more than the menu (the message menu); it returns
+ * { left, top, originX } in the overlay layer's coordinates. variant: an
+ * extra class for the menu's look. focusFirst: false when it was opened by
+ * touch or mouse, so no row starts highlighted (arrow keys still reach them).
+ */
+export function openMenu(anchor, sections, { title, header, apart = false, place, variant, focusFirst = true, preferAbove = false, onClose } = {}) {
   const root = layer()
   const scrim = h('div', { class: 'scrim clear' })
   const safeFrame = h('span', { class: 'menu-safe-frame', 'aria-hidden': 'true', inert: true })
   const highlight = h('span', { class: 'menu-highlight', 'aria-hidden': 'true' })
   const menu = h('div', {
-    class: 'menu glass glass-thick', role: 'menu', tabindex: '-1',
+    class: ['menu', 'glass', 'glass-thick', variant], role: 'menu', tabindex: '-1',
     id: `duo-menu-${++nextMenuId}`, 'aria-label': title || '操作'
   }, highlight)
   const prevFocus = document.activeElement
@@ -290,11 +303,13 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
   if (title) menu.append(h('div', { class: 'menu-title' }, title))
   const ctl = { el: menu, closed: false, close }
   // A custom first row (e.g. reactions) closes the menu like an item does.
-  if (header) menu.append(header(async run => {
+  const headerEl = header ? header(async run => {
     if (ctl.closed) return
     await close(false)
     try { run?.() } finally { onClose?.() }
-  }))
+  }) : null
+  const aside = apart ? headerEl : null
+  if (headerEl && !aside) menu.append(headerEl)
   const choices = []
   let active = null
   let placementFrame = 0
@@ -328,7 +343,8 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
     }
   })
   menu.style.visibility = 'hidden'
-  root.append(scrim, safeFrame, menu)
+  if (aside) aside.style.visibility = 'hidden'
+  root.append(scrim, safeFrame, ...(aside ? [aside] : []), menu)
   placeOnSide(safeFrame, foldSide(trigger))
   open.add(ctl)
 
@@ -383,6 +399,16 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
     menu.style.maxWidth = `${Math.max(0, bounds.width)}px`
     menu.style.maxHeight = `${Math.max(0, bounds.height)}px`
     const mw = menu.offsetWidth, mh = menu.offsetHeight
+    if (place) {
+      const p = place({ width: mw, height: mh, frame: { left: minX, top: minY, right: maxX, bottom: maxY } })
+      menu.style.setProperty('--ox', `${p.originX ?? mw / 2}px`)
+      menu.style.setProperty('--oy', '0px')
+      menu.style.setProperty('--menu-lift', '-4px')
+      menu.style.left = `${Math.round(p.left)}px`
+      menu.style.top = `${Math.round(p.top)}px`
+      placeHighlight()
+      return
+    }
     const anchorCenter = r.x + r.w / 2
     // From a bar at the foot of a column, the menu grows upward out of it.
     const up = preferAbove || Boolean(trigger?.closest('.list-bottombar, .composer, .side-bottombar, .art-bottombar'))
@@ -404,11 +430,13 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
   }
   positionMenu()
   menu.style.visibility = ''
+  if (aside) aside.style.visibility = ''
   if (!ctl.closed) {
     resizeObserver = new ResizeObserver(schedulePosition)
     resizeObserver.observe(root)
     resizeObserver.observe(safeFrame)
     resizeObserver.observe(menu)
+    if (aside) resizeObserver.observe(aside)
     window.addEventListener('resize', schedulePosition)
     window.visualViewport?.addEventListener('resize', schedulePosition)
     window.visualViewport?.addEventListener('scroll', schedulePosition)
@@ -418,7 +446,8 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
   nextFrame().then(() => {
     if (ctl.closed) return
     menu.classList.add('on')
-    ;(choices[0] || menu).focus({ preventScroll: true })
+    aside?.classList.add('on')
+    ;((focusFirst && choices[0]) || menu).focus({ preventScroll: true })
   })
 
   function close(notify = true) {
@@ -433,6 +462,7 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
     window.visualViewport?.removeEventListener('resize', schedulePosition)
     window.visualViewport?.removeEventListener('scroll', schedulePosition)
     menu.classList.remove('on')
+    aside?.classList.remove('on')
     // Release ownership before waiting, so an older menu cannot clear the
     // expanded state of a newer menu opened from the same button.
     if (trigger?.isConnected) {
@@ -444,6 +474,7 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
     closing = (async () => {
       if (!reducedMotion()) await transitionEnd(menu, 'opacity', 220)
       menu.remove()
+      aside?.remove()
       scrim.remove()
       safeFrame.remove()
       open.delete(ctl)
@@ -465,7 +496,7 @@ export function openMenu(anchor, sections, { title, header, preferAbove = false,
       const next = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1 : current < 0 ? (e.key === 'ArrowUp' ? choices.length - 1 : 0) : (current + (e.key === 'ArrowUp' ? -1 : 1) + choices.length) % choices.length
       focusChoice(choices[next])
     } else if (e.key === 'Tab') {
-      trapTab(e, menu)
+      trapTab(e, menu, ...(aside ? [aside] : []))
     } else if (!e.isComposing && e.key.length === 1 && e.key.trim() && !e.ctrlKey && !e.metaKey && !e.altKey) {
       const now = performance.now()
       typed = now - typedAt > 650 ? e.key.toLocaleLowerCase() : typed + e.key.toLocaleLowerCase()
