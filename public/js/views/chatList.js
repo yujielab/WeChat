@@ -219,28 +219,32 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       h('div', { class: 'row-main' },
         h('div', { class: 'row-top' }, r.name, r.flag, h('span', { class: 'grow' }), r.time, h('span', { class: 'row-chevron' }, icon('chevron-right'))),
         h('div', { class: 'row-bottom' }, r.preview, r.unread)))
-    r.readBtn = h('button', { class: 'row-action blue', type: 'button' })
-    r.pinBtn = h('button', { class: 'row-action yellow', type: 'button' })
-    r.hideBtn = h('button', { class: 'row-action red', type: 'button' }, icon('trash'), '删除')
-    const li = h('li', { class: 'row', dataset: { id: c.id } },
-      h('div', { class: 'row-actions left' }, r.readBtn, r.pinBtn),
-      h('div', { class: 'row-actions right' }, r.hideBtn),
-      r.inner)
+    r.hideBtn = h('button', { class: 'row-action', type: 'button', tabindex: '-1' }, h('span', { class: 'row-action-label' }, icon('trash'), '删除'))
+    r.actions = h('div', { class: 'row-actions' }, r.hideBtn)
+    const li = h('li', { class: 'row', dataset: { id: c.id } }, r.actions, r.inner)
     li._r = r
     r.inner.addEventListener('click', () => {
-      if (li._swiped) return
+      // A tap that closed an open row, the end of a swipe or of a hold, opens nothing.
+      const why = li._suppress
+      li._suppress = null
+      if (why === 'close') return settle(li, 0)
+      if (why) return
+      closeSwipe()
       onOpen(li.dataset.id)
     })
     r.inner.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
+        closeSwipe()
         onOpen(li.dataset.id)
       }
     })
-    r.readBtn.addEventListener('click', () => actRead(li.dataset.id))
-    r.pinBtn.addEventListener('click', () => actPin(li.dataset.id))
-    r.hideBtn.addEventListener('click', () => actHide(li.dataset.id))
-    attachSwipe(li)
+    r.hideBtn.addEventListener('click', () => {
+      if (li._deleting) return
+      li._deleting = true
+      actHide(li.dataset.id)
+    })
+    attachSwipe(li, holdToOpen(r.inner, (at, how) => rowMenu(li, at, how), li))
     return li
   }
 
@@ -274,17 +278,15 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     r.unread.textContent = c.unread > 99 ? '99+' : String(c.unread || '')
     r.inner.setAttribute('aria-label', label(c))
     r.inner.setAttribute('aria-current', c.id === selected ? 'true' : 'false')
-    r.readBtn.replaceChildren(icon(c.unread ? 'check' : 'unread'), c.unread ? '已读' : '未读')
-    r.pinBtn.replaceChildren(icon(c.pinned ? 'pin-slash' : 'pin'), c.pinned ? '取消置顶' : '置顶')
   }
 
   function buildPin(c) {
     const b = h('button', { class: 'pin', type: 'button', role: 'listitem', dataset: { id: c.id } })
-    b.addEventListener('click', () => onOpen(b.dataset.id))
-    b.addEventListener('contextmenu', e => {
-      e.preventDefault()
-      pinMenu(b, b.dataset.id)
+    b.addEventListener('click', () => {
+      if (b._suppress) { b._suppress = null; return }
+      onOpen(b.dataset.id)
     })
+    holdToOpen(b, (at, how) => rowMenu(b, at, how))
     return b
   }
 
@@ -301,18 +303,73 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     if (badge) b.append(badge)
   }
 
-  function pinMenu(anchor, id) {
+  // ------------------------------------------------------------ hold for a menu
+  // Holding a conversation (a row or a pinned one) opens what can be done
+  // with it — what used to hide behind a swipe to the right. So does a right
+  // click, or the menu key on a focused row.
+  const HOLD_MS = 460
+  /** owner: what keeps the hold's state (the row, for a row's content). */
+  function holdToOpen(el, open, owner = el) {
+    let t = null
+    const cancel = () => {
+      if (!t) return
+      clearTimeout(t.timer)
+      t = null
+    }
+    el.addEventListener('pointerdown', e => {
+      cancel()
+      owner._held = false
+      // A mouse has its right button; holding it down is still a click.
+      if (e.button > 0 || e.pointerType === 'mouse') return
+      t = {
+        id: e.pointerId, x: e.clientX, y: e.clientY,
+        timer: setTimeout(() => {
+          t = null
+          owner._held = true
+          owner._suppress = 'hold'
+          cancelPress()
+          haptic()
+          open(el, { touch: true })
+        }, HOLD_MS)
+      }
+    })
+    el.addEventListener('pointermove', e => {
+      if (t && e.pointerId === t.id && Math.hypot(e.clientX - t.x, e.clientY - t.y) > 8) cancel()
+    })
+    el.addEventListener('pointerup', cancel)
+    el.addEventListener('pointercancel', cancel)
+    el.addEventListener('contextmenu', e => {
+      e.preventDefault()
+      // A touch held this long already opened it (some browsers then send
+      // a contextmenu of their own).
+      if (owner._held) return
+      cancel()
+      const keyboard = e.button !== 2 && !e.pointerType
+      open(keyboard ? el : { x: e.clientX, y: e.clientY, w: 0, h: 0 }, { touch: !keyboard })
+    })
+    return { cancel }
+  }
+
+  function rowMenu(el, at, { touch = false } = {}) {
+    const id = el.dataset.id
     const c = state.chats.get(id)
     if (!c) return
-    openMenu(anchor, [[
-      { label: '取消置顶', icon: 'pin-slash', onSelect: () => actPin(id) },
-      { label: c.unread ? '标为已读' : '标为未读', icon: c.unread ? 'check' : 'unread', onSelect: () => actRead(id) }
-    ]])
+    if (openSwipe) closeSwipe()
+    el.classList.add('menu-open')
+    openMenu(at, [
+      [
+        { label: c.unread ? '标为已读' : '标为未读', icon: c.unread ? 'check' : 'unread', onSelect: () => actRead(id) },
+        { label: c.pinned ? '取消置顶' : '置顶', icon: c.pinned ? 'pin-slash' : 'pin', onSelect: () => actPin(id) },
+        { label: c.muted ? '取消免打扰' : '消息免打扰', icon: c.muted ? 'bell' : 'bell-slash', onSelect: () => actMute(id) }
+      ],
+      [{ label: '删除聊天', icon: 'trash', destructive: true, onSelect: () => actHide(id) }]
+    ], { title: c.name, focusFirst: !touch, onClose: () => el.classList.remove('menu-open') })
   }
 
   // ------------------------------------------------------------ render
   function render() {
     updateFilters()
+    if (openSwipe && !openSwipe.isConnected) openSwipe = null
     if (searching) return renderResults()
     const filter = FILTERS[state.filter] || FILTERS.all
     const all = sortedChats().filter(filter.test)
@@ -452,138 +509,203 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
             h('span', { class: 'sk sk-line', style: { width: `${b}%` } }))))))
   }
 
-  // ------------------------------------------------------------ swipe actions
-  function closeSwipe(except) {
-    if (openSwipe && openSwipe !== except) {
-      const li = openSwipe
-      openSwipe = null
-      settle(li, 0, 0)
-    }
+  // ------------------------------------------------------------ swipe to delete
+  // A row swipes to the left to show Delete; let go past the middle of the
+  // row and it is deleted at once. Nothing hides on the other side, so a
+  // swipe to the right on a closed row is left to the column (Back).
+  // The row follows the finger and settles from wherever it is, with the
+  // finger's speed, so a touch catches it mid-flight. Anything else — a tap
+  // on it or elsewhere, a scroll, another row, Escape, the app losing focus
+  // — puts an open row back; a gesture the system takes over settles where
+  // the row is and never deletes.
+  const ACTION_W = 78
+  const fullAt = li => li.offsetWidth * 0.55
+  let drag = null // the row under the finger: { li, cancel }
+
+  function place(li, x) {
+    li._x = x
+    li._r.inner.style.transform = x ? `translate3d(${x}px,0,0)` : ''
+    // Delete is only as wide as what's uncovered, so none of it shows
+    // around the row's rounded corners.
+    li._r.actions.style.width = x < 0 ? `${-x}px` : '0px'
+    li.classList.toggle('swiping', x !== 0 || drag?.li === li)
+    li.classList.toggle('full', x < -fullAt(li))
   }
 
-  function settle(li, target, velocity) {
-    const inner = li._r.inner
-    const from = li._x || 0
+  function settle(li, target, velocity = 0) {
     li._anim?.stop()
+    if (target === 0 && openSwipe === li) openSwipe = null
+    if (target !== 0) {
+      closeSwipe(li)
+      openSwipe = li
+    }
     li._anim = spring({
-      from,
+      from: li._x || 0,
       to: target,
       velocity,
-      damping: target === 0 ? 1 : 0.86,
-      response: 0.32,
-      onUpdate: x => {
-        li._x = x
-        inner.style.transform = x ? `translate3d(${x}px,0,0)` : ''
-      }
+      damping: target === 0 || target < -ACTION_W ? 1 : 0.86,
+      response: target === 0 ? 0.3 : 0.32,
+      onUpdate: x => place(li, x)
     })
-    if (target !== 0) openSwipe = li
-    else li._anim.done.then(done => { if (done && !li._x) li.classList.remove('swiping') })
+    return li._anim.done
   }
 
-  function attachSwipe(li) {
+  function closeSwipe(except) {
+    if (openSwipe && openSwipe !== except) settle(openSwipe, 0)
+  }
+
+  function attachSwipe(li, hold) {
     const inner = li._r.inner
     inner.style.touchAction = 'pan-y'
     let g = null
     inner.addEventListener('pointerdown', e => {
-      if (e.button > 0) return
+      if (e.button > 0 || li._deleting || g) return
+      // A touch while another row is open only puts that one back.
+      const other = Boolean(openSwipe && openSwipe !== li)
       closeSwipe(li)
       li._anim?.stop()
-      g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, start: li._x || 0, active: false, vt: velocityTracker(), crossed: false }
-      li._swiped = false
+      const start = li._x || 0
+      g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, start, active: false, vt: velocityTracker(), crossed: start < -fullAt(li) }
+      li._suppress = other ? 'other' : start !== 0 ? 'close' : null
     })
     inner.addEventListener('pointermove', e => {
       if (!g || e.pointerId !== g.id) return
-      const dx = e.clientX - g.x0
+      let dx = e.clientX - g.x0
       const dy = e.clientY - g.y0
       if (!g.active) {
         if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+          // A scroll: an open row goes back.
+          if (g.start) settle(li, 0)
           g = null
           return
         }
         if (Math.abs(dx) < 10) return
+        if (dx > 0 && g.start === 0) {
+          g = null
+          return
+        }
         g.active = true
-        li._swiped = true
-        li.classList.add('swiping')
+        // Follow from here, without a jump of the slop.
+        g.x0 += Math.sign(dx) * 10
+        dx = e.clientX - g.x0
+        hold.cancel()
         cancelPress()
+        li._suppress = 'swipe'
+        drag = { li, cancel: () => finish(e, true) }
         try { inner.setPointerCapture(e.pointerId) } catch {}
       }
       g.vt.add(e.clientX, 0)
-      const leftW = 156
-      const rightW = li.offsetWidth * 0.9
+      const w = li.offsetWidth
       let x = g.start + dx
-      if (x > leftW) x = leftW + rubberband(x - leftW, li.offsetWidth)
-      if (x < -rightW) x = -rightW + rubberband(x + rightW, li.offsetWidth)
-      li._x = x
-      inner.style.transform = `translate3d(${x}px,0,0)`
-      const full = x < -li.offsetWidth * 0.55
+      if (x > 0) x = rubberband(x, w, 0.3)
+      if (x < -w * 0.9) x = -w * 0.9 + rubberband(x + w * 0.9, w)
+      place(li, x)
+      const full = x < -fullAt(li)
       if (full !== g.crossed) {
         g.crossed = full
         haptic()
       }
     })
-    const end = e => {
-      if (!g || e.pointerId !== g.id) return
+    function finish(e, cancelled) {
+      if (!g || (e.pointerId !== undefined && e.pointerId !== g.id)) return
       const was = g
       g = null
-      if (!was.active) return
-      setTimeout(() => { li._swiped = false }, 50)
-      const v = was.vt.velocity().x
-      const x = li._x || 0
-      const p = x + project(v)
-      if (x < -li.offsetWidth * 0.55) {
-        settle(li, -li.offsetWidth, v)
-        actHide(li.dataset.id)
+      if (drag?.li === li) drag = null
+      if (!was.active) {
+        // Caught mid-flight and let go where it was: on to the nearer rest.
+        if (was.start !== 0 && was.start !== -ACTION_W && !li._deleting) settle(li, was.start < -ACTION_W / 2 ? -ACTION_W : 0)
         return
       }
-      if (p > 100) settle(li, 156, v)
-      else if (p < -60) settle(li, -78, v)
-      else settle(li, 0, v)
+      try { inner.releasePointerCapture(was.id) } catch {}
+      const x = li._x || 0
+      const v = cancelled ? 0 : was.vt.velocity().x
+      if (!cancelled && x < -fullAt(li)) {
+        li._deleting = true
+        // Delete fills the row as it goes, then the row folds away.
+        settle(li, -li.offsetWidth, v).then(() => actHide(li.dataset.id, { swiped: true }))
+        return
+      }
+      const p = x + project(v)
+      settle(li, p < -ACTION_W / 2 ? -ACTION_W : 0, v)
     }
-    inner.addEventListener('pointerup', end)
-    inner.addEventListener('pointercancel', end)
+    inner.addEventListener('pointerup', e => finish(e, false))
+    inner.addEventListener('pointercancel', e => finish(e, true))
+    // Only the row's own capture: taking it over from the text under the
+    // finger makes that text lose its (and the event bubbles up here).
+    inner.addEventListener('lostpointercapture', e => { if (e.target === inner) finish(e, true) })
   }
 
+  // Outside the open row, any touch puts it back; so does Escape, and the app
+  // going to the background mid-swipe lets the row settle.
+  // (A touch on another row is that row's to handle: it only closes this one.)
+  document.addEventListener('pointerdown', e => {
+    if (openSwipe && !openSwipe.contains(e.target) && !rows.contains(e.target)) closeSwipe()
+  }, true)
+  pane.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && openSwipe) {
+      e.stopPropagation()
+      closeSwipe()
+    }
+  })
+  const letGo = () => drag?.cancel()
+  window.addEventListener('blur', letGo)
+  document.addEventListener('visibilitychange', letGo)
+
   async function actRead(id) {
-    closeSwipe()
     const c = state.chats.get(id)
-    if (!c || !c.unread) return
-    patchRoom(id, { unread: 0 })
+    if (!c) return
+    // Read: up to now. Unread: marked by hand, until it's read or something new comes.
+    const marking = !c.unread
+    patchRoom(id, marking ? { unread: 1, marked: true } : { unread: 0, marked: false })
     try {
-      await api.post(`/api/room/${id}/read`, { ts: Date.now() })
+      if (marking) await api.post(`/api/room/${id}/flags`, { unread: 1 })
+      else await api.post(`/api/room/${id}/read`, { ts: Date.now() })
     } catch (err) {
+      patchRoom(id, { unread: c.unread, marked: c.marked })
       toast(err.message, { type: 'error' })
     }
   }
 
   async function actPin(id) {
-    closeSwipe()
+    await setFlag(id, 'pinned')
+  }
+
+  async function actMute(id) {
+    await setFlag(id, 'muted')
+  }
+
+  async function setFlag(id, name) {
     const c = state.chats.get(id)
     if (!c) return
-    const on = !c.pinned
-    patchRoom(id, { pinned: on })
+    const on = !c[name]
+    patchRoom(id, { [name]: on })
     try {
-      await api.post(`/api/room/${id}/flags`, { pinned: on ? 1 : 0 })
+      await api.post(`/api/room/${id}/flags`, { [name]: on ? 1 : 0 })
     } catch (err) {
-      patchRoom(id, { pinned: !on })
+      patchRoom(id, { [name]: !on })
       toast(err.message, { type: 'error' })
     }
   }
 
-  async function actHide(id) {
-    openSwipe = null
+  async function actHide(id, { swiped = false } = {}) {
     const el = rowEls.get(id)
-    state.chats.delete(id)
+    if (el && openSwipe === el) openSwipe = null
+    // Kept on the server while the row goes.
+    const saved = api.post(`/api/room/${id}/flags`, { hidden: 1 }).then(() => null, err => err)
     if (el && !reducedMotion()) {
-      el.style.transition = 'opacity 180ms ease-out'
-      el.style.opacity = '0'
-      await new Promise(r => setTimeout(r, 180))
+      // The row folds away (swiped, Delete fills it as it goes) and the ones
+      // below close the gap.
+      el._deleting = true
+      el.style.height = `${el.offsetHeight}px`
+      void el.offsetHeight
+      el.classList.add('removing', swiped ? 'swiped' : 'held')
+      el.style.height = '0px'
+      await new Promise(r => setTimeout(r, 240))
     }
-    rowEls.delete(id)
-    el?.remove()
-    render()
-    try {
-      await api.post(`/api/room/${id}/flags`, { hidden: 1 })
-    } catch (err) {
+    patchRoom(id, { hidden: true })
+    const err = await saved
+    if (err) {
+      patchRoom(id, { hidden: false })
       toast(err.message, { type: 'error' })
     }
   }

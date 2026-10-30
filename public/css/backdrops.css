@@ -1,0 +1,129 @@
+/* Backdrops (ui/backdrops.js): behind a conversation, behind a call, and a
+   profile's cover. Each of the app's own has a light and a dark drawing; a
+   photo gets a wash of the theme's paper so bubbles and notes stay
+   readable on it. A call is always dark, so it always takes the dark one. */
+
+.backdrop {
+  --bd: var(--bd-l);
+  --wash-l: rgb(255 255 255 / 0.3);
+  --wash-d: rgb(0 0 0 / 0.42);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--bd, none);
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+.backdrop[data-backdrop]:not([data-backdrop=""]) { opacity: 1; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .backdrop { --bd: var(--bd-d); }
+}
+:root[data-theme="dark"] .backdrop, .call .backdrop { --bd: var(--bd-d); }
+
+.backdrop[data-backdrop="photo"] {
+  --bd-l: linear-gradient(var(--wash-l), var(--wash-l)), var(--photo) center / cover no-repeat;
+  --bd-d: linear-gradient(var(--wash-d), var(--wash-d)), var(--photo) center / cover no-repeat;
+}
+.backdrop[data-backdrop="mist"] {
+  --bd-l: linear-gradient(180deg, #eef2f7, #dde6f0);
+  --bd-d: linear-gradient(180deg, #161b23, #0c1016);
+}
+.backdrop[data-backdrop="dawn"] {
+  --bd-l: linear-gradient(160deg, #ffe4d4, #fbd3de 48%, #e4d9f6);
+  --bd-d: linear-gradient(160deg, #3a2028, #2a1d33 50%, #17182b);
+}
+.backdrop[data-backdrop="mint"] {
+  --bd-l: linear-gradient(165deg, #dcf5ea, #cfeef0 55%, #e6f3fa);
+  --bd-d: linear-gradient(165deg, #0f2a24, #0d2329 55%, #0e1822);
+}
+.backdrop[data-backdrop="sand"] {
+  --bd-l: linear-gradient(170deg, #f7efe3, #eee0cc);
+  --bd-d: linear-gradient(170deg, #2a241b, #1a1611);
+}
+.backdrop[data-backdrop="ocean"] {
+  --bd-l: radial-gradient(120% 80% at 15% 0%, #cfe2ff, transparent 62%), linear-gradient(180deg, #e3eefc, #c9dbf4);
+  --bd-d: radial-gradient(120% 80% at 15% 0%, #1b3a6b, transparent 62%), linear-gradient(180deg, #0c1a30, #060d19);
+}
+.backdrop[data-backdrop="dusk"] {
+  --bd-l: linear-gradient(170deg, #f1dcef, #f8e2d0 60%, #fdf0dd);
+  --bd-d: linear-gradient(170deg, #2b1838, #38201f 60%, #1d140f);
+}
+.backdrop[data-backdrop="dots"] {
+  --bd-l: radial-gradient(circle, rgb(0 0 0 / 0.11) 1.2px, transparent 1.8px) 0 0 / 16px 16px, #f4f4f7;
+  --bd-d: radial-gradient(circle, rgb(255 255 255 / 0.12) 1.2px, transparent 1.8px) 0 0 / 16px 16px, #0b0b0d;
+}
+.backdrop[data-backdrop="night"] {
+  --bd-l: radial-gradient(circle at 30% 30%, rgb(90 80 170 / 0.16) 1px, transparent 1.6px) 0 0 / 46px 46px, radial-gradient(130% 90% at 80% 0%, #e7e4fb, transparent 60%), linear-gradient(180deg, #ebeaf6, #dcdcee);
+  --bd-d: radial-gradient(circle at 30% 30%, rgb(255 255 255 / 0.5) 0.8px, transparent 1.4px) 0 0 / 46px 46px, radial-gradient(circle at 70% 60%, rgb(255 255 255 / 0.3) 0.7px, transparent 1.2px) 0 0 / 71px 71px, radial-gradient(130% 90% at 80% 0%, #1d2350, transparent 60%), linear-gradient(180deg, #0b0f24, #05060f);
+}
+
+/* ---- a conversation: under its messages and its heading (which drops its
+   paper: messages already fade out before they reach it); notes and times
+   get a plate */
+.thread-backdrop { z-index: 0; }
+.thread.has-backdrop .thread-nav { background: transparent; border-bottom-color: transparent; }
+.thread.has-backdrop .ts,
+.thread.has-backdrop .sys {
+  align-self: center;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.thread.has-backdrop .ts { display: block; }
+.thread.has-backdrop .m-meta { text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg); }
+
+/* ---- a call: under the whole screen (its stage and controls are drawn
+   above it), the remote video above it once it comes */
+.call-backdrop { z-index: 0; }
+
+/* ---- a profile's cover: a band across the top of the card */
+.profile.has-cover { position: relative; overflow: hidden; padding-top: 92px; }
+.profile-cover { --wash-l: transparent; --wash-d: rgb(0 0 0 / 0.12); bottom: auto; height: 76px; }
+.profile.has-cover .avatar { position: relative; margin-top: -34px; box-shadow: 0 0 0 3px var(--bg-elevated); }
+.profile.has-cover h3, .profile.has-cover p { position: relative; }
+
+/* Editing it: the cover across the top, the photo over its lower edge. */
+.cover-edit { position: relative; display: block; width: 100%; height: 132px; margin-top: 4px; border-radius: 20px; overflow: hidden; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.cover-edit .backdrop { --wash-l: transparent; --wash-d: rgb(0 0 0 / 0.12); }
+.cover-edit-label { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px; font-size: var(--t-caption); font-weight: var(--w-semibold); color: var(--label); background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.cover-edit-label .icon { width: 14px; height: 14px; }
+.form-sheet .avatar-edit-wrap.over-cover { margin-top: -52px; position: relative; z-index: 1; }
+.over-cover .avatar { box-shadow: 0 0 0 4px var(--bg-elevated); }
+
+/* A backdrop's value in a settings row: a little swatch of it. */
+.bd-swatch { position: relative; flex: none; width: 26px; height: 26px; border-radius: 8px; overflow: hidden; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.bd-swatch .backdrop { --wash-l: transparent; --wash-d: transparent; }
+.cell .bd-value { display: inline-flex; align-items: center; gap: 8px; color: var(--label-2); font-size: var(--t-body); }
+
+/* ---- the picker */
+.bd-picker { padding: 4px 16px 16px; }
+.bd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px 10px; }
+.bd-tile { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+.bd-tile.bd-cover { aspect-ratio: 16 / 9; }
+.bd-tile.bd-call { background: #000; }
+.bd-tile.is-pressed { transform: scale(0.96); }
+.bd-tile[aria-checked="true"] { box-shadow: 0 0 0 2.5px var(--bg-elevated), 0 0 0 4.5px var(--blue); }
+.bd-tile .backdrop { --wash-l: rgb(255 255 255 / 0.2); --wash-d: rgb(0 0 0 / 0.3); }
+.bd-name { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 3px 6px; border-radius: 999px; text-align: center; font-size: var(--t-caption-2); font-weight: var(--w-semibold); color: var(--label); background: color-mix(in srgb, var(--bg) 80%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-sample { position: absolute; inset: 14px 10px 34px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.bd-sample i { display: block; height: 12px; border-radius: 7px; }
+.bd-sample .in { width: 58%; background: var(--bubble-in, var(--field)); }
+.bd-sample .out { width: 50%; align-self: flex-end; background: var(--bubble-out, var(--ink)); }
+.bd-call .bd-sample { align-items: center; }
+.bd-sample .face { width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / 0.85); }
+.bd-add { position: absolute; inset: 0 0 26px; display: grid; place-items: center; color: var(--label-2); }
+.bd-add .icon { width: 26px; height: 26px; }
+.bd-photo[aria-checked="true"] .bd-add { display: none; }
+.bd-photo.loading .bd-add .icon { animation: bd-busy 900ms ease-in-out infinite alternate; }
+@keyframes bd-busy { to { opacity: 0.3; } }
+.bd-photo .bd-sample { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .backdrop { transition: none; }
+}
+:root[data-motion="reduce"] .backdrop { transition: none; }

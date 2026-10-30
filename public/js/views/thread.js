@@ -19,6 +19,8 @@ import { openMenu, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 import { createBars } from '../ui/bars.js'
+import { backdropLayer, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
+import { chatBackdrop } from './backdrops.js'
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -166,7 +168,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   })
 
   const edgeTop = edge('top')
-  const root = h('div', { class: 'thread', hidden: true }, scroller, edgeTop, nav, composer.el, jump)
+  // What was chosen to sit behind this conversation (views/backdrops.js).
+  const backdrop = backdropLayer('', 'thread-backdrop')
+  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, composer.el, jump)
   nav.append(bars.top)
   composer.el.classList.add('dock')
   composer.dock(bars.bottom)
@@ -597,6 +601,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     photoGroups.clear()
     root.hidden = false
     empty.hidden = true
+    applyBackdrop()
     renderHeader()
     composer.setChat(id, { readonly: false })
     composer.setToolShown('sticker', Boolean(state.stickers))
@@ -1291,6 +1296,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   })
 
   on('chats', () => renderHeader())
+  on('prefs', () => applyBackdrop())
+  function applyBackdrop() {
+    if (!current) return
+    const value = chatBackdrop(current)
+    paintBackdrop(backdrop, value)
+    // Notes and times on it get a plate of their own to stay readable.
+    root.classList.toggle('has-backdrop', Boolean(readBackdrop(value)))
+  }
 
   return {
     open,
