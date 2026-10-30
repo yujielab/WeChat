@@ -124,7 +124,7 @@ function videoBubble(m, ctx) {
 function stickerBubble(m) {
   const st = m.meta || {}
   if (!st.id) return textBubble({ ...m, text: st.emoji || '[表情]' })
-  return h('div', { class: 'bubble sticker', dataset: { kind: 'sticker' } }, stickerEl({ id: st.id, kind: st.kind, emoji: st.emoji }, 'msg'))
+  return h('div', { class: 'bubble sticker', dataset: { kind: 'sticker' } }, stickerEl({ id: st.id, kind: st.kind, emoji: st.emoji, set: st.set }, 'msg'))
 }
 
 // A record, not a control: calling back is the heading's job.

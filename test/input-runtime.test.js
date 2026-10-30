@@ -100,12 +100,16 @@ test('names, bios, avatars and bodies from clients are bounded and validated; re
       const bad = await request('/api/messages', { room, type: 'sticker', meta }, session)
       assert.equal(bad.response.status, 400, JSON.stringify(meta))
     }
-    const sticker = await request('/api/messages', { room, type: 'sticker', meta: { id: 'AgADstat', kind: 'animated', emoji: '😀'.repeat(30), url: 'https://evil.example/x' } }, session)
-    assert.deepEqual(sticker.data.msg.meta, { id: 'AgADstat', kind: 'animated', emoji: '😀'.repeat(16) })
+    const sticker = await request('/api/messages', { room, type: 'sticker', meta: { id: 'AgADstat', kind: 'animated', emoji: '😀'.repeat(30), set: 'HandDrawnEmoji', url: 'https://evil.example/x' } }, session)
+    assert.deepEqual(sticker.data.msg.meta, { id: 'AgADstat', kind: 'animated', emoji: '😀'.repeat(16), set: 'HandDrawnEmoji' })
+    const oddSet = await request('/api/messages', { room, type: 'sticker', meta: { id: 'AgADstat', kind: 'static', set: '../packs' } }, session)
+    assert.deepEqual(oddSet.data.msg.meta, { id: 'AgADstat', kind: 'static', emoji: '' }, 'a pack name that is not a name is dropped')
 
-    // Without a bot token the packs are simply empty.
+    // Without a bot token the packs and the add list are simply empty.
     const packs = await request('/api/stickers', undefined, session)
     assert.deepEqual(packs.data.sets, [])
+    assert.deepEqual((await request('/api/stickers/catalog', undefined, session)).data.packs, [])
+    assert.equal((await request('/api/stickers/mine', { add: 'UtyaDuck' }, session)).response.status, 404)
   } finally {
     await mf.dispose()
     await rm(persistence, { recursive: true, force: true })

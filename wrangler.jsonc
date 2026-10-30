@@ -66,6 +66,8 @@
   //     without them the hub generates a key pair once and keeps it
   //   TELEGRAM_BOT_TOKEN   optional — a Telegram bot's token, to read sticker
   //     packs (without it there are no stickers)
-  // Optional plain variable (dashboard, type Text): STICKER_SETS — the packs'
-  // names, comma separated (default HandDrawnEmoji,GameEmoji).
+  // Optional plain variable (dashboard, type Text): STICKER_SETS — the packs a
+  // new account starts with, comma separated (default HandDrawnEmoji,GameEmoji).
+  // Everyone adds or removes packs in the app, from these and the preset
+  // table in src/stickers.js.
 }

@@ -762,3 +762,20 @@
 .stk-cell:active { background: var(--field); transition-duration: var(--press-in); }
 .stk-cell:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
 .stk-empty { margin: 24px 0; text-align: center; color: var(--label-2); }
+.stk-tab-add { display: grid; place-items: center; min-width: 44px; padding: 0 12px; }
+.stk-tab-add .icon { width: 18px; height: 18px; }
+/* The add list: one row per pack, its cover, name and size, then 添加 / 移除. */
+.stk-store { display: flex; flex-direction: column; }
+.stk-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 6px 0; }
+.stk-row + .stk-row { border-top: 0.5px solid var(--separator); }
+.stk.row { flex: none; width: 48px; height: 48px; }
+.stk.row .stk-fb, .stk.row.stk-fb { font-size: 28px; }
+.stk-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.stk-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-body); color: var(--label); }
+.stk-row-sub { font-size: var(--t-footnote); color: var(--label-2); }
+.stk-add { position: relative; flex: none; min-width: 64px; min-height: 32px; padding: 0 14px; border-radius: 16px; background: var(--ink); color: var(--on-ink); font-size: var(--t-subhead); font-weight: var(--w-semibold); transition: opacity var(--press-out) ease-out; }
+/* 44pt to tap, 32pt to see. */
+.stk-add::before { content: ""; position: absolute; inset: -6px 0; }
+.stk-add.added { background: var(--field); color: var(--label); font-weight: var(--w-regular); }
+.stk-add:disabled { opacity: 0.5; }
+.stk-add:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }

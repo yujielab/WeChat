@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { manifest, publicManifest, stickerFile, contentRange, setNames } from '../src/stickers.js'
+import { readSet, readSets, publicSet, catalog, chosenSets, allowedName, allowedSets, stickerFile, contentRange, setNames, PRESETS } from '../src/stickers.js'
 
 // An R2 bucket in memory.
 function bucket() {
@@ -47,7 +47,8 @@ async function withTelegram(fn, { failSets = false } = {}) {
     F_STATIC: ['stickers/a.webp', new Uint8Array([82, 73, 70, 70, 1])],
     F_VIDEO: ['stickers/b.webm', new Uint8Array([26, 69, 223, 163, 2])],
     F_ANIM: ['stickers/c.tgs', await gzip(LOTTIE)],
-    T_ANIM: ['thumbnails/c.webp', new Uint8Array([82, 73, 70, 70, 3])]
+    T_ANIM: ['thumbnails/c.webp', new Uint8Array([82, 73, 70, 70, 3])],
+    F_DUCK: ['stickers/d.tgs', await gzip(LOTTIE)]
   }
   const real = globalThis.fetch
   globalThis.fetch = async (url, init = {}) => {
@@ -56,7 +57,10 @@ async function withTelegram(fn, { failSets = false } = {}) {
     if (u.endsWith('/getStickerSet')) {
       if (failSets) return Response.json({ ok: false, description: 'Too Many Requests' }, { status: 429 })
       const { name } = JSON.parse(init.body)
-      if (name !== 'HandDrawnEmoji') return Response.json({ ok: false, description: 'STICKERSET_INVALID' }, { status: 400 })
+      if (name === 'UtyaDuck') return Response.json({ ok: true, result: { name, title: 'Duck @somechannel', stickers: [
+        { file_id: 'F_DUCK', file_unique_id: 'AgADduck', emoji: '🦆', is_animated: true, is_video: false }
+      ] } })
+      if (name !== 'HandDrawnEmoji') return Response.json({ ok: false, description: 'Bad Request: STICKERSET_INVALID' }, { status: 400 })
       return Response.json({ ok: true, result: { name, title: 'Hand Drawn', stickers: [
         { file_id: 'F_STATIC', file_unique_id: 'AgADstat', emoji: '😀', is_animated: false, is_video: false },
         { file_id: 'F_VIDEO', file_unique_id: 'AgADvide', emoji: '🎉', is_animated: false, is_video: true },
@@ -80,44 +84,76 @@ async function withTelegram(fn, { failSets = false } = {}) {
 }
 
 const env = { TELEGRAM_BOT_TOKEN: '123:secret', STICKER_SETS: 'HandDrawnEmoji, missing-set!, NoSuchPack' }
+const sets = calls => calls.filter(c => c.endsWith('/getStickerSet')).length
 
-test('pack names come from STICKER_SETS, safe names only, with defaults', () => {
+test('the table: STICKER_SETS (safe names only, or the defaults) and the presets, any case', () => {
   assert.deepEqual(setNames(env), ['HandDrawnEmoji', 'NoSuchPack'])
   assert.deepEqual(setNames({}), ['HandDrawnEmoji', 'GameEmoji'])
+  const all = allowedSets(env)
+  assert.equal(all.length, PRESETS.length + 1, 'NoSuchPack added, HandDrawnEmoji not twice')
+  assert.equal(allowedName(env, 'utyaduck'), 'UtyaDuck')
+  assert.equal(allowedName(env, 'SomeoneElsesPack'), null, 'only names in the table')
+  assert.equal(allowedName(env, '../x'), null)
+  assert.deepEqual(chosenSets(env, undefined), ['HandDrawnEmoji', 'NoSuchPack'], 'nothing chosen: the starting packs')
+  assert.deepEqual(chosenSets(env, []), [], 'all removed stays empty')
+  assert.deepEqual(chosenSets(env, ['hotcherry', 'Evil', 'HotCherry', 'UtyaDuck']), ['HotCherry', 'UtyaDuck'])
 })
 
-test('the list leaves out file ids and packs Telegram refuses, and is kept for a while', async () => {
+test('a pack is kept for a while; one Telegram refuses is remembered; the browser gets no file ids', async () => {
   await withTelegram(async calls => {
     const r2 = bucket()
-    const m = await manifest(env, r2, { now: 1000 })
-    const pub = publicManifest(m)
-    assert.equal(pub.sets.length, 1, 'the missing pack is left out')
-    assert.deepEqual(pub.sets[0].stickers, [
+    const hand = await readSet(env, r2, 'HandDrawnEmoji', { now: 1000 })
+    assert.equal(hand.stickers.length, 3, 'the bad id is left out')
+    const pub = publicSet(hand)
+    assert.equal(pub.title, '手绘', 'our title for a preset')
+    assert.deepEqual(pub.stickers, [
       { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false },
       { id: 'AgADvide', emoji: '🎉', kind: 'video', nt: true },
       { id: 'AgADanim', emoji: '😎', kind: 'animated', nt: false }
     ])
     assert.ok(!JSON.stringify(pub).includes('F_'), 'no Telegram file ids reach the browser')
-    const asked = calls.length
-    await manifest(env, r2, { now: 1000 + 3600e3 })
-    assert.equal(calls.length, asked, 'kept, not asked again')
-    await manifest(env, r2, { now: 1000 + 7 * 3600e3 })
-    assert.ok(calls.length > asked, 'asked again once stale')
+    assert.equal(sets(calls), 1)
+    await readSet(env, r2, 'HandDrawnEmoji', { now: 1000 + 3600e3 })
+    assert.equal(sets(calls), 1, 'kept, not asked again')
+    await readSet(env, r2, 'HandDrawnEmoji', { now: 1000 + 7 * 3600e3 })
+    assert.equal(sets(calls), 2, 'asked again once stale')
+
+    assert.equal(await readSet(env, r2, 'NoSuchPack', { now: 1000 }), null)
+    assert.equal(await readSet(env, r2, 'NoSuchPack', { now: 1000 + 1800e3 }), null)
+    assert.equal(sets(calls), 3, 'a missing pack is not asked for again within the hour')
+    assert.deepEqual((await readSets(env, r2, ['NoSuchPack', 'HandDrawnEmoji'], { now: 1000 + 7 * 3600e3 })).map(s => s.name), ['HandDrawnEmoji'])
   })
 })
 
-test('Telegram unreachable: the last good list is served', async () => {
+test('Telegram unreachable: the last copy of a pack is served', async () => {
   const r2 = bucket()
-  await withTelegram(() => manifest(env, r2, { now: 0 }))
+  await withTelegram(() => readSet(env, r2, 'HandDrawnEmoji', { now: 0 }))
   await withTelegram(async () => {
-    const m = await manifest(env, r2, { now: 10 * 3600e3 })
-    assert.equal(m.sets.length, 1)
+    assert.equal((await readSet(env, r2, 'HandDrawnEmoji', { now: 10 * 3600e3 })).stickers.length, 3)
+    assert.equal(await readSet(env, r2, 'UtyaDuck', { now: 10 * 3600e3 }), null, 'nothing kept, nothing to show')
   }, { failSets: true })
+  await withTelegram(async calls => {
+    assert.ok(await readSet(env, r2, 'UtyaDuck', { now: 10 * 3600e3 + 1 }), 'a failure is not remembered as missing')
+    assert.equal(sets(calls), 1)
+  })
+})
+
+test('the add list: every pack in the table Telegram has, with a cover and whether it is added', async () => {
+  await withTelegram(async () => {
+    const list = await catalog(env, bucket(), ['UtyaDuck'])
+    assert.deepEqual(list, [
+      { name: 'HandDrawnEmoji', title: '手绘', count: 3, cover: { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false }, added: false },
+      { name: 'UtyaDuck', title: '小黄鸭', count: 1, cover: { id: 'AgADduck', emoji: '🦆', kind: 'animated', nt: true }, added: true }
+    ], 'packs Telegram refuses are left out; our titles, not the channel handle')
+  })
 })
 
 test('each file is fetched from Telegram once, then served from R2; animated stickers as plain Lottie JSON', async () => {
   await withTelegram(async calls => {
     const r2 = bucket()
+    assert.equal(await stickerFile(env, r2, 'AgADduck', { thumb: true }), null, 'not in the starting packs')
+    assert.equal(await stickerFile(env, r2, 'AgADduck', { set: 'UtyaDuck', anim: true }).then(o => o.httpMetadata.contentType), 'application/json', 'found in its pack')
+    assert.equal(await stickerFile(env, r2, 'AgADduck', { set: 'SomeoneElsesPack', thumb: true }), null, 'a pack outside the table is never read')
     const still = await stickerFile(env, r2, 'AgADstat')
     assert.equal(still.httpMetadata.contentType, 'image/webp')
     const fetched = calls.filter(c => c.includes('/file/')).length
@@ -175,8 +211,8 @@ test('video stickers come in parts when asked (Safari plays video only that way)
 test('readers asking at once share one trip to Telegram', async () => {
   await withTelegram(async calls => {
     const r2 = bucket()
-    await manifest(env, r2)
     await Promise.all([1, 2, 3].map(() => stickerFile(env, r2, 'AgADvide')))
     assert.equal(calls.filter(c => c.endsWith('b.webm')).length, 1)
+    assert.equal(sets(calls), 2, 'each starting pack read once')
   })
 })

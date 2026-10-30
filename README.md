@@ -85,7 +85,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **在线状态**与**已读回执**（私聊重新打开后仍显示“已读”）；**“正在输入”实时预览**（Honk 式：对方能看到你正在打的字）
 - **回应**：长按消息从 ❤️ 😂 👍 😮 😢 🙏 中选一个，或双击送出 ❤️；每人每条消息一个，实时同步
 - **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
-- **表情**：Telegram 表情包（静态、视频、动画三种），经自己的 Worker 取来存进 R2；动画表情只在屏幕上时播放
+- **表情**：Telegram 表情包（静态、视频、动画三种），经自己的 Worker 取来存进 R2；每人在表情面板里从预设的表情包名称表中添加 / 移除；动画表情只在屏幕上时播放
 - **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
 - **通知**：新消息与来电用 **Declarative Web Push**（Safari 18.4 起由系统直接显示，应用退出或在后台也能收到；其他浏览器经 Service Worker 显示同一条消息），带应用角标；需加到主屏幕，推送密钥自动生成
@@ -199,11 +199,18 @@ npx wrangler secret put VAPID_SUBJECT   # 可选，例如 mailto:you@example.com
 npx wrangler secret put TELEGRAM_BOT_TOKEN
 ```
 
-默认用 `HandDrawnEmoji` 与 `GameEmoji` 两个包。想换成别的包，在仪表盘加一个普通变量 `STICKER_SETS`，
-填包名（`t.me/addstickers/<包名>` 里的那一段），多个用逗号隔开，最多 8 个、每包前 120 个。
+**在应用里添加表情包**：表情面板顶部是自己的表情包，最后一个“+”列出可添加的表情包（封面、名称、数量），
+点“添加”服务器就去 Telegram 取来，新包排在最前；点“移除”去掉。每个人的选择各自保存在服务器上，换设备也在。
+可添加的包来自 `src/stickers.js` 里的预设名称表 `PRESETS`（手绘、游戏、巴黎奥运、小黄鸭、樱桃、动态 Emoji、几套猫和鸭子等）
+加上 `STICKER_SETS`；服务器只读表里的包，不会替人去取任意的包。表里某个名字 Telegram 不认时，它不会出现在列表里。
+想增减预设，改 `PRESETS`（`name` 是 `t.me/addstickers/<包名>` 里的那一段，`title` 是显示的名字）。
 
-- 包的列表在 R2 里保存 6 小时；每个表情文件第一次有人看时从 Telegram 取一次，之后一直从 R2（`stickers/`）读。
-  Telegram 暂时连不上时继续用上一次的列表；换了表情包后，旧消息里已经存下的表情照样显示。
+新账号一开始有 `HandDrawnEmoji` 与 `GameEmoji` 两个包。想换成别的，在仪表盘加一个普通变量 `STICKER_SETS`，
+填包名，多个用逗号隔开，最多 8 个；这些包也会出现在可添加的列表里。每个包取前 120 个，每人最多 16 个包。
+
+- 每个包在 R2 里保存 6 小时（`stickers/sets/`），Telegram 说不存在的包记住 1 小时；每个表情文件第一次有人看时从 Telegram 取一次，
+  之后一直从 R2（`stickers/`）读。Telegram 暂时连不上时继续用上一次取到的包；移除了表情包后，旧消息里已经存下的表情照样显示。
+- 表情消息带上所属的包名，所以对方没添加这个包也能看到。
 - 动画表情（`.tgs`）在服务器上解压成 Lottie JSON，由随应用一起提供的 lottie-web（`public/js/vendor/`）播放；
   播放器第一次遇到动画表情时才加载。视频表情（`.webm`）静音循环。两者都只在屏幕上时播放，减少动态效果时停在静态图上。
 - 没有设置 `TELEGRAM_BOT_TOKEN` 时，“+”面板里不显示“表情”，其余功能照常。
@@ -224,7 +231,7 @@ Cuven，再用 Safari 重新添加一次（登录状态会在添加时从 Safari
 | `REALTIME_TURN_KEY_ID` / `REALTIME_TURN_KEY_TOKEN` | secret，可选 | Realtime TURN，改善 NAT 穿透 |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push 通知的密钥与发送方；不设置时自动生成并保存，发送方为应用地址 |
 | `TELEGRAM_BOT_TOKEN` | secret，可选 | 表情：用来读取 Telegram 表情包的机器人令牌；不设置则不显示表情 |
-| `STICKER_SETS` | var，可选 | 表情包名，逗号隔开；默认 `HandDrawnEmoji,GameEmoji` |
+| `STICKER_SETS` | var，可选 | 新账号一开始就有的表情包，逗号隔开；默认 `HandDrawnEmoji,GameEmoji`；也可在应用里添加 |
 | `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的大致位置 |
 
 ## 本地开发
@@ -266,14 +273,17 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 改状态的请求与 WebSocket 升级都做同源校验。
 - 媒体下载响应带 `sandbox` CSP 与 `nosniff`，并按会话成员鉴权；上传限制大小与成员。
 - 通话的 Realtime App Secret 只在服务端，浏览器只通过 `/rtc/*` 代理访问。
-- Telegram 机器人令牌只在服务端；浏览器拿到的表情列表不含 Telegram 的文件 id。表情消息只记录表情的 id、种类和 emoji，
-  服务器会校验；表情文件响应同样带 `sandbox` CSP 与 `nosniff`。lottie-web 从本站加载并校验 SRI。
+- Telegram 机器人令牌只在服务端；浏览器拿到的表情列表不含 Telegram 的文件 id。服务器只读预设名称表与 `STICKER_SETS` 里的包。
+  表情消息只记录表情的 id、种类、emoji 和包名，服务器会校验；表情文件响应同样带 `sandbox` CSP 与 `nosniff`。
+  lottie-web 从本站加载并校验 SRI。
 
 ## 已知限制
 
 - 语音 / 视频通话需要配置 Cloudflare Realtime 应用；未配置时入口会提示。
 - 暂不支持录制语音消息（可发文字、图片、手绘、表情；可打语音 / 视频通话）。
-- 视频表情是 WebM（VP9）；浏览器放不了时显示它的静态图或 emoji。开发环境连不上 Telegram，取表情的流程只用模拟的 Bot API 测过。
+- 视频表情是 WebM（VP9）；浏览器放不了时显示它的静态图或 emoji。开发环境连不上 Telegram，取表情的流程只用模拟的 Bot API 测过；
+  预设名称表里除了 `HandDrawnEmoji`、`GameEmoji`、`ParisOlympicEmoji`（游戏里用过）以外的包名来自公开的表情包目录，没有逐个在 Telegram 上核对，
+  取不到的会自动从列表里消失。
 - 单个 Durable Object 承载全部状态，适合个人与中小群体自建；超大规模需要分片。
 - 非端到端加密：消息在服务端（你自己的 Cloudflare 账号）以明文存储。
 - iPhone Duo 上的 Safari 没有折叠 API（不支持 CSS Viewport Segments 与 Device Posture）：折叠 / 展开只表现为宽度变化。

@@ -718,7 +718,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   async function sendSticker(st, chat = current) {
     if (!chat) return
     const cid = newCid()
-    const meta = { id: st.id, kind: st.kind, emoji: st.emoji || '' }
+    const meta = { id: st.id, kind: st.kind, emoji: st.emoji || '', ...(st.set && { set: st.set }) }
     const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'sticker', text: '', meta, status: 'sending' }
     upsertMessage(local)
     bumpList(local)
