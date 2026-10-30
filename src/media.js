@@ -5,7 +5,11 @@
 import { rid } from './store.js'
 
 const MAX_BYTES = 30 * 1024 * 1024 // 30 MB
-const KINDS = new Set(['image', 'voice', 'video', 'file', 'avatar'])
+const KINDS = new Set(['image', 'voice', 'video', 'file', 'avatar', 'cover', 'bg'])
+// Pictures that belong to an account rather than a conversation: its avatar
+// and cover (seen by anyone), and the backdrops it chose (seen only by it).
+const OWN = new Set(['avatar', 'cover', 'bg'])
+const PUBLIC = new Set(['avatar', 'cover'])
 
 const DOWNLOAD_HEADERS = {
   'cache-control': 'private, max-age=31536000, immutable',
@@ -29,15 +33,17 @@ async function upload(request, url, user, hub) {
   const kind = url.searchParams.get('kind')
   if (!KINDS.has(kind)) return j({ ok: false, error: '未知的媒体类型' }, 400)
   const room = url.searchParams.get('room') || ''
-  if (kind !== 'avatar') {
+  if (!OWN.has(kind)) {
     if (!room || !hub.store.isMember(room, user.id)) return j({ ok: false, error: '无权上传到该会话' }, 403)
+  } else if (!/^image\//.test(request.headers.get('content-type') || '')) {
+    return j({ ok: false, error: '请选择图片' }, 400)
   }
   const size = Number(request.headers.get('content-length') || 0)
   if (size > MAX_BYTES) return j({ ok: false, error: '文件过大（上限 30MB）' }, 413)
   if (!request.body) return j({ ok: false, error: '没有内容' }, 400)
 
   const contentType = request.headers.get('content-type') || 'application/octet-stream'
-  const scope = kind === 'avatar' ? user.id : room
+  const scope = OWN.has(kind) ? user.id : room
   const key = `${kind}/${scope}/${rid()}`
 
   await hub.env.MEDIA.put(key, request.body, {
@@ -58,12 +64,12 @@ async function upload(request, url, user, hub) {
 }
 
 async function download(key, user, hub) {
-  // Room-scoped media requires membership; avatars are visible to any account.
+  // Room-scoped media requires membership; avatars and covers are visible to
+  // any account, a backdrop only to whoever chose it.
   const [kind, scope] = key.split('/')
   if (!kind || !scope) return j({ ok: false, error: 'not found' }, 404)
-  if (kind !== 'avatar' && !hub.store.isMember(scope, user.id)) {
-    return j({ ok: false, error: '无权访问' }, 403)
-  }
+  const allowed = PUBLIC.has(kind) || (kind === 'bg' ? scope === user.id : hub.store.isMember(scope, user.id))
+  if (!allowed) return j({ ok: false, error: '无权访问' }, 403)
   const obj = await hub.env.MEDIA.get(key)
   if (!obj) return j({ ok: false, error: 'not found' }, 404)
   const headers = new Headers(DOWNLOAD_HEADERS)

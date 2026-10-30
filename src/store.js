@@ -84,6 +84,19 @@ export class Store {
       created INTEGER NOT NULL
     )`)
     s(`CREATE INDEX IF NOT EXISTS idx_push_user ON push_subs (user)`)
+    // Added after the first release: a profile's cover, and a conversation
+    // someone marked unread themselves.
+    this.#column('users', 'cover', `TEXT NOT NULL DEFAULT ''`)
+    this.#column('room_members', 'marked', 'INTEGER NOT NULL DEFAULT 0')
+  }
+
+  /** Add a column to a table made before it existed (once: then it's there). */
+  #column(table, name, def) {
+    try {
+      this.exec(`SELECT ${name} FROM ${table} LIMIT 0`)
+    } catch {
+      this.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${def}`)
+    }
   }
 
   // ---------------------------------------------------------------- kv
@@ -124,16 +137,16 @@ export class Store {
   searchUsers(q, exclude, limit = 20) {
     const like = `%${String(q).toLowerCase()}%`
     return this.exec(
-      `SELECT id, username, display, avatar, bio FROM users
+      `SELECT id, username, display, avatar, bio, cover FROM users
        WHERE id<>? AND (uname_lc LIKE ? OR LOWER(display) LIKE ?) ORDER BY uname_lc LIMIT ?`,
       exclude || '', like, like, limit
     )
   }
-  setProfile(id, { display, avatar, bio }) {
+  setProfile(id, { display, avatar, bio, cover }) {
     const u = this.getUser(id)
     if (!u) return null
-    this.exec(`UPDATE users SET display=?, avatar=?, bio=? WHERE id=?`,
-      display ?? u.display, avatar ?? u.avatar, bio ?? u.bio, id)
+    this.exec(`UPDATE users SET display=?, avatar=?, bio=?, cover=? WHERE id=?`,
+      display ?? u.display, avatar ?? u.avatar, bio ?? u.bio, cover ?? u.cover, id)
     return this.getUser(id)
   }
   setPassword(id, salt, hash) {
@@ -146,7 +159,7 @@ export class Store {
   /** Public view of a user (no secrets). */
   pub(u) {
     if (!u) return null
-    return { id: u.id, username: u.username, display: u.display, avatar: u.avatar, bio: u.bio }
+    return { id: u.id, username: u.username, display: u.display, avatar: u.avatar, bio: u.bio, cover: u.cover || '' }
   }
 
   // ---------------------------------------------------------------- contacts
@@ -247,11 +260,12 @@ export class Store {
   setMemberFlag(room, user, flags) {
     const m = this.membership(room, user)
     if (!m) return
-    this.exec(`UPDATE room_members SET muted=?, pinned=?, hidden=? WHERE room=? AND user=?`,
-      flags.muted ?? m.muted, flags.pinned ?? m.pinned, flags.hidden ?? m.hidden, room, user)
+    this.exec(`UPDATE room_members SET muted=?, pinned=?, hidden=?, marked=? WHERE room=? AND user=?`,
+      flags.muted ?? m.muted, flags.pinned ?? m.pinned, flags.hidden ?? m.hidden, flags.marked ?? m.marked, room, user)
   }
+  /** Reading a conversation also clears its own unread mark. */
   markRead(room, user, ts) {
-    this.exec(`UPDATE room_members SET last_read=MAX(last_read, ?) WHERE room=? AND user=?`, ts, room, user)
+    this.exec(`UPDATE room_members SET last_read=MAX(last_read, ?), marked=0 WHERE room=? AND user=?`, ts, room, user)
   }
 
   /** Conversation list for a user: enriched rooms sorted by latest activity. */
@@ -264,10 +278,12 @@ export class Store {
       const room = this.getRoom(m.room)
       if (!room) continue
       const last = this.lastMessage(room.id)
-      const unread = this.exec(
+      const count = this.exec(
         `SELECT COUNT(*) AS n FROM messages WHERE room=? AND ts>? AND sender<>? AND type<>'system' AND state<>'revoked'`,
         room.id, m.last_read, user
       )[0].n
+      // Marked unread by hand: one, until it's read or something new arrives.
+      const unread = count || (m.marked ? 1 : 0)
       const row = {
         id: room.id,
         kind: room.kind,
@@ -277,6 +293,7 @@ export class Store {
         muted: Boolean(m.muted),
         lastRead: m.last_read,
         unread,
+        marked: Boolean(m.marked && !count),
         last,
         ts: last ? last.ts : room.created
       }
@@ -307,6 +324,12 @@ export class Store {
       id, m.room, m.sender, m.ts || now(), m.type || 'text', m.body || '',
       m.meta ? JSON.stringify(m.meta) : '', m.replyTo || '', m.state || 'sent'
     )
+    // Something new brings a deleted conversation back, and replaces a
+    // hand-made unread mark.
+    if (m.type !== 'system') {
+      this.exec(`UPDATE room_members SET hidden=0 WHERE room=? AND hidden=1`, m.room)
+      this.exec(`UPDATE room_members SET marked=0 WHERE room=? AND user<>? AND marked=1`, m.room, m.sender)
+    }
     return this.getMessage(id)
   }
   /** A sent message's key words (from src/assist.js), kept with its meta. */
@@ -412,9 +435,15 @@ export class Store {
   }
   /** Unread messages across the conversations a user hasn't hidden or muted (the app badge). */
   unreadTotal(user) {
-    return this.exec(
+    const n = this.exec(
       `SELECT COUNT(*) AS n FROM messages m JOIN room_members r ON r.room=m.room
        WHERE r.user=? AND r.hidden=0 AND r.muted=0 AND m.ts>r.last_read AND m.sender<>? AND m.type<>'system' AND m.state<>'revoked'`,
+      user, user
+    )[0].n
+    // A conversation marked unread counts once (new messages clear the mark).
+    return n + this.exec(
+      `SELECT COUNT(*) AS n FROM room_members r WHERE r.user=? AND r.hidden=0 AND r.muted=0 AND r.marked=1
+       AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.room=r.room AND m.ts>r.last_read AND m.sender<>? AND m.type<>'system' AND m.state<>'revoked')`,
       user, user
     )[0].n
   }

@@ -12,6 +12,8 @@ import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openSheet, openMenu, confirmAction, toast } from './overlay.js'
+import { backdropLayer, backdropLabel, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
+import { openBackdropPicker, saveBackdrops } from './backdrops.js'
 
 // ---------------------------------------------------------------- shared bits
 function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) {
@@ -56,6 +58,37 @@ const groupTitle = t => h('div', { class: 'group-title' }, t)
 const foot = t => h('p', { class: 'group-foot' }, t)
 const input = (props) => h('input', { class: 'input', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, ...props })
 
+/** A profile card's cover, if they chose one, across its top. */
+function withCover(card, cover) {
+  if (readBackdrop(cover)) {
+    card.classList.add('has-cover')
+    card.prepend(backdropLayer(cover, 'profile-cover'))
+  }
+  return card
+}
+
+/**
+ * A row for a backdrop: what it is now (a swatch and its name) and, tapped,
+ * the picker. get() reads it; opts go to the picker, whose save() is
+ * followed by the row.
+ */
+function backdropCell(label, ic, get, { none = '默认', ...opts }) {
+  const swatch = h('span', { class: 'bd-swatch', 'aria-hidden': 'true' }, backdropLayer(get() || opts.fallback || ''))
+  const name = h('span', {}, backdropLabel(get(), none))
+  const update = () => {
+    paintBackdrop(swatch.firstChild, get() || opts.fallback || '')
+    name.textContent = backdropLabel(get(), none)
+  }
+  const el = cell(label, h('span', { class: 'bd-value' }, swatch, name, chev()), {
+    icon: ic,
+    onClick: () => openBackdropPicker({
+      title: label, none, ...opts, value: get(),
+      save: async v => { await opts.save(v); update() }
+    })
+  })
+  return el
+}
+
 export function rememberOpen(id) {
   try { id ? localStorage.setItem('ui:open', id) : localStorage.removeItem('ui:open') } catch {}
 }
@@ -74,11 +107,19 @@ export function openSettings({ onLogout, origin }) {
   const prefs = getPrefs()
   const me = state.me
   // The card is the one way into editing who you are; no second row for it.
-  const profile = h('button', { class: 'profile profile-btn', type: 'button', 'aria-label': `${me?.display || '我'}，编辑资料` },
+  const card = me => withCover(h('button', { class: 'profile profile-btn', type: 'button', 'aria-label': `${me?.display || '我'}，编辑资料` },
     avatar(me?.avatar, me?.display || '我', { size: 84 }),
     h('h3', {}, me?.display || '我'),
-    h('p', {}, '@' + (me?.username || '')))
-  profile.addEventListener('click', () => editProfile())
+    h('p', {}, '@' + (me?.username || ''))), me?.cover)
+  let profile = card(me)
+  // What's edited there shows here as soon as it's saved.
+  const onEdited = next => {
+    const fresh = card(next)
+    fresh.addEventListener('click', () => editProfile(onEdited))
+    profile.replaceWith(fresh)
+    profile = fresh
+  }
+  profile.addEventListener('click', () => editProfile(onEdited))
 
   const pushSlot = h('div')
   renderPush(pushSlot)
@@ -102,6 +143,13 @@ export function openSettings({ onLogout, origin }) {
       // claims to be on when nothing would happen.
       hapticsAvailable ? cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈')) : null
     ),
+    // Backdrops, the same on each of your devices (each conversation can
+    // also have its own, in its details).
+    groupTitle('背景'),
+    group(
+      backdropCell('聊天背景', 'bubble', () => state.prefs.chat, { look: 'chat', save: v => saveBackdrops({ chat: v }) }),
+      backdropCell('通话背景', 'phone', () => state.prefs.call, { look: 'call', save: v => saveBackdrops({ call: v }) })
+    ),
     // Writing help, only where the server has Workers AI.
     state.assist ? groupTitle('智能') : null,
     state.assist ? group(
@@ -116,8 +164,21 @@ export function openSettings({ onLogout, origin }) {
   openSheet({ title: '设置', content, tall: true, origin })
 }
 
-function editProfile() {
+function editProfile(onEdited) {
   const me = state.me
+  // The cover across the top (anyone who opens your profile sees it), your
+  // photo over its lower edge.
+  const cover = h('button', { class: 'cover-edit', type: 'button', 'aria-label': '更换封面' },
+    backdropLayer(me?.cover), h('span', { class: 'cover-edit-label', 'aria-hidden': 'true' }, icon('photo'), '更换封面'))
+  cover.addEventListener('click', () => openBackdropPicker({
+    title: '封面', value: state.me?.cover || '', none: '无', kind: 'cover', look: 'cover',
+    save: async v => {
+      const r = await api.post('/api/profile', { cover: v })
+      setMe(r.me)
+      paintBackdrop(cover.firstChild, r.me.cover)
+      onEdited?.(r.me)
+    }
+  }))
   const av = h('button', { class: 'avatar-edit', type: 'button', 'aria-label': '更换头像' },
     avatar(me?.avatar, me?.display || '我', { size: 96 }), h('span', { class: 'avatar-edit-badge' }, icon('camera')))
   const file = h('input', { type: 'file', accept: 'image/*', hidden: true })
@@ -134,6 +195,7 @@ function editProfile() {
       const r = await api.post('/api/profile', { avatar: url })
       setMe(r.me)
       av.firstChild.replaceWith(avatar(r.me.avatar, r.me.display, { size: 96 }))
+      onEdited?.(r.me)
       toast('头像已更新', { type: 'ok' })
     } catch (err) { toast(err.message, { type: 'error' }) }
   })
@@ -142,13 +204,15 @@ function editProfile() {
     try {
       const r = await api.post('/api/profile', { display: display.value.trim() || me.username, bio: bio.value.trim() })
       setMe(r.me)
+      onEdited?.(r.me)
       toast('已保存', { type: 'ok' })
       sheet.close()
     } catch (err) { toast(err.message, { type: 'error' }); save.disabled = false }
   })
 
   const content = h('div', { class: 'form-sheet' },
-    h('div', { class: 'avatar-edit-wrap' }, av, file),
+    cover,
+    h('div', { class: 'avatar-edit-wrap over-cover' }, av, file),
     h('label', { class: 'f-label' }, '昵称'), display,
     h('label', { class: 'f-label' }, '简介'), bio,
     h('div', { class: 'f-go' }, save))
@@ -315,11 +379,16 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
 
   const header = isGroup
     ? h('div', { class: 'profile' }, avatar(room.avatar, room.name, { size: 84, room: true }), h('h3', {}, room.name), h('p', {}, `${members.length} 位成员`))
-    : h('div', { class: 'profile' }, avatar(c.peer?.avatar, c.peer?.display, { size: 84 }), h('h3', {}, c.peer?.display || c.name), h('p', {}, '@' + (c.peer?.username || '')))
+    : withCover(h('div', { class: 'profile' }, avatar(c.peer?.avatar, c.peer?.display, { size: 84 }), h('h3', {}, c.peer?.display || c.name), h('p', {}, '@' + (c.peer?.username || ''))), (room.peer || c.peer)?.cover)
 
   const flags = group(
     cell('消息免打扰', toggle(c.muted, on => setFlag(roomId, { muted: on ? 1 : 0 }), '免打扰'), { icon: 'bell-slash' }),
-    cell('置顶聊天', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), '置顶'), { icon: 'pin' })
+    cell('置顶聊天', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), '置顶'), { icon: 'pin' }),
+    // This conversation's own backdrop, or the one for all of them.
+    backdropCell('聊天背景', 'photo', () => state.prefs.rooms[roomId] || '', {
+      none: '跟随通用', fallback: state.prefs.chat, look: 'chat',
+      save: v => saveBackdrops({ rooms: { [roomId]: v } })
+    })
   )
 
   const blocks = [header, flags]

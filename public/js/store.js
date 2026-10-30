@@ -32,12 +32,22 @@ export const state = {
   calls: { enabled: false },
   stickers: false,
   assist: false,
+  // Backdrops (views/backdrops.js): for every conversation, each one's own, and calls.
+  prefs: { chat: '', call: '', rooms: {} },
   vapid: null,
   previews: new Map(),    // localId -> object URL for just-sent media
   restored: false         // painted from the cached bootstrap at launch
 }
 
-export function setMe(me) { state.me = me }
+export function setMe(me) {
+  state.me = me
+  emit('me', me)
+}
+export function setPrefs(prefs) {
+  const p = prefs && typeof prefs === 'object' ? prefs : {}
+  state.prefs = { chat: p.chat || '', call: p.call || '', rooms: { ...p.rooms } }
+  emit('prefs', state.prefs)
+}
 
 // ---------------------------------------------------------------- normalize
 
@@ -52,6 +62,7 @@ export function normRoom(r) {
     peer: r.peer || null,
     peerRead: r.peerRead || 0,
     unread: r.unread || 0,
+    marked: Boolean(r.marked),
     muted: Boolean(r.muted),
     pinned: Boolean(r.pinned),
     count: r.count || 0,
@@ -167,12 +178,14 @@ export function chatInfo(id) {
   return state.chats.get(id) || state.temp.get(id) || null
 }
 export function sortedChats() {
+  // A deleted conversation is gone at once, not at the next refresh.
   return [...state.chats.values(), ...state.temp.values()]
+    .filter(c => !c.hidden)
     .sort((a, b) => (b.pinned - a.pinned) || (b.ts || 0) - (a.ts || 0))
 }
 export function unreadTotal(exclude) {
   let n = 0
-  for (const c of state.chats.values()) if (c.id !== exclude && !c.muted) n += c.unread || 0
+  for (const c of state.chats.values()) if (c.id !== exclude && !c.muted && !c.hidden) n += c.unread || 0
   return n
 }
 

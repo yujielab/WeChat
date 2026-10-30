@@ -94,6 +94,11 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
 - **通知**：新消息与来电用 **Declarative Web Push**（Safari 18.4 起由系统直接显示，应用退出或在后台也能收到；其他浏览器经 Service Worker 显示同一条消息），带应用角标；需加到主屏幕，推送密钥自动生成
+- **会话列表**：长按一行（或置顶的头像、右键、菜单键）打开菜单：标为已读 / 未读、置顶、消息免打扰、删除聊天；
+  向左滑出“删除”，滑过一半松手直接删除。行跟手、从当前位置带着手速回弹，滑动中再按住可中途接住；点别处、点这一行、
+  竖向拖动、Esc 或系统接管手势都会让它复位，取消的手势从不删除。删除的会话有新消息时自动回来
+- **背景**：聊天背景（全部会话一个，每个会话还可以单独设置）、通话背景、个人资料封面；8 种内置（浅色 / 深色各一套）或自己的照片，
+  保存在服务器上，同一账号的每台设备一致；封面所有人可见，聊天和通话背景只有自己看得到
 - **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
 - **iPhone Duo**：每栏底部的胶囊栏与优先级溢出、外屏单栏 / 内屏分栏、折叠区与相机避让、弹层按所在栏放置
 
@@ -258,6 +263,17 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
 本地开发：`npm run dev` / `npm run dev:e2e` 带 `--local`，不连 Workers AI（AI 关闭，其余照常）；想在本地试 AI 用 `npm run dev:ai`
 （需要先 `npx wrangler login`）。
 
+### 背景与封面
+
+设置 › 背景 里选“聊天背景”和“通话背景”；某个会话的详情里可以给它单独选一个（默认“跟随通用”）；
+编辑资料顶部点封面更换。每处都可以选 8 种内置背景之一、自己的照片，或恢复默认。
+
+- 选择保存在服务器（`POST /api/prefs`，每个账号一份，随 `/api/bootstrap` 下发），在另一台设备上立即生效；
+  封面是资料的一部分（`/api/profile` 的 `cover`）。
+- 只接受内置背景（`preset:<名称>`）或这个账号自己上传的图片：照片背景上传为 `bg`，只有本人能读取；
+  封面上传为 `cover`，任何登录用户都能看到。外部链接一律拒绝，免得别人的设备去请求外部地址。
+- 照片在手机上先缩到 2048px 再上传；照片背景加一层浅色 / 深色薄雾，时间和系统提示加底板，保证文字看得清。
+
 ### 主屏幕应用占满屏幕
 
 主屏幕应用使用默认状态栏样式（不用 `black-translucent`）。iOS 26.1 起（WebKit 301994，26.5 与 27 上再次出现），
@@ -293,6 +309,10 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   回应在上、操作在下互不遮挡且在屏幕内、对齐消息一侧，长消息裁切，手指打开时没有预先高亮的行，键盘可用，深色模式。
 - 通话头像回归：`node tools/e2e/call-avatar.cjs` 验证来电显示对方照片（邀请里带的，没有时用本机已知的）、拨出的语音 / 视频 / 群通话显示对方或群的照片、
   视频接通前一直显示、从不把用户 id 当图片地址请求。
+- 列表与背景回归：`node tools/e2e/backdrops.cjs` 用真实触摸验证：没有右滑操作，左滑只露出“删除”且只画在露出的部分（圆角处不透色）、
+  点这一行 / 点另一行 / 竖向拖动 / Esc 复位且不打开会话、中途接住、系统取消的手势不删除、滑到底删除且刷新后仍删除、新消息带回会话；
+  长按与右键菜单（置顶、标为未读并在刷新后保留、免打扰、删除）；聊天背景（全局、单个会话、照片）、另一台设备同步、通话背景、
+  资料封面（内置与照片）以及对方看到的封面，对方看不到自己的背景。
 - 撤回回归：`node tools/e2e/revoke.cjs` 用两个真实账号验证撤回后原处是“你 / 某某撤回了一条消息”而不是空气泡（双方、即时与刷新后），
   撤回不增加未读、不把会话顶到前面，列表预览只在撤回的是最后一条时跟着变，撤回未读消息后未读数相应减少。
 - 智能输入回归：`node tools/e2e/assist.cjs` 验证空输入框的回复建议与后半句预测、灰字与输入框完全重合、照着打穿、Tab / 点按采用、Esc 收起、
@@ -352,15 +372,17 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 ```
 src/            index.js（瘦代理）· hub.js（Durable Object）· store.js（SQLite）
                 auth.js（账号加密）· media.js（R2）· stickers.js（Telegram 表情 → R2）· assist.js（Workers AI 智能输入）
+                prefs.js（背景设置的校验）
                 call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
     ui/         视口与折叠、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
                 overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· predict（输入预测）· avatar
+                backdrops（背景选择）
     vendor/     lottie-web 5.13.0 light（MIT，原样）
 tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip · motion · continuity · stickers …）
-test/           store · auth · webpush · call · stickers（表情管线）· *-runtime（Miniflare 上跑整个 Worker）
+test/           store · auth · webpush · call · stickers（表情管线）· prefs（背景）· *-runtime（Miniflare 上跑整个 Worker）
 ```
 
 ## 致谢
