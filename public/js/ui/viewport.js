@@ -10,11 +10,6 @@
 // * Folding and unfolding morph instead of cutting: where the browser has
 //   view transitions, the conversation's title, tools and field travel to
 //   their new places while the list slides in (or out) from the left.
-// * Decides where bars go (Apple HIG, Designing for iPhone Duo): toolbars and
-//   navigation controls move to the trailing edge ("vertical") wherever the
-//   window is wide or short — the outer display, the inner display in
-//   landscape — and stay as standard top / bottom bars only where there is
-//   vertical room, like the inner display in portrait (data-bars).
 // * Reports the folding region when the device is partially open, from the
 //   browser's viewport segments (data-fold, --fold-start / --fold-end).
 
@@ -23,16 +18,8 @@ import { reducedMotion } from './dom.js'
 const root = document.documentElement
 const vv = window.visualViewport
 const SPLIT_MIN = 700
-// Height below which a portrait window has no room for top and bottom bars.
-const TALL_MIN = 760
-// A right inset this wide is a column the bars can share (the rail is 52pt).
-const EDGE_COLUMN_MIN = 64
-// …and no wider than this: a larger shortfall is Split View or a window.
-const EDGE_COLUMN_MAX = 128
 const listeners = new Set()
-const barListeners = new Set()
 let layout = null
-let bars = null
 let fold = { axis: 'none', start: 0, end: 0 }
 let foldOverride = null
 let lastVVWidth = vv ? vv.width : window.innerWidth
@@ -56,26 +43,6 @@ function measure() {
   if (kb) root.dataset.kb = '1'
   else delete root.dataset.kb
   measureFold()
-  // The layout viewport, not the visual one: the keyboard must not move bars.
-  const nextBars = window.innerWidth >= window.innerHeight || window.innerHeight < TALL_MIN ? 'vertical' : 'horizontal'
-  // The column stays with the hardware: on the outer display in landscape the
-  // camera is at its foot rather than its head (see duo-layout.css).
-  root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
-  // Both displays keep a column of their own down the right edge for the
-  // status bar and the Dynamic Island (84pt on device, open or closed).
-  // Where the page runs under it, it is reported as a wide right safe-area
-  // inset (other iPhones' insets stay under 59pt even in landscape) and the
-  // bars join it. iOS 27.2 can instead keep the column out of the page: the
-  // page is then narrower than the screen by about that much, with no
-  // inset, and the bars stand beside it, free of the camera and status bar.
-  if (insetRight() >= EDGE_COLUMN_MIN) root.dataset.edgeColumn = ''
-  else if (columnBeside()) root.dataset.edgeColumn = 'beside'
-  else delete root.dataset.edgeColumn
-  if (nextBars !== bars) {
-    bars = nextBars
-    root.dataset.bars = bars
-    for (const fn of barListeners) fn(bars)
-  }
   const next = window.innerWidth >= SPLIT_MIN ? 'split' : 'stack'
   if (next !== layout) {
     layout = next
@@ -178,32 +145,6 @@ export function getFold() {
   return { ...fold }
 }
 
-let insetProbe = null
-function insetRight() {
-  if (!insetProbe) {
-    insetProbe = document.createElement('div')
-    insetProbe.setAttribute('aria-hidden', 'true')
-    insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;height:0;width:var(--safe-right)'
-    document.body.append(insetProbe)
-    // The insets can settle after launch without any resize (iOS 27.2 hands a
-    // Home Screen app its safe area a moment later), so the probe itself is
-    // watched: when the right inset changes, everything is measured again.
-    new ResizeObserver(() => measure()).observe(insetProbe)
-  }
-  return insetProbe.offsetWidth
-}
-
-// The system column standing outside the page: a touch screen wider than
-// the page by a column's width (not a Split View half, not a desktop window).
-function columnBeside() {
-  if (!matchMedia('(pointer: coarse)').matches) return false
-  const w = window.innerWidth
-  const across = [screen.width, screen.height].filter(s => s >= w - 1)
-  if (!across.length) return false
-  const gap = Math.min(...across) - w
-  return gap >= EDGE_COLUMN_MIN && gap <= EDGE_COLUMN_MAX
-}
-
 function hasTextFocus() {
   const el = document.activeElement
   return Boolean(el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(el.type))))
@@ -237,15 +178,6 @@ export function getLayout() {
 export function onLayout(fn) {
   listeners.add(fn)
   return () => listeners.delete(fn)
-}
-
-export function getBars() {
-  return bars
-}
-
-export function onBars(fn) {
-  barListeners.add(fn)
-  return () => barListeners.delete(fn)
 }
 
 export const isStandalone = () =>

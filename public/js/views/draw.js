@@ -33,9 +33,12 @@ export function createDrawing(host, { onSend, onClose }) {
 
   const palette = h('div', { class: 'draw-palette glass glass-thick' }, ...swatches)
   const sizes = h('div', { class: 'draw-sizes glass glass-thick' }, ...sizeBtns)
+  // Like every column, the board ends in one bar: Close leads, Undo and
+  // Clear share a capsule, Send ends it.
   const tools = h('div', { class: 'draw-tools' }, undoBtn, clearBtn)
-  const head = h('div', { class: 'draw-head' }, closeBtn, h('div', { class: 'draw-title' }, '画板'), sendBtn)
-  const root = h('div', { class: 'draw on', role: 'region', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, tools))
+  const dock = h('div', { class: 'draw-dock' }, closeBtn, tools, sendBtn)
+  const head = h('div', { class: 'draw-head' }, h('div', { class: 'draw-title' }, '画板'))
+  const root = h('div', { class: 'draw on', role: 'region', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, dock))
   host.append(root)
 
   // ---- canvas setup (HiDPI, white paper)

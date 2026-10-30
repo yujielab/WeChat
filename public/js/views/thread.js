@@ -18,7 +18,6 @@ import { openMenu, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 import { createBars } from '../ui/bars.js'
-import { getBars, onBars } from '../ui/viewport.js'
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -57,7 +56,7 @@ function withReaction(groups = [], uid, emoji) {
 const sameRun = (a, b) =>
   a && b && !isSys(a) && !isSys(b) && a.out === b.out && a.from === b.from && b.ts - a.ts < RUN_GAP
 
-export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, socketSend }) {
+export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend }) {
   pane.classList.add('pane-thread')
   let current = null
   let newCount = 0
@@ -85,14 +84,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
   const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
-  // Bars (Apple HIG, Designing for iPhone Duo): Back leads, the calls are the
-  // prominent actions, details follow; drawing and photos belong with the
-  // field below. Folded or short, they run down the trailing edge; with
-  // vertical room they are standard top and bottom bars. As the trailing
-  // column beside the list, the column has no Back and carries New Chat, as
-  // Mail and Notes do; as the leading column beside the details or the
-  // drawing board, its bars are horizontal. Details and the drawing board
-  // open in the next column, so their items show whether it's open.
+  // The calls and the details sit in the heading, after the name; Back
+  // leads the bar at the foot of the conversation, before the field, and
+  // drawing and photos follow it. Beside the list (unfolded) there is no
+  // Back: the list is right there. Details and the drawing board open in the
+  // next column, so their items show whether it's open.
   const unreadBadge = () => {
     const n = current ? unreadTotal(current) : 0
     return n ? (n > 99 ? '99+' : String(n)) : ''
@@ -105,22 +101,15 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
       { id: 'video', icon: 'video', title: '视频通话', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
       { id: 'info', icon: 'info', title: '聊天信息', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
       { id: 'draw', icon: 'brush', title: '画板', priority: 3, toggle: true, onSelect: () => current && onDraw(current) },
-      { id: 'photo', icon: 'photo', title: '照片', priority: 7, onSelect: () => current && composer.openImages() },
-      { id: 'compose', icon: 'compose', title: '新聊天', priority: 8, prominent: true, onSelect: () => onCompose?.() }
+      { id: 'photo', icon: 'photo', title: '照片', priority: 7, onSelect: () => current && composer.openImages() }
     ],
-    arrange: axis => {
-      const trailing = pane.dataset.layout === 'trailing'
+    arrange: () => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
-      if (axis === 'vertical') {
-        return trailing
-          ? { top: [...calls, ['info']], bottom: [['draw', 'photo'], ['compose']] }
-          : { top: [['back'], ...calls, ['info']], bottom: [['draw', 'photo']] }
-      }
-      return { top: [...(trailing ? [] : [['back']]), ...calls, ['info']], bottom: [['draw', 'photo']] }
+      const back = pane.dataset.layout === 'trailing' ? [] : [['back']]
+      return { top: [...calls, ['info']], bottom: [...back, ['draw', 'photo']] }
     }
   })
-  const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': '聊天操作' })
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
@@ -133,32 +122,24 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
   })
 
   const edgeTop = edge('top')
-  const root = h('div', { class: 'thread', hidden: true }, scroller, edgeTop, nav, rail, composer.el, jump)
+  const root = h('div', { class: 'thread', hidden: true }, scroller, edgeTop, nav, composer.el, jump)
+  nav.append(bars.top)
+  composer.el.classList.add('dock')
+  composer.dock(bars.bottom)
 
-  // Bars follow the window's axis, except in the leading column of a split
-  // view, which keeps horizontal bars (see shell / chatList).
+  // The name keeps at least 150px of the heading; the field keeps at least
+  // 160px of the bar at the foot, and one more gap beside it.
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
     barsFrame = requestAnimationFrame(() => {
-      const axis = pane.dataset.layout === 'leading' ? 'horizontal' : getBars() || 'vertical'
-      root.dataset.bars = axis
-      if (axis === 'vertical') {
-        if (bars.top.parentElement !== rail) bars.move(() => { composer.dock(null); rail.append(bars.top, bars.bottom) })
-        bars.layout('vertical', rail.clientHeight)
-      } else {
-        if (bars.top.parentElement !== nav) bars.move(() => { nav.append(bars.top); composer.dock(bars.bottom) })
-        // The title keeps at least 150px; the field keeps at least 200px.
-        bars.layout('horizontal', {
-          top: Math.max(0, nav.clientWidth - 150),
-          bottom: Math.max(0, composer.el.clientWidth - 200)
-        })
-      }
+      const cs = getComputedStyle(composer.el)
+      const inner = composer.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      bars.layout({ top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8) })
     })
   }
-  new ResizeObserver(arrangeBars).observe(rail)
   new ResizeObserver(arrangeBars).observe(nav)
-  onBars(arrangeBars)
+  new ResizeObserver(arrangeBars).observe(composer.el)
   bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
   // No conversation open: the column is plain paper.
   const empty = h('div', { class: 'thread-empty' })

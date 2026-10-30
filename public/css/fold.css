@@ -2,12 +2,9 @@
    js/ui/fold.js): the hinge never runs through a dialog, a photo or a call.
    The other half stays visible, dimmed, so the relationship between the two
    columns is never lost. */
-/* Over the trailing column they centre on its content: the screen's edge
-   column and the column's own controls stay in view beside them. */
+/* Over the trailing column they centre on its content, clear of the
+   screen's own edge column. */
 .overlays[data-layout="split"] [data-place="trailing"] { --region-end: var(--safe-right); }
-:root[data-bars="vertical"] .overlays[data-layout="split"] [data-place="trailing"] {
-  --region-end: max(var(--safe-right), calc(var(--rail-right) + var(--rail-w)));
-}
 .overlays[data-layout="split"] .sheet[data-region] {
   left: calc(var(--region-left) + (var(--region-width) - var(--region-end, 0px)) / 2);
   width: min(500px, calc(var(--region-width) - var(--region-end, 0px) - 36px));

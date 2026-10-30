@@ -33,7 +33,11 @@ await sleep(300);await shot('24-strip-closed-chat')
 // Open: two adjacent columns of equal width; the list joins from its own side of the strip.
 await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='leading');await unposed();await sleep(400)
 s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'thread');assert.ok(Math.abs(s.boxes.list.width-s.boxes.thread.width)<1&&Math.abs(s.boxes.list.right-s.boxes.thread.x)<1,'equal adjacent columns')
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info','draw','photo','compose'],'trailing conversation: no Back, New Chat ends its column')
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info','draw','photo'],'trailing conversation: no Back')
+// The list's bar at its foot: Back and the filter lead, the search field, New Chat ends it.
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-item, .list-bottombar .search-pill')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item||'search')),['back','filter','compose','search'],'list bar items')
+const lb=await p.evaluate(()=>{const r=e=>e.getBoundingClientRect(),q=s=>r(document.querySelector(s));return{back:q('.list-bottombar [data-item="back"]'),pill:q('.list-bottombar .search-pill'),compose:q('.list-bottombar [data-item="compose"]'),pane:q('.pane-list')}})
+assert.ok(lb.back.right<=lb.pill.left&&lb.pill.right<=lb.compose.left&&lb.compose.bottom>=lb.pane.bottom-80,'Back, search, New Chat along the foot '+JSON.stringify(lb))
 await shot('25-strip-open-list-chat')
 
 // Details slide the window one column along: the list leaves on the left, details arrive on the right.
@@ -41,9 +45,9 @@ await p.click('.thread [data-item="info"]');await sleep(120)
 const mid=await state();assert.ok(mid.boxes.thread.x>1&&mid.boxes.thread.x<444,'the strip is mid-slide '+mid.boxes.thread.x);assert.ok(mid.shown.includes('list')&&mid.shown.includes('artifact'),'both outgoing and incoming columns drawn while sliding')
 await settled('artifact');await p.locator('.art-content .profile').waitFor();s=await state()
 assert.deepEqual(s.roles,['hidden','hidden','leading','trailing']);assert.ok(Math.abs(s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.right-s.boxes.artifact.x)<1)
-// The conversation leads now: horizontal bars with Back first; details is pressed.
-const lead=await p.evaluate(()=>({axis:document.querySelector('.thread').dataset.bars,items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread [data-item="info"]').getAttribute('aria-pressed')}))
-assert.deepEqual(lead,{axis:'horizontal',items:['back','audio','video','info','draw','photo'],info:'true'})
+// The conversation leads now: Back returns to its bar; details is pressed.
+const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread [data-item="info"]').getAttribute('aria-pressed')}))
+assert.deepEqual(lead,{items:['audio','video','info','back','draw','photo'],info:'true'})
 assert.equal(await p.locator('.art-body [data-item="close"]').isVisible(),true,'details close beside the conversation')
 await sleep(200);await shot('26-strip-open-chat-details')
 
@@ -74,7 +78,7 @@ await p.click('.pane-list [data-item="back"]');await settled('sidebar')
 // Unfolded from the sidebar: sidebar and list side by side; the list has no Back and no filters of its own there.
 await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='trailing');await unposed();await sleep(400)
 s=await state();assert.deepEqual(s.roles,['leading','trailing','hidden','hidden'])
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.pane-list .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['search','compose']);assert.equal(await p.locator('.pane-list .list-filters').isVisible(),false)
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.pane-list .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['compose']);assert.equal(await p.locator('.pane-list .list-filters').isVisible(),false);assert.equal(await p.locator('.list-bottombar .search-pill').isVisible(),true)
 await shot('28-strip-open-sidebar');await p.click('.side-scope[data-scope="all"]')
 await settled('list');s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden'])
 
@@ -108,9 +112,10 @@ await p.setViewportSize({width:890,height:626});await unposed();assert.equal(awa
 await p.click('.composer textarea')
 for(const [w,h] of [[466,678],[678,466],[951,669],[890,626],[669,951],[626,890],[475,669],[669,475]]){
  await p.setViewportSize({width:w,height:h});await unposed();await sleep(250)
- const m=await p.evaluate(()=>{const panes=[...document.querySelectorAll('.pane')].filter(e=>!e.classList.contains('off'));return{layout:document.querySelector('.shell').dataset.layout,bars:document.documentElement.dataset.bars,boxes:panes.map(e=>e.getBoundingClientRect().toJSON()),overflow:document.documentElement.scrollWidth>innerWidth,items:[...document.querySelectorAll('.pane:not(.off) .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().toJSON())}})
+ const m=await p.evaluate(()=>{const panes=[...document.querySelectorAll('.pane')].filter(e=>!e.classList.contains('off'));return{layout:document.querySelector('.shell').dataset.layout,boxes:panes.map(e=>e.getBoundingClientRect().toJSON()),overflow:document.documentElement.scrollWidth>innerWidth,items:[...document.querySelectorAll('.pane:not(.off) .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().toJSON())}})
  const open=w>=700;assert.equal(m.layout,open?'split':'stack',`${w}×${h}`);assert.equal(m.boxes.length,open?2:1);assert.equal(m.overflow,false)
- assert.equal(m.bars,w<h&&h>=760?'horizontal':'vertical',`bar axis at ${w}×${h}`)
+ // Controls sit at the foot of each column or in its heading, never down its side.
+ for(const b of m.items)assert.ok(b.top<=140||b.bottom>=h-90,`control in a heading or the bar at the foot, ${w}×${h} `+JSON.stringify(b))
  if(open)assert.ok(Math.abs(m.boxes[0].right-w/2)<1.5&&Math.abs(m.boxes[1].left-w/2)<1.5,`gutter on the crease at ${w}`)
  for(const b of m.items)assert.ok(b.width>=44&&b.height>=44&&b.left>=-.5&&b.right<=w+.5&&b.top>=-.5&&b.bottom<=h+.5,`control on screen at 44pt, ${w}×${h} `+JSON.stringify(b))
 }
@@ -120,43 +125,33 @@ const widths=[];for(let w=466;w<=951;w+=50)widths.push(w);widths.push(951);for(l
 for(const w of widths){await p.setViewportSize({width:w,height:669});await sleep(40);assert.equal(await p.evaluate(()=>document.documentElement.dataset.kb),undefined,'a width change is never the keyboard at '+w)}
 await unposed();await sleep(200);assert.deepEqual((await state()).roles,['hidden','hidden','single','hidden']);assert.equal(await p.evaluate(()=>document.activeElement?.matches('.composer textarea')),true)
 // A sheet opened beside the list stays in its half across the same drag: its middle never lands on the crease.
-await p.setViewportSize({width:951,height:669});await unposed();await p.click('.thread [data-item="compose"]');await p.locator('.sheet.on').waitFor()
+await p.setViewportSize({width:951,height:669});await unposed();await p.click('.pane-list [data-item="compose"]');await p.locator('.sheet.on').waitFor()
 for(const w of [951,901,851,800,751,700]){await p.setViewportSize({width:w,height:669});await sleep(120);const b=await p.locator('.sheet').boundingBox();assert.ok(b.x+b.width<=w/2+1||b.x>=w/2-1,`sheet clear of the crease at ${w} `+JSON.stringify(b))}
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 
 // With the system's edge column (84pt down the right, open or closed): unfolded, a sheet over the conversation
-// centres on its content, beside the column of controls; folded, it spans the app's side with even margins and
-// the receding app's controls step aside rather than showing half-covered beside it.
-// The inset arrives after launch with no resize (as on iOS 27.2): the column is still joined.
+// centres on its content, clear of the column; folded, it spans the app's side with even margins.
 await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>document.documentElement.style.setProperty('--safe-right','84px'));await sleep(300)
-assert.equal(await p.evaluate(()=>document.documentElement.hasAttribute('data-edge-column')),true,'late inset joins the edge column')
-const railLeft=()=>p.evaluate(()=>Math.min(...[...document.querySelectorAll('.thread .duo-rail .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().left)))
-const railOpacity=()=>p.evaluate(()=>+getComputedStyle(document.querySelector('.thread .duo-rail')).opacity)
-let rail=await railLeft();await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
+await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
 let b=await p.locator('.sheet').boundingBox(),pane=await p.locator('.pane[data-col="thread"]').boundingBox()
-assert.ok(b.x>=pane.x+17&&b.x+b.width<=Math.min(rail,951-84)-17,'unfolded sheet beside the column '+JSON.stringify({b,rail}))
-assert.ok(Math.abs(b.x+b.width/2-(pane.x+(pane.width-Math.max(84,pane.x+pane.width-rail))/2))<2,'unfolded sheet centred on the column content '+JSON.stringify({b,pane,rail}))
+assert.ok(b.x>=pane.x+17&&b.x+b.width<=951-84-17,'unfolded sheet clear of the column '+JSON.stringify(b))
+assert.ok(Math.abs(b.x+b.width/2-(pane.x+(pane.width-84)/2))<2,'unfolded sheet centred on the content '+JSON.stringify({b,pane}))
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 await p.setViewportSize({width:466,height:678});await unposed();await sleep(300);await settled('thread')
+// Every bar at the foot stays inside the inset too.
+const foot=await p.evaluate(()=>[...document.querySelectorAll('.thread .composer .bar-item, .thread .composer .field')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().right))
+assert.ok(foot.every(r=>r<=466-84+.5),'the conversation bar clears the column '+foot)
 await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(700)
 b=await p.locator('.sheet').boundingBox();assert.ok(Math.abs(b.x-8)<1&&Math.abs(466-84-8-(b.x+b.width))<1,'folded sheet spans the app side '+JSON.stringify(b))
-assert.ok(await railOpacity()<0.05,'receding controls step aside')
-await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'});await sleep(500);assert.equal(await railOpacity(),1,'controls return with the app')
+await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'});await sleep(500)
 await p.evaluate(()=>{document.documentElement.style.removeProperty('--safe-right');dispatchEvent(new Event('resize'))})
 
-// iOS 27.2 can keep that column out of the page: a 466pt screen shows a 376pt page with no inset. The rail then
-// stands against the page's trailing edge, runs from the top (no camera or status bar in the page), and content
-// stops beside it. A Split View half or a desktop window is never taken for that column.
-const besideAt=async(extra,w,h)=>{const c=await browser.newContext({...opts,...extra,viewport:{width:w,height:h},storageState:await ac.storageState()});const q=await c.newPage();q.on('pageerror',e=>errors.push(e.message));await q.goto(BASE);await q.locator('.pane-list .row').first().waitFor();await sleep(400);return{c,q}}
-let {c:bc,q}=await besideAt({screen:{width:466,height:678},isMobile:true,hasTouch:true},376,678)
-assert.equal(await q.evaluate(()=>document.documentElement.dataset.edgeColumn),'beside','column outside the page')
-const geo=await q.evaluate(()=>{const items=[...document.querySelectorAll('.pane-list .duo-rail .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect());const row=document.querySelector('.pane-list .row').getBoundingClientRect();return{right:Math.max(...items.map(r=>r.right)),left:Math.min(...items.map(r=>r.left)),top:Math.min(...items.map(r=>r.top)),row:row.right}})
-assert.ok(376-geo.right<=10&&geo.top<=24&&geo.row<=geo.left-8,'rail against the trailing edge from the top, content beside it '+JSON.stringify(geo))
-await q.screenshot({path:path.join(OUT,'29-column-beside.png')});await bc.close()
-;({c:bc,q}=await besideAt({screen:{width:951,height:669},isMobile:true,hasTouch:true},445,669))
-assert.equal(await q.evaluate(()=>document.documentElement.dataset.edgeColumn),undefined,'a Split View half is not the column');await bc.close()
-;({c:bc,q}=await besideAt({screen:{width:466,height:678}},376,678))
-assert.equal(await q.evaluate(()=>document.documentElement.dataset.edgeColumn),undefined,'a desktop window is not the column');await bc.close()
+// iOS 27.2 can keep that column out of the page altogether (a 376pt page on the 466pt screen): the bar at the
+// foot spans the page, Back to New Chat, and the list runs the full width above it.
+{const c=await browser.newContext({...opts,viewport:{width:376,height:678},isMobile:true,hasTouch:true,storageState:await ac.storageState()});const q=await c.newPage();q.on('pageerror',e=>errors.push(e.message));await q.goto(BASE);await q.locator('.pane-list .row').first().waitFor();await sleep(500)
+const g=await q.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return{back:r('.list-bottombar [data-item="back"]'),compose:r('.list-bottombar [data-item="compose"]'),row:r('.pane-list .row'),pill:r('.list-bottombar .search-pill')}})
+assert.ok(g.back.left>=15.5&&g.compose.right<=376-15.5&&g.compose.right>=376-24&&g.pill.width>=120&&g.row.right>=376-24,'the bar spans the page '+JSON.stringify(g))
+await q.screenshot({path:path.join(OUT,'29-outer-page.png')});await c.close()}
 
-assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; an inset that settles late still joins the edge column; a column kept outside the page puts the rail beside it from the top (not for Split View or a desktop window); sheets beside the edge column and its controls; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
+assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; the bar at the foot of every column (list: Back, filter, search, New Chat; conversation: Back, field, drawing and photos), inside the edge column inset and across a 376pt page; sheets clear of the edge column; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
