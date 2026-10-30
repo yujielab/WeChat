@@ -12,6 +12,7 @@ import { createChatList } from './chatList.js'
 import { createThread } from './thread.js'
 import { createArtifact } from './artifact.js'
 import { openSettings, openNewChat, rememberOpen } from './sheets.js'
+import { openInsights } from './insights.js'
 import { closeAllOverlays } from './overlay.js'
 import { h } from '../ui/dom.js'
 
@@ -44,7 +45,8 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     onBack: () => back(LIST),
     onFilter: () => sidebar.render(),
     onCompose: compose,
-    onSettings: origin => openSettings({ onLogout, origin })
+    onSettings: origin => openSettings({ onLogout, origin }),
+    onInsights: origin => openInsights({ origin, onOpen: id => openChat(id) })
   })
   const thread = createThread(panes[THREAD], {
     onBack: () => back(THREAD),

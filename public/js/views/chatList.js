@@ -13,6 +13,7 @@ import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
 import { createBars } from '../ui/bars.js'
+import { insightsOn } from './insights.js'
 
 export const FILTERS = {
   all: { label: '全部', test: () => true },
@@ -21,7 +22,7 @@ export const FILTERS = {
   groups: { label: '群聊', test: c => c.room }
 }
 
-export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSettings, loadContacts }) {
+export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSettings, onInsights, loadContacts }) {
   pane.classList.add('pane-list')
   // Rows swipe themselves; a back swipe starts at the column's leading edge.
   pane.dataset.edgeSwipe = ''
@@ -40,7 +41,12 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // are (and settings) sits at the end of the list's heading.
   const me = h('button', { class: 'list-me', type: 'button', 'aria-label': '设置' })
   me.addEventListener('click', () => onSettings?.(me))
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, me))
+  // Smart notifications (views/insights.js), where the server can read for them.
+  const insights = h('button', { class: 'list-insights', type: 'button', 'aria-label': '智能通知', hidden: true }, icon('sparkles'))
+  insights.addEventListener('click', () => onInsights?.(insights))
+  const showInsights = () => { insights.hidden = !insightsOn() }
+  window.addEventListener('insights-pref', showInsights)
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, insights, me))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
   const filterButtons = new Map()
@@ -369,6 +375,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // ------------------------------------------------------------ render
   function render() {
     updateFilters()
+    showInsights()
     if (openSwipe && !openSwipe.isConnected) openSwipe = null
     if (searching) return renderResults()
     const filter = FILTERS[state.filter] || FILTERS.all

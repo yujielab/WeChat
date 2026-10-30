@@ -8,6 +8,7 @@ import { isStandalone } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
 import { assistPrefs, setAssistPref } from './predict.js'
+import { insightsOn, setInsightsPref, insightsSection } from './insights.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -154,8 +155,10 @@ export function openSettings({ onLogout, origin }) {
     state.assist ? groupTitle('智能') : null,
     state.assist ? group(
       cell('输入预测', toggle(assistPrefs().predict, on => setAssistPref('predict', on), '输入预测')),
-      cell('加亮关键词', toggle(assistPrefs().keys, on => setAssistPref('keys', on), '加亮关键词'))
+      cell('加亮关键词', toggle(assistPrefs().keys, on => setAssistPref('keys', on), '加亮关键词')),
+      cell('智能通知', toggle(insightsOn(), on => setInsightsPref(on), '智能通知'))
     ) : null,
+    state.assist ? foot('智能通知从最近的私聊里整理提醒，只给你自己看。') : null,
     groupTitle('通知'),
     pushSlot,
     h('div', { style: { height: '20px' } }),
@@ -392,6 +395,8 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
   )
 
   const blocks = [header, flags]
+  // What this conversation says about them (views/insights.js).
+  if (!isGroup && insightsOn()) blocks.splice(1, 0, insightsSection(roomId))
 
   if (isGroup) {
     const grid = h('div', { class: 'members' })

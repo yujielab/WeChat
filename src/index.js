@@ -19,6 +19,16 @@ function sameOrigin(request, url) {
   return request.headers.get('origin') === url.origin
 }
 
+function withViewerPlace(request) {
+  const cf = request.cf || {}
+  const headers = new Headers(request.headers)
+  headers.delete('x-viewer-place')
+  if (Number.isFinite(Number(cf.latitude)) && Number.isFinite(Number(cf.longitude))) {
+    headers.set('x-viewer-place', JSON.stringify({ lat: Number(cf.latitude), lon: Number(cf.longitude), city: String(cf.city || '') }))
+  }
+  return new Request(request, { headers })
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
@@ -31,6 +41,9 @@ export default {
           headers: { 'content-type': 'application/json' }
         })
       }
+      // The smart panels' weather falls back to where the request came from
+      // (Cloudflare's own estimate of the visitor's city), handed over as is.
+      if (url.pathname === '/api/insights') request = withViewerPlace(request)
       return hubStub(env).fetch(request)
     }
     return env.ASSETS.fetch(request)
