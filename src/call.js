@@ -17,6 +17,7 @@ const RTC_BASE = 'https://rtc.live.cloudflare.com/v1'
 // it is ringing before the call goes out as a notification instead.
 export const RING_MS = 45000
 export const ALERT_MS = 2500
+const RTC_TIMEOUT_MS = 15000
 
 export class CallBroker {
   constructor(hub) {
@@ -31,7 +32,8 @@ export class CallBroker {
   // ---------------------------------------------------------------- calls in progress
   // A call is kept in storage while it rings or runs: a callee who comes back
   // from its notification finds it even if the Durable Object slept between.
-  // { callId, media, caller, started, participants, ringing, alerted, notified }
+  // { callId, media, caller, started, participants, ringing, alerted, notified,
+  //   published: { [uid]: { sessionId, tracks } } }
   get(room) { return this.hub.store.kvGet(`call:${room}`) }
   put(room, call) { this.hub.store.kvSet(`call:${room}`, call) }
   drop(room) { this.hub.store.kvDelete(`call:${room}`) }
@@ -71,20 +73,34 @@ export class CallBroker {
           current.ringing = current.ringing.filter(u => u !== from)
           if (!current.participants.includes(from)) current.participants.push(from)
           this.put(room, current)
+          // Whatever is already published reaches the one joining, whenever
+          // its own connection is ready for it.
+          for (const [uid, pub] of Object.entries(current.published || {})) {
+            if (uid !== from) this.hub.sendToUser(from, { t: 'call', kind: 'tracks', room, callId, from: uid, ...pub })
+          }
         }
         relay({})
         break
       }
-      case 'tracks':
-        // "I pushed these SFU tracks" — others pull them.
-        relay({ tracks: msg.tracks, sessionId: msg.sessionId })
+      case 'tracks': {
+        // "I published these SFU tracks": the others pull them. Kept with the
+        // call so anyone joining later, or reconnecting, can pull them too.
+        const pub = publication(msg)
+        if (!pub) return
+        if (current) {
+          current.published = { ...current.published, [from]: pub }
+          this.put(room, current)
+        }
+        relay(pub)
         break
+      }
       case 'decline':
       case 'cancel':
       case 'hangup': {
         if (current) {
           current.participants = current.participants.filter(u => u !== from)
           current.ringing = current.ringing.filter(u => u !== from)
+          if (current.published) delete current.published[from]
           if (kind === 'cancel' && from === current.caller) {
             // Unanswered: whoever was reached by notification learns they missed it.
             if (msg.missed) this.notifyMissed(room, current).catch(() => {})
@@ -175,6 +191,7 @@ export class CallBroker {
     for (const [room, call] of this.all()) {
       if (call.participants.includes(uid)) {
         call.participants = call.participants.filter(u => u !== uid)
+        if (call.published) delete call.published[uid]
         for (const u of [...call.participants, ...call.ringing]) {
           this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId: call.callId, from: uid })
         }
@@ -205,11 +222,14 @@ export class CallBroker {
       return this.turn()
     }
     if (path === '/sessions/new' && request.method === 'POST') {
-      return this.rtc('POST', '/sessions/new', await safeBody(request))
+      // The SFU takes no body here: anything sent is refused with a 400.
+      return this.rtc('POST', '/sessions/new')
     }
     const mTracks = path.match(/^\/sessions\/([\w-]+)\/tracks\/new$/)
     if (mTracks && request.method === 'POST') {
-      return this.rtc('POST', `/sessions/${mTracks[1]}/tracks/new`, await safeBody(request))
+      const body = await safeBody(request)
+      if (!validTracks(body.tracks)) return j({ ok: false, error: '通话请求无效' }, 400)
+      return this.rtc('POST', `/sessions/${mTracks[1]}/tracks/new`, body)
     }
     const mReneg = path.match(/^\/sessions\/([\w-]+)\/renegotiate$/)
     if (mReneg && request.method === 'PUT') {
@@ -223,17 +243,26 @@ export class CallBroker {
   }
 
   async rtc(method, apiPath, body) {
-    const res = await fetch(`${RTC_BASE}/apps/${this.env.REALTIME_APP_ID}${apiPath}`, {
-      method,
-      headers: { Authorization: `Bearer ${this.env.REALTIME_APP_SECRET}`, 'content-type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined
-    })
+    let res
+    try {
+      res = await fetch(`${RTC_BASE}/apps/${encodeURIComponent(String(this.env.REALTIME_APP_ID).trim())}${apiPath}`, {
+        method,
+        headers: { Authorization: `Bearer ${String(this.env.REALTIME_APP_SECRET).trim()}`, 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(RTC_TIMEOUT_MS)
+      })
+    } catch {
+      return j({ ok: false, error: '通话服务没有响应，请稍后再试' }, 504)
+    }
     const text = await res.text()
     if (!res.ok) {
       // The status tells a service failure apart from a refused microphone;
-      // the service's own description goes to the log, not the person.
-      console.warn('realtime', res.status, text.slice(0, 300))
-      return j({ ok: false, error: `通话服务暂时不可用（${res.status}）` }, res.status)
+      // the service's description goes to the log, its public code along
+      // with the answer so a failure can be told apart from the device.
+      console.warn('realtime', method, apiPath.replace(/sessions\/[\w-]+/, 'sessions/:id'), res.status, text.slice(0, 300))
+      let code
+      try { code = JSON.parse(text).errorCode } catch {}
+      return j({ ok: false, error: `通话服务暂时不可用（${res.status}）`, code: typeof code === 'string' ? code : undefined }, res.status)
     }
     return new Response(text, { status: res.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
   }
@@ -258,7 +287,30 @@ const j = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
 
 async function safeBody(request) {
-  try { return await request.json() } catch { return {} }
+  try {
+    const body = await request.json()
+    return body && typeof body === 'object' && !Array.isArray(body) ? body : {}
+  } catch {
+    return {}
+  }
+}
+
+// A tracks/new batch as the SFU accepts it: one to 64 entries, all local or
+// all remote, each named.
+function validTracks(tracks) {
+  if (!Array.isArray(tracks) || !tracks.length || tracks.length > 64) return false
+  const location = tracks[0]?.location
+  return (location === 'local' || location === 'remote') &&
+    tracks.every(t => t && t.location === location && typeof t.trackName === 'string' && t.trackName &&
+      (location === 'local' ? typeof t.mid === 'string' : typeof t.sessionId === 'string'))
+}
+
+/** A participant's announced publication, or null if it isn't one. */
+function publication(msg) {
+  const ok = typeof msg.sessionId === 'string' && /^[\w-]{1,128}$/.test(msg.sessionId) &&
+    Array.isArray(msg.tracks) && msg.tracks.length > 0 && msg.tracks.length <= 8 &&
+    msg.tracks.every(t => typeof t === 'string' && t.length <= 128)
+  return ok ? { sessionId: msg.sessionId, tracks: msg.tracks } : null
 }
 
 function fmtDur(s) {

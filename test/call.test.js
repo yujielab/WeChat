@@ -112,6 +112,76 @@ test('a decline that timed out reaches the caller as missed', () => {
   assert.equal(decline.missed, true)
 })
 
+test('tracks published before someone joins reach them when they accept', () => {
+  const t = setup()
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'tracks', room: t.room, callId: 'c1', sessionId: 'sa', tracks: ['a-audio'] })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  const replay = t.sent.filter(m => m.to === t.ids.b && m.kind === 'tracks')
+  assert.equal(replay.length, 2, 'once as published, once more on joining')
+  assert.deepEqual({ from: replay[1].from, sessionId: replay[1].sessionId, tracks: replay[1].tracks }, { from: t.ids.a, sessionId: 'sa', tracks: ['a-audio'] })
+  // Malformed announcements go nowhere.
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'tracks', room: t.room, callId: 'c1', sessionId: 'sa', tracks: 'a-audio' })
+  assert.equal(t.sent.filter(m => m.kind === 'tracks').length, 2)
+  // Someone leaving takes their publication with them.
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1' })
+  assert.equal(t.broker.get(t.room)?.published?.[t.ids.a], undefined)
+})
+
+/** Runs the media proxy against a stand-in for the Realtime API. */
+async function proxy(path, { method = 'POST', body, answer = { status: 201, json: { sessionId: 's1' } } } = {}) {
+  const t = setup()
+  t.broker.env.REALTIME_APP_ID = 'app-1'
+  t.broker.env.REALTIME_APP_SECRET = 'secret-1\n'
+  const calls = []
+  const real = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, ...init })
+    return new Response(JSON.stringify(answer.json), { status: answer.status })
+  }
+  try {
+    const request = new Request(`https://duo.test${path}`, { method, body: body === undefined ? undefined : JSON.stringify(body) })
+    const res = await t.broker.http(request, new URL(request.url), {})
+    return { calls, status: res.status, data: await res.json() }
+  } finally {
+    globalThis.fetch = real
+  }
+}
+
+test('a session is created with no body, as the SFU requires', async () => {
+  const r = await proxy('/rtc/sessions/new', { body: {} })
+  assert.equal(r.status, 201)
+  assert.equal(r.data.sessionId, 's1')
+  assert.equal(r.calls.length, 1)
+  assert.equal(r.calls[0].url, 'https://rtc.live.cloudflare.com/v1/apps/app-1/sessions/new')
+  assert.equal(r.calls[0].body, undefined)
+  assert.equal(r.calls[0].headers.Authorization, 'Bearer secret-1')
+})
+
+test('a refusal from the SFU keeps its status and public code', async () => {
+  const r = await proxy('/rtc/sessions/s1/tracks/new', {
+    body: { tracks: [{ location: 'remote', sessionId: 's0', trackName: 'a-audio' }] },
+    answer: { status: 400, json: { errorCode: 'invalid_params', errorDescription: 'details' } }
+  })
+  assert.equal(r.status, 400)
+  assert.equal(r.data.code, 'invalid_params')
+  assert.match(r.data.error, /400/)
+})
+
+test('track batches the SFU would refuse never leave the server', async () => {
+  for (const tracks of [undefined, [], [{ location: 'local', trackName: 'x' }], [{ location: 'local', mid: '0', trackName: 'x' }, { location: 'remote', sessionId: 's', trackName: 'y' }]]) {
+    const r = await proxy('/rtc/sessions/s1/tracks/new', { body: { tracks } })
+    assert.equal(r.status, 400, JSON.stringify(tracks))
+    assert.equal(r.calls.length, 0)
+  }
+  const ok = await proxy('/rtc/sessions/s1/tracks/new', {
+    body: { sessionDescription: { type: 'offer', sdp: 'v=0' }, tracks: [{ location: 'local', mid: '0', trackName: 'a-audio' }] },
+    answer: { status: 200, json: { sessionDescription: { type: 'answer', sdp: 'v=0' }, tracks: [{ mid: '0', trackName: 'a-audio' }] } }
+  })
+  assert.equal(ok.status, 200)
+  assert.equal(JSON.parse(ok.calls[0].body).tracks[0].mid, '0')
+})
+
 test('declarative push message format', () => {
   const m = declarativeMessage({ title: '小禾', body: '你好', navigate: 'https://duo.example/?chat=r1', tag: 'r1', badge: 3 })
   assert.equal(m.web_push, 8030)

@@ -80,6 +80,6 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await A.setViewportSize(UNFOLDED); await sleep(800); await shot(A, '09-unfolded')
   await A.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await sleep(400); await shot(A, '10-unfolded-dark')
 
-  console.log('\nPROBLEMS:\n' + (problems.filter(x => !/rtc|realtime|500|sessions/i.test(x)).join('\n') || 'none'))
+  console.log('\nPROBLEMS:\n' + (problems.filter(x => !/rtc|realtime|500|504|sessions/i.test(x)).join('\n') || 'none'))
   await browser.close()
 })().catch(e => { console.error(e); process.exit(1) })
