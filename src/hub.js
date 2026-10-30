@@ -331,6 +331,11 @@ export class Hub {
     if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权发送' }, 403)
     const type = ['text', 'image', 'voice', 'video', 'file', 'drawing'].includes(body.type) ? body.type : 'text'
     if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: '不能发送空消息' }, 400)
+    // A retry carries the same localId: if the first attempt landed (its
+    // answer was lost on the way back), it gets that message, not a copy.
+    const localKey = typeof body.localId === 'string' && body.localId ? `${user.id}:${roomId}:${body.localId.slice(0, 64)}` : ''
+    const landed = localKey && this.sentLocal?.get(localKey)
+    if (landed) return json({ ok: true, msg: landed, localId: body.localId })
     const msg = this.store.addMessage({
       room: roomId,
       sender: user.id,
@@ -348,6 +353,12 @@ export class Hub {
       else this.sendToUser(uid, { t: 'msg', msg })
     }
     this.pushToOffline(roomId, user, msg)
+    if (localKey) {
+      this.sentLocal ||= new Map()
+      this.sentLocal.set(localKey, msg)
+      // Only recent sends can be retried; keep the memory small.
+      if (this.sentLocal.size > 500) this.sentLocal.delete(this.sentLocal.keys().next().value)
+    }
     return json({ ok: true, msg, localId: body.localId || null })
   }
 

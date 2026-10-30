@@ -67,6 +67,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const photoGroups = new Map()
   const expandedPhotos = new Set()
   const expandedCalls = new Set()
+  const retrying = new Set()
   const ctx = { maxMedia: 240 }
   let readingAnchor = { bottom: true }
 
@@ -202,12 +203,16 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.recalled || m.text || '')
     const room = isGroup(current)
     const who = m.fromName || nameOf(m.from, current)
-    const bub = renderBubble(m, m.status === 'failed' ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 34) } : ctx)
+    const retryShown = m.status === 'failed' || (m.status === 'sending' && retrying.has(m.id))
+    const bub = renderBubble(m, retryShown ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 78) } : ctx)
     const sender = room && !m.out ? h('div', { class: 'm-sender' }, who) : null
     const av = h('span', { class: 'm-avatar', 'aria-hidden': 'true' }, avatar(avatarOf(m.from, current), who))
+    // Where it failed: a compact 重试 beside the message itself, which turns
+    // into 发送中 in place while it goes, and folds away once it's sent.
     const status = m.status === 'failed'
-      ? h('button', { class: 'm-status', type: 'button', 'aria-label': '发送失败，点按重试' }, icon('exclaim'))
-      : null
+      ? h('button', { class: 'm-retry', type: 'button', 'aria-label': '发送失败，重试' }, icon('refresh'), h('span', { 'aria-hidden': 'true' }, '重试'))
+      : retryShown ? h('span', { class: 'm-retry busy', role: 'status', 'aria-label': '正在重新发送' }, h('span', { class: 'spinner' }), h('span', { 'aria-hidden': 'true' }, '发送中'))
+        : null
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
@@ -796,7 +801,25 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     typingTimer = setTimeout(() => { typingTimer = 0; titleSub.classList.remove('typing'); renderHeader(); clearGhost() }, 4500)
   }
 
+  // A failed text is sent again in place, with the same localId (the server
+  // answers a repeat with the message that already landed); a tap while it
+  // is on its way does nothing.
   async function retry(m) {
+    if (m.type === 'text' && m.text && m.cid) {
+      if (retrying.has(m.id)) return
+      retrying.add(m.id)
+      upsertMessage({ ...m, status: 'sending' })
+      try {
+        const r = await api.post('/api/messages', { room: m.chat, type: 'text', text: m.text, localId: m.cid })
+        if (r.msg) replaceMessage(m.id, normMsg(r.msg))
+      } catch (err) {
+        upsertMessage({ ...m, status: 'failed' })
+        toast(err.message || '发送失败', { type: 'error' })
+      } finally {
+        retrying.delete(m.id)
+      }
+      return
+    }
     removeMessage(m.id, m.chat)
     if (m.type === 'image') {
       const f = retryFiles.get(m.cid)
@@ -821,7 +844,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const node = e.target.closest('.m')
     const m = msgOf(node)
     if (!m) return
-    if (e.target.closest('.m-status, .m-reactions')) return messageMenu(node, m)
+    if (e.target.closest('.m-retry')) return m.status === 'failed' ? retry(m) : undefined
+    if (e.target.closest('.m-reactions')) return messageMenu(node, m)
     if (e.target.closest('a')) return
     const bub = e.target.closest('.bubble')
     if (!bub) return
@@ -1125,7 +1149,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         seps.delete(fromId)
       }
       el.querySelector('.bubble')?.classList.remove('sending')
-      el.querySelector('.m-status')?.remove()
+      const pill = el.querySelector('.m-retry')
+      if (pill) {
+        pill.classList.add('gone')
+        setTimeout(() => pill.remove(), reducedMotion() ? 0 : 200)
+      }
       // The sent message keeps its local preview; the node is now current.
       el.bodySig = bodySig(m)
     }

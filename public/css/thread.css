@@ -355,8 +355,35 @@
 .card-foot .icon { width: 13px; height: 13px; }
 
 /* Delivery status */
-.m-status { align-self: center; color: var(--red); display: grid; place-items: center; width: 24px; height: 24px; }
-.m-status .icon { width: 22px; height: 22px; }
+/* Failed: a compact 重试 beside the message, 44pt to the touch; 发送中 in
+   its place while it goes; it folds away once sent. */
+.m-retry {
+  position: relative;
+  align-self: center;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  max-width: 96px;
+  margin: 0 6px;
+  padding: 0 10px;
+  border-radius: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red-text);
+  font-size: var(--t-caption);
+  font-weight: var(--w-semibold);
+  animation: retry-in 180ms var(--ease-out) backwards;
+  transition: opacity 160ms ease-out, max-width 180ms var(--ease-out), padding 180ms var(--ease-out), margin 180ms var(--ease-out);
+}
+.m-retry::before { content: ""; position: absolute; inset: -8px -2px; }
+.m-retry .icon { width: 14px; height: 14px; }
+.m-retry.busy { background: var(--field); color: var(--label-2); animation: none; }
+.m-retry.busy .spinner { width: 12px; height: 12px; }
+.m-retry.gone { opacity: 0; max-width: 0; padding: 0; margin: 0; }
+@keyframes retry-in { from { opacity: 0; max-width: 0; padding: 0; } }
 .m-meta {
   margin: 6px 9px 0;
   font-size: var(--t-caption-2);

@@ -144,7 +144,7 @@
 .m.has-avatar .m-avatar .avatar { --size: 32px; }
 .m.has-avatar:not(.last) .m-avatar .avatar { visibility: hidden; }
 .m.has-avatar .m-col { max-width: min(calc(100% - 42px), 27em); }
-.m.has-avatar:has(.m-status) .m-col { max-width: min(calc(100% - 76px), 27em); }
+.m.has-avatar:has(.m-retry) .m-col { max-width: min(calc(100% - 120px), 27em); }
 .msgs:has(>.m.out.has-avatar)>.m-meta { margin-right: 44px; }
 .m.has-avatar .bubble { border-radius: 20px; }
 .m.has-avatar.in.last .bubble:not(.jumbo):not(.media):not(.call-log) { border-bottom-left-radius: 7px; }

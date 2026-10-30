@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 
-test('names, bios, avatars and bodies from clients are bounded and validated', async () => {
+test('names, bios, avatars and bodies from clients are bounded and validated; retries are not duplicated', async () => {
   const bundled = await build({
     entryPoints: [fileURLToPath(new URL('../src/index.js', import.meta.url))],
     bundle: true,
@@ -83,6 +83,17 @@ test('names, bios, avatars and bodies from clients are bounded and validated', a
     assert.equal(group.data.room.name.length, 40)
     const info = await request(`/api/room/${group.data.room.id}`, undefined, session)
     assert.deepEqual(info.data.members.map(m => m.id).sort(), [me, b.data.me.id].sort())
+
+    // A retry with the same localId (its first answer lost) gets the message
+    // that landed, not a copy.
+    const room = group.data.room.id
+    const first = await request('/api/messages', { room, type: 'text', text: '只发一次', localId: 'retry-1' }, session)
+    const again = await request('/api/messages', { room, type: 'text', text: '只发一次', localId: 'retry-1' }, session)
+    assert.equal(again.data.msg.id, first.data.msg.id)
+    const other = await request('/api/messages', { room, type: 'text', text: '只发一次', localId: 'retry-2' }, session)
+    assert.notEqual(other.data.msg.id, first.data.msg.id)
+    const history = await request(`/api/messages?room=${room}&limit=100`, undefined, session)
+    assert.equal(history.data.messages.filter(m => m.body === '只发一次').length, 2)
   } finally {
     await mf.dispose()
     await rm(persistence, { recursive: true, force: true })

@@ -105,6 +105,17 @@ assert.ok(Math.abs((await sum.boundingBox()).y-y0)<1,'the tapped record stays wh
 await p.screenshot({path:path.join(OUT,'36-calls-open.png')})
 assert.equal(await p.evaluate(()=>document.querySelectorAll('.msgs [role="button"].call-log').length),0,'records are not buttons')
 
+// M07: a photo opens from its bubble — the bubble's corners (and crop, when it has one) ease away as it grows,
+// and come back on the way home to the same bubble.
+await p.evaluate(async()=>{const{state,thread,mergeMessages}=await import('/js/store.js');const c=document.createElement('canvas');c.width=1200;c.height=200;const g=c.getContext('2d');g.fillStyle='#4a7';g.fillRect(0,0,1200,200);g.fillStyle='#fff';g.fillRect(570,0,60,200);const url=c.toDataURL('image/png');state.chats.set('i',{id:'i',kind:'dm',name:'林间',peer:{id:'p3',display:'林间'},unread:0});const t=thread('i');t.loaded=true;t.hasMore=false;mergeMessages('i',[{id:'im1',chat:'i',type:'image',url,w:1200,h:200,from:'me',out:true,ts:Date.now()-60000,status:'sent'}]);await testThread.open('i')})
+await sleep(600)
+const opening2=await p.evaluate(()=>new Promise(done=>{document.querySelector('.bubble.media').click();setTimeout(()=>{const m=document.querySelector('.viewer-media');done(m&&getComputedStyle(m).clipPath)},50)}))
+assert.match(opening2||'',/inset\(.*round [1-9]/,'starts with the bubble\'s corners (and its crop, when it has one) '+opening2)
+await sleep(700);assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('.viewer-media')).clipPath),'none','fully open, uncropped')
+await p.keyboard.press('Escape');await sleep(80)
+assert.match(await p.evaluate(()=>{const m=document.querySelector('.viewer-media');return m?getComputedStyle(m).clipPath:'gone'}),/inset\(|gone/,'closing takes the crop back')
+await sleep(600);assert.equal(await p.evaluate(()=>document.querySelector('.bubble.media img').style.visibility),'','the bubble shows again')
+
 // P1-11 / P2-14: settings has one way into the profile, offers haptics only where the device can play them,
 // and scrolls every row fully into view above the sheet's foot, folded and unfolded.
 for(const vp of[{width:466,height:678},{width:951,height:669},{width:466,height:420}]){
@@ -120,5 +131,5 @@ for(const vp of[{width:466,height:678},{width:951,height:669},{width:466,height:
  await p.keyboard.press('Escape');await sleep(500)
 }
 
-assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; settings scrolls fully into view with one profile entry and no dead switches')
+assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; photos open from and close to their bubble with its crop and corners; settings scrolls fully into view with one profile entry and no dead switches')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
