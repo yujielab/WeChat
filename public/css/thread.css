@@ -446,7 +446,7 @@
   caret-color: var(--blue);
   overflow-y: auto;
 }
-.field textarea::placeholder { color: var(--label-3); }
+.field textarea::placeholder { color: var(--label-prompt); opacity: 1; }
 /* The field grows a line at a time from its foot, its capsule easing into a
    rounded rectangle; the text itself never scales. The twin measures. */
 .field textarea { transition: height 190ms var(--ease-out); }
@@ -464,7 +464,7 @@
   word-break: normal;
   color: transparent;
 }
-.field-predict .rest { color: var(--label-3); pointer-events: auto; cursor: pointer; }
+.field-predict .rest { color: var(--label-prompt); pointer-events: auto; cursor: pointer; }
 .field textarea.has-prediction::placeholder { color: transparent; }
 .field-twin {
   position: absolute;

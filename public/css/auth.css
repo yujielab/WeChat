@@ -12,16 +12,16 @@
 .auth[data-mode="register"] .auth-tab-indicator { transform:translateX(100%); }
 .auth-form { display:flex; flex-direction:column; gap:18px; width:100%; margin-top:30px; }
 .auth-label { display:flex; align-items:center; justify-content:space-between; margin:0 4px 8px; font-size:var(--t-caption); font-weight:var(--w-medium); letter-spacing:var(--track-eyebrow); color:var(--label-2); }
-.auth-label span { font-size:var(--t-caption-2); color:var(--label-3); font-weight:400; letter-spacing:0; }
+.auth-label span { font-size:var(--t-caption-2); color:var(--label-prompt); font-weight:400; letter-spacing:0; }
 .auth-input-well { position:relative; }
-.input { width:100%; height:52px; padding:0 18px; border:1px solid var(--line); border-radius:14px; background:var(--bg); font-size:max(16px,var(--t-callout)); color:var(--label); outline:none; appearance:none; transition:border-color var(--dur-quick) ease-out,box-shadow var(--dur-quick) ease-out; }
-.input::placeholder { color:var(--label-3); }
+.input { width:100%; height:var(--field-height); padding:0 var(--field-inset); border:1px solid var(--line); border-radius:var(--r-field); background:var(--bg); font-size:max(16px,var(--t-callout)); color:var(--label); outline:none; appearance:none; transition:border-color var(--dur-quick) ease-out,box-shadow var(--dur-quick) ease-out; }
+.input::placeholder { color:var(--label-prompt); opacity:1; }
 .input:focus { border-color:var(--label); box-shadow:0 0 0 3px var(--focus-ring); }
 .input[aria-invalid="true"] { border-color:var(--red); box-shadow:0 0 0 3px var(--red-ring); }
 .password-toggle { position:absolute; top:4px; bottom:4px; right:6px; min-width:44px; padding:0 10px; border-radius:10px; font-size:var(--t-caption); font-weight:var(--w-medium); color:var(--label-2); }
 .auth-input-well:has(.password-toggle) .input { padding-right:62px; }
 .password-toggle:active { background:var(--field); }
-.field-error { margin:0; font-size:12px; color:var(--red-text); line-height:1.5; text-align:left; overflow-wrap:anywhere; }
+.field-error { margin:0; font-size:var(--t-footnote); color:var(--red-text); line-height:1.5; text-align:left; overflow-wrap:anywhere; }
 .field-error:empty { display:none; }
 .auth-field[hidden] { display:none; }
 .btn { min-height:50px; border-radius:999px; padding:0 24px; display:inline-flex; align-items:center; justify-content:center; gap:9px; font-size:var(--t-callout); font-weight:600; }
@@ -30,6 +30,12 @@
 .btn.primary:disabled { opacity:.4; }
 .btn .spinner { width:17px; height:17px; border-color:color-mix(in srgb,var(--on-ink) 30%,transparent); border-top-color:var(--on-ink); }
 .auth-submit { margin-top:8px; width:100%; position:relative; min-height:52px; }
+.auth-tab:disabled, .password-toggle:disabled { cursor:default; opacity:.5; }
+@media (hover:hover) and (pointer:fine) {
+  .password-toggle:not(:disabled):hover { background:var(--hover-bg); }
+  .btn.primary:not(:disabled):hover { opacity:.88; }
+  .btn-outline:not(:disabled):hover { background:var(--hover-bg); }
+}
 /* Ghost capsule: the secondary action is an outline, never a second fill. */
 .btn-outline { min-height:44px; border:1px solid var(--separator); border-radius:999px; padding:0 18px; background:transparent; color:var(--label); display:inline-flex; align-items:center; justify-content:center; gap:7px; font-size:var(--t-subhead); }
 .btn-outline .icon { width:17px; height:17px; }

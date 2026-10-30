@@ -174,15 +174,15 @@ img { -webkit-user-drag: none; }
   flex: none;
   border-radius: 50%;
   overflow: hidden;
-  background: hsl(var(--avatar-hue, 27) 20% 90%);
-  color: hsl(var(--avatar-hue, 27) 20% 34%);
+  background: hsl(var(--avatar-hue, 27) var(--avatar-saturation) var(--avatar-lightness));
+  color: hsl(var(--avatar-hue, 27) var(--avatar-saturation) var(--avatar-ink-lightness));
   display: grid;
   place-items: center;
   font-size: calc(var(--size) * 0.4);
   font-weight: var(--w-semibold);
   letter-spacing: -0.01em;
 }
-.avatar.room { border-radius: 30%; }
+.avatar.room { border-radius: var(--r-avatar-room); }
 .avatar img {
   position: absolute;
   inset: 0;

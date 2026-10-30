@@ -36,7 +36,7 @@
   margin-inline: auto;
   bottom: max(8px, calc(var(--safe-bottom) - 18px));
   max-height: calc(100% - var(--safe-top) - 34px);
-  border-radius: 30px;
+  border-radius: var(--r-sheet);
   border: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -124,7 +124,7 @@
 }
 .sheet-head .end { grid-column: 3; justify-self: end; }
 .sheet-head .start { grid-column: 1; justify-self: start; }
-.sheet-head .glass-btn { width: 40px; height: 40px; box-shadow: inset 0 0 0 var(--hairline) var(--line); background: var(--bg-elevated); }
+.sheet-head .glass-btn { width: var(--hit); height: var(--hit); box-shadow: inset 0 0 0 var(--hairline) var(--line); background: var(--bg-elevated); }
 .sheet-head .glass-btn::before { content: ""; position: absolute; inset: -2px; border-radius: 50%; background: none; }
 .sheet-head .glass-btn .icon { width: 17px; height: 17px; }
 .sheet-body {
@@ -151,8 +151,9 @@
 /* Cards: a flat face and a 1px hairline, no tint and no shadow. */
 .group {
   margin: 0 20px;
-  border-radius: 22px;
+  border-radius: var(--r-tile);
   overflow: hidden;
+  container: settings-group / inline-size;
   background: var(--bg-elevated);
   box-shadow: inset 0 0 0 1px var(--line);
 }
@@ -185,9 +186,23 @@
 }
 .cell.icon-left + .cell.icon-left::before { left: 56px; }
 button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
-.cell .grow { flex: 1; min-width: 0; }
+/* Keep the focus ring inside cards, where their rounded clip cannot hide it. */
+button.cell:focus-visible, a.cell:focus-visible { outline-offset: -3px; border-radius: inherit; }
+.cell:has(> .seg) { flex-wrap: wrap; }
+.cell:has(> .seg) > .grow { flex-basis: max-content; }
+.cell > .seg { flex: none; }
+/* Respond to this card's width, including split views and larger text. */
+@container settings-group (max-width: 21rem) {
+  .cell > .seg { width: 100%; min-width: 0; }
+}
+@media (hover: hover) and (pointer: fine) {
+  button.cell:hover, a.cell:hover { background: var(--hover-bg); }
+  .sheet .profile.profile-btn:hover { background: var(--hover-bg); }
+}
+.cell .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .cell .value { color: var(--label-2); font-size: var(--t-body); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
-.cell .chev { color: var(--label-3); width: 14px; height: 14px; }
+.cell .chev { color: var(--label-3); width: 14px; height: 14px; flex: none; display: inline-flex; }
+.cell .chev .icon { width: 100%; height: 100%; }
 .cell.destructive { color: var(--red-text); justify-content: center; }
 .cell.tint { color: var(--blue); }
 /* Monochrome tiles: the label says what a row is, not a color. */
@@ -214,7 +229,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   padding: 20px;
   text-align: left;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: calc(var(--r-tile) + 2px);
   margin: 2px 20px 6px;
   width: calc(100% - 40px);
 }
@@ -289,6 +304,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 }
 .seg button::before { content: ""; position: absolute; inset: -5px 0; }
 .seg button { color: var(--label-2); transition: color var(--dur-quick) ease-out; }
+.seg button:focus-visible { outline-offset: -2px; }
 .seg button[aria-checked="true"] { color: var(--on-ink); font-weight: var(--w-semibold); }
 .seg .thumb {
   position: absolute;
@@ -565,19 +581,20 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 /* ---------------------------------------------------------------- form sheets + pickers */
 
 .profile.profile-btn { width: 100%; background: none; cursor: pointer; }
-.profile.profile-btn:active { opacity: 0.6; }
+.sheet .profile.profile-btn:active, .sheet .profile.profile-btn.is-pressed { background: var(--field); }
+.profile.profile-btn { transition: background-color var(--dur-quick) ease-out; }
 
 .form-sheet { padding: 4px 16px 8px; display: flex; flex-direction: column; }
 .form-sheet .f-label { font-size: var(--t-footnote); color: var(--label-2); margin: 14px 4px 6px; }
 .form-sheet .input {
-  width: 100%; height: 48px; padding: 0 14px; border-radius: 14px;
+  width: 100%; height: var(--field-height); padding: 0 var(--field-inset); border-radius: var(--r-field);
   border: 1px solid var(--line); background: var(--bg); color: var(--label);
-  font-size: max(16px, var(--t-body)); outline: none; -webkit-appearance: none;
+  font-size: max(16px, var(--t-callout)); outline: none; -webkit-appearance: none;
   transition: border-color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out;
 }
 .form-sheet .input:focus { border-color: var(--label); box-shadow: 0 0 0 3px var(--focus-ring); }
 .form-sheet .f-go { padding: 24px 0 8px; }
-.form-sheet .btn { width: 100%; height: 52px; border-radius: 999px; letter-spacing: .02em; font-size: var(--t-body); font-weight: var(--w-semibold); }
+.form-sheet .btn { width: 100%; height: 52px; border-radius: 999px; letter-spacing: .02em; font-size: var(--t-callout); font-weight: var(--w-semibold); }
 .form-sheet .btn.primary { background: var(--ink); color: var(--on-ink); }
 .form-sheet .btn.primary:disabled { opacity: 0.4; }
 .form-sheet .field-error { color: var(--red-text); font-size: var(--t-footnote); margin: 6px 4px 0; min-height: 1.2em; }

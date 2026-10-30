@@ -18,13 +18,13 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 18px;
+  border-radius: var(--r-row);
   text-align: left;
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line);
   transition: background-color var(--dur-quick) ease-out;
 }
-.side-me:active { background: var(--field); }
+.side-me.is-pressed { background: var(--hover-bg); transition-duration: var(--press-in); }
 .side-me:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
 .side-me-avatar { flex: none; display: flex; }
 .side-me-name { flex: 1; min-width: 0; font-size: var(--t-headline); font-weight: var(--w-semibold); letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -45,18 +45,18 @@
   font-size: var(--t-body);
   transition: background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out;
 }
-.side-scope:active { background: var(--fill-4); }
+.side-scope.is-pressed { background: var(--hover-bg); transition-duration: var(--press-in); }
 .side-scope:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
 /* The current scope is marked, not shouted: a quiet fill and a heavier
    label, so the conversations stay the strongest thing on screen. */
-.side-scope.current { background: var(--fill-3); color: var(--label); font-weight: var(--w-semibold); }
+.side-scope.current { background: var(--selected-bg); color: var(--label); font-weight: var(--w-semibold); }
 .side-scope-icon { flex: none; width: 24px; display: grid; place-items: center; color: var(--label-2); }
 .side-scope.current .side-scope-icon { color: var(--label); --sym-w: 2.2; } /* semibold, like its label */
 .side-scope-icon .icon { width: 19px; height: 19px; }
 .side-scope-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 11px; background: var(--blue); color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; }
 @media (hover: hover) and (pointer: fine) {
-  .side-scope:not(.current):hover { background: var(--fill-4); }
+  .side-scope:not(.current):hover, .side-me:hover { background: var(--hover-bg); }
 }
 
 /* ---------------------------------------------------------------- details */

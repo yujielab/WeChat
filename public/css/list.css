@@ -1,5 +1,5 @@
 /* Conversation list: paper, ink, and one shared moving selection capsule. */
-.pane-list { --list-inset: 22px; --row-avatar: 48px; }
+.pane-list { --list-inset: 22px; --row-avatar: 48px; --list-row-radius: var(--r-row); }
 .list-scroll { padding-bottom: calc(var(--safe-bottom) + 100px); overflow-anchor: none; }
 .list-topbar {
   position: absolute; z-index: var(--z-chrome);
@@ -23,10 +23,12 @@
    the folded screen's). */
 .list-me { flex: none; margin-left: auto; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; }
 .list-me:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
-.list-me:active { opacity: .7; }
+/* Header entrances share the same quiet touch-down response. */
+.list-heading :is(.list-me, .list-insights) { transition: transform var(--press-out) var(--ease-out), background-color var(--press-out) ease-out; }
+.list-heading :is(.list-me, .list-insights):is(:active, .is-pressed) { opacity: 1; transform: scale(var(--press-scale)); background: var(--hover-bg); transition-duration: var(--press-in); }
 .pane-list[data-layout="single"] .list-me, .pane-list:not([data-layout]) .list-me { display: none; }
 .large-title { margin: 0; font-size: 1.882rem; font-weight: var(--w-bold); line-height: 1.17; letter-spacing: -0.02em; color: var(--label); }
-.conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
+.conn-status { font-size: var(--t-caption); font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
 .conn-status .icon { width: 14px; height: 14px; }
 .conn-status.warn { color: var(--orange); }
 
@@ -39,52 +41,53 @@
 .filter-tab[aria-pressed="true"] { color: var(--on-ink); font-weight: 650; }
 .filter-tab:focus-visible { outline: 2px solid var(--label-2); outline-offset: -1px; }
 .filter-tab:active { opacity: .65; }
-.filter-note { margin: 0 var(--list-inset) 10px; font-size: .765rem; color: var(--label-2); }
+.filter-note { margin: 0 var(--list-inset) 10px; font-size: var(--t-footnote); color: var(--label-2); }
 .filter-note button { color: var(--blue); }
 
 /* Pinned people stay airy and distinct from the conversation rows. The grid
    keeps an even number of columns so it divides cleanly at the fold. */
-.pinned-label { margin: 2px var(--list-inset) 9px; color: var(--label-2); font-size: .706rem; font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
+.pinned-label { margin: 2px var(--list-inset) 9px; color: var(--label-2); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
 .pinned-label .icon { width: 12px; height: 12px; }
 .pinned { display: grid; grid-template-columns: repeat(var(--pin-cols, 4), 1fr); gap: 10px 5px; margin: 0 14px 15px; padding: 4px 0 15px; border-bottom: 1px solid var(--line); }
-.pin { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 6px 3px; border-radius: 18px; min-width: 0; transition: transform var(--spring-snappy-dur) var(--spring-snappy), background 180ms ease; }
-.pin.is-pressed { transform: scale(.94); background: var(--paper, var(--field)); transition-duration: var(--press-dur); }
-.pin .avatar { --size: 54px; border-radius: 20px; }
-.pin-name { max-width: 100%; font-size: .706rem; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 6px 3px; border-radius: var(--r-row); min-width: 0; transition: transform var(--press-out) var(--ease-out), background-color var(--press-out) ease-out; }
+.pin.is-pressed { transform: scale(var(--press-scale)); background: var(--hover-bg); transition-duration: var(--press-in); }
+.pin .avatar { --size: 54px; }
+.pin-name { max-width: 100%; font-size: var(--t-caption); color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pin.unread .pin-name { color: var(--label); font-weight: 600; }
-.pin .badge { position: absolute; top: 2px; right: calc(50% - 33px); box-shadow: 0 0 0 3px var(--bg); min-width: 18px; height: 18px; font-size: .647rem; }
+.pin .badge { position: absolute; top: 2px; right: calc(50% - 33px); box-shadow: 0 0 0 3px var(--bg); min-width: 18px; height: 18px; font-size: var(--t-caption-2); }
 .pin.selected .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4.5px var(--label-3); }
 
 /* Quiet inset rows, with blue reserved for unread/live information. */
 .rows { list-style: none; margin: 0; padding: 0 10px; }
-.row { position: relative; overflow: hidden; contain: layout paint; margin-bottom: 3px; border-radius: 18px; }
+.row { position: relative; overflow: hidden; contain: layout paint; margin-bottom: 3px; border-radius: var(--list-row-radius); }
 .row-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px 13px; border-radius: inherit; background: var(--bg); transition: background-color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out; }
 .row.swiping .row-inner { will-change: transform; }
-.row.is-pressed .row-inner { background: var(--paper, var(--fill-4)); transition-duration: 0ms; }
+.row-inner:focus-visible { outline-offset: -2px; }
+.row.is-pressed .row-inner { background: var(--hover-bg); transition-duration: var(--press-in); }
 .row-dot { display: none; }
-.row .avatar { --size: var(--row-avatar); border-radius: 50%; }
+.row .avatar { --size: var(--row-avatar); }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
 .row-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.row-name { flex: 0 1 auto; min-width: 0; font-size: .882rem; font-weight: 650; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-name { flex: 0 1 auto; min-width: 0; font-size: var(--t-subhead); font-weight: 650; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-flag { color: var(--label-3); display: inline-flex; }
 .row-flag .icon { width: 12px; height: 12px; }
 .row-top .grow { flex: 1; }
-.row-time { flex: none; font-size: .647rem; color: var(--label-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row-time { flex: none; font-size: var(--t-caption-2); color: var(--label-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .row-chevron { display: none; }
 .row-bottom { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.row-preview { flex: 1; min-width: 0; color: var(--label-2); font-size: .765rem; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-preview { flex: 1; min-width: 0; color: var(--label-2); font-size: var(--t-footnote); line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.unread .row-preview { color: var(--label); }
 .row-preview .draft, .row-preview .failed { color: var(--red-text); }
-.row-count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font-size: .647rem; line-height: 1; font-weight: 650; color: #fff; background: var(--blue); }
+.row-count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font-size: var(--t-caption-2); line-height: 1; font-weight: 650; color: #fff; background: var(--blue); }
 .row.muted .row-count { background: var(--fill); color: var(--label-2); }
-.row.menu-open .row-inner { background: var(--paper, var(--fill-4)); }
-.pin.menu-open { background: var(--paper, var(--field)); }
+.row.menu-open .row-inner { background: var(--hover-bg); }
+.pin.menu-open { background: var(--hover-bg); }
 /* Delete sits behind the row's trailing edge, exactly as wide as what the
    swipe uncovers (chatList.js), so it never peeks around the rounded
    corners of a row at rest. Its label keeps beside the row as it widens. */
 .row-actions { position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; width: 0; display: flex; overflow: hidden; visibility: hidden; }
 .row.swiping .row-actions { visibility: visible; }
-.row-action { flex: 1; min-width: 0; display: flex; align-items: center; color: #fff; background: var(--red); font-size: .706rem; font-weight: 550; }
+.row-action { flex: 1; min-width: 0; display: flex; align-items: center; color: #fff; background: var(--red); font-size: var(--t-caption); font-weight: 550; }
 .row-action-label { flex: none; width: 78px; max-width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; overflow: hidden; white-space: nowrap; }
 .row-action .icon { flex: none; width: 21px; height: 21px; transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
 /* Past the point where letting go deletes. */
@@ -122,22 +125,22 @@
 .pane-list.searching .list-bottombar .bar-group { max-width: 0; opacity: 0; margin-right: -8px; overflow: hidden; pointer-events: none; }
 .pane-list.searching .search-cancel { opacity: 1; transform: none; pointer-events: auto; width: 56px; margin-left: 0; transition-timing-function: ease-out, var(--spring-snappy), var(--ease-out), var(--ease-out); }
 .search-results { padding-top: calc(var(--safe-top) + 30px); }
-.section-title { margin: 19px var(--list-inset) 8px; color: var(--label-2); font-size: .706rem; font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
-.contact-row { width: calc(100% - 20px); margin: 2px 10px; display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 13px; border-radius: 18px; text-align: left; }
-.contact-row .avatar { --size: 42px; border-radius: 16px; }
+.section-title { margin: 19px var(--list-inset) 8px; color: var(--label-2); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
+.contact-row { width: calc(100% - 20px); margin: 2px 10px; display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 13px; border-radius: var(--r-row); text-align: left; transition: background-color var(--press-out) ease-out; }
+.contact-row .avatar { --size: 42px; }
 .contact-row .grow { flex: 1; min-width: 0; }
-.contact-row .name { font-size: .882rem; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.contact-row .sub { margin-top: 4px; font-size: .706rem; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.contact-row.is-pressed { background: var(--paper, var(--fill-4)); }
+.contact-row .name { font-size: var(--t-subhead); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-row .sub { margin-top: 4px; font-size: var(--t-caption); color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-row.is-pressed { background: var(--hover-bg); transition-duration: var(--press-in); }
 mark { background: none; color: var(--blue); }
 
 /* Connection recovery remains part of the real connection state. */
-.offline-banner { position: absolute; z-index: var(--z-chrome); left: var(--list-inset); right: var(--list-inset); bottom: calc(max(var(--safe-bottom), 10px) + 72px); border-radius: 20px; padding: 11px 12px; display: flex; align-items: center; gap: 9px; font-size: .706rem; color: var(--label-2); animation: materialize 320ms var(--ease-out) backwards; }
+.offline-banner { position: absolute; z-index: var(--z-chrome); left: var(--list-inset); right: var(--list-inset); bottom: calc(max(var(--safe-bottom), 10px) + 72px); border-radius: 20px; padding: 11px 12px; display: flex; align-items: center; gap: 9px; font-size: var(--t-caption); color: var(--label-2); animation: materialize 320ms var(--ease-out) backwards; }
 .offline-banner > .icon { width: 20px; height: 20px; color: var(--orange); }
 .offline-banner .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.offline-banner b { font-size: .765rem; color: var(--label); font-weight: 600; }
+.offline-banner b { font-size: var(--t-footnote); color: var(--label); font-weight: 600; }
 .offline-banner .grow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.offline-banner .text-button { font-size: .765rem; font-weight: 600; }
+.offline-banner .text-button { font-size: var(--t-footnote); font-weight: 600; }
 .row-in { animation: row-in 280ms var(--ease-out) calc(var(--s, 0) * 25ms) backwards; }
 @keyframes row-in { from { opacity: 0; transform: translateY(7px); } }
 .list-empty.skeleton { padding: 0; }
@@ -154,8 +157,9 @@ mark { background: none; color: var(--blue); }
 .av-wrap .pres { position: absolute; right: -1px; bottom: 0; width: 17px; height: 9px; border-radius: 6px; background: var(--green); box-shadow: 0 0 0 3px var(--bg); opacity: 0; transform: scale(.4); transition: opacity 180ms ease, transform var(--spring-bouncy-dur) var(--spring-bouncy); }
 .row.online .av-wrap .pres { opacity: 1; transform: none; }
 .pane-list[data-layout="leading"] .row.selected .av-wrap .pres { box-shadow: 0 0 0 3px color-mix(in srgb, var(--label) 5%, var(--bg)); }
-@media (hover: hover) {
-  .row-inner:hover, .contact-row:hover, .pin:hover { background: var(--paper, var(--fill-4)); }
+@media (hover: hover) and (pointer: fine) {
+  .row-inner:hover, .contact-row:hover, .pin:hover,
+  .list-heading :is(.list-me, .list-insights):hover { background: var(--hover-bg); }
 }
 @media (max-height: 560px) {
   .list-head { padding-top: calc(var(--safe-top) + 24px); }
@@ -166,11 +170,10 @@ mark { background: none; color: var(--blue); }
 }
 .pane-list[data-width="narrow"] { --list-inset: 18px; }
 .pane-list[data-width="narrow"] .list-topbar { gap: 4px; }
-.pane-list[data-width="narrow"] .filter-tab { padding: 0 14px; font-size: .765rem; }
+.pane-list[data-width="narrow"] .filter-tab { padding: 0 14px; font-size: var(--t-footnote); }
 .pane-list[data-width="narrow"] .row-inner { padding: 10px 9px; gap: 10px; min-height: 70px; }
-.pane-list[data-width="narrow"] .row-name { font-size: .882rem; }
-.pane-list[data-width="narrow"] .row .avatar { --size: var(--row-avatar); border-radius: 50%; }
-.pane-list[data-width="narrow"] .row-preview { font-size: .765rem; }
+.pane-list[data-width="narrow"] .row-name { font-size: var(--t-subhead); }
+.pane-list[data-width="narrow"] .row-preview { font-size: var(--t-footnote); }
 
 .pane-list[data-layout="leading"] .list-filters { display: none; }
 /* Beside the sidebar, its scopes are already on screen. */
@@ -179,25 +182,25 @@ mark { background: none; color: var(--blue); }
 /* Unfolded, the list is the leading pane of a split view, like Mail and
    Notes in the HIG: its own controls stay horizontal above it, a large
    title names it, filters live in the filter menu, search sits at its foot. */
-.pane-list[data-layout="leading"] { --list-inset: 18px; --row-avatar: 44px; }
+.pane-list[data-layout="leading"] { --list-inset: 18px; --row-avatar: 44px; --list-row-radius: 16px; }
 .pane-list[data-layout="leading"] .list-topbar { top: calc(var(--safe-top) + 12px); gap: 8px; }
 /* The title shares the conversation heading's row across the fold. */
 .pane-list[data-layout="leading"] .list-head { padding-top: calc(var(--safe-top) + 24px); margin-bottom: 8px; }
 .pane-list[data-layout="leading"] .large-title { font-size: 1.765rem; }
 .pane-list[data-layout="leading"] .conn-status { max-width: 100%; }
 .pane-list[data-layout="leading"] .rows { padding: 6px 10px 0; }
-.pane-list[data-layout="leading"] .row { margin-bottom: 2px; border-radius: 16px; }
+.pane-list[data-layout="leading"] .row { margin-bottom: 2px; }
 .pane-list[data-layout="leading"] .row-inner { min-height: 66px; padding: 10px 11px; gap: 11px; }
 .pane-list[data-layout="leading"] .row-main { gap: 5px; }
 /* One capsule marks the open conversation and glides between rows. */
-.row-highlight { position: absolute; z-index: 2; top: 0; left: 10px; right: 10px; height: 0; border-radius: 16px; pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--label) 5%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
+.row-highlight { position: absolute; z-index: 2; top: 0; left: 10px; right: 10px; height: 0; border-radius: var(--list-row-radius); pointer-events: none; opacity: 0; background: var(--selected-bg); box-shadow: inset 0 0 0 1px var(--line); }
 .row-highlight.on { opacity: 1; }
 .row-highlight.ready { transition: transform 220ms var(--ease-out), height 200ms var(--ease-out), opacity var(--dur-quick) ease-out; }
 .rows:has(.row.selected.swiping) + .row-highlight { opacity: 0; }
 .pane-list[data-layout="leading"] .pinned { gap: 5px; margin-bottom: 12px; padding-bottom: 11px; }
 .pane-list[data-layout="leading"] .pin { gap: 6px; padding-block: 4px; }
-.pane-list[data-layout="leading"] .pin .avatar { --size: 44px; border-radius: 50%; }
-.pane-list[data-layout="leading"] .pinned-label { margin-bottom: 6px; font-size: .647rem; }
+.pane-list[data-layout="leading"] .pin .avatar { --size: 44px; }
+.pane-list[data-layout="leading"] .pinned-label { margin-bottom: 6px; font-size: var(--t-caption-2); }
 /* The search band shares the composer's baseline and height across the fold. */
 .pane-list[data-layout="leading"] .search-pill { padding-inline: 14px; }
 .pane-list[data-layout="leading"] .search-pill input { font-size: max(16px, .8rem); }
@@ -233,3 +236,11 @@ mark { background: none; color: var(--blue); }
 :root[data-motion="reduce"] .row-in,
 :root[data-motion="reduce"] .sk::after { animation: none; }
 :root[data-motion="reduce"] .offline-banner { animation: fade-in 120ms linear backwards !important; }
+
+/* Keep the same feedback without travel when motion is reduced. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .list-heading :is(.list-me, .list-insights):is(:active, .is-pressed),
+  :root:not([data-motion="full"]) .pin.is-pressed { transform: none; }
+}
+:root[data-motion="reduce"] .list-heading :is(.list-me, .list-insights):is(:active, .is-pressed),
+:root[data-motion="reduce"] .pin.is-pressed { transform: none; }

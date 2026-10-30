@@ -86,6 +86,7 @@ await sleep(300);await A.screenshot({path:path.join(OUT,'65-insights-stack.png')
 // 5. The stack opens into the whole list — every kind — and closes again.
 await A.locator('.sheet .ins-more').click();await sleep(500)
 assert.equal(await A.locator('.sheet .ins-head').textContent(),'现在')
+assert.ok(await A.locator('.sheet .ins-fold').evaluate(el=>el.offsetWidth>=44&&el.offsetHeight>=44),'collapse has a 44pt target')
 const kinds=await A.evaluate(()=>[...document.querySelectorAll('.sheet .ins-list > .ins-card')].map(c=>c.dataset.kind))
 assert.deepEqual(kinds,['ride','meetup','upcoming','home','mood','mood','ongoing','photo','summary','summary','likes','likes'])
 assert.deepEqual([...new Set(kinds)].length+1,10,'nine kinds of card and the weather')
@@ -100,7 +101,23 @@ assert.deepEqual(await standing(),['ride','meetup','upcoming'],'closed again')
 // 6. Dark.
 await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setTheme('dark'));await sleep(400)
 await A.screenshot({path:path.join(OUT,'68-insights-dark.png')})
+// The same material preference applies to cards and the weather widget in
+// both themes, including when increased contrast is requested by the OS.
+const solidCards=()=>A.evaluate(()=>[...document.querySelectorAll('.sheet .ins-card, .sheet .ins-weather')].every(el=>{
+  const cs=getComputedStyle(el)
+  return cs.backdropFilter==='none'&&!cs.backgroundColor.includes('rgba')&&!cs.backgroundColor.includes('/')
+}))
+await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setGlass('solid'))
+assert.ok(await solidCards(),'dark cards and weather use an opaque material')
+await A.screenshot({path:path.join(OUT,'70-insights-solid-dark.png')})
+await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setGlass('auto'))
+await A.emulateMedia({contrast:'more'})
+assert.ok(await solidCards(),'dark increased-contrast material')
+await A.emulateMedia({contrast:'no-preference'})
 await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setTheme('light'));await sleep(200)
+await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setGlass('solid'))
+assert.ok(await solidCards(),'light cards and weather use an opaque material')
+await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setGlass('auto'))
 
 // 7. A card opens its conversation.
 await A.locator('.sheet .ins-card[data-kind="meetup"]').click()

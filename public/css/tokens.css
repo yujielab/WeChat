@@ -22,6 +22,7 @@
   --label: #0b0b0d;
   --label-2: #6e6e73;
   --label-3: #8e8e93;
+  --label-prompt: #737378;       /* readable input hints, separate from decorative glyphs */
   --label-4: rgb(60 60 67 / 0.18);
   --separator: rgb(60 60 67 / 0.22);
   --separator-opaque: #e3e3e8;
@@ -31,6 +32,11 @@
   --fill-2: rgb(120 120 128 / 0.16);
   --fill-3: rgb(118 118 128 / 0.12);
   --fill-4: rgb(116 116 128 / 0.08);
+  --hover-bg: var(--fill-4);
+  --selected-bg: color-mix(in srgb, var(--label) 5%, transparent);
+  --avatar-saturation: 20%;
+  --avatar-lightness: 90%;
+  --avatar-ink-lightness: 34%;
 
   --blue: #007aff;
   --blue-press: #0062cc;
@@ -120,6 +126,11 @@
   --r-tile: 22px;
   --r-menu: 20px;
   --r-sheet: 30px;
+  --r-row: 18px;
+  --r-avatar-room: 30%;
+  --r-field: 16px;
+  --field-height: 52px;
+  --field-inset: 16px;
   --hairline: 1px;
 
   --safe-top: env(safe-area-inset-top, 0px);
@@ -209,6 +220,10 @@
     --label: #f5f5fa;
     --label-2: rgb(240 240 250 / 0.6);
     --label-3: rgb(240 240 250 / 0.34);
+    --label-prompt: #a1a1aa;
+    --avatar-saturation: 22%;
+    --avatar-lightness: 20%;
+    --avatar-ink-lightness: 80%;
     --label-4: rgb(240 240 250 / 0.16);
     --separator: rgb(240 240 250 / 0.16);
     --separator-opaque: #2a2a2e;
@@ -270,6 +285,10 @@
   --label: #f5f5fa;
   --label-2: rgb(240 240 250 / 0.6);
   --label-3: rgb(240 240 250 / 0.34);
+  --label-prompt: #a1a1aa;
+  --avatar-saturation: 22%;
+  --avatar-lightness: 20%;
+  --avatar-ink-lightness: 80%;
   --label-4: rgb(240 240 250 / 0.16);
   --separator: rgb(240 240 250 / 0.16);
   --separator-opaque: #2a2a2e;

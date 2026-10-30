@@ -43,14 +43,28 @@ function segmented(options, value, onChange, label) {
   const i0 = Math.max(0, options.findIndex(o => o.value === value))
   const seg = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': label, style: { '--n': String(options.length), '--i': String(i0) } })
   seg.append(h('span', { class: 'thumb', 'aria-hidden': 'true' }))
-  options.forEach((o, i) => {
-    const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(i === i0) }, o.label)
-    b.addEventListener('click', () => {
-      seg.style.setProperty('--i', String(i))
-      for (const x of seg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b))
-      onChange(o.value)
-    })
+  const buttons = options.map((o, i) => {
+    const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(i === i0), tabindex: i === i0 ? '0' : '-1' }, o.label)
+    b.addEventListener('click', () => select(i))
     seg.append(b)
+    return b
+  })
+  function select(i, focus = false) {
+    seg.style.setProperty('--i', String(i))
+    buttons.forEach((b, n) => {
+      b.setAttribute('aria-checked', String(n === i))
+      b.tabIndex = n === i ? 0 : -1
+    })
+    if (focus) buttons[i].focus({ preventScroll: true })
+    onChange(options[i].value)
+  }
+  seg.addEventListener('keydown', e => {
+    const current = buttons.indexOf(document.activeElement)
+    if (current < 0 || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return
+    e.preventDefault()
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1
+      : (current + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length
+    select(next, true)
   })
   return seg
 }
@@ -75,7 +89,7 @@ function withCover(card, cover) {
  */
 function backdropCell(label, ic, get, { none = '默认', ...opts }) {
   const swatch = h('span', { class: 'bd-swatch', 'aria-hidden': 'true' }, backdropLayer(get() || opts.fallback || ''))
-  const name = h('span', {}, backdropLabel(get(), none))
+  const name = h('span', { class: 'bd-name' }, backdropLabel(get(), none))
   const update = () => {
     paintBackdrop(swatch.firstChild, get() || opts.fallback || '')
     name.textContent = backdropLabel(get(), none)
@@ -185,8 +199,8 @@ function editProfile(onEdited) {
   const av = h('button', { class: 'avatar-edit', type: 'button', 'aria-label': '更换头像' },
     avatar(me?.avatar, me?.display || '我', { size: 96 }), h('span', { class: 'avatar-edit-badge' }, icon('camera')))
   const file = h('input', { type: 'file', accept: 'image/*', hidden: true })
-  const display = input({ value: me?.display || '', placeholder: '昵称', maxlength: 40 })
-  const bio = input({ value: me?.bio || '', placeholder: '简介（可选）', maxlength: 120 })
+  const display = input({ id: 'profile-display', value: me?.display || '', placeholder: '昵称', maxlength: 40 })
+  const bio = input({ id: 'profile-bio', value: me?.bio || '', placeholder: '简介（可选）', maxlength: 120 })
   const save = h('button', { class: 'btn primary solid-press', type: 'button' }, '保存')
 
   av.addEventListener('click', () => file.click())
@@ -216,16 +230,18 @@ function editProfile(onEdited) {
   const content = h('div', { class: 'form-sheet' },
     cover,
     h('div', { class: 'avatar-edit-wrap over-cover' }, av, file),
-    h('label', { class: 'f-label' }, '昵称'), display,
-    h('label', { class: 'f-label' }, '简介'), bio,
+    h('label', { class: 'f-label', for: display.id }, '昵称'), display,
+    h('label', { class: 'f-label', for: bio.id }, '简介'), bio,
     h('div', { class: 'f-go' }, save))
   const sheet = openSheet({ title: '编辑资料', content })
 }
 
 function changePassword() {
-  const cur = input({ type: 'password', placeholder: '当前密码', autocomplete: 'current-password' })
-  const next = input({ type: 'password', placeholder: '新密码（至少 6 位）', autocomplete: 'new-password' })
-  const err = h('div', { class: 'field-error' })
+  const cur = input({ id: 'password-current', type: 'password', placeholder: '当前密码', autocomplete: 'current-password' })
+  const next = input({ id: 'password-new', type: 'password', placeholder: '新密码（至少 6 位）', autocomplete: 'new-password' })
+  const err = h('div', { class: 'field-error', role: 'alert', id: 'password-error' })
+  cur.setAttribute('aria-describedby', err.id)
+  next.setAttribute('aria-describedby', err.id)
   const save = h('button', { class: 'btn primary solid-press', type: 'button' }, '更新密码')
   save.addEventListener('click', async () => {
     err.textContent = ''
@@ -237,8 +253,8 @@ function changePassword() {
     } catch (e) { err.textContent = e.message; save.disabled = false }
   })
   const content = h('div', { class: 'form-sheet' },
-    h('label', { class: 'f-label' }, '当前密码'), cur,
-    h('label', { class: 'f-label' }, '新密码'), next, err,
+    h('label', { class: 'f-label', for: cur.id }, '当前密码'), cur,
+    h('label', { class: 'f-label', for: next.id }, '新密码'), next, err,
     h('div', { class: 'f-go' }, save))
   const sheet = openSheet({ title: '修改密码', content })
 }
@@ -273,7 +289,7 @@ async function turnOff() {
 
 // ---------------------------------------------------------------- new chat
 export function openNewChat({ loadContacts, onOpen }) {
-  const search = input({ type: 'search', placeholder: '按用户名查找', enterkeyhint: 'search' })
+  const search = input({ type: 'search', 'aria-label': '按用户名查找', placeholder: '按用户名查找', enterkeyhint: 'search' })
   const results = h('div', {})
   const list = h('div', {})
 
@@ -324,14 +340,14 @@ function contactCell(u, onClick, relState) {
 
 // ---------------------------------------------------------------- new group
 export function openNewGroup({ loadContacts, onOpen }) {
-  const name = input({ placeholder: '群聊名称（可选）', maxlength: 40 })
+  const name = input({ id: 'group-name', placeholder: '群聊名称（可选）', maxlength: 40 })
   const picked = new Set()
   const list = h('div', {})
   const create = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, '创建群聊')
 
   const content = h('div', { class: 'form-sheet' },
-    h('label', { class: 'f-label' }, '名称'), name,
-    h('label', { class: 'f-label' }, '选择成员'), list,
+    h('label', { class: 'f-label', for: name.id }, '名称'), name,
+    h('div', { class: 'f-label' }, '选择成员'), list,
     h('div', { class: 'f-go' }, create))
   const sheet = openSheet({ title: '新建群聊', content, tall: true })
 
@@ -343,9 +359,11 @@ export function openNewGroup({ loadContacts, onOpen }) {
     const el = cell(c.display, check, { sub: '@' + c.username, onClick: () => {
       if (picked.has(c.id)) picked.delete(c.id); else picked.add(c.id)
       el.classList.toggle('picked', picked.has(c.id))
+      el.setAttribute('aria-pressed', String(picked.has(c.id)))
       if (picked.has(c.id)) symbolEffect(check.querySelector('.icon'), 'draw-on')
       create.disabled = picked.size === 0
     } })
+    el.setAttribute('aria-pressed', 'false')
     el.prepend(avatar(c.avatar, c.display, { size: 40 }))
     return el
   }
@@ -424,16 +442,19 @@ async function addMembers(roomId, existing, loadContacts) {
   const picked = new Set()
   const list = h('div', {})
   const add = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, '添加')
-  const content = h('div', { class: 'form-sheet' }, h('label', { class: 'f-label' }, '选择联系人'), list, h('div', { class: 'f-go' }, add))
+  const content = h('div', { class: 'form-sheet' }, h('div', { class: 'f-label' }, '选择联系人'), list, h('div', { class: 'f-go' }, add))
   const sheet = openSheet({ title: '添加成员', content, tall: true })
   const cs = (await loadContacts()).filter(c => !existing.includes(c.id))
   list.replaceChildren(cs.length ? group(...cs.map(c => {
     const check = h('span', { class: 'pick-check' }, icon('check'))
     const el = cell(c.display, check, { sub: '@' + c.username, onClick: () => {
       picked.has(c.id) ? picked.delete(c.id) : picked.add(c.id)
-      el.classList.toggle('picked', picked.has(c.id)); add.disabled = !picked.size
+      el.classList.toggle('picked', picked.has(c.id))
+      el.setAttribute('aria-pressed', String(picked.has(c.id)))
+      add.disabled = !picked.size
       if (picked.has(c.id)) symbolEffect(check.querySelector('.icon'), 'draw-on')
     } })
+    el.setAttribute('aria-pressed', 'false')
     el.prepend(avatar(c.avatar, c.display, { size: 40 }))
     return el
   })) : foot('没有可添加的联系人'))
