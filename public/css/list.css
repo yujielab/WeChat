@@ -12,12 +12,14 @@
 .list-inline-title {
   max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0;
   color: var(--label-2); font-size: .824rem; letter-spacing: -.1px;
-  transition: opacity 220ms var(--ease-out), max-width 320ms var(--ease-morph);
+  transform: translateY(4px);
+  /* Space is taken at once (the spacer absorbs it); only the words move. */
+  transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out);
 }
-.pane-list.collapsed .list-inline-title { max-width: 7em; opacity: 1; }
+.pane-list.collapsed .list-inline-title { max-width: 7em; opacity: 1; transform: none; }
 .list-head { padding: calc(var(--safe-top) + 80px) calc(var(--list-inset) + var(--safe-right)) 0 calc(var(--list-inset) + var(--safe-left)); }
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.large-title { margin: 0; font-size: 1.882rem; font-weight: 730; line-height: 1.17; letter-spacing: -1.5px; color: var(--label); }
+.large-title { margin: 0; font-size: 1.882rem; font-weight: var(--w-bold); line-height: 1.17; letter-spacing: -0.02em; color: var(--label); }
 .conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
 .conn-status .icon { width: 14px; height: 14px; }
 .conn-status.warn { color: var(--orange); }
@@ -25,22 +27,22 @@
 /* The capsule follows the actual button geometry instead of assuming equal labels. */
 .list-filters { position: relative; display: flex; align-items: center; width: max-content; max-width: calc(100% - var(--list-inset) * 2); gap: 3px; margin: 15px var(--list-inset) 14px; padding: 0; min-height: 44px; isolation: isolate; overflow-x: auto; scrollbar-width: none; }
 .list-filters::-webkit-scrollbar { display: none; }
-.filter-thumb { position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 20px; background: var(--ink); opacity: 0; box-shadow: 0 3px 7px rgb(0 0 0 / .08); }
-.list-filters.ready .filter-thumb { opacity: 1; transition: transform 400ms var(--ease-morph), width 400ms var(--ease-morph), opacity 140ms ease; }
-.filter-tab { position: relative; flex: none; height: 44px; padding: 0 16px; border-radius: 23px; color: var(--label-2); font-size: .824rem; font-weight: 550; white-space: nowrap; transition: color 220ms var(--ease-out); }
+.filter-thumb { position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 20px; background: var(--ink); opacity: 0; }
+.list-filters.ready .filter-thumb { opacity: 1; transition: transform var(--spring-snappy-dur) var(--spring-snappy), width var(--spring-snappy-dur) var(--spring-snappy), opacity var(--dur-quick) ease-out; }
+.filter-tab { position: relative; flex: none; height: 44px; padding: 0 16px; border-radius: 23px; color: var(--label-2); font-size: .824rem; font-weight: 550; white-space: nowrap; transition: color var(--dur-quick) ease-out; }
 .filter-tab[aria-pressed="true"] { color: var(--on-ink); font-weight: 650; }
-.filter-tab:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
+.filter-tab:focus-visible { outline: 2px solid var(--label-2); outline-offset: -1px; }
 .filter-tab:active { opacity: .65; }
 .filter-note { margin: 0 var(--list-inset) 10px; font-size: .765rem; color: var(--label-2); }
 .filter-note button { color: var(--blue); }
 
 /* Pinned people stay airy and distinct from the conversation rows. The grid
    keeps an even number of columns so it divides cleanly at the fold. */
-.pinned-label { margin: 2px var(--list-inset) 9px; color: var(--label-2); font-size: .706rem; font-weight: 550; display: flex; align-items: center; gap: 5px; }
+.pinned-label { margin: 2px var(--list-inset) 9px; color: var(--label-2); font-size: .706rem; font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
 .pinned-label .icon { width: 12px; height: 12px; }
 .pinned { display: grid; grid-template-columns: repeat(var(--pin-cols, 4), 1fr); gap: 10px 5px; margin: 0 14px 15px; padding: 4px 0 15px; border-bottom: 1px solid var(--line); }
 .pin { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 6px 3px; border-radius: 18px; min-width: 0; transition: transform var(--spring-snappy-dur) var(--spring-snappy), background 180ms ease; }
-.pin.is-pressed { transform: scale(.94); background: var(--paper, var(--field)); transition-duration: 80ms; }
+.pin.is-pressed { transform: scale(.94); background: var(--paper, var(--field)); transition-duration: var(--press-dur); }
 .pin .avatar { --size: 54px; border-radius: 20px; }
 .pin-name { max-width: 100%; font-size: .706rem; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pin.unread .pin-name { color: var(--label); font-weight: 600; }
@@ -50,7 +52,8 @@
 /* Quiet inset rows, with blue reserved for unread/live information. */
 .rows { list-style: none; margin: 0; padding: 0 10px; }
 .row { position: relative; overflow: hidden; contain: layout paint; margin-bottom: 3px; border-radius: 18px; }
-.row-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px 13px; border-radius: inherit; background: var(--bg); transition: background-color 160ms ease-out, box-shadow 160ms ease-out; will-change: transform; }
+.row-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px 13px; border-radius: inherit; background: var(--bg); transition: background-color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out; }
+.row.swiping .row-inner { will-change: transform; }
 .row.is-pressed .row-inner { background: var(--paper, var(--fill-4)); transition-duration: 0ms; }
 .row-dot { display: none; }
 .row .avatar { --size: var(--row-avatar); border-radius: 50%; }
@@ -89,16 +92,17 @@
 .empty-compose { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 18px; padding: 0 20px; border-radius: 24px; color: var(--on-ink); background: var(--ink); font-size: .824rem; font-weight: 600; }
 .list-bottombar { position: absolute; z-index: var(--z-chrome); left: calc(var(--list-inset) + var(--safe-left)); right: calc(var(--list-inset) + var(--safe-right)); bottom: calc(max(var(--safe-bottom), 10px) + 9px); display: flex; align-items: center; gap: 8px; }
 :root[data-kb="1"] .list-bottombar { bottom: 8px; }
-.search-pill { flex: 1; min-width: 0; height: 50px; border-radius: 26px; padding: 0 17px; display: flex; align-items: center; gap: 9px; color: var(--label-2); text-align: left; cursor: text; background: var(--surface, var(--bg)); box-shadow: 0 1px 3px rgb(0 0 0 / .03), 0 6px 22px -13px rgb(0 0 0 / .15), inset 0 0 0 1px var(--line); }
+.search-pill { flex: 1; min-width: 0; height: 50px; border-radius: 26px; padding: 0 17px; display: flex; align-items: center; gap: 9px; color: var(--label-2); text-align: left; cursor: text; background: var(--surface, var(--bg)); box-shadow: inset 0 0 0 1px var(--line), var(--chrome-shadow); transition: box-shadow var(--dur-quick) ease-out; }
 .search-pill input { flex: 1; min-width: 0; width: 0; height: 100%; border: 0; background: none; font-size: max(16px, .8rem); color: var(--label); outline: none; appearance: none; -webkit-appearance: none; }
 .search-pill .icon { width: 18px; height: 18px; }
 .search-pill input::placeholder { color: var(--label-2); }
 .search-pill input::-webkit-search-cancel-button { display: none; }
-.search-pill:focus-within { box-shadow: 0 0 0 2px var(--focus-ring, var(--blue-ring)), inset 0 0 0 1px var(--label-3); }
-.search-cancel { opacity: 0; transform: scale(.6); pointer-events: none; width: 0; margin-left: -8px; }
-.pane-list.searching .search-cancel { opacity: 1; transform: none; pointer-events: auto; width: 44px; height: 44px; margin-left: 0; background: var(--surface, var(--bg)); transition: opacity 180ms ease-out, transform 320ms var(--spring-snappy), width 320ms var(--ease-morph), margin 320ms var(--ease-morph); }
+.search-pill:focus-within { box-shadow: inset 0 0 0 1px var(--label-3), 0 0 0 4px var(--focus-ring), var(--chrome-shadow); }
+/* Cancel makes room beside the field both ways, as on iOS. */
+.search-cancel { opacity: 0; transform: scale(.6); pointer-events: none; width: 0; height: 44px; margin-left: -8px; background: var(--surface, var(--bg)); transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out), width var(--dur-ui) var(--ease-out), margin var(--dur-ui) var(--ease-out); }
+.pane-list.searching .search-cancel { opacity: 1; transform: none; pointer-events: auto; width: 44px; margin-left: 0; transition-timing-function: ease-out, var(--spring-snappy), var(--ease-out), var(--ease-out); }
 .search-results { padding-top: calc(var(--safe-top) + 84px); }
-.section-title { margin: 19px var(--list-inset) 8px; color: var(--label-2); font-size: .706rem; font-weight: 600; letter-spacing: .4px; }
+.section-title { margin: 19px var(--list-inset) 8px; color: var(--label-2); font-size: .706rem; font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
 .contact-row { width: calc(100% - 20px); margin: 2px 10px; display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 13px; border-radius: 18px; text-align: left; }
 .contact-row .avatar { --size: 42px; border-radius: 16px; }
 .contact-row .grow { flex: 1; min-width: 0; }
@@ -166,9 +170,8 @@ mark { background: none; color: var(--blue); }
 .pane-list[data-layout="leading"] .row-main { gap: 5px; }
 /* One capsule marks the open conversation and glides between rows. */
 .row-highlight { position: absolute; z-index: 2; top: 0; left: 10px; right: 10px; height: 0; border-radius: 16px; pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--label) 5%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
-.row-highlight::before { content: ''; position: absolute; width: 3px; height: 25px; left: 0; top: calc(50% - 12.5px); border-radius: 0 3px 3px 0; background: var(--ink); }
 .row-highlight.on { opacity: 1; }
-.row-highlight.ready { transition: transform 440ms var(--spring-smooth), height 300ms var(--ease-out), opacity 160ms ease-out; }
+.row-highlight.ready { transition: transform var(--spring-smooth-dur) var(--spring-smooth), height var(--dur-ui) var(--ease-out), opacity var(--dur-quick) ease-out; }
 .rows:has(.row.selected.swiping) + .row-highlight { opacity: 0; }
 .pane-list[data-layout="leading"] .pinned { gap: 5px; margin-bottom: 12px; padding-bottom: 11px; }
 .pane-list[data-layout="leading"] .pin { gap: 6px; padding-block: 4px; }
@@ -203,7 +206,7 @@ mark { background: none; color: var(--blue); }
   :root:not([data-motion="full"]) .search-cancel { transition: none; }
   :root:not([data-motion="full"]) .row-in,
   :root:not([data-motion="full"]) .sk::after { animation: none; }
-  :root:not([data-motion="full"]) .offline-banner { animation: fade-in 120ms linear backwards; }
+  :root:not([data-motion="full"]) .offline-banner { animation: fade-in 120ms linear backwards !important; }
 }
 :root[data-motion="reduce"] .row-highlight,
 :root[data-motion="reduce"] .filter-thumb,
@@ -211,7 +214,7 @@ mark { background: none; color: var(--blue); }
 :root[data-motion="reduce"] .search-cancel { transition: none; }
 :root[data-motion="reduce"] .row-in,
 :root[data-motion="reduce"] .sk::after { animation: none; }
-:root[data-motion="reduce"] .offline-banner { animation: fade-in 120ms linear backwards; }
+:root[data-motion="reduce"] .offline-banner { animation: fade-in 120ms linear backwards !important; }
 
 /* Folded (and wherever bars are vertical), the list's bars run down the
    trailing edge and the content takes the space beside them. Search is a

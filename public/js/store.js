@@ -30,7 +30,8 @@ export const state = {
   socket: false,
   calls: { enabled: false },
   vapid: null,
-  previews: new Map()     // localId -> object URL for just-sent media
+  previews: new Map(),    // localId -> object URL for just-sent media
+  restored: false         // painted from the cached bootstrap at launch
 }
 
 export function setMe(me) { state.me = me }

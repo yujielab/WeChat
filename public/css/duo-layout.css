@@ -52,7 +52,7 @@
   padding: 4px;
   border-radius: 26px;
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line), 0 4px 14px -8px rgb(0 0 0 / .12);
+  box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
 }
 .bar-item {
   position: relative;
@@ -61,7 +61,7 @@
   min-width: 44px;
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line), 0 4px 14px -8px rgb(0 0 0 / .12);
+  box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   color: var(--label);
@@ -70,7 +70,7 @@
 .bar-group.capsule .bar-item { background: transparent; box-shadow: none; }
 .bar-group.capsule .bar-item.active { background: var(--ink); color: var(--on-ink); }
 .bar-item .icon { width: 20px; height: 20px; }
-.bar-item.prominent, .bar-item.active { background: var(--ink); color: var(--on-ink); box-shadow: 0 3px 8px rgb(0 0 0 / .1); }
+.bar-item.prominent, .bar-item.active { background: var(--ink); color: var(--on-ink); box-shadow: none; }
 .bar-item:disabled { opacity: .4; }
 .bar-item:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
 .bar-item:not(.prominent):not(.active):active { background: var(--field); }
@@ -168,8 +168,8 @@
   background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 0%, transparent), color-mix(in srgb, var(--bg) 88%, transparent) 55%);
   pointer-events: none;
 }
-.thread .field { box-shadow: 0 0 0 1px var(--line), 0 10px 30px -12px rgb(20 20 22 / 0.28), 0 2px 6px -3px rgb(20 20 22 / 0.12); }
-.thread .composer.is-focused .field { box-shadow: 0 0 0 1px color-mix(in srgb, var(--label) 26%, var(--line)), 0 10px 30px -12px rgb(20 20 22 / 0.3), 0 2px 6px -3px rgb(20 20 22 / 0.12); }
+.thread .field { box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow); transition: box-shadow var(--dur-quick) ease-out; }
+.thread .composer.is-focused .field { box-shadow: 0 0 0 1px var(--label-3), 0 0 0 4px var(--focus-ring), var(--chrome-shadow); }
 .composer textarea { min-height: calc(1.45em + 18px); }
 /* With horizontal bars, drawing and photos sit beside the field. */
 .composer > .bar-section { flex: none; margin-bottom: 6px; gap: 6px; }
@@ -185,8 +185,8 @@
 .m.has-avatar:has(.m-status) .m-col { max-width: min(calc(100% - 76px), 27em); }
 .msgs:has(>.m.out.has-avatar)>.m-meta { margin-right: 44px; }
 .m.has-avatar .bubble { border-radius: 20px; }
-.m.has-avatar.in.last .bubble:not(.jumbo):not(.media) { border-bottom-left-radius: 7px; }
-.m.has-avatar.out.last .bubble:not(.jumbo):not(.media) { border-bottom-right-radius: 7px; }
+.m.has-avatar.in.last .bubble:not(.jumbo):not(.media):not(.call-log) { border-bottom-left-radius: 7px; }
+.m.has-avatar.out.last .bubble:not(.jumbo):not(.media):not(.call-log) { border-bottom-right-radius: 7px; }
 .m.has-avatar .bubble.media { max-width: 100%; }
 .m.has-avatar .bubble.media:not(.photo-stack) img { max-width: 100%; height: auto; }
 .m.has-avatar .bubble.media .ph { max-width: 100%; }
@@ -292,8 +292,12 @@
   padding: 4px 0;
   border-radius: 26px;
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line), 0 4px 14px -8px rgb(0 0 0 / .12);
+  box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
 }
+/* One capsule holds both tools; they don't draw rings of their own inside it. */
+:root[data-bars="vertical"] .draw-tools .draw-tool { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-bars="vertical"] .draw-tools .draw-tool::before, :root[data-bars="vertical"] .draw-tools .draw-tool::after { display: none; }
+:root[data-bars="vertical"] .draw-tools .draw-tool:active { background: var(--field); }
 :root[data-bars="vertical"] .draw-stage { margin: calc(var(--safe-top) + 12px) var(--draw-column) 0 calc(var(--margin) + var(--safe-left)); }
 :root[data-bars="vertical"] .draw-bar { padding-right: var(--draw-column); }
 

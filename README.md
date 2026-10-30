@@ -186,7 +186,7 @@ iOS 需先用 Safari“添加到主屏幕”，再从主屏幕打开，在“设
 
 ```bash
 npm run dev          # wrangler dev，打开 http://127.0.0.1:8787 ，点“创建账号”
-npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量、声明式消息）+ 通话信令
+npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量、声明式消息）+ 通话信令与 /rtc 代理 + 输入校验
 ```
 
 - 本地 `wrangler dev` 自带内存版 Durable Object SQLite 和 R2，无需额外配置即可跑通聊天与媒体。
@@ -197,6 +197,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   注册两个账号，跑一遍登录 → 找人 → 实时收发 → 手绘 → 通话界面 → 展开 / 深色，并截图。
 - 交互回归：`node tools/e2e/design-details.cjs` 验证图片预览、拖放 / 粘贴、真实上传、失败重试、
   任意长度邀请码和 320px 窄屏；只连接本地服务，截图写入 `screenshots-design/`。
+- 通话协商：`node tools/e2e/call-negotiation.cjs` 用页面内的第二个 RTCPeerConnection 充当 SFU，验证先发布、每个会话一次只改一处、
+  接听方拉取早于自己就绪时公布的轨道、拉取失败重试。
 - 双屏回归：`node tools/e2e/duo-layout.cjs` 验证照片叠放与展开、双账号回应与已读、相册切换与焦点恢复、
   分栏比例与后缘控制顺序、模拟书本 / 笔记本折叠时的分栏与弹层位置、内屏竖放的标准栏、
   折叠前后的草稿 / 选区 / 阅读位置、小窗口发送和列顶“返回”；只连接本地服务。

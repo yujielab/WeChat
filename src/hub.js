@@ -18,6 +18,18 @@ const json = (data, status = 200, headers = {}) =>
   })
 
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,24}$/
+const NAME_MAX = 40
+const BIO_MAX = 120
+const GROUP_MAX = 500
+
+/** Free text from a client: a string on one line, at most `max` characters. */
+export function cleanText(value, max) {
+  if (typeof value !== 'string' && typeof value !== 'number') return ''
+  const flat = String(value).replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').trim()
+  return Array.from(flat).slice(0, max).join('').trim()
+}
+/** A request body is a plain object, whatever was sent. */
+const asObject = value => (value && typeof value === 'object' && !Array.isArray(value) ? value : {})
 const LOCKOUT_FAILS = 6
 const LOCKOUT_MS = 10 * 60 * 1000
 
@@ -88,7 +100,7 @@ export class Hub {
     if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405)
     const ip = request.headers.get('cf-connecting-ip') || 'local'
     let body = {}
-    try { body = await request.json() } catch {}
+    try { body = asObject(await request.json()) } catch {}
 
     if (path === '/auth/register') return this.register(body, ip)
     if (path === '/auth/login') return this.login(body, ip)
@@ -105,7 +117,7 @@ export class Hub {
     if (typeof password !== 'string' || password.length < 6) return json({ ok: false, error: '密码至少 6 位' }, 400)
     if (this.store.getUserByUsername(username)) return json({ ok: false, error: '用户名已被占用' }, 409)
     const { salt, hash } = await hashPassword(password)
-    const user = this.store.createUser({ username, display: String(display || '').trim() || username, salt, hash })
+    const user = this.store.createUser({ username, display: cleanText(display, NAME_MAX) || username, salt, hash })
     return this.grant(user)
   }
 
@@ -136,14 +148,25 @@ export class Hub {
     const path = url.pathname
     const method = request.method
     const seg = path.split('/').filter(Boolean) // ['api', ...]
-    const body = method === 'POST' ? await request.json().catch(() => ({})) : null
+    const body = method === 'POST' ? asObject(await request.json().catch(() => ({}))) : null
 
     // --- self / profile
     if (path === '/api/me' && method === 'GET') {
       return json({ ok: true, me: this.store.pub(user), vapid: this.env.VAPID_PUBLIC_KEY || null })
     }
     if (path === '/api/profile' && method === 'POST') {
-      const updated = this.store.setProfile(user.id, { display: body.display, avatar: body.avatar, bio: body.bio })
+      const patch = {}
+      if (body.display !== undefined) patch.display = cleanText(body.display, NAME_MAX) || user.username
+      if (body.bio !== undefined) patch.bio = cleanText(body.bio, BIO_MAX)
+      if (body.avatar !== undefined) {
+        // Only a picture this account uploaded: anything else would have every
+        // peer's device fetch an outside URL.
+        const own = `/api/media/avatar/${user.id}/`
+        const valid = body.avatar === '' || (typeof body.avatar === 'string' && body.avatar.startsWith(own) && /^[\w-]+$/.test(body.avatar.slice(own.length)))
+        if (!valid) return json({ ok: false, error: '头像无效' }, 400)
+        patch.avatar = body.avatar
+      }
+      const updated = this.store.setProfile(user.id, patch)
       this.fanoutToPeers(user.id, { t: 'profile', user: this.store.pub(updated) })
       return json({ ok: true, me: this.store.pub(updated) })
     }
@@ -212,8 +235,8 @@ export class Hub {
       return json({ ok: true, room: this.roomFor(roomId, user.id) })
     }
     if (path === '/api/group' && method === 'POST') {
-      const members = (Array.isArray(body.members) ? body.members : []).filter(id => this.store.getUser(id))
-      const roomId = this.store.createGroup({ name: body.name, creator: user.id, members })
+      const members = (Array.isArray(body.members) ? body.members : []).slice(0, GROUP_MAX).filter(id => typeof id === 'string' && this.store.getUser(id))
+      const roomId = this.store.createGroup({ name: cleanText(body.name, NAME_MAX), creator: user.id, members })
       for (const m of members) this.sendToUser(m, { t: 'rooms-dirty' })
       this.systemMessage(roomId, `${user.display} 创建了群聊`)
       return json({ ok: true, room: this.roomFor(roomId, user.id) })
@@ -239,7 +262,7 @@ export class Hub {
         const room = this.store.getRoom(roomId)
         if (room.kind !== 'group') return json({ ok: false, error: '只能邀请进群聊' }, 400)
         const added = []
-        for (const id of (body.members || [])) {
+        for (const id of (Array.isArray(body.members) ? body.members : []).slice(0, GROUP_MAX)) {
           if (this.store.getUser(id) && !this.store.isMember(roomId, id)) {
             this.store.addMember(roomId, id)
             this.sendToUser(id, { t: 'rooms-dirty' })

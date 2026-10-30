@@ -38,8 +38,8 @@
   border-radius: inherit;
   pointer-events: none;
   background:
-    radial-gradient(130% 95% at 15% -10%, rgb(255 255 255 / 0.26), transparent 52%),
-    radial-gradient(70% 55% at 90% 115%, rgb(255 255 255 / 0.12), transparent 62%);
+    radial-gradient(130% 95% at 15% -10%, var(--glass-reflect), transparent 52%),
+    radial-gradient(70% 55% at 90% 115%, var(--glass-caustic), transparent 62%);
 }
 
 /* Touch glow, positioned by js/ui/press.js through --gx/--gy. */

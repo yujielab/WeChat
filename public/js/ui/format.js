@@ -57,6 +57,10 @@ export function fileSize(bytes) {
   return `${n >= 10 || i === 0 ? Math.round(n) : n.toFixed(1)} ${units[i]}`
 }
 
+// Whole user-perceived characters, so a family or flag emoji stays one.
+const segmenter = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
+const firstGrapheme = s => (segmenter ? segmenter.segment(s)[Symbol.iterator]().next().value?.segment : [...s][0]) || ''
+
 /** Monogram for the avatar placeholder. */
 export function initials(name) {
   const s = String(name || '').trim()
@@ -64,8 +68,9 @@ export function initials(name) {
   const cjk = s.match(/[㐀-鿿豈-﫿]/)
   if (cjk) return cjk[0]
   const words = s.split(/\s+/).filter(Boolean)
-  if (words.length > 1) return (words[0][0] + words[1][0]).toUpperCase()
-  return [...s][0].toUpperCase()
+  // Two letters only from two words that start with letters ("Ada Lovelace" → AL).
+  if (words.length > 1 && /^\p{L}/u.test(words[0]) && /^\p{L}/u.test(words[1])) return (firstGrapheme(words[0]) + firstGrapheme(words[1])).toUpperCase()
+  return firstGrapheme(s).toUpperCase()
 }
 
 /** Stable pleasant gradient for a placeholder avatar. */

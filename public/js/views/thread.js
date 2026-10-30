@@ -214,7 +214,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     const who = m.fromName || nameOf(m.from, current)
     const bub = renderBubble(m, m.status === 'failed' ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 34) } : ctx)
     const sender = room && !m.out ? h('div', { class: 'm-sender' }, who) : null
-    const av = h('span', { class: 'm-avatar', 'aria-hidden': 'true' }, avatar(avatarOf(m.from, current), who, { size: 30 }))
+    const av = h('span', { class: 'm-avatar', 'aria-hidden': 'true' }, avatar(avatarOf(m.from, current), who))
     const status = m.status === 'failed'
       ? h('button', { class: 'm-status', type: 'button', 'aria-label': '发送失败，点按重试' }, icon('exclaim'))
       : null
@@ -495,6 +495,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
     jumpBadge.hidden = true
     jump.classList.remove('on')
     for (const el of [...msgs.children]) if (el !== olderEl) el.remove()
+    // A page still loading for the last conversation isn't this one's.
+    olderEl.replaceChildren()
     nodes.clear()
     seps.clear()
     photoGroups.clear()
@@ -518,10 +520,13 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, onCompose, 
       if (!t.loaded) {
         olderEl.replaceChildren(h('span', { class: 'spinner' }))
         const r = await api.get(`/api/messages?room=${encodeURIComponent(id)}&limit=${PAGE}`)
+        // Kept even if another conversation opened meanwhile: coming back is instant.
+        if (!t.loaded) {
+          mergeMessages(id, r.messages.map(normMsg))
+          t.loaded = true
+          t.hasMore = r.messages.length >= PAGE
+        }
         if (current !== id) return
-        mergeMessages(id, r.messages.map(normMsg))
-        t.loaded = true
-        t.hasMore = r.messages.length >= PAGE
         olderEl.replaceChildren()
         reconcile()
         scrollToBottom()
