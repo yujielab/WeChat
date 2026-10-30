@@ -27,6 +27,8 @@ const SPLIT_MIN = 700
 const TALL_MIN = 760
 // A right inset this wide is a column the bars can share (the rail is 52pt).
 const EDGE_COLUMN_MIN = 64
+// …and no wider than this: a larger shortfall is Split View or a window.
+const EDGE_COLUMN_MAX = 128
 const listeners = new Set()
 const barListeners = new Set()
 let layout = null
@@ -60,10 +62,14 @@ function measure() {
   // camera is at its foot rather than its head (see duo-layout.css).
   root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   // Both displays keep a column of their own down the right edge for the
-  // status bar and the Dynamic Island (84pt on device, open or closed),
-  // reported as a wide right safe-area inset. Other iPhones' insets stay
-  // under it even in landscape (59pt at most). Bars join that column.
+  // status bar and the Dynamic Island (84pt on device, open or closed).
+  // Where the page runs under it, it is reported as a wide right safe-area
+  // inset (other iPhones' insets stay under 59pt even in landscape) and the
+  // bars join it. iOS 27.2 can instead keep the column out of the page: the
+  // page is then narrower than the screen by about that much, with no
+  // inset, and the bars stand beside it, free of the camera and status bar.
   if (insetRight() >= EDGE_COLUMN_MIN) root.dataset.edgeColumn = ''
+  else if (columnBeside()) root.dataset.edgeColumn = 'beside'
   else delete root.dataset.edgeColumn
   if (nextBars !== bars) {
     bars = nextBars
@@ -185,6 +191,17 @@ function insetRight() {
     new ResizeObserver(() => measure()).observe(insetProbe)
   }
   return insetProbe.offsetWidth
+}
+
+// The system column standing outside the page: a touch screen wider than
+// the page by a column's width (not a Split View half, not a desktop window).
+function columnBeside() {
+  if (!matchMedia('(pointer: coarse)').matches) return false
+  const w = window.innerWidth
+  const across = [screen.width, screen.height].filter(s => s >= w - 1)
+  if (!across.length) return false
+  const gap = Math.min(...across) - w
+  return gap >= EDGE_COLUMN_MIN && gap <= EDGE_COLUMN_MAX
 }
 
 function hasTextFocus() {

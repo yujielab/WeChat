@@ -42,6 +42,11 @@
 /* Rotated, the outer display carries its camera at the foot of the column,
    and the status bar steps away: Back moves to the very top. */
 :root[data-orientation="landscape"] .shell[data-layout="stack"] .pane { --rail-reserve: 12px; --rail-foot: 64px; }
+/* With the system's column kept outside the page (iOS 27.2), the rule above
+   puts the rail against the page's trailing edge, right beside that column;
+   the camera and status bar are out there too, so the rail runs from the
+   top of the page to its foot. */
+:root[data-edge-column="beside"][data-orientation] .shell[data-layout] .pane { --rail-reserve: 12px; --rail-foot: 14px; }
 
 /* ---------------------------------------------------------------- bar items */
 .bar-section { display: flex; align-items: center; gap: 10px; }
@@ -221,6 +226,7 @@
 .overlays { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
 .overlays[data-layout="split"] { --rail-reserve: var(--rail-reserve-inner); }
 :root[data-orientation="landscape"] .overlays[data-layout="stack"] { --rail-reserve: 12px; --rail-foot: 64px; }
+:root[data-edge-column="beside"][data-orientation] .overlays[data-layout] { --rail-reserve: 12px; --rail-foot: 14px; }
 
 :root[data-bars="vertical"] .overlays[data-layout="stack"] .sheet-head,
 :root[data-bars="vertical"] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head {

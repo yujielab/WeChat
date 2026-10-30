@@ -144,5 +144,19 @@ assert.ok(await railOpacity()<0.05,'receding controls step aside')
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'});await sleep(500);assert.equal(await railOpacity(),1,'controls return with the app')
 await p.evaluate(()=>{document.documentElement.style.removeProperty('--safe-right');dispatchEvent(new Event('resize'))})
 
-assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; an inset that settles late still joins the edge column; sheets beside the edge column and its controls; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
+// iOS 27.2 can keep that column out of the page: a 466pt screen shows a 376pt page with no inset. The rail then
+// stands against the page's trailing edge, runs from the top (no camera or status bar in the page), and content
+// stops beside it. A Split View half or a desktop window is never taken for that column.
+const besideAt=async(extra,w,h)=>{const c=await browser.newContext({...opts,...extra,viewport:{width:w,height:h},storageState:await ac.storageState()});const q=await c.newPage();q.on('pageerror',e=>errors.push(e.message));await q.goto(BASE);await q.locator('.pane-list .row').first().waitFor();await sleep(400);return{c,q}}
+let {c:bc,q}=await besideAt({screen:{width:466,height:678},isMobile:true,hasTouch:true},376,678)
+assert.equal(await q.evaluate(()=>document.documentElement.dataset.edgeColumn),'beside','column outside the page')
+const geo=await q.evaluate(()=>{const items=[...document.querySelectorAll('.pane-list .duo-rail .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect());const row=document.querySelector('.pane-list .row').getBoundingClientRect();return{right:Math.max(...items.map(r=>r.right)),left:Math.min(...items.map(r=>r.left)),top:Math.min(...items.map(r=>r.top)),row:row.right}})
+assert.ok(376-geo.right<=10&&geo.top<=24&&geo.row<=geo.left-8,'rail against the trailing edge from the top, content beside it '+JSON.stringify(geo))
+await q.screenshot({path:path.join(OUT,'29-column-beside.png')});await bc.close()
+;({c:bc,q}=await besideAt({screen:{width:951,height:669},isMobile:true,hasTouch:true},445,669))
+assert.equal(await q.evaluate(()=>document.documentElement.dataset.edgeColumn),undefined,'a Split View half is not the column');await bc.close()
+;({c:bc,q}=await besideAt({screen:{width:466,height:678}},376,678))
+assert.equal(await q.evaluate(()=>document.documentElement.dataset.edgeColumn),undefined,'a desktop window is not the column');await bc.close()
+
+assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; an inset that settles late still joins the edge column; a column kept outside the page puts the rail beside it from the top (not for Split View or a desktop window); sheets beside the edge column and its controls; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
