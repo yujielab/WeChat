@@ -94,6 +94,22 @@ test('names, bios, avatars and bodies from clients are bounded and validated; re
     assert.notEqual(other.data.msg.id, first.data.msg.id)
     const history = await request(`/api/messages?room=${room}&limit=100`, undefined, session)
     assert.equal(history.data.messages.filter(m => m.body === '只发一次').length, 2)
+
+    // A sticker is a reference to a pack sticker: a valid id and kind, a short emoji, nothing else.
+    for (const meta of [{ id: '../x', kind: 'static' }, { id: 'AgADstat', kind: 'gif' }, null]) {
+      const bad = await request('/api/messages', { room, type: 'sticker', meta }, session)
+      assert.equal(bad.response.status, 400, JSON.stringify(meta))
+    }
+    const sticker = await request('/api/messages', { room, type: 'sticker', meta: { id: 'AgADstat', kind: 'animated', emoji: '😀'.repeat(30), set: 'HandDrawnEmoji', url: 'https://evil.example/x' } }, session)
+    assert.deepEqual(sticker.data.msg.meta, { id: 'AgADstat', kind: 'animated', emoji: '😀'.repeat(16), set: 'HandDrawnEmoji' })
+    const oddSet = await request('/api/messages', { room, type: 'sticker', meta: { id: 'AgADstat', kind: 'static', set: '../packs' } }, session)
+    assert.deepEqual(oddSet.data.msg.meta, { id: 'AgADstat', kind: 'static', emoji: '' }, 'a pack name that is not a name is dropped')
+
+    // Without a bot token the packs and the add list are simply empty.
+    const packs = await request('/api/stickers', undefined, session)
+    assert.deepEqual(packs.data.sets, [])
+    assert.deepEqual((await request('/api/stickers/catalog', undefined, session)).data.packs, [])
+    assert.equal((await request('/api/stickers/mine', { add: 'UtyaDuck' }, session)).response.status, 404)
   } finally {
     await mf.dispose()
     await rm(persistence, { recursive: true, force: true })

@@ -1,6 +1,6 @@
 // Message composer: a field that grows with its lines and one button after
-// it. Empty, the button adds a photo or a drawing: it opens into a small
-// panel grown out of the button itself, its + turning into ×. With text it
+// it. Empty, the button adds a photo, a sticker or a drawing: it opens into a
+// small panel grown out of the button itself, its + turning into ×. With text it
 // becomes Send in the same place. Enter sends (the keyboard shows 发送),
 // except while a Chinese IME is composing; Shift+Enter inserts a newline.
 
@@ -43,10 +43,15 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     return button
   }))
   const panel = h('div', { class: 'composer-panel', id: panelId, role: 'menu', 'aria-label': '添加' }, panelBody)
+  // Names what the panel offers: 添加照片或手绘, 添加照片、表情或手绘.
+  const addLabel = () => {
+    const names = tools.filter(t => !toolButtons.get(t.id).hidden).map(t => t.title)
+    return '添加' + (names.length > 1 ? `${names.slice(0, -1).join('、')}或${names.at(-1)}` : names[0] || '')
+  }
   const action = h('button', {
     class: 'composer-action',
     type: 'button',
-    'aria-label': '添加照片或手绘',
+    'aria-label': addLabel(),
     'aria-haspopup': 'menu',
     'aria-expanded': 'false',
     'aria-controls': panelId
@@ -111,7 +116,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     form.classList.toggle('has-text', hasText)
     action.disabled = readonly
     action.type = hasText ? 'submit' : 'button'
-    action.setAttribute('aria-label', hasText ? '发送' : '添加照片或手绘')
+    action.setAttribute('aria-label', hasText ? '发送' : addLabel())
     if (hasText) {
       action.removeAttribute('aria-haspopup')
       action.removeAttribute('aria-expanded')
@@ -248,6 +253,13 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       button.setAttribute('aria-checked', String(Boolean(active)))
     },
     closeTools() { setOpen(false, { focus: false }) },
+    /** Offer a tool or not (stickers only where the server has packs). */
+    setToolShown(id, shown) {
+      const button = toolButtons.get(id)
+      if (!button) return
+      button.hidden = !shown
+      if (!hasText) action.setAttribute('aria-label', addLabel())
+    },
     /** Carry a bar section beside the field (horizontal bars), or release it. */
     dock(section) {
       if (section === docked) return

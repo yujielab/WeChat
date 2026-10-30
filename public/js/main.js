@@ -113,7 +113,7 @@ async function refresh() {
   setPresence(boot.presence)
   applyBoot(boot)
   shell?.setMe(state.me)
-  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid }))
+  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers }))
   // Once per launch: keep this device's push subscription current.
   if (!pushSynced) {
     pushSynced = true
@@ -127,6 +127,7 @@ function applyBoot(boot) {
   setContacts(boot.contacts)
   state.calls = boot.calls || { enabled: false }
   state.vapid = boot.vapid || null
+  state.stickers = Boolean(boot.stickers)
 }
 
 function mountShell() {

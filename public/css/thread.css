@@ -738,3 +738,44 @@
 }
 :root[data-motion="reduce"] .m-reactions.pop,
 :root[data-motion="reduce"] .m-reactions.pop .m-reaction { animation: none; }
+
+/* ---------------------------------------------------------------- stickers
+   A sticker stands on its own; its still picture (or emoji) holds its place
+   until it plays, and for good with reduced motion. */
+.bubble.sticker, .m.out .bubble.sticker { background: none; box-shadow: none; padding: 0; border-radius: 0; }
+.stk { display: block; width: 128px; height: 128px; object-fit: contain; }
+.stk.grid { width: 64px; height: 64px; }
+.stk.lot { position: relative; }
+.stk.lot > img, .stk.lot > .stk-fb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.stk.lot.on > img, .stk.lot.on > .stk-fb { display: none; }
+.stk-fb { display: grid; place-items: center; font-style: normal; font-size: 64px; line-height: 1; }
+.stk.grid .stk-fb, .stk.grid.stk-fb { font-size: 34px; }
+.stk-panel { padding: 0 16px 8px; }
+.stk-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 12px; }
+.stk-tabs::-webkit-scrollbar { display: none; }
+.stk-tab { position: relative; flex: none; min-height: 36px; padding: 0 14px; border-radius: 18px; background: var(--field); color: var(--label-2); font-size: var(--t-subhead); }
+.stk-tab.on { background: var(--ink); color: var(--on-ink); font-weight: var(--w-semibold); }
+/* 44pt to tap, 36pt to see. */
+.stk-tab::before { content: ""; position: absolute; inset: -4px 0; }
+.stk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.stk-cell { aspect-ratio: 1; display: grid; place-items: center; border-radius: 16px; transition: background-color var(--press-out) ease-out; }
+.stk-cell:active { background: var(--field); transition-duration: var(--press-in); }
+.stk-cell:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.stk-empty { margin: 24px 0; text-align: center; color: var(--label-2); }
+.stk-tab-add { display: grid; place-items: center; min-width: 44px; padding: 0 12px; }
+.stk-tab-add .icon { width: 18px; height: 18px; }
+/* The add list: one row per pack, its cover, name and size, then 添加 / 移除. */
+.stk-store { display: flex; flex-direction: column; }
+.stk-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 6px 0; }
+.stk-row + .stk-row { border-top: 0.5px solid var(--separator); }
+.stk.row { flex: none; width: 48px; height: 48px; }
+.stk.row .stk-fb, .stk.row.stk-fb { font-size: 28px; }
+.stk-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.stk-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-body); color: var(--label); }
+.stk-row-sub { font-size: var(--t-footnote); color: var(--label-2); }
+.stk-add { position: relative; flex: none; min-width: 64px; min-height: 32px; padding: 0 14px; border-radius: 16px; background: var(--ink); color: var(--on-ink); font-size: var(--t-subhead); font-weight: var(--w-semibold); transition: opacity var(--press-out) ease-out; }
+/* 44pt to tap, 32pt to see. */
+.stk-add::before { content: ""; position: absolute; inset: -6px 0; }
+.stk-add.added { background: var(--field); color: var(--label); font-weight: var(--w-regular); }
+.stk-add:disabled { opacity: 0.5; }
+.stk-add:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }

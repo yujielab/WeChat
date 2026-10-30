@@ -12,6 +12,7 @@ import {
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
+import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
@@ -127,6 +128,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     // Photos and the drawing board come from the button after the field.
     tools: [
       { id: 'photo', icon: 'photo', title: '照片', onSelect: () => current && composer.openImages() },
+      { id: 'sticker', icon: 'face', title: '表情', onSelect: () => current && openStickers({ onPick: st => sendSticker(st), origin: composer.el.querySelector('.composer-action') }) },
       { id: 'draw', icon: 'brush', title: '手绘', onSelect: () => current && onDraw(current) }
     ]
   })
@@ -443,6 +445,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
     decorate(visible)
     placeMeta(list)
+    mountStickers(msgs)
     if (t.loaded && !list.length) olderEl.textContent = ''
     else if (t.loaded && !t.hasMore) olderEl.textContent = ''
     else if (!t.loading) olderEl.textContent = ''
@@ -559,6 +562,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     empty.hidden = true
     renderHeader()
     composer.setChat(id, { readonly: false })
+    composer.setToolShown('sticker', Boolean(state.stickers))
     ensureRoom(id)
     const t = thread(id)
     reconcile()
@@ -710,6 +714,24 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
   }
 
+  // A sticker goes like a text: shown at once, then confirmed (or offered a retry).
+  async function sendSticker(st, chat = current) {
+    if (!chat) return
+    const cid = newCid()
+    const meta = { id: st.id, kind: st.kind, emoji: st.emoji || '', ...(st.set && { set: st.set }) }
+    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'sticker', text: '', meta, status: 'sending' }
+    upsertMessage(local)
+    bumpList(local)
+    if (chat === current) scrollToBottom()
+    try {
+      const r = await api.post('/api/messages', { room: chat, type: 'sticker', meta, localId: cid })
+      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
+    } catch (err) {
+      upsertMessage({ ...local, status: 'failed' })
+      toast(err.message || '发送失败', { type: 'error' })
+    }
+  }
+
   async function sendImages(files, { from = [] } = {}) {
     const chat = current
     if (!chat) return
@@ -830,12 +852,13 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // answers a repeat with the message that already landed); a tap while it
   // is on its way does nothing.
   async function retry(m) {
-    if (m.type === 'text' && m.text && m.cid) {
+    const again = m.type === 'text' && m.text ? { type: 'text', text: m.text } : m.type === 'sticker' && m.meta?.id ? { type: 'sticker', meta: m.meta } : null
+    if (again && m.cid) {
       if (retrying.has(m.id)) return
       retrying.add(m.id)
       upsertMessage({ ...m, status: 'sending' })
       try {
-        const r = await api.post('/api/messages', { room: m.chat, type: 'text', text: m.text, localId: m.cid })
+        const r = await api.post('/api/messages', { room: m.chat, ...again, localId: m.cid })
         if (r.msg) replaceMessage(m.id, normMsg(r.msg))
       } catch (err) {
         upsertMessage({ ...m, status: 'failed' })

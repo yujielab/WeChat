@@ -33,7 +33,7 @@ assert.match(await clip(),/inset\(calc\(100% - 56px\) 0px 0px calc\(100% - 56px\
 await p.click('.composer-action');await sleep(90)
 const mid=await clipRun();assert.ok(mid&&mid.progress>0.05&&mid.progress<0.95&&mid.duration>=240&&mid.duration<=320,'growing over 240-320ms, not jumping '+JSON.stringify(mid))
 await sleep(400);assert.equal(await clipRun(),null);assert.match(await clip(),/inset\(0px round 24px\)/,'fully open')
-const st=await p.evaluate(()=>{const a=document.querySelector('.composer-action');return{expanded:a.getAttribute('aria-expanded'),rot:getComputedStyle(a.querySelector('.action-add')).transform,items:[...document.querySelectorAll('.composer-tool')].map(b=>b.textContent),inert:document.querySelector('.composer-panel').inert}})
+const st=await p.evaluate(()=>{const a=document.querySelector('.composer-action');return{expanded:a.getAttribute('aria-expanded'),rot:getComputedStyle(a.querySelector('.action-add')).transform,items:[...document.querySelectorAll('.composer-tool')].filter(b=>!b.hidden).map(b=>b.textContent),inert:document.querySelector('.composer-panel').inert}})
 assert.equal(st.expanded,'true');assert.deepEqual(st.items,['照片','手绘']);assert.equal(st.inert,false)
 const ang=Math.round(Math.atan2(...st.rot.split('(')[1].split(',').slice(0,2).map(Number).reverse())*180/Math.PI);assert.equal(Math.abs(ang),45,'+ turned into × '+st.rot)
 assert.deepEqual(await actionBox(),a0,'the button keeps its place')
@@ -116,6 +116,47 @@ await p.keyboard.press('Escape');await sleep(80)
 assert.match(await p.evaluate(()=>{const m=document.querySelector('.viewer-media');return m?getComputedStyle(m).clipPath:'gone'}),/inset\(|gone/,'closing takes the crop back')
 await sleep(600);assert.equal(await p.evaluate(()=>document.querySelector('.bubble.media img').style.visibility),'','the bubble shows again')
 
+// Stickers (Telegram packs through our own server): offered only when the server has packs; the panel shows
+// your packs and +, which lists the server's packs to add or remove; a tap sends one (no bubble behind it,
+// its pack named so anyone can load it), and an animated one plays through the vendored Lottie player once
+// on screen.
+const LOT=JSON.stringify({v:'5.7.4',fr:30,ip:0,op:30,w:100,h:100,nm:'t',ddd:0,assets:[],layers:[{ddd:0,ind:1,ty:4,nm:'s',sr:1,ks:{o:{a:0,k:100},r:{a:0,k:0},p:{a:0,k:[50,50,0]},a:{a:0,k:[0,0,0]},s:{a:0,k:[100,100,100]}},ao:0,shapes:[{ty:'el',p:{a:0,k:[0,0]},s:{a:0,k:[60,60]},nm:'e'},{ty:'fl',c:{a:0,k:[1,0.6,0,1]},o:{a:0,k:100},nm:'f'}],ip:0,op:30,st:0,bm:0}]})
+const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64')
+const HAND={name:'HandDrawnEmoji',title:'手绘',stickers:[{id:'AgADstat',emoji:'😀',kind:'static',nt:false},{id:'AgADanim',emoji:'😎',kind:'animated',nt:false}]},DUCK={name:'UtyaDuck',title:'小黄鸭',stickers:[{id:'AgADduck',emoji:'🦆',kind:'animated',nt:false}]}
+await p.route('**/api/stickers',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,sets:[HAND]})}))
+await p.route('**/api/stickers/catalog',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,packs:[{name:'HandDrawnEmoji',title:'手绘',count:2,cover:HAND.stickers[0],added:true},{name:'UtyaDuck',title:'小黄鸭',count:1,cover:DUCK.stickers[0],added:false}]})}))
+const asked=[];await p.route('**/api/stickers/mine',r=>{asked.push(r.request().postDataJSON());r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,sets:[DUCK,HAND]})})})
+await p.route('**/api/stickers/img/**',r=>r.fulfill({contentType:'image/png',body:PNG}))
+await p.route('**/api/stickers/anim/**',r=>r.fulfill({contentType:'application/json',body:LOT}))
+await p.setViewportSize({width:466,height:678});await sleep(200)
+await p.evaluate(async()=>{const{state}=await import('/js/store.js');state.stickers=false;await testThread.open('c')});await sleep(200)
+await p.click('.composer-action');await sleep(300)
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.composer-tool')].filter(b=>!b.hidden).map(b=>b.dataset.tool)),['photo','draw'],'no stickers without packs')
+await p.keyboard.press('Escape');await sleep(300)
+await p.evaluate(async()=>{const{state}=await import('/js/store.js');state.stickers=true;await testThread.open('r')});await sleep(300)
+await p.click('.composer-action');await sleep(300);await p.click('.composer-tool[data-tool="sticker"]')
+await p.locator('.sheet.on .stk-cell').first().waitFor();await sleep(400)
+assert.equal(await p.locator('.sheet.on .stk-cell').count(),2)
+const tabNames=()=>p.evaluate(()=>[...document.querySelectorAll('.sheet.on .stk-tab')].map(b=>b.getAttribute('aria-label')||b.textContent))
+assert.deepEqual(await tabNames(),['手绘','添加表情包'],'your pack, then +')
+await p.screenshot({path:path.join(OUT,'38-stickers.png')})
+await p.click('.sheet.on .stk-tab-add');await p.locator('.sheet.on .stk-row').nth(1).waitFor();await sleep(300)
+const rows=()=>p.evaluate(()=>[...document.querySelectorAll('.sheet.on .stk-row')].map(r=>[r.querySelector('.stk-row-title').textContent,r.querySelector('.stk-add').textContent]))
+assert.deepEqual(await rows(),[['手绘','移除'],['小黄鸭','添加']],'the server\'s packs, yours marked')
+assert.ok(await p.evaluate(()=>[...document.querySelectorAll('.sheet.on .stk-add')].every(b=>b.getBoundingClientRect().height+12>=44)),'添加 / 移除 reachable at 44pt')
+await p.screenshot({path:path.join(OUT,'39-sticker-packs.png')})
+await p.locator('.sheet.on .stk-row').nth(1).locator('.stk-add').click();await p.waitForFunction(()=>document.querySelectorAll('.sheet.on .stk-tab').length===3)
+assert.deepEqual(asked,[{add:'UtyaDuck'}]);assert.deepEqual(await rows(),[['手绘','移除'],['小黄鸭','移除']],'added in place')
+assert.deepEqual(await tabNames(),['小黄鸭','手绘','添加表情包'],'the new pack first')
+await p.click('.sheet.on .stk-tab >> text=手绘');await p.locator('.sheet.on .stk-cell').first().waitFor()
+await p.locator('.sheet.on .stk-cell').first().click();await p.locator('.sheet.on').waitFor({state:'detached'})
+const sentStk=await p.evaluate(()=>{const m=[...document.querySelectorAll('.msgs .m')].at(-1),b=m.querySelector('.bubble');return{kind:b.dataset.kind,img:b.querySelector('img.stk')?.getAttribute('src'),bg:getComputedStyle(b).backgroundColor}})
+assert.deepEqual(sentStk,{kind:'sticker',img:'/api/stickers/img/AgADstat?set=HandDrawnEmoji',bg:'rgba(0, 0, 0, 0)'},'sent without a bubble, its pack named')
+await p.evaluate(async()=>{const{upsertMessage}=await import('/js/store.js');upsertMessage({id:'stkA',chat:'r',type:'sticker',text:'',meta:{id:'AgADanim',kind:'animated',emoji:'😎'},from:'p',out:false,ts:Date.now(),status:'sent'})})
+await p.waitForFunction(()=>document.querySelector('.m[data-id="stkA"] .stk.lot.on svg'),null,{timeout:5000})
+assert.equal(await p.evaluate(()=>Boolean(window.lottie)),true,'the vendored player loaded')
+await p.evaluate(()=>testThread.open('i'));await sleep(300)
+
 // Frequent actions stay light and quick; the full morphs above are kept for rarer ones with a clear source.
 // Switching conversations: the new one is eased in over ≤180ms, no blur. Sending: the message is there in
 // ≤180ms, no scale or blur. A toolbar tap answers with its press alone, no symbol bounce.
@@ -143,5 +184,5 @@ for(const vp of[{width:466,height:678},{width:951,height:669},{width:466,height:
  await p.keyboard.press('Escape');await sleep(500)
 }
 
-assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; photos open from and close to their bubble with its crop and corners; frequent actions (switching, sending, toolbar taps) light and quick; settings scrolls fully into view with one profile entry and no dead switches')
+assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; photos open from and close to their bubble with its crop and corners; stickers offered with packs, packs added from the server list, sent without a bubble, animated ones playing on screen; frequent actions (switching, sending, toolbar taps) light and quick; settings scrolls fully into view with one profile entry and no dead switches')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

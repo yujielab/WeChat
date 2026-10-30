@@ -10,6 +10,7 @@ import {
 import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
+import { stickersConfigured, readSet, readSets, publicSet, catalog, chosenSets, allowedName, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
@@ -77,6 +78,7 @@ export class Hub {
       const user = await this.authed(request)
       if (!user) return json({ ok: false, error: '未登录' }, 401)
       if (path.startsWith('/api/media/')) return await handleMedia(request, url, user, this)
+      if (path === '/api/stickers' || path.startsWith('/api/stickers/')) return await this.stickers(request, url, user)
       if (path.startsWith('/api/')) return await this.api(request, url, user)
       if (path.startsWith('/rtc/')) return await this.calls.http(request, url, user)
       return json({ ok: false, error: 'not found' }, 404)
@@ -187,7 +189,8 @@ export class Hub {
         contacts: this.store.listContacts(user.id),
         presence: this.onlineUids(),
         vapid: (await this.vapid()).publicKey,
-        calls: this.calls.configured()
+        calls: this.calls.configured(),
+        stickers: stickersConfigured(this.env)
       })
     }
     if (path === '/api/rooms' && method === 'GET') {
@@ -325,12 +328,85 @@ export class Hub {
     return json({ ok: false, error: 'not found' }, 404)
   }
 
+  // ---------------------------------------------------------------- stickers
+  /**
+   * Telegram sticker packs (src/stickers.js): your packs, the add list, adding
+   * or removing one, and each sticker's file (img: the sticker or, with
+   * ?thumb=1, its still picture; anim: an animated sticker's Lottie JSON),
+   * from R2 or fetched once from Telegram.
+   */
+  async stickers(request, url, user) {
+    const path = url.pathname
+    const on = stickersConfigured(this.env)
+    const bucket = this.env.MEDIA
+    if (request.method === 'GET' && path === '/api/stickers') {
+      return json({ ok: true, sets: on ? (await readSets(this.env, bucket, this.myStickers(user))).map(publicSet) : [] })
+    }
+    if (request.method === 'GET' && path === '/api/stickers/catalog') {
+      return json({ ok: true, packs: on ? await catalog(this.env, bucket, this.myStickers(user)) : [] })
+    }
+    if (request.method === 'POST' && path === '/api/stickers/mine' && on) {
+      let body = {}
+      try { body = asObject(await request.json()) } catch {}
+      const name = allowedName(this.env, body.add || body.remove)
+      if (!name) return json({ ok: false, error: '没有这个表情包' }, 400)
+      let mine = this.myStickers(user).filter(n => !sameSet(n, name))
+      if (body.add) {
+        if (mine.length >= MAX_CHOSEN) return json({ ok: false, error: `最多 ${MAX_CHOSEN} 个表情包` }, 400)
+        if (!(await readSet(this.env, bucket, name))?.stickers?.length) return json({ ok: false, error: '暂时取不到这个表情包' }, 502)
+        // The newest pack comes first, where the panel opens.
+        mine = [name, ...mine]
+      }
+      this.store.kvSet(`stickers:${user.id}`, mine)
+      return json({ ok: true, sets: (await readSets(this.env, bucket, mine)).map(publicSet) })
+    }
+    const [, , , what, id] = path.split('/')
+    if (request.method !== 'GET' || !on || !['img', 'anim'].includes(what)) return json({ ok: false, error: 'not found' }, 404)
+    let obj
+    try {
+      obj = await stickerFile(this.env, bucket, decodeURIComponent(id || ''), {
+        set: url.searchParams.get('set'),
+        thumb: url.searchParams.has('thumb'),
+        anim: what === 'anim',
+        range: request.headers
+      })
+    } catch (err) {
+      console.warn('sticker file', id, err.message)
+      return json({ ok: false, error: '暂时取不到这个表情' }, 502)
+    }
+    if (!obj) return json({ ok: false, error: 'not found' }, 404)
+    const part = contentRange(obj)
+    return new Response(obj.body, {
+      status: part ? 206 : 200,
+      headers: {
+        'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
+        'cache-control': 'private, max-age=31536000, immutable',
+        'accept-ranges': 'bytes',
+        ...(part && { 'content-range': part }),
+        'content-security-policy': "default-src 'none'; sandbox; frame-ancestors 'none'",
+        'x-content-type-options': 'nosniff'
+      }
+    })
+  }
+
+  /** Someone's packs: what they chose in the app, or the starting packs. */
+  myStickers(user) {
+    return chosenSets(this.env, this.store.kvGet(`stickers:${user.id}`))
+  }
+
   // ---------------------------------------------------------------- message send + fan-out
   async postMessage(body, user) {
     const roomId = body.room
     if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权发送' }, 403)
-    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing'].includes(body.type) ? body.type : 'text'
+    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing', 'sticker'].includes(body.type) ? body.type : 'text'
     if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: '不能发送空消息' }, 400)
+    // A sticker is only a reference to one of the packs: its id, kind, emoji
+    // and pack (so whoever receives it can load it).
+    if (type === 'sticker') {
+      const m = asObject(body.meta)
+      if (!STICKER_ID.test(String(m.id || '')) || !STICKER_KINDS.includes(m.kind)) return json({ ok: false, error: '表情无效' }, 400)
+      body.meta = { id: m.id, kind: m.kind, emoji: cleanText(m.emoji, 16), ...(SET_NAME.test(String(m.set || '')) && { set: m.set }) }
+    }
     // A retry carries the same localId: if the first attempt landed (its
     // answer was lost on the way back), it gets that message, not a copy.
     const localKey = typeof body.localId === 'string' && body.localId ? `${user.id}:${roomId}:${body.localId.slice(0, 64)}` : ''
@@ -569,6 +645,6 @@ export class Hub {
 
   preview(msg) {
     if (msg.type === 'text') return msg.body.slice(0, 120)
-    return { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', system: msg.body }[msg.type] || '[消息]'
+    return { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', sticker: `[表情]${msg.meta?.emoji ? ` ${msg.meta.emoji}` : ''}`, system: msg.body }[msg.type] || '[消息]'
   }
 }
