@@ -176,7 +176,22 @@ npx wrangler deploy
    密钥与仪表盘添加的变量在每次从 main 部署后都会保留（`wrangler.jsonc` 设了 `keep_vars`）。
    仓库是公开的，不要把这些值写进 `wrangler.jsonc` 或提交到仓库。
 
-未配置时，通话入口会提示“通话服务未配置”，其余功能照常。
+未配置时不显示通话按钮，其余功能照常。只有空格或换行的值算未设置；粘贴时多带的首尾空白会被去掉。
+
+**通话出错时**：界面上的提示说该看哪一边（权限、设备，或通话服务）。通话服务的拒绝在 Worker 日志（`wrangler tail`）里
+以 `realtime … <原因>` 记下，原因对应要查的地方：
+
+| 原因 | 提示 | 要查的 |
+| --- | --- | --- |
+| `RTC_AUTH` | 通话服务配置有误 | `REALTIME_APP_ID` 与 `REALTIME_APP_SECRET` 是否来自同一个 Realtime 应用 |
+| `RTC_APP` | 通话服务配置有误 | `REALTIME_APP_ID` 是否是 Realtime（SFU）应用的 ID |
+| `RTC_GONE` | 这次通话已失效 | 会话过期，重新拨打即可 |
+| `RTC_BUSY` | 通话请求太频繁 | 稍后再试 |
+| `RTC_NEGOTIATION` / `RTC_MEDIA` | 通话连接没能建立 / 声音或画面还没准备好 | 重新拨打；反复出现时看日志里 Realtime 的 `errorCode` |
+| `RTC_SERVICE` | 通话服务暂时不可用 | Cloudflare 侧故障，稍后再试 |
+
+TURN 凭证从 `…/credentials/generate-ice-servers` 取（逐条检查，去掉浏览器会拦的 53 端口地址）；TURN 拒绝或连不上时
+日志记 `turn TURN_AUTH` / `TURN_RESPONSE` / `TURN_SERVICE`，通话改用公共 STUN，同一网络或开放网络下仍能接通。
 
 ### 新消息通知（无需配置）
 
