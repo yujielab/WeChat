@@ -241,8 +241,11 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   flex: none;
   border-radius: calc(var(--h) / 2);
   background: var(--fill);
-  transition: background-color var(--dur-quick) ease-out;
+  /* The track turns with the knob, on the same clock. */
+  transition: background-color 200ms ease-out;
 }
+/* Drawn at the system's 51×31, touched at 44pt or more. */
+.switch::before { content: ""; position: absolute; inset: -7px -4px; }
 .switch::after {
   content: "";
   position: absolute;
@@ -253,7 +256,8 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 3px 8px rgb(0 0 0 / 0.15), 0 3px 1px rgb(0 0 0 / 0.06);
-  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy);
+  /* A light, damped travel: it settles with the barest give, no squash. */
+  transition: transform 200ms cubic-bezier(.25, 1.15, .5, 1), background-color 200ms ease-out;
 }
 .switch[aria-checked="true"] { background: var(--ink); }
 .switch[aria-checked="true"]::after { background: var(--on-ink); }
@@ -280,6 +284,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   font-weight: var(--w-medium);
   border-radius: 999px;
 }
+.seg button::before { content: ""; position: absolute; inset: -5px 0; }
 .seg button { color: var(--label-2); transition: color var(--dur-quick) ease-out; }
 .seg button[aria-checked="true"] { color: var(--on-ink); font-weight: var(--w-semibold); }
 .seg .thumb {
@@ -291,7 +296,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   border-radius: 999px;
   background: var(--ink);
   transform: translateX(calc(100% * var(--i)));
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+  transition: transform 210ms var(--ease-out);
 }
 
 /* ---------------------------------------------------------------- menus */

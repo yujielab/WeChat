@@ -20,6 +20,9 @@ function ensure() {
   document.body.append(label)
 }
 
+/** Whether this device can play the tick at all. */
+export const hapticsAvailable = isIOS
+
 export function hapticsEnabled() {
   return storage('ui:haptics') !== 'off'
 }

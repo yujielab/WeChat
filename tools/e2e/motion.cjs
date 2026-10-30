@@ -105,5 +105,20 @@ assert.ok(Math.abs((await sum.boundingBox()).y-y0)<1,'the tapped record stays wh
 await p.screenshot({path:path.join(OUT,'36-calls-open.png')})
 assert.equal(await p.evaluate(()=>document.querySelectorAll('.msgs [role="button"].call-log').length),0,'records are not buttons')
 
-assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list')
+// P1-11 / P2-14: settings has one way into the profile, offers haptics only where the device can play them,
+// and scrolls every row fully into view above the sheet's foot, folded and unfolded.
+for(const vp of[{width:466,height:678},{width:951,height:669},{width:466,height:420}]){
+ await p.setViewportSize(vp);await sleep(300)
+ await p.evaluate(async()=>{const{state}=await import('/js/store.js');state.me={id:'me',display:'我',username:'me'};const{openSettings}=await import('/js/views/sheets.js');openSettings({onLogout(){}})})
+ await p.locator('.sheet.on').waitFor();await sleep(500)
+ const st=await p.evaluate(async()=>{const b=document.querySelector('.sheet.on .sheet-body');b.scrollTop=b.scrollHeight;await new Promise(r=>setTimeout(r,120));const cells=[...b.querySelectorAll('.cell')],last=cells.at(-1).getBoundingClientRect(),sheet=document.querySelector('.sheet.on').getBoundingClientRect(),close=document.querySelector('.sheet.on .sheet-head button').getBoundingClientRect();return{labels:cells.map(c=>c.textContent.trim()),profile:b.querySelector('.profile-btn').getAttribute('aria-label'),last:last.bottom,sheet:sheet.bottom,vh:innerHeight,close:[close.top,close.bottom]}})
+ assert.ok(!st.labels.some(l=>l.startsWith('编辑资料')),'one way into the profile '+st.labels);assert.match(st.profile,/编辑资料/)
+ assert.ok(!st.labels.some(l=>l.startsWith('触感反馈')),'no haptics switch where nothing would play')
+ assert.ok(st.last<=st.sheet-12&&st.sheet<=st.vh,'the last row scrolls fully into view '+JSON.stringify({vp,...st}))
+ assert.ok(st.close[0]>=0&&st.close[1]<=st.vh,'Close in reach')
+ if(vp.width===951)await p.screenshot({path:path.join(OUT,'37-settings.png')})
+ await p.keyboard.press('Escape');await sleep(500)
+}
+
+assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list; settings scrolls fully into view with one profile entry and no dead switches')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
