@@ -25,14 +25,17 @@ for(const c of [
  {w:890,h:400,right:84,bottom:20,split:true},
  {w:1280,h:900,right:84,bottom:52,split:true},
  {w:890,h:626,right:84,bottom:52,lead:true},
- {w:466,h:678,right:84,bottom:52,zoom:true}
-]){await p.setViewportSize({width:c.w,height:c.h});await p.evaluate(c=>{const root=document.documentElement;for(const[k,v]of Object.entries({'--safe-top':'0px','--safe-left':'0px','--safe-right':c.right+'px','--safe-bottom':c.bottom+'px'}))root.style.setProperty(k,v);root.style.fontSize=c.zoom?'212.5%':'106.25%';const two=c.split||c.lead,role=c.split?'trailing':c.lead?'leading':'single',pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout=two?'split':'stack';pane.dataset.role=role;pane.style.transform=c.split?'translate3d(calc(100% + var(--gap)),0,0)':'';testThread.setLayout(role)},c);await settle();
+ {w:466,h:678,right:84,bottom:52,zoom:true},
+ // Asymmetric: the system can leave room on the left only, or on both sides unequally.
+ {w:466,h:678,left:47,right:0,bottom:21,name:'35-safe-left'},
+ {w:890,h:626,left:20,right:84,bottom:52,lead:true}
+]){await p.setViewportSize({width:c.w,height:c.h});await p.evaluate(c=>{const root=document.documentElement;for(const[k,v]of Object.entries({'--safe-top':'0px','--safe-left':(c.left||0)+'px','--safe-right':c.right+'px','--safe-bottom':c.bottom+'px'}))root.style.setProperty(k,v);root.style.fontSize=c.zoom?'212.5%':'106.25%';const two=c.split||c.lead,role=c.split?'trailing':c.lead?'leading':'single',pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout=two?'split':'stack';pane.dataset.role=role;pane.style.transform=c.split?'translate3d(calc(100% + var(--gap)),0,0)':'';testThread.setLayout(role)},c);await settle();
 // The keyboard shrinks only the visual viewport; the bar rides above it.
 await p.evaluate(c=>{const field=document.querySelector('.composer textarea');if(c.kb){field.focus({preventScroll:true});Object.defineProperty(visualViewport,'height',{get:()=>c.kb,configurable:true})}else{field.blur();delete visualViewport.height}visualViewport.dispatchEvent(new Event('resize'))},c);await p.waitForTimeout(250);const H=c.kb||c.h,B=c.kb?0:c.bottom;
 const d=await p.evaluate(()=>{const r=e=>{const b=e.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,w:b.width,h:b.height}};const thread=document.querySelector('.thread'),nav=document.querySelector('.thread-nav');return{thread:r(thread),header:r(nav),scroll:r(document.querySelector('.thread-scroll')),field:r(document.querySelector('.composer .field')),action:r(document.querySelector('.composer-action')),title:r(document.querySelector('.thread-title')),items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>({id:e.dataset.item||'more',...r(e)})),overflow:thread.scrollWidth>thread.clientWidth,underHeader:Boolean(document.elementFromPoint(nav.getBoundingClientRect().left+100,nav.getBoundingClientRect().bottom-2)?.closest('.m'))}});console.log(JSON.stringify({case:c,items:d.items.map(i=>i.id)}));
 assert.ok(d.scroll.y>=d.header.bottom-.5);assert.equal(d.underHeader,false);assert.equal(d.overflow,false);
 // Everything stays inside the safe area, the Duo's own right-hand column included.
-for(const b of[...d.items,d.field,{id:'action',...d.action}]){const limit=Math.min(c.w-c.right,d.thread.right);assert.ok(b.x>=d.thread.x-.5&&b.right<=limit+.5,'safe horizontal '+b.id);assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
+for(const b of[...d.items,d.field,{id:'action',...d.action}]){const limit=Math.min(c.w-c.right,d.thread.right),start=Math.max(d.thread.x,c.split?0:c.left||0);assert.ok(b.x>=start-.5&&b.right<=limit+.5,'safe horizontal '+b.id+' '+JSON.stringify({x:b.x,right:b.right,start,limit}));assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
 for(const b of d.items)assert.ok(b.w>=44&&b.h>=44,'44pt '+b.id)
 assert.ok(d.action.w>=55.5&&d.action.h>=55.5,'the field\'s button is 56pt')
 const ids=d.items.map(i=>i.id),item=id=>d.items.find(i=>i.id===id)
@@ -42,7 +45,7 @@ for(const id of['audio','video','info'])if(item(id)){assert.ok(item(id).x>=d.tit
 // A field grown taller (long text, large type) keeps the bar on its bottom edge.
 const onRow=i=>i.bottom<=d.field.bottom+.5&&i.bottom>=d.field.bottom-7
 if(c.split)assert.ok(!item('back'),'no Back beside the list')
-else{assert.ok(item('back'),'Back never overflows');assert.ok(item('back').right<=d.field.x+.5&&onRow(item('back')),'Back leads the bar '+JSON.stringify({back:item('back'),field:d.field}))}
+else{assert.ok(item('back'),'Back never overflows');assert.ok(item('back').x-(c.left||0)<=24,'each inset counted once '+item('back').x);assert.ok(item('back').right<=d.field.x+.5&&onRow(item('back')),'Back leads the bar '+JSON.stringify({back:item('back'),field:d.field}))}
 // The field's one button (photos and drawing, or Send) follows it on the same row.
 assert.ok(d.action.x>=d.field.right-.5&&onRow(d.action),'button after the field '+JSON.stringify({action:d.action,field:d.field}))
 assert.ok(d.field.bottom<=H-B+.5&&d.field.bottom>=H-B-Math.max(16,0)-30,'the bar sits at the foot '+JSON.stringify(d.field))
@@ -67,5 +70,5 @@ if(c.name)await p.screenshot({path:path.join(OUT,c.name+'.png')})
 await p.setViewportSize({width:466,height:678});await p.evaluate(()=>{const root=document.documentElement;delete visualViewport.height;root.style.fontSize='106.25%';root.style.setProperty('--safe-right','0px');root.style.setProperty('--safe-bottom','0px');const pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout='stack';pane.dataset.role='single';pane.style.transform='';testThread.setLayout('single')});await settle()
 await p.locator('.thread [data-item="info"]').focus();await p.setViewportSize({width:300,height:678});await settle();assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true,'focus moves to the menu button')
 await p.setViewportSize({width:466,height:678});await settle();assert.equal(await p.locator('.thread [data-item="info"]').evaluate(e=>e===document.activeElement),true,'and back')
-assert.deepEqual(errors,[]);console.log('PASS: safe regions with 44pt targets at every window, inset and keyboard; calls and details after the name; Back leading the bar at the foot on the field row, the field's button after it; overflow by priority into the heading menu keeping Back; menu safe region; overflow focus; newest message and its status clear of the bar at rest, with the keyboard and with a multi-line field')
+assert.deepEqual(errors,[]);console.log('PASS: safe regions with 44pt targets at every window, inset and keyboard; calls and details after the name; Back leading the bar at the foot on the field row, the button after the field; overflow by priority into the heading menu keeping Back; menu safe region; overflow focus; newest message and its status clear of the bar at rest, with the keyboard and with a multi-line field')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})
