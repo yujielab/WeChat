@@ -33,8 +33,10 @@
   // Images, voice clips, files and avatars live in R2.
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cf-messenger-media" }],
 
-  // Workers AI (src/assist.js): input prediction and key-word highlights.
-  // A plain variable AI_MODEL picks another text model. Previews go without.
+  // Workers AI (src/assist.js): input prediction and key-word highlights; the
+  // smart notifications (src/insights.js) read conversations with the same
+  // text model and photos with a vision model. Plain variables AI_MODEL and
+  // AI_VISION_MODEL pick others. Previews go without.
   "ai": { "binding": "AI" },
 
   "vars": {

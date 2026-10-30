@@ -3,6 +3,7 @@
 // Saving rewrites it in place at once, for both sides, without anything new to read; "已编辑" under it shows
 // each wording. Nothing typed into an edit reaches the other side's live preview; Escape or ✕ cancels; a
 // failed save puts the message back; only your own text messages, within 15 minutes, can be edited.
+// Held with a real finger, the menu opens and lifting the finger chooses nothing.
 // Two real accounts against the local server. npm run dev:e2e; node tools/e2e/edit.cjs [outdir]
 const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path')
 const BASE=process.env.BASE||'http://127.0.0.1:8787',OUT=process.argv[2]||path.join(process.cwd(),'screenshots-edit')
@@ -94,6 +95,20 @@ assert.deepEqual(await texts(B),['几点见？','明天四点见，门口 ·已�
 await A.evaluate(async id=>{const{state}=await import('/js/store.js');for(const t of state.threads.values()){const m=t.byId.get(id);if(m)m.ts-=16*60*1000}},sent.id)
 assert.ok(!(await menuItems(A,'明天四点见，门口')).includes('编辑'),'too late to edit');await closeMenu(A)
 
+// 8. A real finger: holding the message opens its menu, and lifting the finger (now over the menu) chooses
+// nothing; a tap on 编辑 afterwards does.
+const T=await (await browser.newContext({viewport:{width:466,height:678},locale:'zh-CN',serviceWorkers:'block',deviceScaleFactor:2,hasTouch:true,isMobile:true})).newPage()
+T.on('pageerror',e=>errors.push(`[touch] ${e.message}`));await T.context().addCookies(await A.context().cookies())
+await api(A,'/api/messages',{room,type:'text',text:'按住我'})
+await T.goto(BASE);await T.waitForSelector('.row');await T.tap('.row .row-inner');await T.waitForSelector('.thread:not([hidden]) .m .bubble:has-text("按住我")');await sleep(500)
+const cdp=await T.context().newCDPSession(T);const hb=await T.locator('.thread:not([hidden]) .m .bubble:has-text("按住我")').boundingBox();const hx=hb.x+hb.width/2,hy=hb.y+hb.height/2
+await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:hx,y:hy,id:1}]});await sleep(700);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(500)
+const after=await T.evaluate(()=>({menu:Boolean(document.querySelector('.menu.ctx-menu.on')),editing:Boolean(document.querySelector('.composer.editing')),highlighted:Boolean(document.querySelector('.menu.has-highlight')),revoked:Boolean([...document.querySelectorAll('.sys')].some(n=>n.textContent.includes('撤回')))}))
+assert.deepEqual(after,{menu:true,editing:false,highlighted:false,revoked:false},'lifting the finger chose nothing')
+await T.screenshot({path:path.join(OUT,'64-held.png')})
+await T.tap('.menu.on .menu-item:has-text("编辑")');await sleep(400)
+assert.equal(await T.locator('.thread:not([hidden]) .composer.editing').count(),1,'a tap on 编辑 does')
+
 assert.deepEqual(errors,[])
-console.log('PASS: only your own text messages offer 编辑; editing puts its words in the field with a strip and ✓, the message marked, the draft set aside and back afterwards; nothing typed into an edit reaches the live preview; saving rewrites it at once for both sides, with the list preview, and 已编辑 shows each wording; Escape and ✕ cancel; a refused save puts it back and says why; after a reload it stays rewritten; past 15 minutes there is no 编辑')
+console.log('PASS: a real finger held on a message opens its menu and lifting it chooses nothing (a tap does); only your own text messages offer 编辑; editing puts its words in the field with a strip and ✓, the message marked, the draft set aside and back afterwards; nothing typed into an edit reaches the live preview; saving rewrites it at once for both sides, with the list preview, and 已编辑 shows each wording; Escape and ✕ cancel; a refused save puts it back and says why; after a reload it stays rewritten; past 15 minutes there is no 编辑')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)})

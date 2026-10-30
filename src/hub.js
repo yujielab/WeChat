@@ -12,6 +12,8 @@ import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
 import { assistConfigured, allowSuggestion, suggest, keywords } from './assist.js'
 import { backdrop, readPrefs, patchPrefs } from './prefs.js'
+import { insightRooms, analyze, photosToRead, describePhoto, allowRefresh } from './insights.js'
+import { geocode, weatherAt } from './weather.js'
 import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
@@ -331,6 +333,60 @@ export class Hub {
         return json({ ok: true, text: '' })
       }
     }
+    // Smart panels (src/insights.js): what each recent one-to-one conversation
+    // says about the other person, read for you alone, and the weather where
+    // they are (or where you are). Reading happens when asked (refresh), one
+    // conversation at a time; the list answers at once from what was read.
+    if (path === '/api/insights' && method === 'GET') {
+      if (!assistConfigured(this.env)) return json({ ok: true, enabled: false, rooms: [], weather: null })
+      const only = url.searchParams.get('room')
+      const all = this.store.listRoomsFor(user.id)
+      const rooms = only ? all.filter(r => r.id === only && r.kind === 'dm' && r.peer) : insightRooms(all)
+      const list = rooms.map(r => this.insightOf(user.id, r))
+      let weather = null
+      if (!only) {
+        try {
+          weather = await this.insightWeather(request, list, url.searchParams.get('unit'))
+        } catch (err) {
+          console.warn('weather', err.message)
+        }
+      }
+      return json({ ok: true, enabled: true, rooms: list, weather })
+    }
+    if (path === '/api/insights/refresh' && method === 'POST') {
+      if (!assistConfigured(this.env)) return json({ ok: false, error: '智能通知不可用' }, 400)
+      const roomId = String(body.room || '')
+      const room = this.store.isMember(roomId, user.id) ? this.roomFor(roomId, user.id) : null
+      if (!room || room.kind !== 'dm' || !room.peer) return json({ ok: false, error: '无法读取这个聊天' }, 400)
+      if (!allowRefresh(user.id, roomId)) return json({ ok: true, ...this.insightOf(user.id, room), limited: true })
+      const tz = Math.max(-840, Math.min(840, Math.round(Number(body.tz) || 0)))
+      const now = Date.now()
+      const messages = this.store.listMessages(roomId, { limit: 80 })
+      // Their photos, each described once (and kept).
+      const photos = new Map()
+      await Promise.all(photosToRead(messages, user.id, now).map(async m => {
+        let said = this.store.kvGet(`vision:${m.id}`)
+        if (said === null) {
+          try {
+            said = await describePhoto(this.env, this.env.MEDIA, m)
+          } catch (err) {
+            console.warn('vision', err.message)
+            return
+          }
+          this.store.kvSet(`vision:${m.id}`, said)
+        }
+        if (said) photos.set(m.id, said)
+      }))
+      try {
+        const insight = await analyze(this.env, { messages, me: user.id, tzOffset: tz, now, photos })
+        this.store.kvSet(`insight:${user.id}:${roomId}`, { last: room.last?.id || '', at: now, data: insight })
+      } catch (err) {
+        // Quietly what was read before (as writing help is quietly nothing).
+        console.warn('insights', err.message)
+        return json({ ok: true, ...this.insightOf(user.id, room), failed: true })
+      }
+      return json({ ok: true, ...this.insightOf(user.id, room) })
+    }
     if (path === '/api/react' && method === 'POST') {
       const target = this.store.getMessage(String(body.id || ''))
       if (!target || !this.store.isMember(target.room, user.id)) return json({ ok: false, error: '找不到这条消息' }, 404)
@@ -456,6 +512,29 @@ export class Hub {
         'x-content-type-options': 'nosniff'
       }
     })
+  }
+
+  /** What was last read from a conversation for this person, and whether it has moved on since. */
+  insightOf(uid, room) {
+    const kept = this.store.kvGet(`insight:${uid}:${room.id}`)
+    return { room: room.id, peer: room.peer, stale: !kept || kept.last !== (room.last?.id || ''), at: kept?.at || 0, insight: kept?.data || null }
+  }
+
+  /** Weather where the person you talked to last says they are; otherwise where you are. */
+  async insightWeather(request, list, unit) {
+    const u = unit === 'f' ? 'f' : 'c'
+    for (const r of list) {
+      const city = r.insight?.city
+      if (!city) continue
+      const place = await geocode(city)
+      const w = place && await weatherAt(place, { unit: u })
+      if (w) return { ...w, place: place.name || city, who: r.peer.display, room: r.room }
+    }
+    let here = null
+    try { here = JSON.parse(request.headers.get('x-viewer-place') || 'null') } catch {}
+    if (!here) return null
+    const w = await weatherAt(here, { unit: u })
+    return w && { ...w, place: String(here.city || '').slice(0, 30), who: '', room: '' }
   }
 
   /** Someone's packs: what they chose in the app, or the starting packs. */

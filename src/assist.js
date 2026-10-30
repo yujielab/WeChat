@@ -22,9 +22,10 @@ export function assistConfigured(env) {
 
 const modelOf = env => String(env.AI_MODEL || DEFAULT_MODEL).trim()
 
-async function ask(env, messages, maxTokens) {
+/** One answer from the text model, its thinking left out. */
+export async function ask(env, messages, maxTokens, { timeout = TIMEOUT_MS } = {}) {
   let timer
-  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('ai timeout')), TIMEOUT_MS) })
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('ai timeout')), timeout) })
   try {
     const out = await Promise.race([env.AI.run(modelOf(env), { messages, max_tokens: maxTokens, temperature: 0.3 }), late])
     const text = typeof out === 'string' ? out : out?.response ?? out?.choices?.[0]?.message?.content ?? out?.result?.response ?? ''
