@@ -85,6 +85,9 @@
   filter: none;
   transition: transform var(--spring-bouncy-dur) var(--spring-bouncy), opacity 180ms ease-out, filter 240ms ease-out;
 }
+/* Grown out of what opened it, and back into it on the way out. */
+.overlays[data-layout="split"] .sheet.from-origin { transform-origin: var(--sx) var(--sy); transform: translate(-50%, -50%) scale(.4); filter: none; transition: transform 240ms var(--ease-exit), opacity 200ms ease-in; }
+.overlays[data-layout="split"] .sheet.from-origin.on { transform: translate(-50%, -50%); transition: transform 300ms var(--ease-out), opacity 140ms ease-out; }
 
 .grabber {
   flex: none;
@@ -185,7 +188,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 .cell .grow { flex: 1; min-width: 0; }
 .cell .value { color: var(--label-2); font-size: var(--t-body); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
 .cell .chev { color: var(--label-3); width: 14px; height: 14px; }
-.cell.destructive { color: var(--red); justify-content: center; }
+.cell.destructive { color: var(--red-text); justify-content: center; }
 .cell.tint { color: var(--blue); }
 /* Monochrome tiles: the label says what a row is, not a color. */
 .cell-icon {
@@ -241,8 +244,11 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   flex: none;
   border-radius: calc(var(--h) / 2);
   background: var(--fill);
-  transition: background-color var(--dur-quick) ease-out;
+  /* The track turns with the knob, on the same clock. */
+  transition: background-color 200ms ease-out;
 }
+/* Drawn at the system's 51×31, touched at 44pt or more. */
+.switch::before { content: ""; position: absolute; inset: -7px -4px; }
 .switch::after {
   content: "";
   position: absolute;
@@ -253,7 +259,8 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 3px 8px rgb(0 0 0 / 0.15), 0 3px 1px rgb(0 0 0 / 0.06);
-  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy);
+  /* A light, damped travel: it settles with the barest give, no squash. */
+  transition: transform 200ms cubic-bezier(.25, 1.15, .5, 1), background-color 200ms ease-out;
 }
 .switch[aria-checked="true"] { background: var(--ink); }
 .switch[aria-checked="true"]::after { background: var(--on-ink); }
@@ -280,6 +287,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   font-weight: var(--w-medium);
   border-radius: 999px;
 }
+.seg button::before { content: ""; position: absolute; inset: -5px 0; }
 .seg button { color: var(--label-2); transition: color var(--dur-quick) ease-out; }
 .seg button[aria-checked="true"] { color: var(--on-ink); font-weight: var(--w-semibold); }
 .seg .thumb {
@@ -291,7 +299,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   border-radius: 999px;
   background: var(--ink);
   transform: translateX(calc(100% * var(--i)));
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+  transition: transform 210ms var(--ease-out);
 }
 
 /* ---------------------------------------------------------------- menus */
@@ -362,7 +370,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 }
 .menu-item .label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu-item .menu-action-icon { width: 18px; height: 18px; color: var(--label-2); }
-.menu-item.destructive { color: var(--red); }
+.menu-item.destructive { color: var(--red-text); }
 .menu-item.destructive .menu-action-icon { color: inherit; }
 .menu-item:focus-visible { outline: 1px solid color-mix(in srgb, var(--label-2) 45%, transparent); outline-offset: -1px; }
 .menu-item:disabled { color: var(--label-3); opacity: .6; }
@@ -392,17 +400,20 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   position: absolute;
   inset: 0;
   background: rgb(0 0 0 / 0.08);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  backdrop-filter: blur(14px) saturate(1.2);
+  /* A light veil: it sets the message apart without blurring the
+     conversation into noise. */
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  backdrop-filter: blur(6px) saturate(1.1);
   opacity: 0;
-  transition: opacity 220ms ease-out;
+  transition: opacity 190ms ease-out;
 }
 :root[data-glass="solid"] .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 .ctx-backdrop.on { opacity: 1; }
 .ctx-preview {
   position: absolute;
   margin: 0;
-  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy);
+  /* The message lifts a little, at once, without a bounce. */
+  transition: transform 200ms var(--ease-out);
   pointer-events: none;
 }
 .ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.28), 0 2px 6px rgb(15 15 25 / 0.06); }
@@ -524,7 +535,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 .form-sheet .btn { width: 100%; height: 52px; border-radius: 999px; letter-spacing: .02em; font-size: var(--t-body); font-weight: var(--w-semibold); }
 .form-sheet .btn.primary { background: var(--ink); color: var(--on-ink); }
 .form-sheet .btn.primary:disabled { opacity: 0.4; }
-.form-sheet .field-error { color: var(--red); font-size: var(--t-footnote); margin: 6px 4px 0; min-height: 1.2em; }
+.form-sheet .field-error { color: var(--red-text); font-size: var(--t-footnote); margin: 6px 4px 0; min-height: 1.2em; }
 
 .sheet-search { padding: 2px 20px 16px; }
 .sheet-search .search-pill { width: 100%; height: 48px; border-radius: 999px; padding: 0 16px; display: flex; align-items: center; gap: 10px; color: var(--label-2); background: var(--bg-elevated); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow var(--dur-quick) ease-out; }

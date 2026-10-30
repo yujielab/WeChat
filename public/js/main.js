@@ -214,7 +214,13 @@ function bumpRoom(m, raw) {
 function markThreadRead(roomId, by) {
   const t = state.threads.get(roomId)
   if (!t) return
-  for (const m of t.list) if (m.out && m.status !== 'read') { m.status = 'read'; upsertMessage(m) }
+  // Only what reached the server can be read: a message still sending or
+  // one that failed keeps saying so.
+  for (const m of t.list) {
+    if (!m.out || m.status === 'read' || m.status === 'sending' || m.status === 'failed' || String(m.id).startsWith('local:')) continue
+    m.status = 'read'
+    upsertMessage(m)
+  }
 }
 
 function patchPeer(user) {

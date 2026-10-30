@@ -18,6 +18,9 @@ const RTC_BASE = 'https://rtc.live.cloudflare.com/v1'
 export const RING_MS = 45000
 export const ALERT_MS = 2500
 const RTC_TIMEOUT_MS = 15000
+// How an unanswered call ended: nobody picked up, the callee declined, the
+// caller hung up first, or it couldn't connect.
+const CALL_RESULTS = ['missed', 'declined', 'cancelled', 'failed']
 
 export class CallBroker {
   constructor(hub) {
@@ -97,6 +100,7 @@ export class CallBroker {
       case 'decline':
       case 'cancel':
       case 'hangup': {
+        const caller = current?.caller
         if (current) {
           current.participants = current.participants.filter(u => u !== from)
           current.ringing = current.ringing.filter(u => u !== from)
@@ -109,7 +113,7 @@ export class CallBroker {
           else this.put(room, current)
         }
         relay({ missed: Boolean(msg.missed) })
-        if (kind === 'cancel' || (kind === 'hangup' && !this.get(room))) this.logCall(room, from, msg)
+        if (kind === 'cancel' || (kind === 'hangup' && !this.get(room))) this.logCall(room, from, msg, caller)
         break
       }
       default:
@@ -205,10 +209,14 @@ export class CallBroker {
     }
   }
 
-  logCall(room, from, msg) {
+  logCall(room, from, msg, caller) {
     const label = msg.media === 'video' ? '视频通话' : '语音通话'
     const text = msg.missed ? `未接${label}` : `${label}已结束${msg.duration ? '，' + fmtDur(msg.duration) : ''}`
-    this.hub.store.addMessage({ room, sender: from, ts: Date.now(), type: 'call', body: text, meta: { media: msg.media, duration: msg.duration || 0, missed: Boolean(msg.missed) } })
+    // How it ended, as the caller's side saw it; each side words it for itself.
+    const result = !msg.missed ? 'completed' : CALL_RESULTS.includes(msg.result) ? msg.result : 'missed'
+    const media = msg.media === 'video' ? 'video' : 'audio'
+    const duration = Math.max(0, Math.min(86400, Number(msg.duration) || 0))
+    this.hub.store.addMessage({ room, sender: from, ts: Date.now(), type: 'call', body: text, meta: { media, duration, missed: Boolean(msg.missed), result, caller: caller || from } })
     const m = this.hub.store.lastMessage(room)
     this.hub.fanoutToRoom(room, { t: 'msg', msg: m })
   }

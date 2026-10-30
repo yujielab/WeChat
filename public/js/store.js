@@ -3,6 +3,7 @@
 // bus. Server objects are normalized here into the shapes the views consume.
 
 import { storage } from './ui/dom.js'
+import { callSummary } from './ui/format.js'
 
 const bus = new Map()
 
@@ -72,12 +73,20 @@ function normLast(m, room) {
 export function previewText(m, room) {
   if (m.state === 'revoked') return '[已撤回]'
   let body = m.type === 'text' ? m.body
-    : { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: m.body || '[通话]', system: m.body }[m.type] || '[消息]'
+    : m.type === 'call' ? callPreview(m)
+    : { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', system: m.body }[m.type] || '[消息]'
   if (room?.kind === 'group' && m.type !== 'system' && m.sender !== state.me?.id) {
     const who = nameOf(m.sender, room.id)
     if (who) body = `${who}: ${body}`
   }
   return body
+}
+
+// The list says what the conversation's own record says (ui/format.js).
+function callPreview(m) {
+  const call = m.meta || {}
+  const s = callSummary(call, call.caller ? call.caller === state.me?.id : m.sender === state.me?.id)
+  return `[${s.media}通话] ${s.text}`
 }
 
 export function nameOf(uid, roomId) {

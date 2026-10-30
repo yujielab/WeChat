@@ -21,7 +21,7 @@ export const FILTERS = {
   groups: { label: '群聊', test: c => c.room }
 }
 
-export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, loadContacts }) {
+export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSettings, loadContacts }) {
   pane.classList.add('pane-list')
   // Rows swipe themselves; a back swipe starts at the column's leading edge.
   pane.dataset.edgeSwipe = ''
@@ -36,7 +36,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
   const title = h('h1', { class: 'large-title' }, '消息')
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status))
+  // Unfolded, the window keeps to the list and the conversation, so who you
+  // are (and settings) sits at the end of the list's heading.
+  const me = h('button', { class: 'list-me', type: 'button', 'aria-label': '设置' })
+  me.addEventListener('click', () => onSettings?.(me))
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, me))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
   const filterButtons = new Map()
@@ -70,10 +74,10 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   const topbar = h('div', { class: 'list-topbar' }, inlineTitle, h('div', { class: 'spacer' }))
 
   // One bar of capsules at the foot of the list, in reach of the thumb:
-  // Back to the sidebar (and the filter, beside a conversation) lead,
-  // the search field takes the middle, New Chat ends it. Beside the sidebar
-  // the list has no Back: the sidebar is right there. While searching, the
-  // field and Cancel have the bar to themselves.
+  // folded, Back to the sidebar leads; unfolded, the sidebar's scopes are
+  // the filter menu instead. The search field takes the middle, New Chat
+  // ends it. While searching, the field and Cancel have the bar to
+  // themselves.
   const bars = createBars({
     label: '聊天列表操作',
     items: [
@@ -82,13 +86,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
       { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
     arrange: () => {
-      if (searching) return { top: [], bottom: [] }
-      // The filter tabs show when the list has the screen; beside a
-      // conversation the filter is a menu; beside the sidebar its scopes are.
-      const nav = [
-        ...(pane.dataset.layout === 'trailing' ? [] : ['back']),
-        ...(pane.dataset.layout === 'leading' ? ['filter'] : [])
-      ]
+      // While searching the bar keeps its items; they fold away (list.css)
+      // so the field can grow over their room and give it back on Cancel.
+      // Folded, the filter tabs show and Back leads to the sidebar;
+      // unfolded, the filter is a menu.
+      const nav = pane.dataset.layout === 'single' ? ['back'] : ['filter']
       return { top: [], bottom: [...(nav.length ? [nav] : []), ['compose']] }
     }
   })
@@ -587,10 +589,15 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
   }
 
   // ------------------------------------------------------------ search
+  // Searching starts from the top of the results; Cancel puts the list back
+  // where it was.
+  let listScroll = 0
   input.addEventListener('focus', async () => {
     if (searching) return
     searching = true
+    listScroll = scroll.scrollTop
     pane.classList.add('searching')
+    bars.bottom.inert = true
     head.hidden = filterTabs.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
     placeHighlight()
@@ -618,11 +625,13 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
     input.value = ''
     input.blur()
     pane.classList.remove('searching')
+    bars.bottom.inert = false
     arrangeBars()
     head.hidden = filterTabs.hidden = rows.hidden = false
     results.hidden = true
     clear(results)
     render()
+    scroll.scrollTop = listScroll
   }
 
   function highlight(text, q) {
@@ -727,6 +736,10 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, load
       requestAnimationFrame(positionFilterThumb)
     },
     setFilter: selectFilter,
+    setMe(user) {
+      me.replaceChildren(avatar(user?.avatar, user?.display, { size: 36 }))
+      me.setAttribute('aria-label', `${user?.display || '我'}，设置`)
+    },
     openSearch,
     focusSearch() {
       input.focus()

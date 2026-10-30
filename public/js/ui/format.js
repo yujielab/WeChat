@@ -85,3 +85,24 @@ export function emojiOnly(text) {
   if (!t || [...t].length > 6) return false
   return /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u.test(t) && /\p{Extended_Pictographic}/u.test(t)
 }
+
+/**
+ * What a call record says from this side of it. `mine`: this account placed
+ * the call. The caller hears how it went (对方未接听, 已取消, 对方已拒绝);
+ * the person called learns of a call they missed (未接来电, in red).
+ */
+export function callSummary(call = {}, mine) {
+  const media = call.media === 'video' ? '视频' : '语音'
+  const result = call.result || (call.missed ? 'missed' : 'completed')
+  let text
+  let missed = false
+  if (result === 'completed') text = call.duration >= 1 ? `通话时长 ${duration(call.duration)}` : '通话已结束'
+  else if (result === 'failed') text = '连接失败'
+  else if (result === 'declined') text = mine ? '对方已拒绝' : '已拒绝'
+  else if (mine) text = result === 'cancelled' ? '已取消' : '对方未接听'
+  else {
+    text = '未接来电'
+    missed = true
+  }
+  return { media, text, missed, label: `${media}通话，${text}` }
+}

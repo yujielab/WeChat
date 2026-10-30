@@ -19,7 +19,7 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
   const meAvatar = h('span', { class: 'side-me-avatar' })
   const meName = h('span', { class: 'side-me-name' })
   const me = h('button', { class: 'side-me', type: 'button' }, meAvatar, meName, h('span', { class: 'chev' }, icon('chevron-right')))
-  me.addEventListener('click', () => onSettings())
+  me.addEventListener('click', () => onSettings(me))
 
   const scopes = h('ul', { class: 'side-scopes', 'aria-label': '聊天范围' })
   const rows = new Map()

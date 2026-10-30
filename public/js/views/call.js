@@ -31,7 +31,7 @@ export function createCalls({ socketSend, connected = () => true }) {
     const callId = `${Date.now()}${Math.floor(Math.random() * 1000)}`
     active = newCall({ room: roomId, callId, media, role: 'caller' })
     socketSend({ t: 'call', kind: 'invite', room: roomId, callId, media })
-    active.ringTimer = setTimeout(() => { if (active?.callId === callId && !active.answered) endSoon('无人接听') }, RING_MS)
+    active.ringTimer = setTimeout(() => { if (active?.callId === callId && !active.answered) endSoon('无人接听', 'missed') }, RING_MS)
     begin().catch(fail)
   }
 
@@ -42,7 +42,7 @@ export function createCalls({ socketSend, connected = () => true }) {
     if (kind === 'accept') { clearTimeout(active.ringTimer); active.ui.setStatus('已接通'); active.answered = true; announceTracks() }
     else if (kind === 'tracks') pullFrom(msg)
     else if (REACH.includes(kind)) reached(kind)
-    else if (kind === 'decline') endSoon(msg.missed ? '无人接听' : '对方已拒绝')
+    else if (kind === 'decline') endSoon(msg.missed ? '无人接听' : '对方已拒绝', msg.missed ? 'missed' : 'declined')
     else if (kind === 'cancel') end(true)
     else if (kind === 'hangup') { if (active.answered) endSoon('通话结束'); else end(true) }
   }
@@ -179,7 +179,10 @@ export function createCalls({ socketSend, connected = () => true }) {
     call.pullTimer = setTimeout(() => pullWanted(call), 500 * call.pullTries)
   }
 
-  function endSoon(label) {
+  // How an unanswered call ended is kept with it, so each side's record can
+  // say what happened (see ui/format.js callSummary).
+  function endSoon(label, reason) {
+    if (active && reason) active.endReason = reason
     active?.ui.setStatus(label)
     setTimeout(() => end(), 900)
   }
@@ -192,6 +195,7 @@ export function createCalls({ socketSend, connected = () => true }) {
       : err?.status !== undefined ? err.message
       : `无法建立通话${err?.name && err.name !== 'Error' ? `（${err.name}）` : ''}`
     toast(reason, { type: 'error', duration: 5000 })
+    if (!active.answered) active.endReason = 'failed'
     // The other side stops ringing too.
     end(false)
   }
@@ -208,7 +212,7 @@ export function createCalls({ socketSend, connected = () => true }) {
       const duration = a.startedAt ? (Date.now() - a.startedAt) / 1000 : 0
       socketSend({ t: 'call', kind: 'hangup', room: a.room, callId: a.callId, media: a.media, duration })
     } else if (!silent && a.role === 'caller') {
-      socketSend({ t: 'call', kind: 'cancel', room: a.room, callId: a.callId, media: a.media, missed: true })
+      socketSend({ t: 'call', kind: 'cancel', room: a.room, callId: a.callId, media: a.media, missed: true, result: a.endReason || 'cancelled' })
     }
     a.ui.destroy()
   }

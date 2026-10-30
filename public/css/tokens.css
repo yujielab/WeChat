@@ -36,6 +36,7 @@
   --blue-press: #0062cc;
   --blue-ring: rgb(0 122 255 / 0.14);
   --red: #ff3b30;
+  --red-text: #d70015;          /* red words: 5.4:1 on white, where --red is 3.5:1 */
   --red-ring: rgb(255 59 48 / 0.12);
   --orange: #ff9500;
   --yellow: #ffcc00;
@@ -135,6 +136,10 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --press-dur: 80ms;
+  /* Press: in at once and briefly, out gently from wherever it got to. */
+  --press-in: 100ms;
+  --press-out: 190ms;
+  --press-scale: 0.98;
   --dur-quick: 160ms;   /* color and opacity state changes */
   --dur-ui: 240ms;      /* indicators, toasts, small moves */
   --dur-move: 320ms;    /* columns and surfaces */
@@ -214,6 +219,7 @@
     --blue: #0a84ff;
     --blue-press: #409cff;
     --red: #ff453a;
+    --red-text: #ff453a;
     --orange: #ff9f0a;
     --yellow: #ffd60a;
     --green: #30d158;
@@ -274,6 +280,7 @@
   --blue: #0a84ff;
   --blue-press: #409cff;
   --red: #ff453a;
+  --red-text: #ff453a;
   --orange: #ff9f0a;
   --yellow: #ffd60a;
   --green: #30d158;

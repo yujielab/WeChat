@@ -17,10 +17,13 @@
   padding:
     calc(var(--safe-top) + var(--thread-top))
     calc(var(--margin) + var(--safe-right) + 2px)
-    calc(var(--composer-h, 76px) + 18px)
+    0
     calc(var(--margin) + var(--safe-left) + 2px);
+  --foot: calc(var(--composer-h, 76px) + 14px);
 }
-:root:not([data-kb="1"]) .thread-scroll { padding-bottom: calc(var(--composer-h, 76px) + 14px); }
+/* The newest message clears the floating bar by a real element (see
+   thread.js), which grows with the field. */
+.thread-foot { flex: none; height: var(--foot); }
 /* The wash covers only the composer's own band, so the newest message and its
    status stay sharp at rest and only text sliding under the field is washed. */
 .thread .edge-bottom { height: calc(var(--composer-h, 76px) + 4px); }
@@ -352,8 +355,35 @@
 .card-foot .icon { width: 13px; height: 13px; }
 
 /* Delivery status */
-.m-status { align-self: center; color: var(--red); display: grid; place-items: center; width: 24px; height: 24px; }
-.m-status .icon { width: 22px; height: 22px; }
+/* Failed: a compact 重试 beside the message, 44pt to the touch; 发送中 in
+   its place while it goes; it folds away once sent. */
+.m-retry {
+  position: relative;
+  align-self: center;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  max-width: 96px;
+  margin: 0 6px;
+  padding: 0 10px;
+  border-radius: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red-text);
+  font-size: var(--t-caption);
+  font-weight: var(--w-semibold);
+  animation: retry-in 180ms var(--ease-out) backwards;
+  transition: opacity 160ms ease-out, max-width 180ms var(--ease-out), padding 180ms var(--ease-out), margin 180ms var(--ease-out);
+}
+.m-retry::before { content: ""; position: absolute; inset: -8px -2px; }
+.m-retry .icon { width: 14px; height: 14px; }
+.m-retry.busy { background: var(--field); color: var(--label-2); animation: none; }
+.m-retry.busy .spinner { width: 12px; height: 12px; }
+.m-retry.gone { opacity: 0; max-width: 0; padding: 0; margin: 0; }
+@keyframes retry-in { from { opacity: 0; max-width: 0; padding: 0; } }
 .m-meta {
   margin: 6px 9px 0;
   font-size: var(--t-caption-2);
@@ -362,7 +392,7 @@
   text-align: right;
   min-height: 1.3em;
 }
-.m-meta.failed { color: var(--red); }
+.m-meta.failed { color: var(--red-text); }
 
 /* New message appearance: incoming rise; outgoing come up from the composer. */
 @keyframes m-in {
@@ -409,7 +439,7 @@
   flex: 1;
   min-width: 0;
   height: 42px;
-  max-height: calc(1.45em * 6 + 10px);
+  max-height: calc(1.45em * 5 + 18px);
   padding: 9px 0;
   border: 0;
   background: none;
@@ -422,29 +452,99 @@
   overflow-y: auto;
 }
 .field textarea::placeholder { color: var(--label-3); }
-.send {
-  width: 42px;
-  height: 42px;
-  margin-left: 6px;
+/* The field grows a line at a time from its foot, its capsule easing into a
+   rounded rectangle; the text itself never scales. The twin measures. */
+.field textarea { transition: height 190ms var(--ease-out); }
+.field.no-grow textarea { transition: none; }
+.field.multiline { border-radius: 22px; }
+.field-twin {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  left: 0;
+  top: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* One button after the field. Empty: + opens photos and drawing. With text:
+   Send, in the same place, filled with ink. */
+.composer-action {
+  order: 2;
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--ink);
-  color: var(--on-ink);
-  flex: none;
-  opacity: 0;
-  transform: scale(0.75);
-  pointer-events: none;
-  transition:
-    opacity 160ms ease-out,
-    transform var(--spring-bouncy-dur) var(--spring-bouncy),
-    filter 160ms ease-out;
+  color: var(--label);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
+  transition: background-color 170ms ease-out, color 170ms ease-out, box-shadow 170ms ease-out, transform var(--press-out) var(--ease-out);
 }
-.send .icon { width: 20px; height: 20px; }
-.send { position: relative; }
-.send::before { content: ""; position: absolute; inset: -5px; } /* 44pt hit area */
-.composer.has-text .send { opacity: 1; transform: none; filter: none; pointer-events: auto; }
-.composer.has-text .send.is-pressed { transform: scale(0.9); transition-duration: var(--press-dur); }
+.composer-action .icon { grid-area: 1 / 1; width: 22px; height: 22px; transition: opacity 170ms ease-out, transform 190ms var(--ease-out); }
+.composer-action .action-send { opacity: 0; transform: scale(.8); }
+.composer.has-text .composer-action { background: var(--ink); color: var(--on-ink); box-shadow: 0 0 0 1px transparent, var(--chrome-shadow); }
+.composer.has-text .composer-action .action-add { opacity: 0; transform: scale(.8); }
+.composer.has-text .composer-action .action-send { opacity: 1; transform: none; }
+.composer-action:disabled { opacity: .4; }
+.composer-action:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+/* Open, the button is the panel's corner: its circle hands over to the
+   panel grown out of it and its + turns into ×. */
+.composer.panel-open .composer-action { background: transparent; box-shadow: 0 0 0 1px transparent; }
+.composer.panel-open .composer-action .action-add { transform: rotate(45deg); }
+
+.composer-panel {
+  --pw: 212px;
+  position: absolute;
+  z-index: 1;
+  right: var(--content-right, calc(var(--margin) + var(--safe-right)));
+  bottom: calc(max(var(--safe-bottom), 16px));
+  width: var(--pw);
+  pointer-events: none;
+  filter: drop-shadow(0 10px 28px rgb(0 0 0 / .14)) drop-shadow(0 0 1px rgb(0 0 0 / .18));
+  /* Gone once it has shrunk back into the button. */
+  visibility: hidden;
+  transition: visibility 0s linear 280ms;
+}
+:root[data-kb="1"] .composer-panel { bottom: 8px; }
+.composer-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 64px;
+  border-radius: 28px;
+  background: var(--surface);
+  /* Closed, the panel is exactly the button's circle. */
+  clip-path: inset(calc(100% - 56px) 0 0 calc(100% - 56px) round 28px);
+  transition: clip-path 280ms var(--ease-out);
+}
+.composer.panel-down .composer-panel { bottom: auto; top: 12px; }
+.composer.panel-down .composer-panel-body { padding: 64px 8px 8px; clip-path: inset(0 0 calc(100% - 56px) calc(100% - 56px) round 28px); }
+.composer.panel-open .composer-panel { pointer-events: auto; visibility: visible; transition-delay: 0s; }
+.composer.panel-open .composer-panel-body { clip-path: inset(0 0 0 0 round 24px); }
+.composer-tool {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 18px;
+  font-size: var(--t-body);
+  color: var(--label);
+  text-align: left;
+  opacity: 0;
+  transition: opacity 120ms ease-out, background-color var(--press-in) ease-out;
+}
+.composer-tool .icon { width: 22px; height: 22px; }
+.composer.panel-open .composer-tool { opacity: 1; transition: opacity 160ms ease-out 70ms, background-color var(--press-in) ease-out; }
+.composer-tool:active, .composer-tool.is-pressed { background: var(--field); }
+.composer-tool.active { background: var(--field); }
+.composer-tool:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { .composer-tool:hover { background: var(--field); } }
 .composer.readonly .field { opacity: 0.6; }
 
 .jump {
@@ -486,21 +586,40 @@
 
 .thread-title .sub.typing { color: var(--blue); }
 
-/* Call record: a quiet hairline capsule on either side; only a call you
-   missed is red. */
+/* Call record: a record rather than a message, so a compact, quiet chip
+   with no outline; only a call you missed is red. */
 .bubble.call-log,
 .m.out .bubble.call-log {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: var(--bg);
-  box-shadow: inset 0 0 0 1px var(--line);
+  gap: 7px;
+  background: var(--field);
+  box-shadow: none;
   color: var(--label-2);
-  font-size: var(--t-subhead);
-  padding: 9px 15px;
+  font-size: var(--t-footnote);
+  line-height: 1.3;
+  padding: 7px 12px;
+  border-radius: 16px;
 }
-.bubble.call-log .icon { width: 17px; height: 17px; }
-.bubble.call-log.missed { color: var(--red); }
+.bubble.call-log .icon { width: 15px; height: 15px; }
+.bubble.call-log.missed { color: var(--red-text); }
+/* A run of calls: one chip with a count that opens upward into every call,
+   the arrow turning, the messages around it making way. */
+.bubble.call-group,
+.m.out .bubble.call-group { display: inline-flex; flex-direction: column; align-items: stretch; padding: 0; gap: 0; min-width: 176px; }
+.call-items { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 260ms var(--ease-out); }
+.call-group.open .call-items { grid-template-rows: 1fr; }
+.call-items-inner { min-height: 0; overflow: hidden; }
+.call-item { display: flex; align-items: center; gap: 7px; padding: 7px 12px 0; color: var(--label-2); opacity: 0; transition: opacity 120ms ease-out; }
+.call-item.missed { color: var(--red-text); }
+.call-item .t { flex: 1; }
+.call-item .when, .call-count { color: var(--label-2); font-size: var(--t-caption); }
+.call-group.open .call-item { opacity: 1; transition: opacity 180ms ease-out 60ms; }
+.call-summary { display: flex; align-items: center; gap: 7px; min-height: 44px; margin: -6px 0; padding: 0 12px; color: inherit; font: inherit; text-align: left; }
+.call-summary .t { flex: 1; }
+.call-chevron { width: 14px !important; height: 14px !important; transform: rotate(180deg); transition: transform 260ms var(--ease-out); }
+.call-group.open .call-chevron { transform: none; }
+.call-group.open .call-summary .t { color: var(--label-2); }
 
 /* A drawing reads as ink on white paper, not a cropped photo. */
 .bubble.media.drawing { background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
@@ -546,12 +665,18 @@
   :root:not([data-motion="full"]) .msgs.swap,
   :root:not([data-motion="full"]) .thread-title.swap .t,
   :root:not([data-motion="full"]) .thread-title.swap .avatar { animation: fade-in 120ms linear !important; }
-  :root:not([data-motion="full"]) .send { transition: none; }
+  :root:not([data-motion="full"]) .field textarea { transition: none; }
+  :root:not([data-motion="full"]) .composer-panel-body { clip-path: none !important; opacity: 0; }
+  :root:not([data-motion="full"]) .composer.panel-open .composer-panel-body { opacity: 1; }
+  :root:not([data-motion="full"]) .composer-action .icon { transform: none !important; }
 }
 :root[data-motion="reduce"] .msgs.swap,
 :root[data-motion="reduce"] .thread-title.swap .t,
 :root[data-motion="reduce"] .thread-title.swap .avatar { animation: fade-in 120ms linear !important; }
-:root[data-motion="reduce"] .send { transition: none; }
+:root[data-motion="reduce"] .field textarea { transition: none; }
+:root[data-motion="reduce"] .composer-panel-body { clip-path: none !important; opacity: 0; }
+:root[data-motion="reduce"] .composer.panel-open .composer-panel-body { opacity: 1; }
+:root[data-motion="reduce"] .composer-action .icon { transform: none !important; }
 :root[data-motion="reduce"] .bubble.ghost,
 :root[data-motion="reduce"] .bubble.ghost::after { animation: none; }
 

@@ -2,7 +2,7 @@
 // recognized and rebuilt as anchors from the plain string.
 
 import { h, icon } from '../ui/dom.js'
-import { duration, fileSize, emojiOnly } from '../ui/format.js'
+import { duration, fileSize, emojiOnly, callSummary } from '../ui/format.js'
 import { state } from '../store.js'
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"'，。！？、；：（）【】《》]+/gi
@@ -117,15 +117,16 @@ function videoBubble(m, ctx) {
   return el
 }
 
+// A record, not a control: calling back is the heading's job.
 function callBubble(m) {
-  const media = m.call?.media === 'video' ? 'video' : 'phone'
-  // A missed call is news to the person called; the caller only learns it didn't connect.
-  const missed = m.call?.missed && !m.out
-  const text = m.call?.missed && m.out ? `${media === 'video' ? '视频' : '语音'}通话未接通` : m.text || '通话'
-  return h('div', { class: ['bubble call-log', missed && 'missed'], dataset: { kind: 'call' }, role: 'button' },
-    icon(media),
-    h('span', {}, text))
+  const s = callSummary(m.call || {}, callMine(m))
+  return h('div', { class: ['bubble call-log', s.missed && 'missed'], dataset: { kind: 'call' }, 'aria-label': s.label },
+    icon(s.media === '视频' ? 'video' : 'phone'),
+    h('span', { 'aria-hidden': 'true' }, s.text))
 }
+
+/** Whether this account placed the call (older records only know who logged them). */
+export const callMine = m => (m.call?.caller ? m.call.caller === state.me?.id : m.out)
 
 function card(m, { icon: name, iconClass = '', title, desc }) {
   return h('div', { class: 'bubble card', dataset: { kind: m.type }, role: 'button' },

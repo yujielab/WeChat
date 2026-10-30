@@ -21,7 +21,7 @@
 .password-toggle { position:absolute; top:4px; bottom:4px; right:6px; min-width:44px; padding:0 10px; border-radius:10px; font-size:var(--t-caption); font-weight:var(--w-medium); color:var(--label-2); }
 .auth-input-well:has(.password-toggle) .input { padding-right:62px; }
 .password-toggle:active { background:var(--field); }
-.field-error { margin:0; font-size:12px; color:var(--red); line-height:1.5; text-align:left; overflow-wrap:anywhere; }
+.field-error { margin:0; font-size:12px; color:var(--red-text); line-height:1.5; text-align:left; overflow-wrap:anywhere; }
 .field-error:empty { display:none; }
 .auth-field[hidden] { display:none; }
 .btn { min-height:50px; border-radius:999px; padding:0 24px; display:inline-flex; align-items:center; justify-content:center; gap:9px; font-size:var(--t-callout); font-weight:600; }

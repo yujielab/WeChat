@@ -6,6 +6,7 @@ import { symbolEffect } from '../ui/symbols.js'
 import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appearance.js'
 import { isStandalone } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
+import { hapticsAvailable } from '../ui/haptics.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -68,10 +69,11 @@ async function uploadAvatar(file) {
 }
 
 // ---------------------------------------------------------------- settings
-export function openSettings({ onLogout }) {
+export function openSettings({ onLogout, origin }) {
   const prefs = getPrefs()
   const me = state.me
-  const profile = h('button', { class: 'profile profile-btn', type: 'button' },
+  // The card is the one way into editing who you are; no second row for it.
+  const profile = h('button', { class: 'profile profile-btn', type: 'button', 'aria-label': `${me?.display || '我'}，编辑资料` },
     avatar(me?.avatar, me?.display || '我', { size: 84 }),
     h('h3', {}, me?.display || '我'),
     h('p', {}, '@' + (me?.username || '')))
@@ -84,7 +86,6 @@ export function openSettings({ onLogout }) {
     profile,
     groupTitle('账号'),
     group(
-      cell('编辑资料', chev(), { icon: 'person', onClick: () => editProfile() }),
       cell('修改密码', chev(), { icon: 'lock', onClick: () => changePassword() })
     ),
     groupTitle('显示与交互'),
@@ -96,14 +97,16 @@ export function openSettings({ onLogout }) {
       ], prefs.theme, setTheme, '外观')),
       cell('降低透明度', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), '降低透明度')),
       cell('减少动态效果', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), '减少动态效果')),
-      cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈'))
+      // Only offered where the device can play it (iPhone), so it never
+      // claims to be on when nothing would happen.
+      hapticsAvailable ? cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈')) : null
     ),
     groupTitle('通知'),
     pushSlot,
     h('div', { style: { height: '20px' } }),
     group(cell('退出登录', null, { destructive: true, onClick: () => onLogout() }))
   )
-  openSheet({ title: '设置', content, tall: true })
+  openSheet({ title: '设置', content, tall: true, origin })
 }
 
 function editProfile() {

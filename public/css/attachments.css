@@ -12,7 +12,7 @@
 .attachment-dropzone.is-over .attachment-drop-icon { transform:translateY(-3px) rotate(-5deg); }
 .attachment-drop-title { font-size:var(--t-callout); font-weight:600; letter-spacing:-.02em; background:var(--surface,var(--bg)); padding:2px 7px; border-radius:5px; }
 .attachment-dropzone.is-over .attachment-drop-title { background:var(--field); }
-.attachment-error { margin:12px 2px 0; color:var(--red); font-size:var(--t-footnote); line-height:1.5; }
+.attachment-error { margin:12px 2px 0; color:var(--red-text); font-size:var(--t-footnote); line-height:1.5; }
 .attachment-error:empty { display:none; }
 .attachment-previews { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:17px; }
 .attachment-previews:empty { display:none; }

@@ -63,7 +63,9 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   let fh = nat.h * fit
   media.style.width = `${fw}px`
   media.style.height = `${fh}px`
-  const rest = { tx: (W - fw) / 2, ty: (H - fh) / 2, k: 1 }
+  // ix/iy/r: the crop and corner radius the photo still has from its bubble
+  // (in the photo's own pixels), easing to none as it opens.
+  const rest = { tx: (W - fw) / 2, ty: (H - fh) / 2, k: 1, ix: 0, iy: 0, r: 0 }
   const s = { ...rest, bg: 0 }
   let activeAnimation = null
   let fullImageRequest = 0
@@ -76,16 +78,34 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
 
   const apply = () => {
     media.style.transform = `translate3d(${s.tx}px, ${s.ty}px, 0) scale(${s.k})`
+    media.style.clipPath = s.ix > 0.5 || s.iy > 0.5 || s.r > 0.5 ? `inset(${s.iy}px ${s.ix}px round ${s.r}px)` : ''
     bg.style.opacity = String(s.bg)
     root.style.setProperty('--shade', String(s.bg))
   }
 
+  // The photo as its bubble shows it: scaled to cover the bubble, cropped
+  // and rounded to it, so opening and closing carry the crop and corners
+  // through rather than cutting from one shape to the other.
   const thumbRect = el => {
     if (!el?.isConnected) return null
     const r = el.getBoundingClientRect()
     const o = root.getBoundingClientRect()
     if (r.bottom < o.top || r.top > o.bottom || r.width < 2) return null
-    return { tx: r.left - o.left, ty: r.top - o.top, k: r.width / fw }
+    const k = Math.max(r.width / fw, r.height / fh)
+    const radius = parseFloat(getComputedStyle(el.closest('.bubble') || el).borderTopLeftRadius) || 0
+    return {
+      tx: r.left - o.left + r.width / 2 - (fw * k) / 2,
+      ty: r.top - o.top + r.height / 2 - (fh * k) / 2,
+      k,
+      ix: Math.max(0, (fw - r.width / k) / 2),
+      iy: Math.max(0, (fh - r.height / k) / 2),
+      r: radius / k
+    }
+  }
+  const crop = (a, b, p) => {
+    s.ix = a.ix + ((b.ix || 0) - a.ix) * p
+    s.iy = a.iy + ((b.iy || 0) - a.iy) * p
+    s.r = a.r + ((b.r || 0) - a.r) * p
   }
 
   // ---------------------------------------------------------- open
@@ -97,12 +117,13 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     animate({
       from: 0,
       to: 1,
-      damping: 0.86,
-      response: 0.38,
+      damping: 0.9,
+      response: 0.32,
       onUpdate: p => {
         s.tx = from.tx + (rest.tx - from.tx) * p
         s.ty = from.ty + (rest.ty - from.ty) * p
         s.k = from.k + (rest.k - from.k) * p
+        crop(from, rest, Math.min(1, p))
         s.bg = Math.min(1, p)
         apply()
       }
@@ -205,11 +226,12 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
         to: 1,
         velocity: Math.abs(velocityY) / Math.max(1, H),
         damping: 1,
-        response: 0.32,
+        response: 0.28,
         onUpdate: p => {
           s.tx = start.tx + (target.tx - start.tx) * p
           s.ty = start.ty + (target.ty - start.ty) * p
           s.k = start.k + (target.k - start.k) * p
+          crop(start, target, p)
           s.bg = start.bg * (1 - p)
           apply()
         }

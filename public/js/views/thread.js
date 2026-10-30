@@ -2,7 +2,7 @@
 
 import { h, icon, clear, reducedMotion, announce, edge } from '../ui/dom.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
-import { threadTime } from '../ui/format.js'
+import { threadTime, callSummary } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
@@ -11,7 +11,7 @@ import {
 } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
-import { renderBubble, hasTail, mediaSize } from './bubbles.js'
+import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
@@ -66,6 +66,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const retryFiles = new Map()
   const photoGroups = new Map()
   const expandedPhotos = new Set()
+  const expandedCalls = new Set()
+  const retrying = new Set()
   const ctx = { maxMedia: 240 }
   let readingAnchor = { bottom: true }
 
@@ -73,7 +75,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const olderEl = h('div', { class: 'load-older', 'aria-live': 'polite' })
   const meta = h('div', { class: 'm-meta' })
   const msgs = h('div', { class: 'msgs' }, olderEl)
-  const scroller = h('div', { class: 'scroll thread-scroll', role: 'log', 'aria-label': '消息' }, msgs)
+  // Room for the floating bar is a real element at the foot of the log, not
+  // the scroller's padding: Safari leaves a column-reverse scroller's bottom
+  // padding out of what it scrolls, so the newest message ended up under the
+  // field.
+  const foot = h('div', { class: 'thread-foot', 'aria-hidden': 'true' })
+  const scroller = h('div', { class: 'scroll thread-scroll', role: 'log', 'aria-label': '消息' }, foot, msgs)
   scroller.style.overflowAnchor = 'none'
 
   // The conversation's heading is content: it stays with the messages on
@@ -85,10 +92,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   // The calls and the details sit in the heading, after the name; Back
-  // leads the bar at the foot of the conversation, before the field, and
-  // drawing and photos follow it. Beside the list (unfolded) there is no
-  // Back: the list is right there. Details and the drawing board open in the
-  // next column, so their items show whether it's open.
+  // leads the bar at the foot of the conversation, before the field, and the
+  // field's own button (photos and drawing, or Send) follows it. Beside the
+  // list (unfolded) there is no Back: the list is right there. Details open
+  // in the next column, so their item shows whether it's open.
   const unreadBadge = () => {
     const n = current ? unreadTotal(current) : 0
     return n ? (n > 99 ? '99+' : String(n)) : ''
@@ -100,14 +107,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       { id: 'audio', icon: 'phone', title: '语音通话', priority: 6, onSelect: () => current && onCall?.(current, 'audio') },
       { id: 'video', icon: 'video', title: '视频通话', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
       { id: 'info', icon: 'info', title: '聊天信息', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
-      { id: 'draw', icon: 'brush', title: '画板', priority: 3, toggle: true, onSelect: () => current && onDraw(current) },
-      { id: 'photo', icon: 'photo', title: '照片', priority: 7, onSelect: () => current && composer.openImages() }
     ],
     arrange: () => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
       const back = pane.dataset.layout === 'trailing' ? [] : [['back']]
-      return { top: [...calls, ['info']], bottom: [...back, ['draw', 'photo']] }
+      return { top: [...calls, ['info']], bottom: back }
     }
   })
 
@@ -116,9 +121,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   const composer = createComposer({
     onSend: text => sendText(text),
-    onImages: files => sendImages(files),
+    onImages: (files, options) => sendImages(files, options),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
-    onType: text => sendTyping(text)
+    onType: text => sendTyping(text),
+    // Photos and the drawing board come from the button after the field.
+    tools: [
+      { id: 'photo', icon: 'photo', title: '照片', onSelect: () => current && composer.openImages() },
+      { id: 'draw', icon: 'brush', title: '手绘', onSelect: () => current && onDraw(current) }
+    ]
   })
 
   const edgeTop = edge('top')
@@ -128,14 +138,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   composer.dock(bars.bottom)
 
   // The name keeps at least 150px of the heading; the field keeps at least
-  // 160px of the bar at the foot, and one more gap beside it.
+  // 160px of the bar at the foot, and its 56pt button after it.
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
     barsFrame = requestAnimationFrame(() => {
       const cs = getComputedStyle(composer.el)
       const inner = composer.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
-      bars.layout({ top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8) })
+      bars.layout({ top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8 - 56 - 8) })
     })
   }
   new ResizeObserver(arrangeBars).observe(nav)
@@ -193,12 +203,16 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.recalled || m.text || '')
     const room = isGroup(current)
     const who = m.fromName || nameOf(m.from, current)
-    const bub = renderBubble(m, m.status === 'failed' ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 34) } : ctx)
+    const retryShown = m.status === 'failed' || (m.status === 'sending' && retrying.has(m.id))
+    const bub = renderBubble(m, retryShown ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 78) } : ctx)
     const sender = room && !m.out ? h('div', { class: 'm-sender' }, who) : null
     const av = h('span', { class: 'm-avatar', 'aria-hidden': 'true' }, avatar(avatarOf(m.from, current), who))
+    // Where it failed: a compact 重试 beside the message itself, which turns
+    // into 发送中 in place while it goes, and folds away once it's sent.
     const status = m.status === 'failed'
-      ? h('button', { class: 'm-status', type: 'button', 'aria-label': '发送失败，点按重试' }, icon('exclaim'))
-      : null
+      ? h('button', { class: 'm-retry', type: 'button', 'aria-label': '发送失败，重试' }, icon('refresh'), h('span', { 'aria-hidden': 'true' }, '重试'))
+      : retryShown ? h('span', { class: 'm-retry busy', role: 'status', 'aria-label': '正在重新发送' }, h('span', { class: 'spinner' }), h('span', { 'aria-hidden': 'true' }, '发送中'))
+        : null
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
@@ -240,7 +254,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   function nodeFor(m) {
     let el = nodes.get(m.id)
-    if (!el || el.photoSignature) {
+    if (!el || el.photoSignature || el.callSignature) {
       const old = el
       el = buildNode(m)
       old?.replaceWith(el)
@@ -281,6 +295,56 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
     photoGroups.set(last.id, photos)
     return node
+  }
+
+  // Unanswered calls one after another from the same side, with nothing said
+  // between and within the hour, fold into one compact record that opens
+  // upward, so what was tapped stays where it is; every call stays listed
+  // inside. A call that went through always stands on its own.
+  const groupableCall = m => m?.type === 'call' && !m.recalled && !String(m.id).startsWith('local:') && (m.call?.result ? m.call.result !== 'completed' : Boolean(m.call?.missed))
+  const CALL_SPAN = 60 * 60 * 1000
+  function callGroupNode(calls) {
+    const last = calls[calls.length - 1]
+    const signature = calls.map(c => `${c.id}:${c.call?.result || ''}`).join('|')
+    let node = nodes.get(last.id)
+    if (node?.callSignature !== signature) {
+      const fresh = buildNode(last)
+      fresh.querySelector('.bubble').replaceWith(callGroup(calls))
+      fresh.callSignature = signature
+      node?.replaceWith(fresh)
+      node = fresh
+      nodes.set(last.id, node)
+    }
+    return node
+  }
+  function callGroup(calls) {
+    const key = calls[0].id
+    const open = expandedCalls.has(key)
+    const said = c => callSummary(c.call || {}, callMine(c))
+    const glyph = s => icon(s.media === '视频' ? 'video' : 'phone')
+    const latest = said(calls[calls.length - 1])
+    const listId = `calls-${String(key).replace(/[^\w-]/g, '')}`
+    const items = h('div', { class: 'call-items', id: listId },
+      h('div', { class: 'call-items-inner', role: 'list' }, calls.map(c => {
+        const s = said(c)
+        return h('div', { class: ['call-item', s.missed && 'missed'], role: 'listitem', 'aria-label': `${s.label}，${threadTime(c.ts)[1]}` },
+          glyph(s), h('span', { class: 't', 'aria-hidden': 'true' }, s.text), h('span', { class: 'when tabular', 'aria-hidden': 'true' }, threadTime(c.ts)[1]))
+      })))
+    const toggle = h('button', {
+      class: 'call-summary', type: 'button', 'aria-expanded': String(open), 'aria-controls': listId,
+      'aria-label': `${latest.label}，共 ${calls.length} 次${open ? '' : '，点按展开'}`
+    }, glyph(latest), h('span', { class: 't', 'aria-hidden': 'true' }, latest.text),
+    h('span', { class: 'call-count tabular', 'aria-hidden': 'true' }, `${calls.length} 次`), icon('chevron-down', 'call-chevron'))
+    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle)
+    toggle.addEventListener('click', () => {
+      const on = !group.classList.contains('open')
+      group.classList.toggle('open', on)
+      toggle.setAttribute('aria-expanded', String(on))
+      toggle.setAttribute('aria-label', `${latest.label}，共 ${calls.length} 次${on ? '' : '，点按展开'}`)
+      if (on) expandedCalls.add(key)
+      else expandedCalls.delete(key)
+    })
+    return group
   }
 
   function decorate(list) {
@@ -338,10 +402,20 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
           i++
         }
       }
-      const last = photos[photos.length - 1]
-      const message = photos.length > 1 ? { ...last, ts: first.ts } : first
+      const calls = [first]
+      if (photos.length === 1 && groupableCall(first)) {
+        while (calls.length < 20 && i + 1 < list.length) {
+          const next = list[i + 1]
+          if (!groupableCall(next) || callMine(next) !== callMine(first) || next.ts - calls[calls.length - 1].ts > TS_GAP || next.ts - first.ts > CALL_SPAN) break
+          calls.push(next)
+          i++
+        }
+      }
+      const run = calls.length > 1 ? calls : photos
+      const last = run[run.length - 1]
+      const message = run.length > 1 ? { ...last, ts: first.ts } : first
       if (!prev || first.ts - prev.ts > TS_GAP) want.push(sepFor(message))
-      want.push(photos.length > 1 ? photoNode(photos) : nodeFor(message))
+      want.push(calls.length > 1 ? callGroupNode(calls) : photos.length > 1 ? photoNode(photos) : nodeFor(message))
       visible.push(message)
       prev = last
     }
@@ -636,19 +710,41 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
   }
 
-  async function sendImages(files) {
+  async function sendImages(files, { from = [] } = {}) {
     const chat = current
     if (!chat) return
-    for (const f of files) {
+    for (const [i, f] of files.entries()) {
       try {
-        await sendPrepared(chat, await prepareImage(f))
+        await sendPrepared(chat, await prepareImage(f), from[i])
       } catch (err) {
         toast(err.message || '无法处理这张图片', { type: 'error' })
       }
     }
   }
 
-  async function sendPrepared(chat, { file, w, h: hh }) {
+  // A photo sent from the attachment sheet carries on from where it was
+  // seen there into its new message: same proportions, its crop easing
+  // away. Only the look travels; the upload reports on its own.
+  function carryIn(id, from) {
+    if (!from?.width || reducedMotion()) return
+    requestAnimationFrame(() => {
+      const bubble = nodes.get(id)?.querySelector('.bubble.media')
+      const to = bubble?.getBoundingClientRect()
+      if (!to?.width || to.bottom < 0 || to.top > innerHeight) return
+      const k = Math.max(from.width / to.width, from.height / to.height)
+      const dx = from.left + from.width / 2 - to.left - (to.width * k) / 2
+      const dy = from.top + from.height / 2 - to.top - (to.height * k) / 2
+      const ix = Math.max(0, (to.width - from.width / k) / 2)
+      const iy = Math.max(0, (to.height - from.height / k) / 2)
+      const r = parseFloat(getComputedStyle(bubble).borderTopLeftRadius) || 0
+      bubble.animate([
+        { transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${k})`, clipPath: `inset(${iy}px ${ix}px round ${14 / k}px)` },
+        { transformOrigin: '0 0', transform: 'none', clipPath: `inset(0px 0px round ${r}px)` }
+      ], { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+    })
+  }
+
+  async function sendPrepared(chat, { file, w, h: hh }, from) {
     const cid = newCid()
     const preview = URL.createObjectURL(file)
     state.previews.set(cid, preview)
@@ -656,7 +752,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'image', w, h: hh, url: preview, status: 'sending' }
     upsertMessage(local)
     bumpList(local)
-    if (chat === current) scrollToBottom()
+    if (chat === current) {
+      scrollToBottom()
+      carryIn(local.id, from)
+    }
     try {
       const up = await uploadMedia('image', file, { room: chat, name: file.name || 'photo.jpg', w, h: hh })
       const r = await api.post('/api/messages', { room: chat, type: 'image', meta: { ...up.meta, url: up.url }, localId: cid })
@@ -727,7 +826,25 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     typingTimer = setTimeout(() => { typingTimer = 0; titleSub.classList.remove('typing'); renderHeader(); clearGhost() }, 4500)
   }
 
+  // A failed text is sent again in place, with the same localId (the server
+  // answers a repeat with the message that already landed); a tap while it
+  // is on its way does nothing.
   async function retry(m) {
+    if (m.type === 'text' && m.text && m.cid) {
+      if (retrying.has(m.id)) return
+      retrying.add(m.id)
+      upsertMessage({ ...m, status: 'sending' })
+      try {
+        const r = await api.post('/api/messages', { room: m.chat, type: 'text', text: m.text, localId: m.cid })
+        if (r.msg) replaceMessage(m.id, normMsg(r.msg))
+      } catch (err) {
+        upsertMessage({ ...m, status: 'failed' })
+        toast(err.message || '发送失败', { type: 'error' })
+      } finally {
+        retrying.delete(m.id)
+      }
+      return
+    }
     removeMessage(m.id, m.chat)
     if (m.type === 'image') {
       const f = retryFiles.get(m.cid)
@@ -752,7 +869,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const node = e.target.closest('.m')
     const m = msgOf(node)
     if (!m) return
-    if (e.target.closest('.m-status, .m-reactions')) return messageMenu(node, m)
+    if (e.target.closest('.m-retry')) return m.status === 'failed' ? retry(m) : undefined
+    if (e.target.closest('.m-reactions')) return messageMenu(node, m)
     if (e.target.closest('a')) return
     const bub = e.target.closest('.bubble')
     if (!bub) return
@@ -1056,7 +1174,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         seps.delete(fromId)
       }
       el.querySelector('.bubble')?.classList.remove('sending')
-      el.querySelector('.m-status')?.remove()
+      const pill = el.querySelector('.m-retry')
+      if (pill) {
+        pill.classList.add('gone')
+        setTimeout(() => pill.remove(), reducedMotion() ? 0 : 200)
+      }
       // The sent message keeps its local preview; the node is now current.
       el.bodySig = bodySig(m)
     }
@@ -1095,6 +1217,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       if (readHeld && current) markReadSoon(true)
     },
     bars,
+    setTool: (id, active) => composer.setTool(id, active),
     sendDrawing: (blob, size) => sendDrawing(blob, size),
     focusComposer() {
       composer.focus()
