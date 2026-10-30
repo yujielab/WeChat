@@ -43,6 +43,7 @@ function measure() {
   if (kb) root.dataset.kb = '1'
   else delete root.dataset.kb
   measureFold()
+  measureColumn()
   const next = window.innerWidth >= SPLIT_MIN ? 'split' : 'stack'
   if (next !== layout) {
     layout = next
@@ -99,6 +100,20 @@ const segments = {
   horizontal: matchMedia('(vertical-viewport-segments: 2)')
 }
 for (const query of Object.values(segments)) query.addEventListener?.('change', () => measure())
+
+// The system's status column at the screen's edge. In the page, it is a
+// safe area (CSS sees it). Beside the page (iOS 27.2 narrows the page
+// instead), the page is a column's width narrower than the screen on a
+// touch screen — not half of it (split view), not a desktop window — and
+// data-column="beside" says so; backdrops fade out into it (backdrops.css).
+function measureColumn() {
+  const landscape = matchMedia('(orientation: landscape)').matches
+  const screenWidth = landscape ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)
+  const extra = screenWidth - window.innerWidth
+  const beside = matchMedia('(pointer: coarse)').matches && extra >= 48 && extra <= 140
+  if (beside) root.dataset.column = 'beside'
+  else delete root.dataset.column
+}
 
 function measureFold() {
   let next = { axis: 'none', start: 0, end: 0 }

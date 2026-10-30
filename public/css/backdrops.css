@@ -15,6 +15,44 @@
   transition: opacity 240ms ease-out;
 }
 .backdrop[data-backdrop]:not([data-backdrop=""]) { opacity: 1; }
+
+/* Where a backdrop meets the system's status column — a safe area in the
+   page, or beside the page (data-column, ui/viewport.js) — it doesn't stop
+   on a hard edge: it blurs, more and more, and fades out into the column,
+   which takes the page's own colour. A column's side of the page only: a
+   leading column's right edge, or a trailing one's left, meets the other
+   column instead. */
+.thread-backdrop, .call-backdrop {
+  --fade-right: clamp(0px, calc(var(--safe-right) * 100), 56px);
+  --fade-left: clamp(0px, calc(var(--safe-left) * 100), 56px);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left), #000 calc(100% - var(--fade-right)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left), #000 calc(100% - var(--fade-right)), transparent 100%);
+}
+:root[data-column="beside"] .pane:not([data-role="leading"]) .thread-backdrop,
+:root[data-column="beside"] .call-backdrop { --fade-right: 56px; }
+:is(.thread-backdrop, .call-backdrop)::before,
+:is(.thread-backdrop, .call-backdrop)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+:is(.thread-backdrop, .call-backdrop)::after {
+  right: 0;
+  width: calc(var(--fade-right) * 2);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000);
+  mask-image: linear-gradient(to right, transparent, #000);
+}
+:is(.thread-backdrop, .call-backdrop)::before {
+  left: 0;
+  width: calc(var(--fade-left) * 2);
+  -webkit-mask-image: linear-gradient(to left, transparent, #000);
+  mask-image: linear-gradient(to left, transparent, #000);
+}
+:root[data-glass="solid"] :is(.thread-backdrop, .call-backdrop)::before,
+:root[data-glass="solid"] :is(.thread-backdrop, .call-backdrop)::after { display: none; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .backdrop { --bd: var(--bd-d); }
 }
