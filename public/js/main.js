@@ -188,6 +188,18 @@ function handle(msg) {
       if (known && Array.isArray(msg.keys)) upsertMessage({ ...known, meta: { ...known.meta, keys: msg.keys } })
       break
     }
+    case 'edit': {
+      // Rewritten by its sender: in place, nothing new to read; the list's
+      // preview follows if it was the last message.
+      const known = state.threads.get(msg.msg.room)?.byId.get(msg.msg.id)
+      const n = normMsg(msg.msg)
+      if (known) upsertMessage({ ...known, text: n.text, meta: n.meta, edited: n.edited, reactions: n.reactions })
+      const room = state.chats.get(msg.msg.room)
+      if (room?.last?.id === msg.msg.id) patchRoom(msg.msg.room, { last: { ...room.last, text: previewText(msg.msg, room) } })
+      // Whoever edited it is done typing.
+      if (msg.msg.sender !== state.me?.id) shell?.thread.typingDone(msg.msg.room)
+      break
+    }
     case 'react': {
       // Only the reactions change: the message keeps its place, read state and unread count.
       const known = state.threads.get(msg.msg.room)?.byId.get(msg.msg.id)

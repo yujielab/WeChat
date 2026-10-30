@@ -2,7 +2,7 @@
 // contacts, rooms, messages and presence, runs the realtime WebSocket fan-out,
 // and (in call.js) brokers Cloudflare Realtime sessions for voice/video.
 
-import { Store, REACTIONS } from './store.js'
+import { Store, REACTIONS, editProblem } from './store.js'
 import {
   hashPassword, verifyPassword, mintToken, readToken,
   cookieHeader, clearCookieHeader, readCookie, b64url
@@ -323,6 +323,23 @@ export class Hub {
       this.fanoutToRoom(msg.room, { t: 'react', msg })
       return json({ ok: true, msg })
     }
+    // Rewriting a text message you sent: in place for everyone, like a
+    // reaction (nothing new to read, nothing moves up the list).
+    if (path === '/api/edit' && method === 'POST') {
+      const target = this.store.getMessage(String(body.id || ''))
+      const text = String(body.text ?? '').slice(0, 8000)
+      if (target && target.sender === user.id && text === target.body) return json({ ok: true, msg: target })
+      const problem = editProblem(target, user.id, text)
+      if (problem) return json({ ok: false, error: problem }, 400)
+      const msg = this.store.editMessage(target.id, user.id, text)
+      this.fanoutToRoom(msg.room, { t: 'edit', msg })
+      // Its key words follow again, for the new wording.
+      if (assistConfigured(this.env)) {
+        const work = this.markKeys(msg)
+        this.ctx.waitUntil?.(work)
+      }
+      return json({ ok: true, msg })
+    }
     if (path === '/api/revoke' && method === 'POST') {
       const m = this.store.revokeMessage(body.id, user.id)
       if (!m) return json({ ok: false, error: '无法撤回' }, 400)
@@ -480,7 +497,7 @@ export class Hub {
     try {
       const keys = await keywords(this.env, msg.body)
       if (!keys.length) return
-      const updated = this.store.setKeys(msg.id, keys)
+      const updated = this.store.setKeys(msg.id, keys, msg.body)
       // Like a reaction: the message keeps its place and read state.
       if (updated) this.fanoutToRoom(msg.room, { t: 'keys', id: msg.id, room: msg.room, keys })
     } catch (err) {

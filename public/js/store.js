@@ -136,7 +136,8 @@ export function normMsg(m) {
     size: meta.size,
     call: m.type === 'call' ? meta : null,
     replyTo: m.replyTo || null,
-    reactions: m.reactions || []
+    reactions: m.reactions || [],
+    edited: m.edited || 0 // rewritten by its sender this many times (meta.history: the earlier wordings)
   }
 }
 

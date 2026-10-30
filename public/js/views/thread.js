@@ -7,7 +7,7 @@ import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
   state, on, thread, mergeMessages, upsertMessage, replaceMessage, removeMessage, chatInfo,
-  unreadTotal, newCid, patchRoom, upsertRoom, normMsg, avatarOf, nameOf, setMembers
+  unreadTotal, newCid, patchRoom, upsertRoom, normMsg, avatarOf, nameOf, setMembers, previewText as listPreview
 } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -15,7 +15,7 @@ import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
-import { openMenu, toast } from './overlay.js'
+import { openMenu, openSheet, toast } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 import { createBars } from '../ui/bars.js'
@@ -45,7 +45,12 @@ const myReaction = m => m.reactions?.find(g => g.users.includes(state.me?.id))?.
 // What a bubble shows, apart from its reactions: a reaction alone patches the
 // chip in place rather than rebuilding (and re-fading) the whole message.
 // What a bubble shows; its key words (src/assist.js) arrive after it and redraw it.
-const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name, (m.meta?.keys || []).join('\u0002')].join('\u0001')
+const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name, (m.meta?.keys || []).join('\u0002'), m.edited || 0].join('\u0001')
+// A text message can be rewritten by whoever sent it, for 15 minutes, five
+// times (the server holds the same rule: src/store.js editProblem).
+const EDIT_WINDOW = 15 * 60 * 1000
+const EDIT_MAX = 5
+const editable = m => m?.out && m.type === 'text' && reactable(m) && Date.now() - m.ts <= EDIT_WINDOW && (m.edited || 0) < EDIT_MAX
 const reactSig = m => (m.reactions || []).map(g => `${g.emoji}${g.users.join(',')}`).join('|')
 
 /** Apply one person's reaction locally, mirroring the server's one-per-person rule. */
@@ -92,6 +97,7 @@ function liftedCopy(bubble, width, height) {
 export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend }) {
   pane.classList.add('pane-thread')
   let current = null
+  let editingId = null // the message whose words are in the field
   let newCount = 0
   let suppressClick = false
   const nodes = new Map()
@@ -255,10 +261,19 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
-    }, av, h('div', { class: 'm-col' }, sender, bub, reactionChip(m)), status)
+    }, av, h('div', { class: 'm-col' }, sender, bub, reactionChip(m), editedNote(m)), status)
+    if (editingId === m.id) el.classList.add('editing')
     el.bodySig = bodySig(m)
     el.reactSig = reactSig(m)
     return el
+  }
+
+  /** Rewritten by its sender: says so under the bubble; tapped, shows each wording. */
+  function editedNote(m) {
+    if (!m.edited || isSys(m)) return null
+    const b = h('button', { class: 'm-edited', type: 'button', 'aria-label': '已编辑，查看编辑记录' }, '已编辑')
+    b.addEventListener('click', () => showEdits(m.id))
+    return b
   }
 
   /** Reactions hang off the bubble's lower edge, away from its tail (sketch 1). */
@@ -1097,6 +1112,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (m.type === 'text' && m.text) {
       main.push({ label: '复制', icon: 'copy', onSelect: () => copy(m.text) })
     }
+    if (!photos && editable(m)) main.push({ label: '编辑', icon: 'compose', onSelect: () => startEdit(m) })
+    if (!photos && m.edited && !isSys(m)) main.push({ label: '编辑记录', icon: 'doc', onSelect: () => showEdits(m.id) })
     if (m.type === 'link' && safeUrl(m.url)) {
       main.push({ label: '打开链接', icon: 'link', onSelect: () => window.open(safeUrl(m.url), '_blank', 'noopener,noreferrer') })
       main.push({ label: '复制链接', icon: 'copy', onSelect: () => copy(m.url) })
@@ -1180,7 +1197,65 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
   }
 
+  // ------------------------------------------------------------ editing
+  // Edit puts the message's words in the field (composer.js) with the
+  // message marked; saving rewrites it in place at once, for everyone, and
+  // puts it back if the server says no.
+  function startEdit(m) {
+    if (!current || m.chat !== current) return
+    const chat = current
+    const started = composer.edit({
+      text: m.text,
+      onSave: text => saveEdit(chat, m.id, text),
+      onEnd: () => {
+        nodes.get(editingId)?.classList.remove('editing')
+        editingId = null
+      }
+    })
+    if (!started) return
+    editingId = m.id
+    nodes.get(m.id)?.classList.add('editing')
+  }
+
+  async function saveEdit(chat, id, text) {
+    const known = thread(chat).byId.get(id)
+    if (!known) return
+    const before = { text: known.text, meta: known.meta, edited: known.edited || 0 }
+    const { keys, ...meta } = known.meta || {}
+    show({ text, edited: before.edited + 1, meta: { ...meta, history: [...(meta.history || []), { text: before.text, ts: meta.editedAt || known.ts }], editedAt: Date.now() } })
+    try {
+      const r = await api.post('/api/edit', { id, text })
+      if (r.msg) show({ text: r.msg.body, edited: r.msg.edited || 0, meta: r.msg.meta || {} })
+    } catch (err) {
+      show(before)
+      toast(err.message || '编辑失败', { type: 'error' })
+    }
+    function show(patch) {
+      const m = thread(chat).byId.get(id)
+      if (!m) return
+      upsertMessage({ ...m, ...patch })
+      // The list's preview follows when it's the last message.
+      const room = chatInfo(chat)
+      if (room?.last?.id === id) patchRoom(chat, { last: { ...room.last, text: listPreview({ type: 'text', body: patch.text, sender: state.me?.id, state: 'sent' }, room) } })
+    }
+  }
+
+  /** Each wording a message has had, oldest first, with when it was written. */
+  function showEdits(id) {
+    const m = current && thread(current).byId.get(id)
+    if (!m?.edited) return
+    const versions = [...(m.meta?.history || []), { text: m.text, ts: m.meta?.editedAt || m.ts, now: true }]
+    const list = h('ol', { class: 'edit-history' }, versions.map(v => {
+      const [day, time] = threadTime(v.ts)
+      return h('li', { class: ['edit-version', v.now && 'now'] },
+        h('span', { class: 'edit-when' }, v.now ? `现在 · ${day} ${time}` : `${day} ${time}`),
+        h('span', { class: ['edit-text', m.out ? 'out' : 'in'] }, v.text))
+    }))
+    openSheet({ title: '编辑记录', content: h('div', { class: 'edit-history-wrap' }, list), side: 'thread' })
+  }
+
   async function revoke(m) {
+    if (editingId === m.id) composer.endEdit()
     try {
       const r = await api.post('/api/revoke', { id: m.id })
       if (r.msg) upsertMessage(normMsg(r.msg))
@@ -1234,6 +1309,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       renderHeader()
     }
     if (kind === 'update') {
+      // Taken back (here or on another device) while being edited: stop.
+      if (m.id === editingId && m.status === 'revoked') composer.endEdit()
       refreshNode(m)
       reconcile()
       return
@@ -1297,6 +1374,15 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     close,
     catchUp,
     setTyping,
+    /** Someone finished what they were typing without a new message (an edit saved). */
+    typingDone(room) {
+      if (room !== current) return
+      clearTimeout(typingTimer)
+      typingTimer = 0
+      titleSub.classList.remove('typing')
+      clearGhost()
+      renderHeader()
+    },
     get current() {
       return current
     },

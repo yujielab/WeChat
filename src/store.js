@@ -7,6 +7,17 @@ const now = () => Date.now()
 export const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 20)
 /** The tapbacks a message can carry; one per person, replaced when they pick another. */
 export const REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏']
+/** A text message can be rewritten by its sender for this long after sending, this many times (as in Messages). */
+export const EDIT_WINDOW = 15 * 60 * 1000
+export const EDIT_MAX = 5
+/** Why `uid` can't rewrite message `m` as `text` now ('' when they can). */
+export function editProblem(m, uid, text, at = now()) {
+  if (!m || m.sender !== uid || m.type !== 'text' || m.state === 'revoked') return '无法编辑这条消息'
+  if (!String(text).trim()) return '不能改成空消息'
+  if (at - m.ts > EDIT_WINDOW) return '发出超过 15 分钟的消息不能再编辑'
+  if ((m.edited || 0) >= EDIT_MAX) return `每条消息最多编辑 ${EDIT_MAX} 次`
+  return ''
+}
 
 export class Store {
   constructor(exec) {
@@ -310,9 +321,10 @@ export class Store {
     return this.getMessage(id)
   }
   /** A sent message's key words (from src/assist.js), kept with its meta. */
-  setKeys(id, keys) {
+  /** Key words for the message as it reads now (`body`): none for a wording since replaced. */
+  setKeys(id, keys, body) {
     const m = this.getMessage(id)
-    if (!m || m.state === 'revoked') return null
+    if (!m || m.state === 'revoked' || (body !== undefined && m.body !== body)) return null
     this.exec(`UPDATE messages SET meta=? WHERE id=?`, JSON.stringify({ ...(m.meta || {}), keys }), id)
     return this.getMessage(id)
   }
@@ -377,6 +389,21 @@ export class Store {
     this.exec(`UPDATE messages SET state=? WHERE id=?`, state, id)
     return this.getMessage(id)
   }
+  /**
+   * A text message rewritten by its sender. Everyone in the conversation
+   * can see that it was, and each earlier wording with when it was written
+   * (meta.history, oldest first); key words of the old wording go.
+   */
+  editMessage(id, by, text, at = now()) {
+    const m = this.getMessage(id)
+    if (!m || m.sender !== by || m.type !== 'text' || m.state === 'revoked') return null
+    if (m.body === text) return m
+    const { keys, ...meta } = m.meta || {}
+    const history = [...(meta.history || []), { text: m.body, ts: meta.editedAt || m.ts }]
+    this.exec(`UPDATE messages SET body=?, meta=?, edited=edited+1 WHERE id=?`,
+      text, JSON.stringify({ ...meta, history, editedAt: at }), id)
+    return this.getMessage(id)
+  }
   revokeMessage(id, by) {
     const m = this.getMessage(id)
     if (!m || m.sender !== by) return null
@@ -395,7 +422,7 @@ export class Store {
       meta: r.meta ? JSON.parse(r.meta) : null,
       replyTo: r.reply_to || null,
       state: r.state,
-      edited: Boolean(r.edited)
+      edited: r.edited || 0 // how many times its sender rewrote it
     }
   }
 
