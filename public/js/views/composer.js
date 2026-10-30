@@ -5,7 +5,6 @@
 // except while a Chinese IME is composing; Shift+Enter inserts a newline.
 
 import { h, icon } from '../ui/dom.js'
-import { symbolEffect } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
 import { openAttachments } from './attachments.js'
@@ -116,7 +115,6 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     if (hasText) {
       action.removeAttribute('aria-haspopup')
       action.removeAttribute('aria-expanded')
-      symbolEffect(action.querySelector('.action-send'), 'draw-on')
     } else {
       action.setAttribute('aria-haspopup', 'menu')
       action.setAttribute('aria-expanded', String(open))

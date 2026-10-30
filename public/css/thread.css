@@ -28,11 +28,11 @@
    status stay sharp at rest and only text sliding under the field is washed. */
 .thread .edge-bottom { height: calc(var(--composer-h, 76px) + 4px); }
 .msgs { display: flex; flex-direction: column; min-height: min-content; }
-/* Switching conversations side by side: the new one resolves out of a short
-   blur and rise rather than cutting. */
-.msgs.swap { animation: swap-in 300ms var(--ease-out) backwards; }
-.thread-title.swap .t, .thread-title.swap .avatar { animation: swap-in 260ms var(--ease-out) backwards; }
-@keyframes swap-in { from { opacity: 0; transform: translateY(8px); filter: blur(3px); } }
+/* Switching conversations side by side happens all the time: the new one
+   is simply there, eased in over 160ms rather than cut — no blur, no wait. */
+.msgs.swap { animation: swap-in 160ms var(--ease-out) backwards; }
+.thread-title.swap .t, .thread-title.swap .avatar { animation: swap-in 140ms var(--ease-out) backwards; }
+@keyframes swap-in { from { opacity: 0; transform: translateY(3px); } }
 
 /* ---------------------------------------------------------------- nav */
 
@@ -394,15 +394,17 @@
 }
 .m-meta.failed { color: var(--red-text); }
 
-/* New message appearance: incoming rise; outgoing come up from the composer. */
+/* New messages: the most frequent motion in the app, so the lightest — a
+   short rise and fade, no scale, blur or bounce. What you send is there at
+   once (170ms); what arrives settles in a little softer (200ms). */
 @keyframes m-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); filter: blur(3px); }
+  from { opacity: 0; transform: translateY(6px); }
 }
 @keyframes m-out {
-  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  from { opacity: 0; transform: translateY(6px); }
 }
-.m.enter { animation: m-in var(--spring-bouncy-dur) var(--spring-bouncy) backwards; }
-.m.out.enter { animation-name: m-out; }
+.m.enter { animation: m-in 200ms var(--ease-out) backwards; }
+.m.out.enter { animation-name: m-out; animation-duration: 170ms; }
 .m.flash .bubble { animation: flash 900ms ease-out; }
 @keyframes flash { 30% { filter: brightness(0.8); } }
 
