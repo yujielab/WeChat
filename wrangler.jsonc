@@ -37,6 +37,9 @@
     // Where the Durable Object is created on first use.
     "DO_LOCATION_HINT": "apac"
   },
+  // Variables added in the dashboard (Settings › Variables and Secrets) stay
+  // across deploys from main instead of being cleared by each one.
+  "keep_vars": true,
 
   // Pull-request builds run `wrangler preview`, which needs its own bindings.
   // Each Preview gets a fresh, isolated hub (accounts, rooms, messages), and
@@ -52,7 +55,8 @@
     "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cf-messenger-media-preview" }]
   }
 
-  // Secrets (set with `npx wrangler secret put <NAME>`):
+  // Secrets (set with `npx wrangler secret put <NAME>`, or in the dashboard
+  // with type Secret; never in "vars" above, the repository is public):
   //   SIGNUP_CODE          optional — required invite code to register
   //   REALTIME_APP_ID      Cloudflare Realtime (Calls) SFU app id, for calls
   //   REALTIME_APP_SECRET  Cloudflare Realtime app secret

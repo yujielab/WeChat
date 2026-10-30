@@ -158,6 +158,10 @@ npx wrangler deploy
    npx wrangler secret put REALTIME_TURN_KEY_TOKEN
    ```
 
+   也可以在仪表盘设置：Workers & Pages → `wechatduo` → 设置 → 变量和机密 → 添加，类型选“密钥”（Secret）。
+   密钥与仪表盘添加的变量在每次从 main 部署后都会保留（`wrangler.jsonc` 设了 `keep_vars`）。
+   仓库是公开的，不要把这些值写进 `wrangler.jsonc` 或提交到仓库。
+
 未配置时，通话入口会提示“通话服务未配置”，其余功能照常。
 
 ### 开启新消息通知（可选）
