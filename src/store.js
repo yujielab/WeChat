@@ -309,6 +309,13 @@ export class Store {
     )
     return this.getMessage(id)
   }
+  /** A sent message's key words (from src/assist.js), kept with its meta. */
+  setKeys(id, keys) {
+    const m = this.getMessage(id)
+    if (!m || m.state === 'revoked') return null
+    this.exec(`UPDATE messages SET meta=? WHERE id=?`, JSON.stringify({ ...(m.meta || {}), keys }), id)
+    return this.getMessage(id)
+  }
   getMessage(id) {
     const r = this.exec(`SELECT * FROM messages WHERE id=?`, id)[0]
     if (!r) return null

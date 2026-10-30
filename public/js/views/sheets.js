@@ -7,6 +7,7 @@ import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appea
 import { isStandalone } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
+import { assistPrefs, setAssistPref } from './predict.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -101,6 +102,12 @@ export function openSettings({ onLogout, origin }) {
       // claims to be on when nothing would happen.
       hapticsAvailable ? cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈')) : null
     ),
+    // Writing help, only where the server has Workers AI.
+    state.assist ? groupTitle('智能') : null,
+    state.assist ? group(
+      cell('输入预测', toggle(assistPrefs().predict, on => setAssistPref('predict', on), '输入预测')),
+      cell('加亮关键词', toggle(assistPrefs().keys, on => setAssistPref('keys', on), '加亮关键词'))
+    ) : null,
     groupTitle('通知'),
     pushSlot,
     h('div', { style: { height: '20px' } }),

@@ -85,6 +85,8 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **在线状态**与**已读回执**（私聊重新打开后仍显示“已读”）；**“正在输入”实时预览**（Honk 式：对方能看到你正在打的字）
 - **回应**：长按消息从 ❤️ 😂 👍 😮 😢 🙏 中选一个，或双击送出 ❤️；每人每条消息一个，实时同步
 - **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
+- **智能输入（Workers AI）**：边打字边在光标后用灰字给出这句话的后半句，空输入框里给出对上一条消息的简短回复；点灰字、按 Tab 或 → 采用，
+  照着打会“打穿”它；已发出的文字消息自动加亮关键词（时间、地点、人名、数字、要做的事）。可在设置里分别关闭
 - **表情**：Telegram 表情包（静态、视频、动画三种），经自己的 Worker 取来存进 R2；每人在表情面板里从预设的表情包名称表中添加 / 移除；动画表情只在屏幕上时播放
 - **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
@@ -219,6 +221,25 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
   播放器第一次遇到动画表情时才加载。视频表情（`.webm`）静音循环。两者都只在屏幕上时播放，减少动态效果时停在静态图上。
 - 没有设置 `TELEGRAM_BOT_TOKEN` 时，“+”面板里不显示“表情”，其余功能照常。
 
+### 智能输入（Cloudflare Workers AI）
+
+`wrangler.jsonc` 里已绑定 Workers AI（`"ai": { "binding": "AI" }`），部署后自动启用，不需要密钥。默认模型
+`@cf/qwen/qwen3-30b-a3b-fp8`（中文好、响应快）；想换模型，在仪表盘加一个普通变量 `AI_MODEL`，填模型名（例如 `@cf/zai-org/glm-4.7-flash`）。
+
+- **输入预测**：停顿约 0.45 秒后，用这个聊天里最近 8 条已发出的文字消息和输入框里的内容向模型要后半句（最多 24 个字）；
+  输入框为空、最后一条是对方发的时，聚焦后给出一句回复。每人每分钟最多 30 次；多行草稿、输入法组字中、光标不在末尾时不问。
+- **加亮关键词**：每条文字消息（6 个字以上）发出后由服务器问一次，最多 3 个、必须是原文中的连续片段，存进消息，
+  稍后推给聊天里的每个人，气泡里加亮显示。
+- **与“对方正在输入”的实时预览隔离**：模型只读已经发出的消息，对方正在输入的内容（只转发、从不保存）永远不会送去；
+  建议只画在输入框上、不在输入框里，所以采用之前不会出现在对方看到的实时预览里；对方的实时预览气泡不加亮、不送模型，
+  某条消息的关键词到达时也不会把它清掉。
+- 设置 › 智能 里可以分别关闭“输入预测”和“加亮关键词”（只影响这台设备）。服务器没有 AI 绑定时整组不显示，也不发任何请求。
+- 费用：按 Workers AI 用量计费（有每日免费额度）。每条文字消息一次关键词请求，输入预测按停顿计。消息内容会交给你自己账号下的
+  Workers AI 处理，不经过第三方。
+
+本地开发：`npm run dev` / `npm run dev:e2e` 带 `--local`，不连 Workers AI（AI 关闭，其余照常）；想在本地试 AI 用 `npm run dev:ai`
+（需要先 `npx wrangler login`）。
+
 ### 主屏幕应用占满屏幕
 
 主屏幕应用使用默认状态栏样式（不用 `black-translucent`）。iOS 26.1 起（WebKit 301994，26.5 与 27 上再次出现），
@@ -236,12 +257,13 @@ Cuven，再用 Safari 重新添加一次（登录状态会在添加时从 Safari
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push 通知的密钥与发送方；不设置时自动生成并保存，发送方为应用地址 |
 | `TELEGRAM_BOT_TOKEN` | secret，可选 | 表情：用来读取 Telegram 表情包的机器人令牌；不设置则不显示表情 |
 | `STICKER_SETS` | var，可选 | 新账号一开始就有的表情包，逗号隔开；默认 `HandDrawnEmoji,GameEmoji`；也可在应用里添加 |
+| `AI_MODEL` | var，可选 | 智能输入用的 Workers AI 文本模型；默认 `@cf/qwen/qwen3-30b-a3b-fp8` |
 | `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的大致位置 |
 
 ## 本地开发
 
 ```bash
-npm run dev          # wrangler dev，打开 http://127.0.0.1:8787 ，点“创建账号”
+npm run dev          # wrangler dev --local，打开 http://127.0.0.1:8787 ，点“创建账号”（不连 Workers AI；试 AI 用 npm run dev:ai）
 npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测试向量、声明式消息）+ 通话信令与 /rtc 代理 + 输入校验 + 表情管线（模拟的 Bot API）
 ```
 
@@ -249,6 +271,8 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 - 没有配置通话服务时，通话按钮不会出现。想本地试通话 UI 用 `npm run dev:e2e`
   （即 `wrangler dev --var REALTIME_APP_ID:dummy --var REALTIME_APP_SECRET:dummy`）：信令与来电界面可用，
   真正接通需要真实的 Realtime 应用。端到端测试（`tools/e2e/`）都跑在它上面。
+- 智能输入回归：`node tools/e2e/assist.cjs` 验证空输入框的回复建议与后半句预测、灰字与输入框完全重合、照着打穿、Tab / 点按采用、Esc 收起、
+  采用前绝不出现在实时预览里、关闭或无 AI 时不请求、关键词加亮与开关、对方实时预览不加亮且关键词到达时不被清掉。
 - 表情加载回归：`node tools/e2e/stickers.cjs` 验证启动后提前取好的内容、面板第一帧就完整且图片立即显示、
   慢的时候用形状占位、图片晚到时先显示 emoji、图片缺失时保留 emoji、减少动态效果时同样不闪。
 - 界面走查脚本：`node tools/e2e/walkthrough.cjs docs/screenshots` 用 Playwright（Chromium）
@@ -303,12 +327,13 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
 
 ```
 src/            index.js（瘦代理）· hub.js（Durable Object）· store.js（SQLite）
-                auth.js（账号加密）· media.js（R2）· stickers.js（Telegram 表情 → R2）· call.js（Realtime 信令/代理）· push/
+                auth.js（账号加密）· media.js（R2）· stickers.js（Telegram 表情 → R2）· assist.js（Workers AI 智能输入）
+                call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
     ui/         视口与折叠、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
-                overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· avatar
+                overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· predict（输入预测）· avatar
     vendor/     lottie-web 5.13.0 light（MIT，原样）
 tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip · motion · continuity · stickers …）
 test/           store · auth · webpush · call · stickers（表情管线）· *-runtime（Miniflare 上跑整个 Worker）

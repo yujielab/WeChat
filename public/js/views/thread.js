@@ -42,7 +42,8 @@ const reactable = m => m && !isSys(m) && !String(m.id).startsWith('local:') && !
 const myReaction = m => m.reactions?.find(g => g.users.includes(state.me?.id))?.emoji || ''
 // What a bubble shows, apart from its reactions: a reaction alone patches the
 // chip in place rather than rebuilding (and re-fading) the whole message.
-const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name].join('\u0001')
+// What a bubble shows; its key words (src/assist.js) arrive after it and redraw it.
+const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name, (m.meta?.keys || []).join('\u0002')].join('\u0001')
 const reactSig = m => (m.reactions || []).map(g => `${g.emoji}${g.users.join(',')}`).join('|')
 
 /** Apply one person's reaction locally, mirroring the server's one-per-person rule. */
@@ -1155,7 +1156,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // ------------------------------------------------------------ live updates
   on('msg', (m, kind) => {
     if (m.chat !== current) return
-    if (!m.out) {
+    // A change to a message already there (a reaction, its key words) leaves
+    // the others' live typing alone.
+    if (!m.out && kind !== 'update') {
       clearGhost()
       clearTimeout(typingTimer)
       typingTimer = 0
@@ -1174,6 +1177,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       el.addEventListener('animationend', () => el.classList.remove('enter'), { once: true })
     }
     if (m.out) return
+    composer.offerReply()
     if (wasBottom && document.visibilityState === 'visible') markReadSoon(true)
     else {
       newCount++

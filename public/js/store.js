@@ -31,6 +31,7 @@ export const state = {
   socket: false,
   calls: { enabled: false },
   stickers: false,
+  assist: false,
   vapid: null,
   previews: new Map(),    // localId -> object URL for just-sent media
   restored: false         // painted from the cached bootstrap at launch

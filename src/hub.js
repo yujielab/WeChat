@@ -10,6 +10,7 @@ import {
 import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
+import { assistConfigured, allowSuggestion, suggest, keywords } from './assist.js'
 import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
@@ -190,6 +191,7 @@ export class Hub {
         presence: this.onlineUids(),
         vapid: (await this.vapid()).publicKey,
         calls: this.calls.configured(),
+        assist: assistConfigured(this.env),
         stickers: stickersConfigured(this.env)
       })
     }
@@ -293,6 +295,22 @@ export class Hub {
     }
     if (path === '/api/messages' && method === 'POST') {
       return this.postMessage(body, user)
+    }
+    // Writing help (src/assist.js): read from sent messages only, never from
+    // anyone's live typing preview. Quietly nothing when it isn't available.
+    if (path === '/api/ai/suggest' && method === 'POST') {
+      const roomId = String(body.room || '')
+      const draft = String(body.draft ?? '').slice(0, 200)
+      if (!assistConfigured(this.env) || !this.store.isMember(roomId, user.id) || /\n/.test(draft) || !allowSuggestion(user.id)) return json({ ok: true, text: '' })
+      const history = this.store.listMessages(roomId, { limit: 12 })
+        .filter(m => m.type === 'text' && m.state !== 'revoked' && m.body)
+        .map(m => ({ mine: m.sender === user.id, text: m.body }))
+      try {
+        return json({ ok: true, text: await suggest(this.env, { history, draft }) })
+      } catch (err) {
+        console.warn('assist suggest', err.message)
+        return json({ ok: true, text: '' })
+      }
     }
     if (path === '/api/react' && method === 'POST') {
       const target = this.store.getMessage(String(body.id || ''))
@@ -444,6 +462,11 @@ export class Hub {
       else this.sendToUser(uid, { t: 'msg', msg })
     }
     this.pushToOffline(roomId, user, msg)
+    // Its key words follow a moment later, for everyone in the room.
+    if (type === 'text' && assistConfigured(this.env)) {
+      const work = this.markKeys(msg)
+      this.ctx.waitUntil?.(work)
+    }
     if (localKey) {
       this.sentLocal ||= new Map()
       this.sentLocal.set(localKey, msg)
@@ -451,6 +474,18 @@ export class Hub {
       if (this.sentLocal.size > 500) this.sentLocal.delete(this.sentLocal.keys().next().value)
     }
     return json({ ok: true, msg, localId: body.localId || null })
+  }
+
+  async markKeys(msg) {
+    try {
+      const keys = await keywords(this.env, msg.body)
+      if (!keys.length) return
+      const updated = this.store.setKeys(msg.id, keys)
+      // Like a reaction: the message keeps its place and read state.
+      if (updated) this.fanoutToRoom(msg.room, { t: 'keys', id: msg.id, room: msg.room, keys })
+    } catch (err) {
+      console.warn('assist keys', err.message)
+    }
   }
 
   systemMessage(roomId, text) {

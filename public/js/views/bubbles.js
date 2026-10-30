@@ -58,8 +58,30 @@ function textBubble(m) {
     return h('div', { class: 'bubble jumbo', dataset: { kind: 'text' } }, h('span', { class: 'emoji-only' }, text))
   }
   const el = h('div', { class: 'bubble text', dataset: { kind: 'text' } })
-  el.append(...linkify(text))
+  const keys = m.status !== 'revoked' && Array.isArray(m.meta?.keys) ? m.meta.keys : []
+  el.append(...markKeys(linkify(text), keys))
   return el
+}
+
+// A sent message's key words (src/assist.js) marked where they appear in
+// its text, never inside a link. Whether the marks show is a setting
+// (:root[data-keys="off"] hides them), so switching it needs no redraw.
+function markKeys(parts, keys) {
+  const usable = keys.filter(k => typeof k === 'string' && k)
+  if (!usable.length) return parts
+  const re = new RegExp(usable.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+  return parts.flatMap(part => {
+    if (typeof part !== 'string') return [part]
+    const out = []
+    let last = 0
+    for (const m of part.matchAll(re)) {
+      if (m.index > last) out.push(part.slice(last, m.index))
+      out.push(h('mark', { class: 'kw' }, m[0]))
+      last = m.index + m[0].length
+    }
+    if (last < part.length) out.push(part.slice(last))
+    return out
+  })
 }
 
 function imageBubble(m, ctx) {

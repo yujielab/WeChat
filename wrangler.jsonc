@@ -33,6 +33,10 @@
   // Images, voice clips, files and avatars live in R2.
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cf-messenger-media" }],
 
+  // Workers AI (src/assist.js): input prediction and key-word highlights.
+  // A plain variable AI_MODEL picks another text model. Previews go without.
+  "ai": { "binding": "AI" },
+
   "vars": {
     // Where the Durable Object is created on first use.
     "DO_LOCATION_HINT": "apac"
