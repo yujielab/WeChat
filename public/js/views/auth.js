@@ -57,6 +57,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
     submitLabel.textContent = reg ? '创建账号' : '登录'
     loginTab.setAttribute('aria-pressed', String(!reg))
     registerTab.setAttribute('aria-pressed', String(reg))
+    for (const input of [username.input, password.input, display.input, code.input]) input.removeAttribute('aria-invalid')
     error.textContent = ''
     invite.setState('idle')
   }
@@ -79,7 +80,20 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
   }
   loginTab.addEventListener('click', () => setMode('login'))
   registerTab.addEventListener('click', () => setMode('register'))
-  for (const input of [username.input, password.input, display.input, code.input]) input.addEventListener('input', () => { error.textContent = '' })
+  tabs.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) || pending) return
+    e.preventDefault()
+    const next = e.key === 'Home' ? 'login' : e.key === 'End' ? 'register' : mode === 'login' ? 'register' : 'login'
+    setMode(next)
+    ;(next === 'login' ? loginTab : registerTab).focus()
+  })
+  for (const input of [username.input, password.input, display.input, code.input]) {
+    input.addEventListener('invalid', () => input.setAttribute('aria-invalid', 'true'))
+    input.addEventListener('input', () => {
+      error.textContent = ''
+      input.removeAttribute('aria-invalid')
+    })
+  }
   apply()
 
   form.addEventListener('submit', async e => {
@@ -88,10 +102,11 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
     const u = username.input.value.trim(), p = password.input.value
     if (!u || !p) return
     pending = true
+    form.setAttribute('aria-busy', 'true')
     invite.setState(mode === 'register' && needsCode ? 'pending' : 'idle')
     submit.disabled = loginTab.disabled = registerTab.disabled = true
     main.classList.add('is-submitting')
-    submit.replaceChildren(h('span', { class: 'spinner' }), h('span', {}, mode === 'register' ? '正在创建账号…' : '正在登录…'))
+    submit.replaceChildren(h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', {}, mode === 'register' ? '正在创建账号…' : '正在登录…'))
     error.textContent = ''
     try {
       const res = await fetch(mode === 'register' ? '/auth/register' : '/auth/login', {
@@ -115,6 +130,8 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
       submit.disabled = loginTab.disabled = registerTab.disabled = false
       main.classList.remove('is-submitting')
       submit.replaceChildren(submitLabel)
+    } finally {
+      form.removeAttribute('aria-busy')
     }
   })
 }

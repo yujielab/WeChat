@@ -5,9 +5,11 @@
 
 .ins {
   --ins-card: color-mix(in srgb, #fff 78%, transparent);
+  --ins-card-solid: #edf2f8;
   --ins-chip: color-mix(in srgb, #fff 86%, var(--fill-4));
   --ins-ink: #0b0b0d;
-  --ins-ink-2: rgb(11 11 13 / 0.56);
+  --ins-ink-2: rgb(11 11 13 / 0.68);
+  --ins-blur: blur(24px) saturate(1.4);
   min-height: 100%;
   margin: -4px 0 0;
   padding: 14px 14px 28px;
@@ -16,9 +18,9 @@
   color: var(--ins-ink);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .ins { --ins-card: color-mix(in srgb, #1c1f26 76%, transparent); --ins-chip: rgb(255 255 255 / 0.1); --ins-ink: #f2f3f5; --ins-ink-2: rgb(242 243 245 / 0.58); background: linear-gradient(180deg, #101827 0%, #1b2a44 45%, #23324c 100%); }
+  :root:not([data-theme="light"]) .ins { --ins-card: color-mix(in srgb, #1c1f26 76%, transparent); --ins-chip: rgb(255 255 255 / 0.1); --ins-ink: #f2f3f5; --ins-ink-2: rgb(242 243 245 / 0.68); --ins-card-solid: #1c1f26; background: linear-gradient(180deg, #101827 0%, #1b2a44 45%, #23324c 100%); }
 }
-:root[data-theme="dark"] .ins { --ins-card: color-mix(in srgb, #1c1f26 76%, transparent); --ins-chip: rgb(255 255 255 / 0.1); --ins-ink: #f2f3f5; --ins-ink-2: rgb(242 243 245 / 0.58); background: linear-gradient(180deg, #101827 0%, #1b2a44 45%, #23324c 100%); }
+:root[data-theme="dark"] .ins { --ins-card: color-mix(in srgb, #1c1f26 76%, transparent); --ins-chip: rgb(255 255 255 / 0.1); --ins-ink: #f2f3f5; --ins-ink-2: rgb(242 243 245 / 0.68); --ins-card-solid: #1c1f26; background: linear-gradient(180deg, #101827 0%, #1b2a44 45%, #23324c 100%); }
 
 .ins-status { display: flex; align-items: center; gap: 8px; margin: 0 6px 10px; font-size: var(--t-caption); color: rgb(255 255 255 / 0.9); }
 .ins-status .spinner { width: 13px; height: 13px; border-color: rgb(255 255 255 / 0.4); border-top-color: #fff; }
@@ -36,9 +38,9 @@
   border-radius: 28px;
   text-align: left;
   color: var(--ins-ink);
-  background: var(--ins-card);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  backdrop-filter: blur(24px) saturate(1.4);
+  background: var(--ins-solid, var(--ins-card));
+  -webkit-backdrop-filter: var(--ins-blur);
+  backdrop-filter: var(--ins-blur);
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 8px 24px -16px rgb(20 40 80 / 0.45);
   transition: transform var(--press-out) var(--ease-out);
 }
@@ -60,7 +62,7 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
 .ins-plate { position: absolute; left: 4.5%; right: 4.5%; top: 0; height: 22px; border-radius: 0 0 24px 24px; background: color-mix(in srgb, var(--ins-card) 82%, transparent); box-shadow: 0 6px 16px -12px rgb(20 40 80 / 0.5); }
 .ins-plate.second { left: 9%; right: 9%; top: 9px; height: 20px; opacity: 0.75; }
 .ins-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 2px 8px; color: rgb(255 255 255 / 0.85); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
-.ins-fold { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgb(255 255 255 / 0.18); }
+.ins-fold { width: var(--hit); height: var(--hit); border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgb(255 255 255 / 0.18); }
 .ins-fold .icon { width: 17px; height: 17px; }
 .ins-in { animation: ins-in 300ms var(--ease-out) calc(var(--i, 0) * 35ms) backwards; }
 @keyframes ins-in { from { opacity: 0; transform: translateY(-14px) scale(0.97); } }
@@ -72,7 +74,7 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
 .ins-skeleton .ins-text { gap: 10px; }
 
 /* Weather: a widget with the place, and two tiles. */
-.ins-weather { margin-top: 18px; padding: 18px; border-radius: 30px; background: var(--ins-card); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 24px -16px rgb(20 40 80 / 0.45); }
+.ins-weather { margin-top: 18px; padding: 18px; border-radius: var(--r-sheet); background: var(--ins-solid, var(--ins-card)); -webkit-backdrop-filter: var(--ins-blur); backdrop-filter: var(--ins-blur); box-shadow: 0 8px 24px -16px rgb(20 40 80 / 0.45); }
 .ins-weather-head { display: flex; align-items: center; gap: 10px; margin: 0 4px 14px; font-size: 1.06rem; }
 .ins-weather-head .icon { width: 26px; height: 26px; }
 .ins-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -85,7 +87,7 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
 /* In a conversation's details: the same cards, on the page itself. */
 .ins-section { margin: 0 0 6px; }
 .ins-plain { margin: 0 20px; }
-.ins-plain .ins-card { --ins-card: var(--bg-elevated); --ins-chip: var(--field); --ins-ink: var(--label); --ins-ink-2: var(--label-2); min-height: 0; padding: 14px 16px; border-radius: 22px; box-shadow: 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.ins-plain .ins-card { --ins-card: var(--bg-elevated); --ins-chip: var(--field); --ins-ink: var(--label); --ins-ink-2: var(--label-2); min-height: 0; padding: 14px 16px; border-radius: var(--r-tile); box-shadow: 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .ins-plain .ins-line { font-size: var(--t-body); line-height: 1.7; }
 
 /* The way in, at the top of the list. */
@@ -98,3 +100,10 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
   :root:not([data-motion="full"]) .ins-in { animation: none; }
 }
 :root[data-motion="reduce"] .ins-in { animation: none; }
+
+/* The notification cards follow the same material preference as the rest
+   of the app, including their weather widget. Text stays on an opaque face. */
+:root[data-glass="solid"] .ins { --ins-solid: var(--ins-card-solid); --ins-blur: none; }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .ins { --ins-solid: var(--ins-card-solid); --ins-blur: none; }
+}

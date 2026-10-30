@@ -20,7 +20,7 @@ function trapTab(event, surface, ...more) {
   // One surface, or several that act as one (a menu and its reactions).
   const surfaces = [...more, surface]
   const targets = surfaces.flatMap(el => [...el.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')])
-    .filter(el => el.getClientRects().length && !el.closest('[hidden], [inert]'))
+    .filter(el => el.tabIndex >= 0 && el.getClientRects().length && !el.closest('[hidden], [inert]'))
   const first = targets[0]
   const last = targets.at(-1)
   const inside = surfaces.some(el => el.contains(document.activeElement))
