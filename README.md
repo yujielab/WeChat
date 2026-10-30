@@ -87,7 +87,7 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
 - **图片**（手机端先压缩再传）与**手绘画板**（速度自适应笔触、调色板、撤销，发出为“手绘”消息）
 - **语音 / 视频通话**：基于 **Cloudflare Realtime（SFU）**，一对一与群组都支持，自带 TURN 穿透
 - **联系人**：按用户名查找、互相添加；发起单聊 / 新建群聊、群成员管理
-- **通知**：新消息与来电用 **Declarative Web Push**（Safari 18.4 起由系统直接显示，应用退出或在后台也能收到；其他浏览器经 Service Worker 显示同一条消息），带应用角标；需加到主屏幕并配置 VAPID
+- **通知**：新消息与来电用 **Declarative Web Push**（Safari 18.4 起由系统直接显示，应用退出或在后台也能收到；其他浏览器经 Service Worker 显示同一条消息），带应用角标；需加到主屏幕，推送密钥自动生成
 - **外观**：默认白色浅色界面，可切换深色 / 跟随系统；降低透明度、减少动态效果、触感反馈
 - **iPhone Duo**：每栏底部的胶囊栏与优先级溢出、外屏单栏 / 内屏分栏、折叠区与相机避让、弹层按所在栏放置
 
@@ -174,16 +174,20 @@ npx wrangler deploy
 
 未配置时，通话入口会提示“通话服务未配置”，其余功能照常。
 
-### 开启新消息通知（可选）
+### 新消息通知（无需配置）
+
+推送服务自动配置：没有设置 VAPID 密钥时，服务器在第一次用到推送时自己生成一对，保存在 Durable Object 里，
+之后一直用同一对；推送请求以应用自己的地址（例如 `https://wechat.cuven.us`）标明发送方。
+iOS 需先用 Safari“添加到主屏幕”，再从主屏幕打开，在“设置 › 通知”里开启。
+
+想用自己的密钥时再设置（可选）。换了密钥后，已开启通知的设备会在下次打开应用时自动重新订阅，不需要再次授权：
 
 ```bash
 npm run vapid                          # 生成一对 VAPID 密钥
 npx wrangler secret put VAPID_PUBLIC_KEY
 npx wrangler secret put VAPID_PRIVATE_KEY
-npx wrangler secret put VAPID_SUBJECT   # 例如 mailto:you@example.com
+npx wrangler secret put VAPID_SUBJECT   # 可选，例如 mailto:you@example.com
 ```
-
-iOS 需先用 Safari“添加到主屏幕”，再从主屏幕打开，在“设置 › 通知”里开启。
 
 ### 主屏幕应用占满屏幕
 
@@ -199,7 +203,7 @@ Cuven，再用 Safari 重新添加一次（登录状态会在添加时从 Safari
 | `SIGNUP_CODE` | secret，可选 | 注册邀请码；不设置则任何人都能注册 |
 | `REALTIME_APP_ID` / `REALTIME_APP_SECRET` | secret | 语音 / 视频通话（Cloudflare Realtime SFU） |
 | `REALTIME_TURN_KEY_ID` / `REALTIME_TURN_KEY_TOKEN` | secret，可选 | Realtime TURN，改善 NAT 穿透 |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push 通知 |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | secret，可选 | Web Push 通知的密钥与发送方；不设置时自动生成并保存，发送方为应用地址 |
 | `DO_LOCATION_HINT` | var，默认 `apac` | Durable Object 首次创建的大致位置 |
 
 ## 本地开发

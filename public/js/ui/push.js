@@ -24,7 +24,7 @@ export async function enablePush(vapid) {
   if (await Notification.requestPermission() !== 'granted') throw new Error('没有获得通知权限')
   const pm = await manager()
   if (!pm) throw new Error('此设备不支持网页推送')
-  const sub = await pm.getSubscription() || await pm.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(vapid) })
+  const sub = await keptSubscription(pm, vapid) || await pm.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(vapid) })
   await api.post('/api/push/subscribe', { sub: sub.toJSON() })
   await retireWorkerSubscription(sub)
   return sub
@@ -49,15 +49,31 @@ export async function syncPush(vapid) {
   try {
     const pm = await manager()
     if (!pm) return
-    let sub = await pm.getSubscription()
-    if (!sub && declarative() && await swManager().then(m => m?.getSubscription()).catch(() => null)) {
-      // Subscribed through the service worker before: move to the page's.
+    const had = await pm.getSubscription()
+    let sub = await keptSubscription(pm, vapid)
+    if (!sub && (had || (declarative() && await swManager().then(m => m?.getSubscription()).catch(() => null)))) {
+      // Made for another server key, or through the service worker before:
+      // subscribe again (permission is already granted, so nothing asks).
       sub = await pm.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(vapid) })
     }
     if (!sub) return
     await api.post('/api/push/subscribe', { sub: sub.toJSON() })
     await retireWorkerSubscription(sub)
   } catch {}
+}
+
+// A subscription made for a different server key (one set or changed since)
+// would be refused by the push service: let it go so a fresh one is made.
+async function keptSubscription(pm, vapid) {
+  const sub = await pm.getSubscription()
+  const key = sub?.options?.applicationServerKey
+  if (!sub || !key) return sub
+  const mine = new Uint8Array(key)
+  const theirs = b64urlToBytes(vapid)
+  if (mine.length === theirs.length && mine.every((v, i) => v === theirs[i])) return sub
+  await api.post('/api/push/unsubscribe', { endpoint: sub.endpoint }).catch(() => {})
+  await sub.unsubscribe().catch(() => {})
+  return null
 }
 
 // With a page subscription in place, an older service-worker one would only

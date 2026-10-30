@@ -62,5 +62,6 @@
   //   REALTIME_APP_SECRET  Cloudflare Realtime app secret
   //   REALTIME_TURN_KEY_ID      optional — Realtime TURN key id (NAT traversal)
   //   REALTIME_TURN_KEY_TOKEN   optional — Realtime TURN key token
-  //   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT  optional — Web Push
+  //   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT  optional — Web Push;
+  //     without them the hub generates a key pair once and keeps it
 }
