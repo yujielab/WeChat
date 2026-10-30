@@ -381,8 +381,9 @@ export class Hub {
         const insight = await analyze(this.env, { messages, me: user.id, tzOffset: tz, now, photos })
         this.store.kvSet(`insight:${user.id}:${roomId}`, { last: room.last?.id || '', at: now, data: insight })
       } catch (err) {
+        // Quietly what was read before (as writing help is quietly nothing).
         console.warn('insights', err.message)
-        return json({ ok: false, error: '暂时整理不了' }, 502)
+        return json({ ok: true, ...this.insightOf(user.id, room), failed: true })
       }
       return json({ ok: true, ...this.insightOf(user.id, room) })
     }

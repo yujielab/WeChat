@@ -18,6 +18,7 @@ export class AI extends WorkerEntrypoint {
     if (input.image) { seen.push({ model, image: input.image.length }); return { description: 'a beach at sunset' } }
     const text = input.messages.map(m => typeof m.content === 'string' ? m.content : '').join('\\n')
     seen.push({ model, text })
+    if (answer === '"THROW"') throw new Error('model unavailable')
     return { response: answer }
   }
 }
@@ -114,6 +115,24 @@ test('smart panels: read when asked, for you alone; photos described once; weath
     const again = (await request('/api/insights/refresh', { room, tz: -480 }, a.cookie)).data
     assert.equal(again.limited, true)
     assert.equal((await seen()).length, prompts.length, 'no new call')
+
+    // A model that answers nonsense makes nothing up; one that fails is quietly nothing new.
+    const e = await register('ins-e')
+    const room3 = (await request('/api/dm', { user: a.id }, e.cookie)).data.room.id
+    await request('/api/messages', { room: room3, type: 'text', text: '你好' }, a.cookie)
+    await say('not json at all')
+    const empty = await request('/api/insights/refresh', { room: room3, tz: -480 }, e.cookie)
+    assert.equal(empty.data.insight.city, '')
+    assert.equal(empty.data.insight.summary, '', 'nothing made up from a broken answer')
+    const f = await register('ins-f')
+    const room4 = (await request('/api/dm', { user: a.id }, f.cookie)).data.room.id
+    await request('/api/messages', { room: room4, type: 'text', text: '在吗' }, a.cookie)
+    await say('THROW')
+    const down = await request('/api/insights/refresh', { room: room4, tz: -480 }, f.cookie)
+    assert.equal(down.response.status, 200, 'not an error to show')
+    assert.equal(down.data.failed, true)
+    assert.equal(down.data.insight, null)
+    assert.equal(down.data.stale, true, 'still to be read')
 
     // Not theirs to read, and not a group.
     const c = await register('ins-c')
