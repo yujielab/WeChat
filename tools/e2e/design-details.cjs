@@ -1,6 +1,7 @@
 // End-to-end design details, driven through actual local registration and media APIs.
 // Start npm run dev:e2e (calls switched on), then: node tools/e2e/design-details.cjs [outdir]
-// Covers preview-before-send, failure/retry, Unicode invite codes and narrow layouts.
+// Covers preview-before-send, failure/retry, Unicode invite codes, narrow layouts and the
+// status area's colour under a sheet.
 const { chromium } = require('playwright')
 const fs = require('fs')
 const assert = require('node:assert/strict')
@@ -40,8 +41,21 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  const reg=async(p,user,name)=>{await p.goto(BASE);await p.click('.auth-tab:has-text("创建账号")');await p.fill('#auth-u',user);await p.fill('#auth-d',name);await p.fill('#auth-p','hunter2');await p.click('.auth-submit');await p.waitForSelector('.shell')}
  await reg(a,`refa_${uniq}`,'艾米');await reg(b,`refb_${uniq}`,'本')
  await a.setViewportSize({width:466,height:678})
+ // Home Screen apps keep the default status bar: with black-translucent, iOS 26.1+ (WebKit 301994)
+ // cuts the viewport short and leaves a strip the page cannot paint.
+ assert.equal(await a.getAttribute('meta[name="apple-mobile-web-app-status-bar-style"]','content'),'default')
+ const themeColor=()=>a.getAttribute('meta[name="theme-color"]','content')
+ assert.equal(await themeColor(),'#ffffff')
  await a.click('.pane-list [data-item="compose"]');await a.fill('.sheet-search input',`refb_${uniq}`)
+ // While the sheet dims the app, the theme colour is the colour at the screen's edge, so the
+ // status area beside the page dims with it.
+ await a.waitForSelector('.scrim.on');await sleep(700)
+ const edge=(await a.screenshot({clip:{x:233,y:2,width:1,height:1}})).toString('base64')
+ const px=await a.evaluate(async src=>{const img=new Image();img.src='data:image/png;base64,'+src;await img.decode();const c=document.createElement('canvas');c.width=c.height=1;const g=c.getContext('2d');g.drawImage(img,0,0);return[...g.getImageData(0,0,1,1).data.slice(0,3)]},edge)
+ const dimmed=await themeColor(),want=[1,3,5].map(i=>parseInt(dimmed.slice(i,i+2),16))
+ assert.ok(dimmed!=='#ffffff'&&want.every((v,i)=>Math.abs(v-px[i])<=3),'theme colour matches the dimmed edge '+JSON.stringify({dimmed,px}))
  await a.locator(`.sheet .cell:has-text("@refb_${uniq}")`).click();await a.waitForSelector('.thread:not([hidden])')
+ assert.equal(await themeColor(),'#ffffff','theme colour restored when the sheet closes')
  await b.click('.row');await b.waitForSelector('.thread:not([hidden])')
  await a.fill('.composer textarea','图片、手绘，还有一点心意。');await a.keyboard.press('Enter')
  await b.locator('.bubble.text:has-text("一点心意")').waitFor()
