@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { encryptPayload, b64urlDecode, b64urlEncode } from '../src/push/webpush.js'
+import { encryptPayload, b64urlDecode, b64urlEncode, generateVapid, vapidAuthorization } from '../src/push/webpush.js'
 
 // RFC 8291, Appendix A.
 const V = {
@@ -33,4 +33,18 @@ test('fresh encryption produces a well-formed header', async () => {
   assert.equal(body[21], 4)
   // salt + rs + idlen + key + (plaintext + delimiter) + tag
   assert.equal(body.length, 16 + 4 + 1 + 65 + 8 + 16)
+})
+
+test('a generated VAPID key signs a JWT the push service can verify, identified by the app', async () => {
+  const keys = await generateVapid()
+  assert.equal(b64urlDecode(keys.publicKey).length, 65)
+  const auth = await vapidAuthorization({ ...keys, subject: 'https://wechat.cuven.us' }, 'https://web.push.apple.com/abc')
+  const [, jwt, k] = auth.match(/^vapid t=([^,]+), k=(.+)$/)
+  assert.equal(k, keys.publicKey)
+  const [h, c, s] = jwt.split('.')
+  const claims = JSON.parse(new TextDecoder().decode(b64urlDecode(c)))
+  assert.equal(claims.aud, 'https://web.push.apple.com')
+  assert.equal(claims.sub, 'https://wechat.cuven.us')
+  const pub = await crypto.subtle.importKey('raw', b64urlDecode(keys.publicKey), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+  assert.ok(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, b64urlDecode(s), new TextEncoder().encode(`${h}.${c}`)))
 })

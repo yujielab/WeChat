@@ -7,7 +7,7 @@ import {
   hashPassword, verifyPassword, mintToken, readToken,
   cookieHeader, clearCookieHeader, readCookie, b64url
 } from './auth.js'
-import { sendWebPush, pushConfigured, declarativeMessage } from './push/webpush.js'
+import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
 
@@ -152,7 +152,7 @@ export class Hub {
 
     // --- self / profile
     if (path === '/api/me' && method === 'GET') {
-      return json({ ok: true, me: this.store.pub(user), vapid: this.env.VAPID_PUBLIC_KEY || null })
+      return json({ ok: true, me: this.store.pub(user), vapid: (await this.vapid()).publicKey })
     }
     if (path === '/api/profile' && method === 'POST') {
       const patch = {}
@@ -186,7 +186,7 @@ export class Hub {
         rooms: this.store.listRoomsFor(user.id),
         contacts: this.store.listContacts(user.id),
         presence: this.onlineUids(),
-        vapid: this.env.VAPID_PUBLIC_KEY || null,
+        vapid: (await this.vapid()).publicKey,
         calls: this.calls.configured()
       })
     }
@@ -506,17 +506,46 @@ export class Hub {
   }
 
   /**
+   * Push works with no setup: VAPID keys set as secrets win; otherwise the
+   * hub makes a pair the first time one is needed and keeps it, so every
+   * device subscribes to the same key from then on. Concurrent first calls
+   * share one generation.
+   */
+  vapid() {
+    this.vapidReady ||= (async () => {
+      if (this.env.VAPID_PUBLIC_KEY && this.env.VAPID_PRIVATE_KEY) {
+        return { publicKey: this.env.VAPID_PUBLIC_KEY, privateKey: this.env.VAPID_PRIVATE_KEY }
+      }
+      let keys = this.store.kvGet('vapid')
+      if (!keys?.publicKey || !keys?.privateKey) {
+        keys = await generateVapid()
+        this.store.kvSet('vapid', keys)
+      }
+      return keys
+    })().catch(err => {
+      this.vapidReady = null
+      throw err
+    })
+    return this.vapidReady
+  }
+
+  /**
    * Sends a Declarative Web Push notification to every device a user has
    * subscribed. `link` is a path in the app. Returns how many were accepted.
+   * The sender identifies itself by the app's own address unless a subject
+   * is set.
    */
   async pushTo(uid, { link, ...notification }, options) {
-    if (!pushConfigured(this.env)) return 0
+    const subs = this.store.listSubs(uid)
+    if (!subs.length) return 0
+    const keys = await this.vapid()
     let sent = 0
-    for (const { id, sub } of this.store.listSubs(uid)) {
+    for (const { id, sub } of subs) {
       const origin = this.appOrigin(sub)
       if (!origin) continue
       try {
-        const res = await sendWebPush(this.env, sub, declarativeMessage({ ...notification, navigate: origin + link }), options)
+        const vapid = { ...keys, subject: this.env.VAPID_SUBJECT || origin }
+        const res = await sendWebPush(vapid, sub, declarativeMessage({ ...notification, navigate: origin + link }), options)
         if (res && (res.status === 404 || res.status === 410)) this.store.removeSub(id)
         else if (res?.ok) sent++
       } catch {}
@@ -525,7 +554,6 @@ export class Hub {
   }
 
   async pushToOffline(roomId, sender, msg) {
-    if (!pushConfigured(this.env)) return
     const room = this.store.getRoom(roomId)
     const title = room.kind === 'dm' ? sender.display : (room.name || '群聊')
     const preview = room.kind === 'dm' ? this.preview(msg) : `${sender.display}: ${this.preview(msg)}`

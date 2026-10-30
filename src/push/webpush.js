@@ -3,8 +3,15 @@
 
 const enc = new TextEncoder()
 
-export function pushConfigured(env) {
-  return Boolean(env?.VAPID_PUBLIC_KEY && env?.VAPID_PRIVATE_KEY)
+/**
+ * A fresh VAPID key pair: the public key as the raw point, base64url (what
+ * browsers take as applicationServerKey), the private key as its JWK `d`.
+ */
+export async function generateVapid() {
+  const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
+  const publicKey = b64urlEncode(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey)))
+  const { d } = await crypto.subtle.exportKey('jwk', pair.privateKey)
+  return { publicKey, privateKey: d }
 }
 
 export function b64urlEncode(bytes) {
@@ -82,19 +89,20 @@ export async function encryptPayload(plaintext, uaPublic, authSecret, opts = {})
   return concat(header, cipher)
 }
 
-async function vapidAuthorization(env, endpoint) {
-  const publicRaw = b64urlDecode(env.VAPID_PUBLIC_KEY)
+/** vapid: { publicKey, privateKey, subject } — subject a mailto: or https: URL (RFC 8292). */
+export async function vapidAuthorization(vapid, endpoint) {
+  const publicRaw = b64urlDecode(vapid.publicKey)
   const key = await crypto.subtle.importKey(
-    'jwk', p256Jwk(publicRaw, env.VAPID_PRIVATE_KEY), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']
+    'jwk', p256Jwk(publicRaw, vapid.privateKey), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']
   )
   const header = b64urlEncode(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })))
   const claims = b64urlEncode(enc.encode(JSON.stringify({
     aud: new URL(endpoint).origin,
     exp: Math.floor(Date.now() / 1000) + 12 * 3600,
-    sub: env.VAPID_SUBJECT || 'mailto:wechat-glass@example.invalid'
+    sub: vapid.subject || 'mailto:push@cuven.invalid'
   })))
   const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, enc.encode(`${header}.${claims}`))
-  return `vapid t=${header}.${claims}.${b64urlEncode(sig)}, k=${env.VAPID_PUBLIC_KEY}`
+  return `vapid t=${header}.${claims}.${b64urlEncode(sig)}, k=${vapid.publicKey}`
 }
 
 /**
@@ -122,7 +130,7 @@ async function topicFor(tag) {
  * replaces any undelivered message with the same topic (a newer preview of
  * the same chat, or a call that has since ended).
  */
-export async function sendWebPush(env, subscription, payload, { ttl = 86400, topic = null } = {}) {
+export async function sendWebPush(vapid, subscription, payload, { ttl = 86400, topic = null } = {}) {
   const body = await encryptPayload(
     enc.encode(JSON.stringify(payload)),
     b64urlDecode(subscription.keys.p256dh),
@@ -133,7 +141,7 @@ export async function sendWebPush(env, subscription, payload, { ttl = 86400, top
     'Content-Type': 'application/octet-stream',
     TTL: String(ttl),
     Urgency: 'high',
-    Authorization: await vapidAuthorization(env, subscription.endpoint)
+    Authorization: await vapidAuthorization(vapid, subscription.endpoint)
   }
   if (topic) headers.Topic = await topicFor(topic)
   return fetch(subscription.endpoint, { method: 'POST', headers, body, signal: AbortSignal.timeout(15000) })
