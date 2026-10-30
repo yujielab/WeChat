@@ -1,8 +1,8 @@
 // iPhone Duo bars and safe regions: every control inside the safe region at
 // 44pt or more, the conversation's calls and details in its heading after the
-// name, Back leading the bar at its foot on the field's row with drawing and
-// photos after the field, and items overflowing into the one menu by
-// priority, keeping Back and focus.
+// name, Back leading the bar at its foot on the field's row with the field's
+// button (photos and drawing, or Send) after it, items overflowing into the one menu by priority,
+// keeping Back and focus, and the newest message readable above the bar.
 // Uses browser-only message fixtures and intercepts auth/API; no server data is created.
 // npm run dev:e2e; node tools/e2e/safe-layout.cjs [outdir]
 const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path')
@@ -29,11 +29,12 @@ for(const c of [
 ]){await p.setViewportSize({width:c.w,height:c.h});await p.evaluate(c=>{const root=document.documentElement;for(const[k,v]of Object.entries({'--safe-top':'0px','--safe-left':'0px','--safe-right':c.right+'px','--safe-bottom':c.bottom+'px'}))root.style.setProperty(k,v);root.style.fontSize=c.zoom?'212.5%':'106.25%';const two=c.split||c.lead,role=c.split?'trailing':c.lead?'leading':'single',pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout=two?'split':'stack';pane.dataset.role=role;pane.style.transform=c.split?'translate3d(calc(100% + var(--gap)),0,0)':'';testThread.setLayout(role)},c);await settle();
 // The keyboard shrinks only the visual viewport; the bar rides above it.
 await p.evaluate(c=>{const field=document.querySelector('.composer textarea');if(c.kb){field.focus({preventScroll:true});Object.defineProperty(visualViewport,'height',{get:()=>c.kb,configurable:true})}else{field.blur();delete visualViewport.height}visualViewport.dispatchEvent(new Event('resize'))},c);await p.waitForTimeout(250);const H=c.kb||c.h,B=c.kb?0:c.bottom;
-const d=await p.evaluate(()=>{const r=e=>{const b=e.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,w:b.width,h:b.height}};const thread=document.querySelector('.thread'),nav=document.querySelector('.thread-nav');return{thread:r(thread),header:r(nav),scroll:r(document.querySelector('.thread-scroll')),field:r(document.querySelector('.composer .field')),title:r(document.querySelector('.thread-title')),items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>({id:e.dataset.item||'more',...r(e)})),overflow:thread.scrollWidth>thread.clientWidth,underHeader:Boolean(document.elementFromPoint(nav.getBoundingClientRect().left+100,nav.getBoundingClientRect().bottom-2)?.closest('.m'))}});console.log(JSON.stringify({case:c,items:d.items.map(i=>i.id)}));
+const d=await p.evaluate(()=>{const r=e=>{const b=e.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,w:b.width,h:b.height}};const thread=document.querySelector('.thread'),nav=document.querySelector('.thread-nav');return{thread:r(thread),header:r(nav),scroll:r(document.querySelector('.thread-scroll')),field:r(document.querySelector('.composer .field')),action:r(document.querySelector('.composer-action')),title:r(document.querySelector('.thread-title')),items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>({id:e.dataset.item||'more',...r(e)})),overflow:thread.scrollWidth>thread.clientWidth,underHeader:Boolean(document.elementFromPoint(nav.getBoundingClientRect().left+100,nav.getBoundingClientRect().bottom-2)?.closest('.m'))}});console.log(JSON.stringify({case:c,items:d.items.map(i=>i.id)}));
 assert.ok(d.scroll.y>=d.header.bottom-.5);assert.equal(d.underHeader,false);assert.equal(d.overflow,false);
 // Everything stays inside the safe area, the Duo's own right-hand column included.
-for(const b of[...d.items,d.field]){const limit=Math.min(c.w-c.right,d.thread.right);assert.ok(b.x>=d.thread.x-.5&&b.right<=limit+.5,'safe horizontal '+b.id);assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
+for(const b of[...d.items,d.field,{id:'action',...d.action}]){const limit=Math.min(c.w-c.right,d.thread.right);assert.ok(b.x>=d.thread.x-.5&&b.right<=limit+.5,'safe horizontal '+b.id);assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
 for(const b of d.items)assert.ok(b.w>=44&&b.h>=44,'44pt '+b.id)
+assert.ok(d.action.w>=55.5&&d.action.h>=55.5,'the field\'s button is 56pt')
 const ids=d.items.map(i=>i.id),item=id=>d.items.find(i=>i.id===id)
 // The heading: the calls and the details follow the name.
 for(const id of['audio','video','info'])if(item(id)){assert.ok(item(id).x>=d.title.right-.5,id+' after the name');assert.ok(item(id).y>=d.header.y-.5&&item(id).bottom<=d.header.bottom+.5,id+' in the heading')}
@@ -42,16 +43,23 @@ for(const id of['audio','video','info'])if(item(id)){assert.ok(item(id).x>=d.tit
 const onRow=i=>i.bottom<=d.field.bottom+.5&&i.bottom>=d.field.bottom-7
 if(c.split)assert.ok(!item('back'),'no Back beside the list')
 else{assert.ok(item('back'),'Back never overflows');assert.ok(item('back').right<=d.field.x+.5&&onRow(item('back')),'Back leads the bar '+JSON.stringify({back:item('back'),field:d.field}))}
-for(const id of['draw','photo'])if(item(id))assert.ok(item(id).x>=d.field.right-.5&&onRow(item(id)),id+' after the field')
+// The field's one button (photos and drawing, or Send) follows it on the same row.
+assert.ok(d.action.x>=d.field.right-.5&&onRow(d.action),'button after the field '+JSON.stringify({action:d.action,field:d.field}))
 assert.ok(d.field.bottom<=H-B+.5&&d.field.bottom>=H-B-Math.max(16,0)-30,'the bar sits at the foot '+JSON.stringify(d.field))
 if(c.overflow){
  // Overflow goes by priority into the one menu, at the end of the heading; Back stays.
  assert.ok(ids.includes('more'),'overflow button');assert.ok(item('more').x>=d.title.right-.5,'menu button in the heading')
  await p.click('.thread .bar-more');await p.locator('.menu.on').waitFor();await p.waitForTimeout(200);const b=await p.locator('.menu').boundingBox();assert.ok(b.x>=9&&b.x+b.width<=c.w-c.right-9&&b.y>=9&&b.y+b.height<=H-B-9,'menu safe region')
  const m=await p.locator('.thread .bar-more').boundingBox();assert.ok(b.y>=m.y+m.height,'menu below its control '+JSON.stringify({b,m}))
- const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('聊天信息')&&labels.includes('照片'),'overflowed items in the menu '+labels)
+ const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('聊天信息'),'overflowed items in the menu '+labels)
  await p.getByRole('menuitemcheckbox',{name:'聊天信息',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'info:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
 }else assert.ok(!ids.includes('more'),'nothing overflows '+ids)
+// At the newest message, it and its status stay fully readable above the floating bar, also once
+// the field grows to several lines. The room is a real element at the foot of the log: Safari leaves
+// a column-reverse scroller's bottom padding out of what it scrolls.
+const clear=async lines=>{await p.evaluate(n=>{const t=document.querySelector('.composer textarea');t.value=Array.from({length:n},(_,i)=>'第'+(i+1)+'行').join('\n');t.dispatchEvent(new Event('input',{bubbles:true}))},lines);await p.waitForTimeout(160);return p.evaluate(()=>{const s=document.querySelector('.thread-scroll');s.scrollTop=0;const r=e=>e.getBoundingClientRect(),field=r(document.querySelector('.composer .field')),last=[...document.querySelectorAll('.msgs .m')].at(-1),meta=document.querySelector('.msgs > .m-meta');return{field:field.top,last:r(last).bottom,meta:meta&&meta.textContent?r(meta).bottom:0,pad:parseFloat(getComputedStyle(s).paddingBottom),foot:r(document.querySelector('.thread-foot')).height,bar:document.querySelector('.composer').offsetHeight}})}
+for(const lines of[0,4]){const v=await clear(lines);assert.ok(v.last<=v.field-8&&v.meta<=v.field-8,'newest message clear of the bar '+JSON.stringify({lines,...v}));assert.equal(v.pad,0);assert.ok(Math.abs(v.foot-(v.bar+14))<=1,'foot follows the bar '+JSON.stringify(v))}
+await clear(0)
 if(c.name)await p.screenshot({path:path.join(OUT,c.name+'.png')})
 }
 
@@ -59,5 +67,5 @@ if(c.name)await p.screenshot({path:path.join(OUT,c.name+'.png')})
 await p.setViewportSize({width:466,height:678});await p.evaluate(()=>{const root=document.documentElement;delete visualViewport.height;root.style.fontSize='106.25%';root.style.setProperty('--safe-right','0px');root.style.setProperty('--safe-bottom','0px');const pane=document.querySelector('.pane');document.querySelector('.shell').dataset.layout='stack';pane.dataset.role='single';pane.style.transform='';testThread.setLayout('single')});await settle()
 await p.locator('.thread [data-item="info"]').focus();await p.setViewportSize({width:300,height:678});await settle();assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true,'focus moves to the menu button')
 await p.setViewportSize({width:466,height:678});await settle();assert.equal(await p.locator('.thread [data-item="info"]').evaluate(e=>e===document.activeElement),true,'and back')
-assert.deepEqual(errors,[]);console.log('PASS: safe regions with 44pt targets at every window, inset and keyboard; calls and details after the name; Back leading the bar at the foot on the field row, drawing and photos after the field; overflow by priority into the heading menu keeping Back; menu safe region; overflow focus')
+assert.deepEqual(errors,[]);console.log('PASS: safe regions with 44pt targets at every window, inset and keyboard; calls and details after the name; Back leading the bar at the foot on the field row, the field's button after it; overflow by priority into the heading menu keeping Back; menu safe region; overflow focus; newest message and its status clear of the bar at rest, with the keyboard and with a multi-line field')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

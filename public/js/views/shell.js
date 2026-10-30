@@ -169,7 +169,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
   function syncToggles() {
     const art = strip.focus === ARTIFACT ? artifact.current : null
     thread.bars.set('info', { state: { active: art?.kind === 'info' } })
-    thread.bars.set('draw', { state: { active: art?.kind === 'draw' } })
+    thread.setTool('draw', art?.kind === 'draw')
   }
 
   /**

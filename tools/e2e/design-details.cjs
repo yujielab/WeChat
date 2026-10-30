@@ -61,7 +61,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  await b.locator('.bubble.text:has-text("一点心意")').waitFor()
  const png=await a.evaluate(()=>{const c=document.createElement('canvas');c.width=600;c.height=400;const g=c.getContext('2d');g.fillStyle='#eee8dc';g.fillRect(0,0,600,400);g.fillStyle='#262723';g.font='100px sans-serif';g.fillText('hello :)',80,235);return c.toDataURL('image/png').split(',')[1]})
  const file={name:'hello.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')}
- await a.click('.thread [data-item="photo"]');await a.waitForSelector('.attachment-sheet.on')
+ await a.click('.thread .composer-action');await a.click('.composer-tool[data-tool="photo"]');await a.waitForSelector('.attachment-sheet.on')
  await a.locator('.attachment-file-input').setInputFiles([file]);await a.locator('.attachment-file-input').dispatchEvent('change');assert.equal(await a.locator('.attachment-preview').count(),1)
  await shot(a,'12-attachment-preview')
  // The deliberate network delay lets us inspect a genuine in-flight stage.

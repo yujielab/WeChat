@@ -98,16 +98,29 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy);
+  transition: transform var(--press-out) var(--ease-out);
 }
 
-/* Immediate contact; the shared spring releases the control under the finger. */
+/* One press for every button: on contact it sinks to 98% and dims a shade
+   within 100ms; let go, it eases back from wherever it got to. Only the
+   drawing scales: the button keeps its place, and an edge 1pt wider than
+   it keeps the target at least its full size while pressed. Large rows
+   change their fill instead (list.css). Actions run on the click. */
 .glass-btn.is-pressed,
-.glass-pill.is-pressed { transform: scale(0.95); transition-duration: var(--press-dur); }
-
-/* Solid, opaque controls (send button, primary buttons) sink a little. */
-.solid-press { transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
-.solid-press.is-pressed { transform: scale(0.97); transition-duration: var(--press-dur); }
+.glass-pill.is-pressed,
+.solid-press.is-pressed,
+.composer-action.is-pressed { transform: scale(var(--press-scale)); transition-duration: var(--press-in); }
+.solid-press { transition: transform var(--press-out) var(--ease-out); }
+.glass-btn.bar-item::after, .composer-action::after { content: ""; display: block; position: absolute; inset: -1px; border-radius: inherit; background: none; pointer-events: auto; }
+.bar-item.is-pressed:not(.prominent):not(.active),
+.composer-action.is-pressed:not(:disabled) { background-color: var(--field); }
+.bar-item.is-pressed:is(.prominent, .active),
+.composer.has-text .composer-action.is-pressed,
+.solid-press.is-pressed { background-color: color-mix(in srgb, var(--ink) 84%, var(--bg)); }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) :is(.glass-btn, .glass-pill, .solid-press, .composer-action).is-pressed { transform: none; }
+}
+:root[data-motion="reduce"] :is(.glass-btn, .glass-pill, .solid-press, .composer-action).is-pressed { transform: none; }
 
 /* ---------------------------------------------------------------- scroll edge effect */
 

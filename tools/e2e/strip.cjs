@@ -33,7 +33,7 @@ await sleep(300);await shot('24-strip-closed-chat')
 // Open: two adjacent columns of equal width; the list joins from its own side of the strip.
 await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='leading');await unposed();await sleep(400)
 s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'thread');assert.ok(Math.abs(s.boxes.list.width-s.boxes.thread.width)<1&&Math.abs(s.boxes.list.right-s.boxes.thread.x)<1,'equal adjacent columns')
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info','draw','photo'],'trailing conversation: no Back')
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info'],'trailing conversation: no Back')
 // The list's bar at its foot: Back and the filter lead, the search field, New Chat ends it.
 assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-item, .list-bottombar .search-pill')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item||'search')),['back','filter','compose','search'],'list bar items')
 const lb=await p.evaluate(()=>{const r=e=>e.getBoundingClientRect(),q=s=>r(document.querySelector(s));return{back:q('.list-bottombar [data-item="back"]'),pill:q('.list-bottombar .search-pill'),compose:q('.list-bottombar [data-item="compose"]'),pane:q('.pane-list')}})
@@ -47,7 +47,7 @@ await settled('artifact');await p.locator('.art-content .profile').waitFor();s=a
 assert.deepEqual(s.roles,['hidden','hidden','leading','trailing']);assert.ok(Math.abs(s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.right-s.boxes.artifact.x)<1)
 // The conversation leads now: Back returns to its bar; details is pressed.
 const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread [data-item="info"]').getAttribute('aria-pressed')}))
-assert.deepEqual(lead,{items:['audio','video','info','back','draw','photo'],info:'true'})
+assert.deepEqual(lead,{items:['audio','video','info','back'],info:'true'})
 assert.equal(await p.locator('.art-body [data-item="close"]').isVisible(),true,'details close beside the conversation')
 await sleep(200);await shot('26-strip-open-chat-details')
 
@@ -89,7 +89,7 @@ await p.setViewportSize({width:466,height:678});await unposed();await sleep(300)
 
 // Escape closes details from either column; with reduced motion the window moves without sliding.
 await p.setViewportSize({width:890,height:626});await unposed();await sleep(300)
-await p.click('.thread [data-item="draw"]');await settled('artifact');await p.locator('.pane-artifact .draw').waitFor();await p.keyboard.press('Escape');await settled('thread')
+await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="draw"]');await settled('artifact');await p.locator('.pane-artifact .draw').waitFor();await p.keyboard.press('Escape');await settled('thread')
 await p.evaluate(()=>{document.documentElement.dataset.motion='reduce'});await p.click('.thread [data-item="info"]');assert.equal(await p.evaluate(()=>document.querySelector('.shell').dataset.anim),undefined);await settled('artifact')
 await p.click('.art-body [data-item="close"]');await settled('thread')
 await p.evaluate(()=>{delete document.documentElement.dataset.motion})
@@ -132,7 +132,7 @@ await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detac
 // With the system's edge column (84pt down the right, open or closed): unfolded, a sheet over the conversation
 // centres on its content, clear of the column; folded, it spans the app's side with even margins.
 await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>document.documentElement.style.setProperty('--safe-right','84px'));await sleep(300)
-await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
+await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
 let b=await p.locator('.sheet').boundingBox(),pane=await p.locator('.pane[data-col="thread"]').boundingBox()
 assert.ok(b.x>=pane.x+17&&b.x+b.width<=951-84-17,'unfolded sheet clear of the column '+JSON.stringify(b))
 assert.ok(Math.abs(b.x+b.width/2-(pane.x+(pane.width-84)/2))<2,'unfolded sheet centred on the content '+JSON.stringify({b,pane}))
@@ -141,7 +141,7 @@ await p.setViewportSize({width:466,height:678});await unposed();await sleep(300)
 // Every bar at the foot stays inside the inset too.
 const foot=await p.evaluate(()=>[...document.querySelectorAll('.thread .composer .bar-item, .thread .composer .field')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect().right))
 assert.ok(foot.every(r=>r<=466-84+.5),'the conversation bar clears the column '+foot)
-await p.click('.thread [data-item="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(700)
+await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(700)
 b=await p.locator('.sheet').boundingBox();assert.ok(Math.abs(b.x-8)<1&&Math.abs(466-84-8-(b.x+b.width))<1,'folded sheet spans the app side '+JSON.stringify(b))
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'});await sleep(500)
 await p.evaluate(()=>{document.documentElement.style.removeProperty('--safe-right');dispatchEvent(new Event('resize'))})

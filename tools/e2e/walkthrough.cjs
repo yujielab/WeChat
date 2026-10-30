@@ -58,7 +58,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await shot(A, '04-thread')
 
   // drawing board (the details column, slid in beside the conversation)
-  await A.click('.thread [data-item="draw"]')
+  await A.click('.thread .composer-action');await A.click('.composer-tool[data-tool="draw"]')
   await A.waitForSelector('.shell[data-focus=artifact]:not([data-anim]) .draw'); await sleep(300)
   const box = await (await A.$('.draw-canvas')).boundingBox()
   await A.mouse.move(box.x + 60, box.y + 90); await A.mouse.down()

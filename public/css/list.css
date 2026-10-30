@@ -68,7 +68,7 @@
 .row-bottom { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .row-preview { flex: 1; min-width: 0; color: var(--label-2); font-size: .765rem; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.unread .row-preview { color: var(--label); }
-.row-preview .draft, .row-preview .failed { color: var(--red); }
+.row-preview .draft, .row-preview .failed { color: var(--red-text); }
 .row-count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font-size: .647rem; line-height: 1; font-weight: 650; color: #fff; background: var(--blue); }
 .row.muted .row-count { background: var(--fill); color: var(--label-2); }
 .row-actions { position: absolute; inset: 0; display: flex; z-index: 0; visibility: hidden; }

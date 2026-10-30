@@ -73,7 +73,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const olderEl = h('div', { class: 'load-older', 'aria-live': 'polite' })
   const meta = h('div', { class: 'm-meta' })
   const msgs = h('div', { class: 'msgs' }, olderEl)
-  const scroller = h('div', { class: 'scroll thread-scroll', role: 'log', 'aria-label': '消息' }, msgs)
+  // Room for the floating bar is a real element at the foot of the log, not
+  // the scroller's padding: Safari leaves a column-reverse scroller's bottom
+  // padding out of what it scrolls, so the newest message ended up under the
+  // field.
+  const foot = h('div', { class: 'thread-foot', 'aria-hidden': 'true' })
+  const scroller = h('div', { class: 'scroll thread-scroll', role: 'log', 'aria-label': '消息' }, foot, msgs)
   scroller.style.overflowAnchor = 'none'
 
   // The conversation's heading is content: it stays with the messages on
@@ -85,10 +90,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   // The calls and the details sit in the heading, after the name; Back
-  // leads the bar at the foot of the conversation, before the field, and
-  // drawing and photos follow it. Beside the list (unfolded) there is no
-  // Back: the list is right there. Details and the drawing board open in the
-  // next column, so their items show whether it's open.
+  // leads the bar at the foot of the conversation, before the field, and the
+  // field's own button (photos and drawing, or Send) follows it. Beside the
+  // list (unfolded) there is no Back: the list is right there. Details open
+  // in the next column, so their item shows whether it's open.
   const unreadBadge = () => {
     const n = current ? unreadTotal(current) : 0
     return n ? (n > 99 ? '99+' : String(n)) : ''
@@ -100,14 +105,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       { id: 'audio', icon: 'phone', title: '语音通话', priority: 6, onSelect: () => current && onCall?.(current, 'audio') },
       { id: 'video', icon: 'video', title: '视频通话', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
       { id: 'info', icon: 'info', title: '聊天信息', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
-      { id: 'draw', icon: 'brush', title: '画板', priority: 3, toggle: true, onSelect: () => current && onDraw(current) },
-      { id: 'photo', icon: 'photo', title: '照片', priority: 7, onSelect: () => current && composer.openImages() }
     ],
     arrange: () => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
       const back = pane.dataset.layout === 'trailing' ? [] : [['back']]
-      return { top: [...calls, ['info']], bottom: [...back, ['draw', 'photo']] }
+      return { top: [...calls, ['info']], bottom: back }
     }
   })
 
@@ -118,7 +121,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     onSend: text => sendText(text),
     onImages: files => sendImages(files),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
-    onType: text => sendTyping(text)
+    onType: text => sendTyping(text),
+    // Photos and the drawing board come from the button after the field.
+    tools: [
+      { id: 'photo', icon: 'photo', title: '照片', onSelect: () => current && composer.openImages() },
+      { id: 'draw', icon: 'brush', title: '手绘', onSelect: () => current && onDraw(current) }
+    ]
   })
 
   const edgeTop = edge('top')
@@ -128,14 +136,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   composer.dock(bars.bottom)
 
   // The name keeps at least 150px of the heading; the field keeps at least
-  // 160px of the bar at the foot, and one more gap beside it.
+  // 160px of the bar at the foot, and its 56pt button after it.
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
     barsFrame = requestAnimationFrame(() => {
       const cs = getComputedStyle(composer.el)
       const inner = composer.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
-      bars.layout({ top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8) })
+      bars.layout({ top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8 - 56 - 8) })
     })
   }
   new ResizeObserver(arrangeBars).observe(nav)
@@ -1095,6 +1103,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       if (readHeld && current) markReadSoon(true)
     },
     bars,
+    setTool: (id, active) => composer.setTool(id, active),
     sendDrawing: (blob, size) => sendDrawing(blob, size),
     focusComposer() {
       composer.focus()

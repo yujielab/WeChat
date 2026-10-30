@@ -28,6 +28,7 @@
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   color: var(--label);
+  transition: transform var(--press-out) var(--ease-out), background-color var(--press-out) ease-out;
 }
 .bar-item::before, .bar-item::after { display: none; }
 .bar-group.capsule .bar-item { background: transparent; box-shadow: none; }
@@ -119,11 +120,10 @@
 .thread-scroll {
   top: calc(var(--safe-top) + var(--head-top) + var(--head-h));
   bottom: 0;
-  padding: 0 var(--content-right) calc(var(--composer-h, 76px) + 14px) calc(var(--margin) + var(--safe-left) + 2px);
+  padding: 0 var(--content-right) 0 calc(var(--margin) + var(--safe-left) + 2px);
   -webkit-mask-image: none;
   mask-image: none;
 }
-:root:not([data-kb="1"]) .thread-scroll { padding-bottom: calc(var(--composer-h, 76px) + 14px); }
 .thread .composer { padding-right: var(--content-right); gap: 8px; isolation: isolate; }
 .thread .composer::before {
   content: '';
@@ -157,7 +157,7 @@
    conversation reads above the fold and writing happens below it, so no
    message or control sits in the bend. While typing, the keyboard owns the
    lower half and the usual layout returns. */
-:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); padding-bottom: 14px; }
+:root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread-scroll { bottom: calc(100% - var(--fold-start)); --foot: 14px; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer { top: var(--fold-end); bottom: auto; padding-top: 16px; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .composer::before { display: none; }
 :root[data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"] .thread .jump { bottom: calc(100% - var(--fold-start) + 12px); }

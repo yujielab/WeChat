@@ -3,7 +3,7 @@
 // flash highlights; buttons respond immediately. Glass controls also get a
 // light bloom positioned under the finger (--gx / --gy).
 
-const IMMEDIATE = '.glass-btn, .glass-pill, .solid-press, .menu-item, .menu-reaction, .m-reactions, .photo-stack-open, .send, .switch, .seg button, .btn, .btn-outline, .auth-tab, .password-toggle, .filter-tab'
+const IMMEDIATE = '.glass-btn, .glass-pill, .solid-press, .composer-action, .composer-tool, .menu-item, .menu-reaction, .m-reactions, .photo-stack-open, .switch, .seg button, .btn, .btn-outline, .auth-tab, .password-toggle, .filter-tab'
 const DELAYED = '.row, .pin, .contact-row, button.cell, a.cell, .member'
 const SLOP = 10
 
@@ -62,8 +62,10 @@ export function initPress() {
   document.addEventListener('pointermove', onMove, { passive: true })
   document.addEventListener('pointerup', onUp, { passive: true })
   document.addEventListener('pointercancel', onUp, { passive: true })
-  // Scrolling cancels any pending highlight.
+  // Scrolling, or the app losing focus mid-press, lets go.
   document.addEventListener('scroll', clearActive, { capture: true, passive: true })
+  window.addEventListener('blur', clearActive)
+  document.addEventListener('visibilitychange', clearActive)
   // iOS only applies :active styles when a touch listener exists.
   document.addEventListener('touchstart', () => {}, { passive: true })
 }
