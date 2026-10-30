@@ -75,7 +75,7 @@ export function openAttachments({ files = [], onSend } = {}) {
         const next = preview.children[index] || preview.lastElementChild
         ;(next?.querySelector('button') || pick).focus({ preventScroll: true })
       })
-      selected.set(id, { key, file, url, remove })
+      selected.set(id, { key, file, url, remove, image })
       preview.append(tile)
       added++
     }
@@ -130,7 +130,9 @@ export function openAttachments({ files = [], onSend } = {}) {
       // The chat owns upload, retries and real failure feedback. Do not claim
       // that staging or a resolved callback means an upload has succeeded.
       if (typeof onSend !== 'function') throw new Error('暂时无法发送，请重新打开聊天。')
-      const delivery = onSend([...selected.values()].map(item => item.file))
+      // Where each photo was seen, so its message can carry on from there.
+      const from = [...selected.values()].map(item => (item.image.hidden ? null : item.image.getBoundingClientRect()))
+      const delivery = onSend([...selected.values()].map(item => item.file), { from })
       if (delivery === false) throw new Error('当前聊天已变化，请重新选择发送位置。')
       await ctl.close()
       Promise.resolve(delivery).catch(err => toast(err?.message || '图片发送失败，请在聊天中重试。', { type: 'error' }))

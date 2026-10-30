@@ -121,7 +121,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   const composer = createComposer({
     onSend: text => sendText(text),
-    onImages: files => sendImages(files),
+    onImages: (files, options) => sendImages(files, options),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
     onType: text => sendTyping(text),
     // Photos and the drawing board come from the button after the field.
@@ -710,19 +710,41 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
   }
 
-  async function sendImages(files) {
+  async function sendImages(files, { from = [] } = {}) {
     const chat = current
     if (!chat) return
-    for (const f of files) {
+    for (const [i, f] of files.entries()) {
       try {
-        await sendPrepared(chat, await prepareImage(f))
+        await sendPrepared(chat, await prepareImage(f), from[i])
       } catch (err) {
         toast(err.message || '无法处理这张图片', { type: 'error' })
       }
     }
   }
 
-  async function sendPrepared(chat, { file, w, h: hh }) {
+  // A photo sent from the attachment sheet carries on from where it was
+  // seen there into its new message: same proportions, its crop easing
+  // away. Only the look travels; the upload reports on its own.
+  function carryIn(id, from) {
+    if (!from?.width || reducedMotion()) return
+    requestAnimationFrame(() => {
+      const bubble = nodes.get(id)?.querySelector('.bubble.media')
+      const to = bubble?.getBoundingClientRect()
+      if (!to?.width || to.bottom < 0 || to.top > innerHeight) return
+      const k = Math.max(from.width / to.width, from.height / to.height)
+      const dx = from.left + from.width / 2 - to.left - (to.width * k) / 2
+      const dy = from.top + from.height / 2 - to.top - (to.height * k) / 2
+      const ix = Math.max(0, (to.width - from.width / k) / 2)
+      const iy = Math.max(0, (to.height - from.height / k) / 2)
+      const r = parseFloat(getComputedStyle(bubble).borderTopLeftRadius) || 0
+      bubble.animate([
+        { transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${k})`, clipPath: `inset(${iy}px ${ix}px round ${14 / k}px)` },
+        { transformOrigin: '0 0', transform: 'none', clipPath: `inset(0px 0px round ${r}px)` }
+      ], { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+    })
+  }
+
+  async function sendPrepared(chat, { file, w, h: hh }, from) {
     const cid = newCid()
     const preview = URL.createObjectURL(file)
     state.previews.set(cid, preview)
@@ -730,7 +752,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'image', w, h: hh, url: preview, status: 'sending' }
     upsertMessage(local)
     bumpList(local)
-    if (chat === current) scrollToBottom()
+    if (chat === current) {
+      scrollToBottom()
+      carryIn(local.id, from)
+    }
     try {
       const up = await uploadMedia('image', file, { room: chat, name: file.name || 'photo.jpg', w, h: hh })
       const r = await api.post('/api/messages', { room: chat, type: 'image', meta: { ...up.meta, url: up.url }, localId: cid })

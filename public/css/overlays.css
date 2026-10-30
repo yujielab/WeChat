@@ -85,6 +85,9 @@
   filter: none;
   transition: transform var(--spring-bouncy-dur) var(--spring-bouncy), opacity 180ms ease-out, filter 240ms ease-out;
 }
+/* Grown out of what opened it, and back into it on the way out. */
+.overlays[data-layout="split"] .sheet.from-origin { transform-origin: var(--sx) var(--sy); transform: translate(-50%, -50%) scale(.4); filter: none; transition: transform 240ms var(--ease-exit), opacity 200ms ease-in; }
+.overlays[data-layout="split"] .sheet.from-origin.on { transform: translate(-50%, -50%); transition: transform 300ms var(--ease-out), opacity 140ms ease-out; }
 
 .grabber {
   flex: none;
@@ -397,17 +400,20 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   position: absolute;
   inset: 0;
   background: rgb(0 0 0 / 0.08);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  backdrop-filter: blur(14px) saturate(1.2);
+  /* A light veil: it sets the message apart without blurring the
+     conversation into noise. */
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  backdrop-filter: blur(6px) saturate(1.1);
   opacity: 0;
-  transition: opacity 220ms ease-out;
+  transition: opacity 190ms ease-out;
 }
 :root[data-glass="solid"] .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 .ctx-backdrop.on { opacity: 1; }
 .ctx-preview {
   position: absolute;
   margin: 0;
-  transition: transform var(--spring-bouncy-dur) var(--spring-bouncy);
+  /* The message lifts a little, at once, without a bounce. */
+  transition: transform 200ms var(--ease-out);
   pointer-events: none;
 }
 .ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.28), 0 2px 6px rgb(15 15 25 / 0.06); }

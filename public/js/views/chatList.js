@@ -39,7 +39,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // Unfolded, the window keeps to the list and the conversation, so who you
   // are (and settings) sits at the end of the list's heading.
   const me = h('button', { class: 'list-me', type: 'button', 'aria-label': '设置' })
-  me.addEventListener('click', () => onSettings?.())
+  me.addEventListener('click', () => onSettings?.(me))
   const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, me))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
@@ -86,7 +86,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
     arrange: () => {
-      if (searching) return { top: [], bottom: [] }
+      // While searching the bar keeps its items; they fold away (list.css)
+      // so the field can grow over their room and give it back on Cancel.
       // Folded, the filter tabs show and Back leads to the sidebar;
       // unfolded, the filter is a menu.
       const nav = pane.dataset.layout === 'single' ? ['back'] : ['filter']
@@ -588,10 +589,15 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   }
 
   // ------------------------------------------------------------ search
+  // Searching starts from the top of the results; Cancel puts the list back
+  // where it was.
+  let listScroll = 0
   input.addEventListener('focus', async () => {
     if (searching) return
     searching = true
+    listScroll = scroll.scrollTop
     pane.classList.add('searching')
+    bars.bottom.inert = true
     head.hidden = filterTabs.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
     placeHighlight()
@@ -619,11 +625,13 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     input.value = ''
     input.blur()
     pane.classList.remove('searching')
+    bars.bottom.inert = false
     arrangeBars()
     head.hidden = filterTabs.hidden = rows.hidden = false
     results.hidden = true
     clear(results)
     render()
+    scroll.scrollTop = listScroll
   }
 
   function highlight(text, q) {

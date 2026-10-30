@@ -71,9 +71,9 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     const destination = chat
     attachmentSheet = openAttachments({
       files,
-      onSend: selected => {
+      onSend: (selected, options) => {
         if (readonly || chat !== destination) return false
-        return onImages?.(selected)
+        return onImages?.(selected, options)
       }
     })
     return attachmentSheet

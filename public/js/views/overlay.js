@@ -74,7 +74,7 @@ function setPresence(p) {
 
 // ---------------------------------------------------------------- sheets
 
-export function openSheet({ title, content, tall = false, start = null, end = null, label, side, onClose }) {
+export function openSheet({ title, content, tall = false, start = null, end = null, label, side, origin, onClose }) {
   const root = layer()
   root.dataset.layout = getLayout()
   const scrim = h('div', { class: 'scrim' })
@@ -103,6 +103,22 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   const prevFocus = document.activeElement
   root.append(scrim, sheet)
   placeOnSide(sheet, side)
+  // Unfolded, a sheet opened from something on screen (your avatar, for
+  // settings) grows out of it and shrinks back into it.
+  if (origin?.isConnected && getLayout() !== 'stack' && !reducedMotion()) {
+    const o = origin.getBoundingClientRect()
+    const box = root.getBoundingClientRect()
+    const left = box.left + sheet.offsetLeft - sheet.offsetWidth / 2
+    const top = box.top + sheet.offsetTop - sheet.offsetHeight / 2
+    sheet.style.setProperty('--sx', `${o.left + o.width / 2 - left}px`)
+    sheet.style.setProperty('--sy', `${o.top + o.height / 2 - top}px`)
+    // Placing it already resolved its style: start from the source at once,
+    // not by animating there.
+    sheet.style.transition = 'none'
+    sheet.classList.add('from-origin')
+    void getComputedStyle(sheet).transform
+    sheet.style.transition = ''
+  }
   lockApp()
   const recedes = getLayout() === 'stack' && !reducedMotion()
   let receded = false

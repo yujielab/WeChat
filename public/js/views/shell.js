@@ -32,7 +32,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
       list.setFilter(key)
       forward(LIST)
     },
-    onSettings: () => openSettings({ onLogout }),
+    onSettings: origin => openSettings({ onLogout, origin }),
     onSearch: () => {
       forward(LIST)
       list.openSearch()
@@ -44,7 +44,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     onBack: () => back(LIST),
     onFilter: () => sidebar.render(),
     onCompose: compose,
-    onSettings: () => openSettings({ onLogout })
+    onSettings: origin => openSettings({ onLogout, origin })
   })
   const thread = createThread(panes[THREAD], {
     onBack: () => back(THREAD),

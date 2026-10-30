@@ -58,7 +58,17 @@ assert.ok(await p.locator(`.msgs>.m[data-id="${before.anchor}"]`).evaluate(e=>{c
 // Beside the conversation, a filter from the list's bar.
 await p.click('.list-bottombar [data-item="filter"]');await p.locator('.menu.on .menu-item:has-text("私聊")').click();await sleep(300)
 await p.screenshot({path:path.join(OUT,'34-unfolded-draft.png')});await audit('unfolded')
-await p.click('.list-me');await p.locator('.sheet.on').waitFor();await sleep(500);await audit('settings');await p.keyboard.press('Escape');await sleep(400)
+// Settings grows out of your avatar in the list's heading (and shrinks back into it).
+const grow=await p.evaluate(()=>new Promise(done=>{const me=document.querySelector('.list-me'),r=me.getBoundingClientRect();me.click();setTimeout(()=>{const s=document.querySelector('.sheet'),cs=getComputedStyle(s),m=new DOMMatrix(cs.transform);done({from:s.classList.contains('from-origin'),scale:m.a,origin:cs.transformOrigin,me:[r.left+r.width/2,r.top+r.height/2],box:s.getBoundingClientRect().toJSON()})},70)}))
+assert.ok(grow.from&&grow.scale<0.95,'grows from the avatar '+JSON.stringify(grow))
+await p.locator('.sheet.on').waitFor();await sleep(500);await audit('settings');await p.keyboard.press('Escape');await sleep(400)
+
+// Searching, the field grows over the bar's other items as they fold away; Cancel gives them back.
+await p.click('.list-bottombar .search-pill');await sleep(350)
+const searching=await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-group')].map(g=>[g.getBoundingClientRect().width,getComputedStyle(g).opacity,g.closest('[inert]')!==null]))
+assert.ok(searching.every(([w,o,inert])=>w<1&&o==='0'&&inert),'items folded away and out of reach '+JSON.stringify(searching))
+await p.click('.list-bottombar .search-cancel');await sleep(350)
+assert.ok(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-group')].every(g=>g.getBoundingClientRect().width>40&&!g.closest('[inert]'))),'and back')
 
 // Folded again: still this conversation, draft and caret; Back leads to the list with its filter.
 await p.locator('.composer textarea').evaluate(t=>{t.focus();t.setSelectionRange(4,4)})
@@ -70,5 +80,5 @@ assert.equal(await p.getAttribute('.filter-tab[data-filter="people"]','aria-pres
 // Back into it: the draft is waiting.
 await p.locator('.pane-list .row').first().click();await settled('thread');assert.equal(await p.inputValue('.composer textarea'),DRAFT)
 assert.equal(await count(),30,'nothing sent twice');assert.deepEqual(errors,[])
-console.log('PASS: folded → unfolded → folded keeps the conversation, draft, caret and focus, the message being read, the list filter and the way back; nothing sent twice; every control named and 44pt')
+console.log('PASS: folded → unfolded → folded keeps the conversation, draft, caret and focus, the message being read, the list filter and the way back; nothing sent twice; every control named and 44pt; settings grows from your avatar; search folds the bar away and back')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

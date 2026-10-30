@@ -69,7 +69,7 @@ async function uploadAvatar(file) {
 }
 
 // ---------------------------------------------------------------- settings
-export function openSettings({ onLogout }) {
+export function openSettings({ onLogout, origin }) {
   const prefs = getPrefs()
   const me = state.me
   // The card is the one way into editing who you are; no second row for it.
@@ -106,7 +106,7 @@ export function openSettings({ onLogout }) {
     h('div', { style: { height: '20px' } }),
     group(cell('退出登录', null, { destructive: true, onClick: () => onLogout() }))
   )
-  openSheet({ title: '设置', content, tall: true })
+  openSheet({ title: '设置', content, tall: true, origin })
 }
 
 function editProfile() {
