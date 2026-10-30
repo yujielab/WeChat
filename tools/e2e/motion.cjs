@@ -84,5 +84,26 @@ await p.click('.composer textarea');const r0=await p.evaluate(()=>document.query
 assert.ok(await p.evaluate(()=>document.querySelector('.composer .field').offsetHeight)>r0+20,'height at once')
 await p.emulateMedia({reducedMotion:'no-preference'})
 
-assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once')
+// P1-08/09, M09: a run of calls from one side folds into one quiet record with a count that opens upward
+// into every call (the arrow turning, the tapped row staying put); each side words a call for itself, and
+// the list says the same.
+await p.evaluate(async()=>{const{state,thread,mergeMessages}=await import('/js/store.js');state.chats.set('c',{id:'c',kind:'dm',name:'阿遥',peer:{id:'p2',display:'阿遥'},unread:0});const t=thread('c');t.loaded=true;t.hasMore=false;const base=Date.now()-3600000,call=(i,meta,from)=>({id:'c'+i,chat:'c',type:'call',text:'',from,out:from==='me',ts:base+i*60000,status:'sent',call:{media:'audio',missed:true,...meta}});mergeMessages('c',[{id:'t0',chat:'c',type:'text',text:'在吗？',from:'p2',out:false,ts:base-60000,status:'sent'},call(1,{result:'missed',caller:'me'},'me'),call(2,{result:'cancelled',caller:'me'},'me'),call(3,{result:'missed',caller:'me'},'me'),call(4,{result:'declined',caller:'me'},'me'),call(5,{result:'cancelled',caller:'me'},'me'),{id:'t6',chat:'c',type:'text',text:'刚才在开会',from:'p2',out:false,ts:base+6*60000,status:'sent'},call(7,{result:'missed',caller:'p2'},'p2'),call(8,{missed:false,result:'completed',duration:83,caller:'p2',media:'video'},'p2')]);await testThread.open('c')})
+await sleep(500)
+const calls=await p.evaluate(()=>[...document.querySelectorAll('.msgs .bubble.call-log')].map(b=>({group:b.classList.contains('call-group'),text:(b.querySelector('.call-summary .t')||b.querySelector('span'))?.textContent,count:b.querySelector('.call-count')?.textContent||'',missed:b.classList.contains('missed'),label:b.getAttribute('aria-label')||b.querySelector('.call-summary')?.getAttribute('aria-label')})))
+assert.deepEqual(calls.map(c=>[c.group,c.text,c.count,c.missed]),[[true,'已取消','5 次',false],[false,'未接来电','',true],[false,'通话时长 1:23','',false]],'unanswered runs fold, each worded from this side '+JSON.stringify(calls))
+const prev=await p.evaluate(async()=>{const{previewText}=await import('/js/store.js');return[previewText({type:'call',sender:'p2',meta:{media:'audio',missed:true,result:'missed',caller:'p2'}}),previewText({type:'call',sender:'me',meta:{media:'audio',missed:true,result:'missed',caller:'me'}}),previewText({type:'call',sender:'me',meta:{media:'video',missed:true}})]})
+assert.deepEqual(prev,['[语音通话] 未接来电','[语音通话] 对方未接听','[视频通话] 对方未接听'],'the list says what the record says')
+const grp=p.locator('.call-group').first(),sum=grp.locator('.call-summary')
+const y0=(await sum.boundingBox()).y
+await p.evaluate(()=>document.querySelector('.call-group .call-summary').click());await sleep(90)
+const opening=await p.evaluate(()=>{const a=document.querySelector('.call-group .call-items').getAnimations().find(x=>x.transitionProperty==='grid-template-rows');return a&&a.effect.getComputedTiming().progress})
+assert.ok(opening>0.05&&opening<0.95,'opens over time '+opening);await sleep(400)
+const opened=await p.evaluate(()=>{const g=document.querySelector('.call-group');return{expanded:g.querySelector('.call-summary').getAttribute('aria-expanded'),items:[...g.querySelectorAll('.call-item .t')].map(e=>e.textContent),visible:g.querySelector('.call-items-inner').getBoundingClientRect().height,chev:getComputedStyle(g.querySelector('.call-chevron')).transform}})
+assert.equal(opened.expanded,'true');assert.deepEqual(opened.items,['对方未接听','已取消','对方未接听','对方已拒绝','已取消']);assert.ok(opened.visible>100,'every call listed')
+assert.equal(opened.chev,'none','the arrow turned')
+assert.ok(Math.abs((await sum.boundingBox()).y-y0)<1,'the tapped record stays where it was')
+await p.screenshot({path:path.join(OUT,'36-calls-open.png')})
+assert.equal(await p.evaluate(()=>document.querySelectorAll('.msgs [role="button"].call-log').length),0,'records are not buttons')
+
+assert.deepEqual(errors,[]);console.log('PASS: press in at once to 0.98 and out from where it got to, sliding off cancels; tools panel grows out of the button and turns around mid-way, + to ×, Escape/outside/tool close it, focus in and back; Send in the same place, one button; field grows from its foot with its corners, text unscaled, five lines then scrolls; reduced motion changes at once; call runs fold into one record per side that opens upward in place, worded the same in the list')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

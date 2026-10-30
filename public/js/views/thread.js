@@ -2,7 +2,7 @@
 
 import { h, icon, clear, reducedMotion, announce, edge } from '../ui/dom.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
-import { threadTime } from '../ui/format.js'
+import { threadTime, callSummary } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
@@ -11,7 +11,7 @@ import {
 } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
-import { renderBubble, hasTail, mediaSize } from './bubbles.js'
+import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
 import { openMenu, toast } from './overlay.js'
@@ -66,6 +66,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const retryFiles = new Map()
   const photoGroups = new Map()
   const expandedPhotos = new Set()
+  const expandedCalls = new Set()
   const ctx = { maxMedia: 240 }
   let readingAnchor = { bottom: true }
 
@@ -248,7 +249,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   function nodeFor(m) {
     let el = nodes.get(m.id)
-    if (!el || el.photoSignature) {
+    if (!el || el.photoSignature || el.callSignature) {
       const old = el
       el = buildNode(m)
       old?.replaceWith(el)
@@ -289,6 +290,56 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
     photoGroups.set(last.id, photos)
     return node
+  }
+
+  // Unanswered calls one after another from the same side, with nothing said
+  // between and within the hour, fold into one compact record that opens
+  // upward, so what was tapped stays where it is; every call stays listed
+  // inside. A call that went through always stands on its own.
+  const groupableCall = m => m?.type === 'call' && !m.recalled && !String(m.id).startsWith('local:') && (m.call?.result ? m.call.result !== 'completed' : Boolean(m.call?.missed))
+  const CALL_SPAN = 60 * 60 * 1000
+  function callGroupNode(calls) {
+    const last = calls[calls.length - 1]
+    const signature = calls.map(c => `${c.id}:${c.call?.result || ''}`).join('|')
+    let node = nodes.get(last.id)
+    if (node?.callSignature !== signature) {
+      const fresh = buildNode(last)
+      fresh.querySelector('.bubble').replaceWith(callGroup(calls))
+      fresh.callSignature = signature
+      node?.replaceWith(fresh)
+      node = fresh
+      nodes.set(last.id, node)
+    }
+    return node
+  }
+  function callGroup(calls) {
+    const key = calls[0].id
+    const open = expandedCalls.has(key)
+    const said = c => callSummary(c.call || {}, callMine(c))
+    const glyph = s => icon(s.media === '视频' ? 'video' : 'phone')
+    const latest = said(calls[calls.length - 1])
+    const listId = `calls-${String(key).replace(/[^\w-]/g, '')}`
+    const items = h('div', { class: 'call-items', id: listId },
+      h('div', { class: 'call-items-inner', role: 'list' }, calls.map(c => {
+        const s = said(c)
+        return h('div', { class: ['call-item', s.missed && 'missed'], role: 'listitem', 'aria-label': `${s.label}，${threadTime(c.ts)[1]}` },
+          glyph(s), h('span', { class: 't', 'aria-hidden': 'true' }, s.text), h('span', { class: 'when tabular', 'aria-hidden': 'true' }, threadTime(c.ts)[1]))
+      })))
+    const toggle = h('button', {
+      class: 'call-summary', type: 'button', 'aria-expanded': String(open), 'aria-controls': listId,
+      'aria-label': `${latest.label}，共 ${calls.length} 次${open ? '' : '，点按展开'}`
+    }, glyph(latest), h('span', { class: 't', 'aria-hidden': 'true' }, latest.text),
+    h('span', { class: 'call-count tabular', 'aria-hidden': 'true' }, `${calls.length} 次`), icon('chevron-down', 'call-chevron'))
+    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle)
+    toggle.addEventListener('click', () => {
+      const on = !group.classList.contains('open')
+      group.classList.toggle('open', on)
+      toggle.setAttribute('aria-expanded', String(on))
+      toggle.setAttribute('aria-label', `${latest.label}，共 ${calls.length} 次${on ? '' : '，点按展开'}`)
+      if (on) expandedCalls.add(key)
+      else expandedCalls.delete(key)
+    })
+    return group
   }
 
   function decorate(list) {
@@ -346,10 +397,20 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
           i++
         }
       }
-      const last = photos[photos.length - 1]
-      const message = photos.length > 1 ? { ...last, ts: first.ts } : first
+      const calls = [first]
+      if (photos.length === 1 && groupableCall(first)) {
+        while (calls.length < 20 && i + 1 < list.length) {
+          const next = list[i + 1]
+          if (!groupableCall(next) || callMine(next) !== callMine(first) || next.ts - calls[calls.length - 1].ts > TS_GAP || next.ts - first.ts > CALL_SPAN) break
+          calls.push(next)
+          i++
+        }
+      }
+      const run = calls.length > 1 ? calls : photos
+      const last = run[run.length - 1]
+      const message = run.length > 1 ? { ...last, ts: first.ts } : first
       if (!prev || first.ts - prev.ts > TS_GAP) want.push(sepFor(message))
-      want.push(photos.length > 1 ? photoNode(photos) : nodeFor(message))
+      want.push(calls.length > 1 ? callGroupNode(calls) : photos.length > 1 ? photoNode(photos) : nodeFor(message))
       visible.push(message)
       prev = last
     }
