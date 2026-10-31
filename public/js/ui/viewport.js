@@ -61,7 +61,11 @@ function measure() {
         applyLayout()
       })
       posture.ready.catch(() => {})
+      // A morph never runs on: while it does the page takes no touches.
+      const t = posture
+      const late = setTimeout(() => t.skipTransition?.(), 1500)
       posture.finished.catch(() => {}).finally(() => {
+        clearTimeout(late)
         posture = null
         delete root.dataset.posture
         applyLayout()
@@ -165,6 +169,11 @@ function hasTextFocus() {
   return Boolean(el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(el.type))))
 }
 
+/** End any view transition at once (the app leaving the screen mid-way). */
+export function skipTransitions() {
+  posture?.skipTransition?.()
+}
+
 export function initViewport() {
   const asked = new URLSearchParams(location.search).get('fold')
   if (asked === 'vertical' || asked === 'horizontal') foldOverride = { axis: asked }
@@ -175,7 +184,10 @@ export function initViewport() {
   window.addEventListener('orientationchange', () => setTimeout(measure, 300))
   // Returning from the background or the app switcher can bring new insets too.
   window.addEventListener('pageshow', () => measure())
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) measure() })
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) skipTransitions()
+    else measure()
+  })
   document.addEventListener('focusin', () => setTimeout(measure, 50))
   document.addEventListener('focusout', () => {
     setTimeout(() => {

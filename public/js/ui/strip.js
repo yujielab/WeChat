@@ -52,10 +52,13 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
     })
   }
 
+  // A column out of the window can't be reached; one in it always can (a
+  // swipe's preview, inert while it slides in, is released when it lands even
+  // though its role doesn't change then).
   function setRole(pane, role) {
+    pane.inert = role === 'hidden'
     if (pane.dataset.role === role) return false
     pane.dataset.role = role
-    pane.inert = role === 'hidden'
     return true
   }
 
@@ -120,6 +123,8 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   const gap = () => parseFloat(getComputedStyle(shell).getPropertyValue('--gap')) || 0
 
   shell.addEventListener('pointerdown', e => {
+    // A gesture whose finger was never seen to lift (the page lost it) gives way.
+    if (g && g.id !== e.pointerId) cancel()
     if (g || e.button > 0 || start === 0) return
     const pane = panes[start]
     if (!pane.contains(e.target)) return
@@ -165,15 +170,19 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
     render(g.from - Math.min(1, Math.max(0, e.clientX - g.x0) / g.step))
   }, { capture: true })
 
-  const end = e => {
-    if (!g || e.pointerId !== g.id) return
+  const end = (e, cancelled = false) => {
+    if (!g || (e && e.pointerId !== g.id)) return
     const was = g
     g = null
     if (!was.active) return
-    const vx = was.vt.velocity().x
+    try { shell.releasePointerCapture(was.id) } catch {}
+    // The column sliding in is usable again whichever way this ends.
+    if (was.preview) was.preview.inert = false
+    const vx = cancelled ? 0 : was.vt.velocity().x
     const dx = (was.from - pos) * was.step
-    // Decide from where the gesture is heading, not just where it stopped.
-    const back = dx + project(vx) > was.step * 0.5 || vx > 900
+    // Decide from where the gesture is heading, not just where it stopped; a
+    // gesture the system took over goes back where it came from.
+    const back = !cancelled && (dx + project(vx) > was.step * 0.5 || vx > 900)
     const velocity = -vx / was.step
     if (back) onSwipeBack?.({ from: was.from, velocity })
     else {
@@ -181,8 +190,28 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
       go(focus, { velocity })
     }
   }
-  shell.addEventListener('pointerup', end, { capture: true })
-  shell.addEventListener('pointercancel', end, { capture: true })
+  const cancel = () => end(null, true)
+  shell.addEventListener('pointerup', e => end(e), { capture: true })
+  shell.addEventListener('pointercancel', e => end(e, true), { capture: true })
+  shell.addEventListener('lostpointercapture', e => { if (e.target === shell) end(e, true) })
+  // The app leaving the screen mid-swipe lets go of it.
+  window.addEventListener('blur', cancel)
+  document.addEventListener('visibilitychange', cancel)
+
+  /**
+   * Put the strip right if anything was left half-done: every column's
+   * reachability matches its role, and with nothing moving, the window
+   * stands where it should.
+   */
+  function heal() {
+    if (g?.active || anim) return
+    g = null
+    for (const pane of panes) pane.inert = pane.dataset.role === 'hidden'
+    if (pos !== start || shell.dataset.anim !== undefined) {
+      delete shell.dataset.anim
+      render(start)
+    }
+  }
 
   return {
     go,
@@ -193,6 +222,7 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
     get count() { return count },
     /** Whether the column is in the window (or will be, once the slide settles). */
     shows: i => i >= start && i < start + count,
+    heal,
     get moving() { return Boolean(anim || g?.active) }
   }
 }

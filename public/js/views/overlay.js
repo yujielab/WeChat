@@ -46,15 +46,34 @@ function restoreFocus(previous) {
   else front?.el.focus?.({ preventScroll: true })
 }
 
-function lockApp() {
+// The app behind a sheet or the photo viewer can't be reached, for as long
+// as one of them holds it — counted by who holds it, not by everything open
+// (a menu doesn't hold it, and one still fading out mustn't keep the app
+// locked after the sheet under it has gone).
+const holders = new Set()
+export function lockApp(holder) {
+  holders.add(holder)
   app().inert = true
   app().setAttribute('aria-hidden', 'true')
 }
-
-function unlockApp() {
-  if (open.size) return
+export function unlockApp(holder) {
+  holders.delete(holder)
+  if (holders.size) return
   app().inert = false
   app().removeAttribute('aria-hidden')
+}
+
+/**
+ * Put overlays right if anything was left behind: the app reachable unless
+ * something holds it, and no scrim on the page without its sheet or menu.
+ */
+export function healOverlays() {
+  for (const h of [...holders]) if (h.closed || (h instanceof Element && !h.isConnected)) holders.delete(h)
+  if (!holders.size && app().inert) unlockApp(null)
+  const live = new Set([...open].map(o => o.scrim))
+  for (const scrim of layer()?.querySelectorAll(':scope > .scrim') || []) {
+    if (!live.has(scrim) && scrim.style.pointerEvents !== 'none') scrim.remove()
+  }
 }
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
@@ -122,7 +141,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     void getComputedStyle(sheet).transform
     sheet.style.transition = ''
   }
-  lockApp()
+  lockApp(ctl)
   const recedes = getLayout() === 'stack' && !reducedMotion()
   let receded = false
   nextFrame().then(() => {
@@ -157,7 +176,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     // through the fading scrim and the sheet, and focus returns now.
     scrim.style.pointerEvents = sheet.style.pointerEvents = 'none'
     open.delete(ctl)
-    unlockApp()
+    unlockApp(ctl)
     restoreFocus(prevFocus)
     // Folded, the sheet always leaves on the spring a drag hands off to, so
     // Close, Escape, the scrim and a flick all feel the same; a flick keeps
@@ -301,7 +320,7 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
   trigger?.setAttribute('aria-expanded', 'true')
   trigger?.setAttribute('aria-controls', menu.id)
   if (title) menu.append(h('div', { class: 'menu-title' }, title))
-  const ctl = { el: menu, closed: false, close }
+  const ctl = { el: menu, scrim, closed: false, close }
   // A custom first row (e.g. reactions) closes the menu like an item does.
   const headerEl = header ? header(async run => {
     if (ctl.closed) return
@@ -463,6 +482,10 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
     window.visualViewport?.removeEventListener('scroll', schedulePosition)
     menu.classList.remove('on')
     aside?.classList.remove('on')
+    // As with sheets, the app is back in use the moment the menu starts to
+    // leave: taps go through it and its scrim while they fade.
+    scrim.style.pointerEvents = menu.style.pointerEvents = 'none'
+    if (aside) aside.style.pointerEvents = 'none'
     // Release ownership before waiting, so an older menu cannot clear the
     // expanded state of a newer menu opened from the same button.
     if (trigger?.isConnected) {

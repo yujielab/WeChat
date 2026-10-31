@@ -4,7 +4,7 @@
 
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
-import { toast } from './overlay.js'
+import { toast, lockApp, unlockApp } from './overlay.js'
 import { placeOnSide, foldSide } from '../ui/fold.js'
 
 export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = '图片', images, index = 0 }) {
@@ -42,9 +42,10 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     h('div', { class: 'viewer-bar bottom viewer-gallery-bottom' }, thumbnailBar))
   layer.append(root)
   placeOnSide(root, foldSide(thumb))
-  const app = document.getElementById('app')
-  const wasInert = app.inert
-  app.inert = true
+  // The app behind can't be reached while the photo is up (held by the
+  // viewer itself, so a sheet closing meanwhile doesn't change that, and
+  // closing the viewer doesn't put back a lock that has since gone).
+  lockApp(root)
   const pointers = new Map()
   let g = null
   let lastTap = 0
@@ -246,7 +247,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     if (t2) t2.style.visibility = ''
     if (kind === 'video') media.pause()
     root.remove()
-    app.inert = wasInert
+    unlockApp(root)
     document.removeEventListener('keydown', onKey)
     if (previousFocus?.isConnected && !previousFocus.closest?.('[inert]')) previousFocus.focus?.({ preventScroll: true })
   }

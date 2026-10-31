@@ -325,6 +325,10 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     el.addEventListener('pointerdown', e => {
       cancel()
       owner._held = false
+      // Each touch starts clean: the click a hold left nothing to swallow
+      // (its release went to the menu) mustn't eat this one. (A row's swipe
+      // then decides for its own touch.)
+      owner._suppress = null
       // A mouse has its right button; holding it down is still a click.
       if (e.button > 0 || e.pointerType === 'mouse') return
       t = {
@@ -566,6 +570,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     inner.style.touchAction = 'pan-y'
     let g = null
     inner.addEventListener('pointerdown', e => {
+      // A touch whose lift was never seen (the page lost it) gives way.
+      if (g && g.id !== e.pointerId) finish({ pointerId: g.id }, true)
       if (e.button > 0 || li._deleting || g) return
       // A touch while another row is open only puts that one back.
       const other = Boolean(openSwipe && openSwipe !== li)

@@ -13,7 +13,7 @@ import { createThread } from './thread.js'
 import { createArtifact } from './artifact.js'
 import { openSettings, openNewChat, rememberOpen } from './sheets.js'
 import { openInsights } from './insights.js'
-import { closeAllOverlays } from './overlay.js'
+import { closeAllOverlays, healOverlays } from './overlay.js'
 import { h } from '../ui/dom.js'
 
 const SIDEBAR = 0
@@ -181,6 +181,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
    * unfolding again finds it where it was.
    */
   function settled({ navigated = true } = {}) {
+    strip.heal()
     if (strip.focus < ARTIFACT && !strip.shows(ARTIFACT)) artifact.clear()
     if (navigated && strip.count === 1 && strip.focus < THREAD && thread.current) {
       thread.close()
@@ -216,6 +217,21 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     artifact.show(kind, chat)
     return forward(ARTIFACT)
   }
+
+  // ------------------------------------------------------------ touch always lands
+  // A touch that reaches no control at all — the shell between columns, the
+  // app, the page, a scrim — may be one that something left behind
+  // swallowed: a column left unreachable, a scrim without its sheet. Put those right at
+  // once, so the next touch lands; and again whenever the app comes back.
+  const heal = () => {
+    strip.heal()
+    healOverlays()
+  }
+  document.addEventListener('pointerdown', e => {
+    const t = e.target
+    if (t === shell || t === app || t === document.body || t === document.documentElement || t.matches?.('#overlays > .scrim')) heal()
+  }, { capture: true })
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) heal() })
 
   // ------------------------------------------------------------ posture
   function restoreLast({ focus }) {
