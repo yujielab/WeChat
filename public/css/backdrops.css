@@ -30,6 +30,14 @@
 }
 :root[data-column="beside"] .pane:not([data-role="leading"]) .thread-backdrop,
 :root[data-column="beside"] .call-backdrop { --fade-right: 56px; }
+/* With the early wide viewport, paint the actual picture under the system
+   controls. The UI keeps its separate inset; the picture needs no fade. */
+:root[data-wide="outer"] :is(.thread-backdrop, .call-backdrop) {
+  --fade-left: 0px;
+  --fade-right: 0px;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
 :is(.thread-backdrop, .call-backdrop)::before,
 :is(.thread-backdrop, .call-backdrop)::after {
   content: '';
