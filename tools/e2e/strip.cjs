@@ -63,8 +63,10 @@ await p.mouse.move(70,420);await p.mouse.down();for(let x=70;x<=230;x+=20)await 
 s=await state();assert.ok(s.shown.includes('thread')&&s.shown.includes('artifact'),'both columns drawn mid-swipe '+JSON.stringify(s));assert.ok(Math.abs(s.boxes.artifact.x-140)<4,'tracks the finger '+s.boxes.artifact.x)
 for(let x=250;x<=330;x+=40)await p.mouse.move(x,424);await p.mouse.up();await settled('thread')
 s=await state();assert.deepEqual(s.roles,['hidden','hidden','single','hidden']);assert.equal(await p.locator('.pane-artifact .art-body').count(),0,'details let go once out of view')
-// A short swipe springs back.
-await p.mouse.move(70,420);await p.mouse.down();await p.mouse.move(110,421);await p.mouse.move(130,421);await p.mouse.up();await settled('thread');assert.equal((await state()).boxes.thread.x,0)
+// A short, slow swipe springs back. (Played at a finger's pace: instant moves are a fling, which goes back. This
+// passed before only because the column swiped back to was left unreachable, so the swipe never started.)
+await p.mouse.move(70,420);await p.mouse.down();for(const x of [90,110,130]){await p.mouse.move(x,421);await sleep(100)}await p.mouse.up();await settled('thread');assert.equal((await state()).boxes.thread.x,0)
+assert.equal(await p.evaluate(()=>document.querySelector('.pane-thread').inert),false,'and the conversation answers')
 
 // History retraces the strip: browser Back to the list, Forward to the conversation again.
 await p.goBack();await settled('list');assert.equal(await p.evaluate(()=>localStorage.getItem('ui:open')),null,'folded, the conversation closes once out of view')
