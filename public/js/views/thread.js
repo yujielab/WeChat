@@ -847,14 +847,22 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   }
 
   let typingSentAt = 0
+  let typingLater = 0
   function sendTyping(text = '') {
     const now = Date.now()
+    clearTimeout(typingLater)
+    if (!current) return
     // Honk-style live typing: stream the in-progress text so the peer sees it
-    // as it is typed. Throttled; empty text clears the peer's ghost bubble.
-    if (current && (now - typingSentAt > 180 || !text)) {
-      typingSentAt = now
-      socketSend({ t: 'typing', room: current, text: text.slice(0, 500) })
+    // as it is typed. Throttled; empty text clears the peer's ghost bubble at
+    // once. The last of a quick burst still goes, as soon as the throttle
+    // allows, so the peer never sees it stopped a few characters short.
+    const room = current
+    const send = () => {
+      typingSentAt = Date.now()
+      socketSend({ t: 'typing', room, text: text.slice(0, 500) })
     }
+    if (now - typingSentAt > 180 || !text) send()
+    else typingLater = setTimeout(() => { if (current === room) send() }, 180 - (now - typingSentAt))
   }
 
   async function sendDrawing(blob, { w, h } = {}) {

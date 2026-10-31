@@ -105,7 +105,13 @@ function enterApp() {
   if (shell || !app.querySelector('.auth') || !document.startViewTransition || reducedMotion()) return mountShell()
   const root = document.documentElement
   root.dataset.arrive = ''
-  document.startViewTransition(mountShell).finished.finally(() => delete root.dataset.arrive)
+  const t = document.startViewTransition(mountShell)
+  // The arrival never runs on: while it does the page takes no touches.
+  const late = setTimeout(() => t.skipTransition?.(), 1500)
+  t.finished.catch(() => {}).finally(() => {
+    clearTimeout(late)
+    delete root.dataset.arrive
+  })
 }
 
 async function refresh() {

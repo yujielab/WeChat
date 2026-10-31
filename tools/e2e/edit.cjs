@@ -42,7 +42,7 @@ assert.ok(!(await menuItems(B,'明天三点见')).includes('编辑'),'not someon
 assert.ok(!(await menuItems(A,'几点见？')).includes('编辑'),'not theirs, from your side either');await closeMenu(A)
 
 // 2. Something half-written stays aside while editing.
-await field(A).click();await field(A).type('草稿还在',{delay:230})
+await field(A).click();await field(A).type('草稿还在')
 await B.waitForFunction(()=>document.querySelector('.thread:not([hidden]) .ghost-row .bubble')?.textContent==='草稿还在')
 assert.ok((await menuItems(A,'明天三点见')).includes('编辑'))
 await A.locator('.menu.on .menu-item:has-text("编辑")').first().click();await sleep(400)
