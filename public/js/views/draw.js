@@ -138,11 +138,16 @@ export function createDrawing(host, { onSend, onClose }) {
     sendBtn.disabled = true
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'))
     if (blob) onSend(blob, { w: canvas.width, h: canvas.height })
+    // Sent: nothing left to lose, so closing asks nothing.
+    dirty = false
     onClose()
   })
 
   return {
     el: root,
+    /** Ink on the board that hasn't been sent (closing would lose it). */
+    get dirty() { return dirty },
+    closeButton: closeBtn,
     destroy() {
       ro.disconnect()
       root.remove()
