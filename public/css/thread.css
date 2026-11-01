@@ -892,7 +892,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .quote.is-recalled { cursor: default; }
 
 /* @ mentions: a tinted token, never just colored text. */
-.mention { padding: 0 3px; margin: 0 1px; border-radius: 6px; background: var(--blue-ring); color: var(--blue-text); font-weight: var(--w-medium); white-space: nowrap; }
+.mention { padding: 0 3px; margin: 0 1px; border-radius: 6px; background: var(--blue-ring); color: var(--mention-text, var(--blue-text)); font-weight: var(--w-medium); white-space: nowrap; }
 .m.out .bubble .mention { background: color-mix(in srgb, var(--bubble-out-text) 20%, transparent); color: inherit; }
 .mention.me { background: var(--badge-bg); color: var(--badge-text); }
 .m.out .bubble .mention.me { background: var(--bubble-out-text); color: var(--bubble-out); }
@@ -920,7 +920,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 /* Offline banner, carried into the conversation: sits above the composer, orange words. */
 .thread .offline-banner { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); }
 :root[data-kb="1"] .thread .offline-banner { bottom: calc(var(--composer-h, 56px) + 12px); }
-.offline-banner b { color: var(--orange-text); }
+.thread .offline-banner b { color: var(--orange-text); }
 
 /* Reduce Motion, from the system or from the app's own setting: these only fade.
    (.m.is-flash changes brightness, not position, so it stays.) */
