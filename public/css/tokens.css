@@ -260,7 +260,8 @@
     --field: #111113;
     --ink: #f5f5fa;
     --on-ink: #000000;
-    --blue-ring: rgb(10 132 255 / 0.28);
+    --blue-ring: rgb(10 132 255 / 0.18);
+  --mention-text: #409cff;
     --red-ring: rgb(255 69 58 / 0.24);
     --bubble-card: #1c1c1e;
     --bubble-card-line: var(--line);
@@ -326,7 +327,8 @@
   --field: #111113;
   --ink: #f5f5fa;
   --on-ink: #000000;
-  --blue-ring: rgb(10 132 255 / 0.28);
+  --blue-ring: rgb(10 132 255 / 0.18);
+  --mention-text: #409cff;
   --red-ring: rgb(255 69 58 / 0.24);
   --bubble-card: #1c1c1e;
   --bubble-card-line: var(--line);

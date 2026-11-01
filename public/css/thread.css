@@ -863,3 +863,80 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 /* The day in a timestamp carries the weight; the clock steps back. */
 .ts { letter-spacing: 0.01em; color: var(--label-3); }
 .ts b { font-weight: var(--w-semibold); color: var(--label-2); }
+
+/* ---- UI: replies, mentions, jumps (class names agreed with feat/p0).
+ * Spec: docs/hig-audit.md P2-8. Structure comes from the engineering branch;
+ * this block only styles it. */
+
+/* Reply strip above the field: the edit strip's layout, a 3pt blue rule on the leading edge. */
+.composer.replying .field { flex-wrap: wrap; border-radius: 22px; padding-top: 9px; }
+.composer.replying .field textarea { flex-basis: 100%; }
+.composer-reply { flex: 0 0 100%; min-width: 0; display: flex; align-items: center; gap: 10px; margin: 0 0 4px; padding: 0 0 8px; border-bottom: 1px solid var(--line); animation: edit-in 200ms var(--ease-out) backwards; }
+.composer-reply-text { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-left: 11px; line-height: 1.3; }
+.composer-reply-text::before { content: ""; position: absolute; left: 0; top: 1px; bottom: 1px; width: 3px; border-radius: 2px; background: var(--blue); }
+.composer-reply-text b { font-size: var(--t-footnote); font-weight: var(--w-semibold); color: var(--blue-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-reply-text span { font-size: var(--t-footnote); color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 30pt disc, 44pt target. */
+.composer-reply-close { position: relative; flex: none; width: 30px; height: 30px; margin-right: 2px; border-radius: 50%; display: grid; place-items: center; color: var(--label-2); background: var(--fill-4, var(--field)); }
+.composer-reply-close::after { content: ""; position: absolute; inset: -7px; }
+.composer-reply-close .icon { width: 13px; height: 13px; }
+
+/* Quote inside a bubble: a leading rule instead of a tinted slab, name over one line of text. */
+.quote:has(.quote-name) { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 1px 0 7px; padding: 5px 10px 6px 13px; border-radius: 12px; opacity: 1; cursor: pointer; }
+.quote:has(.quote-name)::before { content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--blue); }
+.m.out .quote:has(.quote-name)::before { background: currentColor; opacity: 0.7; }
+.quote-name { font-size: var(--t-footnote); font-weight: var(--w-semibold); color: var(--blue-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m.out .quote-name { color: inherit; }
+.quote-text { font-size: var(--t-footnote); line-height: 1.3; opacity: 0.78; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quote.is-recalled .quote-text { font-style: italic; opacity: 0.55; }
+.quote.is-recalled { cursor: default; }
+
+/* @ mentions: a tinted token, never just colored text. */
+.mention { padding: 0 3px; margin: 0 1px; border-radius: 6px; background: var(--blue-ring); color: var(--mention-text, var(--blue-text)); font-weight: var(--w-medium); white-space: nowrap; }
+.m.out .bubble .mention { background: color-mix(in srgb, var(--bubble-out-text) 20%, transparent); color: inherit; }
+.mention.me { background: var(--badge-bg); color: var(--badge-text); }
+.m.out .bubble .mention.me { background: var(--bubble-out-text); color: var(--bubble-out); }
+
+/* Member picker over the composer: a glass list, 44pt rows. */
+.mention-picker { position: absolute; z-index: var(--z-chrome); left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 8px); max-height: min(44vh, 264px); overflow-y: auto; padding: 6px; border-radius: 22px; background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow-lg); animation: edit-in 180ms var(--ease-out) backwards; }
+:root[data-kb="1"] .mention-picker { bottom: calc(var(--composer-h, 56px) + 8px); }
+.mention-picker-item { width: 100%; min-height: var(--hit); display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 16px; text-align: left; font-size: var(--t-callout); color: var(--label); }
+.mention-picker-item .avatar { --size: 28px; }
+.mention-picker-item.is-active { background: var(--fill-3); }
+@media (hover: hover) and (pointer: fine) { .mention-picker-item:hover { background: var(--fill-4); } }
+
+/* Jump pills ("↓ 新消息", "@ 1"): 36pt glass capsule with a 44pt target, beside the existing jump button. */
+.jump-pill { position: absolute; z-index: var(--z-chrome); left: 50%; bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; font-size: var(--t-subhead); font-weight: var(--w-semibold); color: var(--label); background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow); animation: pill-in var(--spring-snappy-dur) var(--spring-snappy) backwards; }
+.jump-pill::after { content: ""; position: absolute; inset: -4px 0; }
+.jump-pill .icon { width: 15px; height: 15px; }
+.jump-pill.up { bottom: auto; top: calc(var(--head-h, 60px) + var(--safe-top) + 10px); }
+.jump-pill.mention-jump { color: var(--blue-text); }
+.jump-pill-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 10px; font-size: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--badge-text); background: var(--badge-bg); }
+:root[data-kb="1"] .jump-pill:not(.up) { bottom: calc(var(--composer-h, 56px) + 12px); }
+
+/* Where a jump lands: the bubble breathes once (alias of the existing .flash). */
+.m.is-flash .bubble { animation: flash 900ms ease-out; }
+
+/* Offline banner, carried into the conversation: sits above the composer, orange words. */
+.thread .offline-banner { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); }
+:root[data-kb="1"] .thread .offline-banner { bottom: calc(var(--composer-h, 56px) + 12px); }
+.thread .offline-banner b { color: var(--orange-text); }
+
+/* Reduce Motion, from the system or from the app's own setting: these only fade.
+   (.m.is-flash changes brightness, not position, so it stays.) */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) :is(.composer-reply, .mention-picker, .jump-pill) { animation: fade-in 150ms ease-out backwards; }
+}
+:root[data-motion="reduce"] :is(.composer-reply, .mention-picker, .jump-pill) { animation: fade-in 150ms ease-out backwards; }
+/* .jump-pill is centred with transform; the fade must not drop it. */
+.jump-pill { translate: -50% 0; transform: none; }
+@keyframes pill-in { from { opacity: 0; transform: translateY(8px) scale(0.9); } }
+
+/* Offline and new messages at once: the banner keeps the bottom, the pill and jump button stack above it. */
+.thread:has(.offline-banner:not([hidden])) .jump-pill:not(.up),
+.thread:has(.offline-banner:not([hidden])) .jump { bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px + var(--banner-h, 66px) + 8px); }
+:root[data-kb="1"] .thread:has(.offline-banner:not([hidden])) .jump-pill:not(.up),
+:root[data-kb="1"] .thread:has(.offline-banner:not([hidden])) .jump { bottom: calc(var(--composer-h, 56px) + 12px + var(--banner-h, 66px) + 8px); }
+
+/* Your own bubbles never carry your avatar: the side tells who sent them. */
+.m.out .m-avatar, .m.out.has-avatar .m-avatar { display: none; }
