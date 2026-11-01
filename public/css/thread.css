@@ -61,7 +61,7 @@
   box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  border-radius: 18px;
+  border-radius: var(--r-m);
 }
 .thread-title::before, .thread-title::after { display: none; }
 .thread-title .thread-person { position: relative; flex: none; }
@@ -193,7 +193,7 @@
   display: block;
   margin: 1px 0 6px;
   padding: 4px 8px;
-  border-radius: 10px;
+  border-radius: var(--r-xs);
   background: rgb(0 0 0 / 0.06);
   font-size: var(--t-footnote);
   line-height: 1.3;
@@ -237,7 +237,7 @@
   right: 8px;
   bottom: 8px;
   padding: 2px 7px;
-  border-radius: 10px;
+  border-radius: var(--r-xs);
   font-size: var(--t-caption);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
@@ -326,7 +326,7 @@
   width: 44px;
   height: 44px;
   flex: none;
-  border-radius: 12px;
+  border-radius: var(--r-s);
   display: grid;
   place-items: center;
   background: var(--field);
@@ -361,7 +361,7 @@
   max-width: 96px;
   margin: 0 6px;
   padding: 0 10px;
-  border-radius: 14px;
+  border-radius: 999px;
   overflow: hidden;
   white-space: nowrap;
   background: color-mix(in srgb, var(--red) 12%, transparent);
@@ -420,7 +420,7 @@
   flex: 1;
   min-width: 0;
   min-height: 56px;
-  border-radius: 28px;
+  border-radius: 999px;
   display: flex;
   align-items: flex-end;
   padding: 7px 7px 7px 18px;
@@ -451,7 +451,7 @@
    rounded rectangle; the text itself never scales. The twin measures. */
 .field textarea { transition: height 190ms var(--ease-out); }
 .field.no-grow textarea { transition: none; }
-.field.multiline { border-radius: 22px; }
+.field.multiline { border-radius: var(--r-l); }
 /* Input prediction: the rest of the sentence in grey after the caret, drawn
    over the field (never put in it) in the field's own box, font and scroll. */
 .field-predict {
@@ -507,7 +507,7 @@
 .composer.editing .composer-action .action-send { opacity: 0; transform: scale(.8); }
 .composer.editing .composer-action .action-save { opacity: 1; transform: none; }
 /* …and a strip at the top of the field says what is being edited. */
-.composer.editing .field { flex-wrap: wrap; border-radius: 22px; padding-top: 9px; }
+.composer.editing .field { flex-wrap: wrap; border-radius: var(--r-l); padding-top: 9px; }
 /* (The field's own line under it: never squeezed beside the strip.) */
 .composer.editing .field textarea { flex-basis: 100%; }
 .composer-edit { flex: 0 0 100%; min-width: 0; display: flex; align-items: center; gap: 9px; margin: 0 0 4px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
@@ -527,7 +527,7 @@
 .edit-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
 .edit-version { display: flex; flex-direction: column; gap: 6px; }
 .edit-when { font-size: var(--t-caption); color: var(--label-2); font-variant-numeric: tabular-nums; }
-.edit-text { align-self: flex-start; max-width: 100%; padding: 9px 14px; border-radius: 18px; font-size: var(--t-body); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bubble-in-text); background: var(--bubble-in); }
+.edit-text { align-self: flex-start; max-width: 100%; padding: 9px 14px; border-radius: var(--r-m); font-size: var(--t-body); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bubble-in-text); background: var(--bubble-in); }
 .edit-text.out { color: var(--bubble-out-text); background: var(--bubble-out); }
 .edit-version:not(.now) .edit-text { opacity: .72; }
 .composer-action:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
@@ -555,7 +555,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 8px 8px 64px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   /* Closed, the panel is exactly the button's circle. */
   clip-path: inset(calc(100% - 56px) 0 0 calc(100% - 56px) round 28px);
@@ -571,7 +571,7 @@
   gap: 12px;
   min-height: 48px;
   padding: 0 14px;
-  border-radius: 18px;
+  border-radius: var(--r-m);
   font-size: var(--t-body);
   color: var(--label);
   text-align: left;
@@ -737,7 +737,7 @@
   background: var(--bg-elevated);
   box-shadow: 0 0 0 1px var(--line), 0 3px 9px -5px rgb(0 0 0 / 0.22);
   color: var(--label-2);
-  font-size: 14px;
+  font-size: var(--t-subhead);
   line-height: 1;
   transition: transform var(--spring-snappy-dur) var(--spring-snappy);
 }
@@ -746,7 +746,7 @@
 .m.in .m-reactions { align-self: flex-end; margin-right: 12px; }
 .m-reactions.mine { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--label) 30%, var(--line)), 0 3px 9px -5px rgb(0 0 0 / 0.22); }
 .m-reactions.is-pressed { transform: scale(0.92); transition-duration: var(--press-dur); }
-.m-reaction-count { margin-left: 4px; font-size: 11px; font-weight: var(--w-semibold); }
+.m-reaction-count { margin-left: 4px; font-size: var(--t-caption-2); font-weight: var(--w-semibold); }
 .m-reactions.pop { animation: reaction-pop var(--spring-bouncy-dur) var(--spring-bouncy) backwards; }
 .m-reactions.pop .m-reaction:last-of-type { animation: reaction-emoji 520ms var(--ease-out) backwards; }
 @keyframes reaction-pop { from { opacity: 0; transform: translateY(-6px) scale(0.4); } }
@@ -797,12 +797,12 @@
 .stk-panel { padding: 0 16px 8px; }
 .stk-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 12px; }
 .stk-tabs::-webkit-scrollbar { display: none; }
-.stk-tab { position: relative; flex: none; min-height: 36px; padding: 0 14px; border-radius: 18px; background: var(--field); color: var(--label-2); font-size: var(--t-subhead); }
+.stk-tab { position: relative; flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--field); color: var(--label-2); font-size: var(--t-subhead); }
 .stk-tab.on { background: var(--ink); color: var(--on-ink); font-weight: var(--w-semibold); }
 /* 44pt to tap, 36pt to see. */
 .stk-tab::before { content: ""; position: absolute; inset: -4px 0; }
 .stk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
-.stk-cell { aspect-ratio: 1; display: grid; place-items: center; border-radius: 16px; transition: background-color var(--press-out) ease-out; }
+.stk-cell { aspect-ratio: 1; display: grid; place-items: center; border-radius: var(--r-m); transition: background-color var(--press-out) ease-out; }
 .stk-cell:active { background: var(--field); transition-duration: var(--press-in); }
 .stk-cell:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
 .stk-empty { margin: 24px 0; text-align: center; color: var(--label-2); }
@@ -817,7 +817,7 @@
 .stk-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .stk-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-body); color: var(--label); }
 .stk-row-sub { font-size: var(--t-footnote); color: var(--label-2); }
-.stk-add { position: relative; flex: none; min-width: 64px; min-height: 32px; padding: 0 14px; border-radius: 16px; background: var(--ink); color: var(--on-ink); font-size: var(--t-subhead); font-weight: var(--w-semibold); transition: opacity var(--press-out) ease-out; }
+.stk-add { position: relative; flex: none; min-width: 64px; min-height: 32px; padding: 0 14px; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-size: var(--t-subhead); font-weight: var(--w-semibold); transition: opacity var(--press-out) ease-out; }
 /* 44pt to tap, 32pt to see. */
 .stk-add::before { content: ""; position: absolute; inset: -6px 0; }
 .stk-add.added { background: var(--field); color: var(--label); font-weight: var(--w-regular); }
@@ -826,7 +826,7 @@
 /* While the panel's contents are on their way, their shape stands in. */
 .skel { pointer-events: none; }
 .skel-bar, .skel-blob { display: block; background: var(--separator); opacity: 0.5; }
-.skel-bar { height: 12px; border-radius: 6px; }
+.skel-bar { height: 12px; border-radius: 999px; }
 .stk-tab.skel { display: grid; place-items: center; background: var(--field); }
 .stk-tab.skel .skel-bar { height: 10px; }
 .skel-blob { width: 58%; aspect-ratio: 1; border-radius: 30%; }
@@ -840,7 +840,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 :root:not([data-keys="off"]) mark.kw {
   font-weight: var(--w-semibold);
   background: color-mix(in srgb, currentColor 13%, transparent);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 0 2px;
   margin: 0 -1px;
   -webkit-box-decoration-break: clone;
@@ -869,7 +869,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
  * this block only styles it. */
 
 /* Reply strip above the field: the edit strip's layout, a 3pt blue rule on the leading edge. */
-.composer.replying .field { flex-wrap: wrap; border-radius: 22px; padding-top: 9px; }
+.composer.replying .field { flex-wrap: wrap; border-radius: var(--r-l); padding-top: 9px; }
 .composer.replying .field textarea { flex-basis: 100%; }
 .composer-reply { flex: 0 0 100%; min-width: 0; display: flex; align-items: center; gap: 10px; margin: 0 0 4px; padding: 0 0 8px; border-bottom: 1px solid var(--line); animation: edit-in 200ms var(--ease-out) backwards; }
 .composer-reply-text { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-left: 11px; line-height: 1.3; }
@@ -882,7 +882,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .composer-reply-close .icon { width: 13px; height: 13px; }
 
 /* Quote inside a bubble: a leading rule instead of a tinted slab, name over one line of text. */
-.quote:has(.quote-name) { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 1px 0 7px; padding: 5px 10px 6px 13px; border-radius: 12px; opacity: 1; cursor: pointer; }
+.quote:has(.quote-name) { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 1px 0 7px; padding: 5px 10px 6px 13px; border-radius: var(--r-s); opacity: 1; cursor: pointer; }
 .quote:has(.quote-name)::before { content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--blue); }
 .m.out .quote:has(.quote-name)::before { background: currentColor; opacity: 0.7; }
 .quote-name { font-size: var(--t-footnote); font-weight: var(--w-semibold); color: var(--blue-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -892,15 +892,15 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .quote.is-recalled { cursor: default; }
 
 /* @ mentions: a tinted token, never just colored text. */
-.mention { padding: 0 3px; margin: 0 1px; border-radius: 6px; background: var(--blue-ring); color: var(--mention-text, var(--blue-text)); font-weight: var(--w-medium); white-space: nowrap; }
+.mention { padding: 0 3px; margin: 0 1px; border-radius: var(--r-xs); background: var(--blue-ring); color: var(--mention-text, var(--blue-text)); font-weight: var(--w-medium); white-space: nowrap; }
 .m.out .bubble .mention { background: color-mix(in srgb, var(--bubble-out-text) 20%, transparent); color: inherit; }
 .mention.me { background: var(--badge-bg); color: var(--badge-text); }
 .m.out .bubble .mention.me { background: var(--bubble-out-text); color: var(--bubble-out); }
 
 /* Member picker over the composer: a glass list, 44pt rows. */
-.mention-picker { position: absolute; z-index: var(--z-chrome); left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 8px); max-height: min(44vh, 264px); overflow-y: auto; padding: 6px; border-radius: 22px; background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow-lg); animation: edit-in 180ms var(--ease-out) backwards; }
+.mention-picker { position: absolute; z-index: var(--z-chrome); left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 8px); max-height: min(44vh, 264px); overflow-y: auto; padding: 6px; border-radius: var(--r-l); background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow-lg); animation: edit-in 180ms var(--ease-out) backwards; }
 :root[data-kb="1"] .mention-picker { bottom: calc(var(--composer-h, 56px) + 8px); }
-.mention-picker-item { width: 100%; min-height: var(--hit); display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 16px; text-align: left; font-size: var(--t-callout); color: var(--label); }
+.mention-picker-item { width: 100%; min-height: var(--hit); display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: var(--r-m); text-align: left; font-size: var(--t-callout); color: var(--label); }
 .mention-picker-item .avatar { --size: 28px; }
 .mention-picker-item.is-active { background: var(--fill-3); }
 @media (hover: hover) and (pointer: fine) { .mention-picker-item:hover { background: var(--fill-4); } }
@@ -911,7 +911,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .jump-pill .icon { width: 15px; height: 15px; }
 .jump-pill.up { bottom: auto; top: calc(var(--head-h, 60px) + var(--safe-top) + 10px); }
 .jump-pill.mention-jump { color: var(--blue-text); }
-.jump-pill-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 10px; font-size: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--badge-text); background: var(--badge-bg); }
+.jump-pill-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; font-size: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--badge-text); background: var(--badge-bg); }
 :root[data-kb="1"] .jump-pill:not(.up) { bottom: calc(var(--composer-h, 56px) + 12px); }
 
 /* Where a jump lands: the bubble breathes once (alias of the existing .flash). */
@@ -940,3 +940,25 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 
 /* Your own bubbles never carry your avatar: the side tells who sent them. */
 .m.out .m-avatar, .m.out.has-avatar .m-avatar { display: none; }
+
+/* ---- "以下为新消息": the unread divider (div.ts.unread-divider[role=separator], from feat/p0).
+ * A blue label between two hairlines spanning the column, so it reads as where you left off,
+ * not as one more timestamp. It doesn't move: no animation, so Reduce Motion needs nothing. */
+.ts.unread-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0 12px;
+  font-size: var(--t-caption); font-weight: var(--w-semibold); letter-spacing: 0.02em;
+  color: var(--blue-text); white-space: nowrap;
+}
+.ts.unread-divider::before,
+.ts.unread-divider::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.28; }
+.thread .ts.unread-divider + .m.first { --gap: 4px; }
+/* Over a chat wallpaper the lines would get lost, so it uses the same plate as timestamps. */
+/* The blue label needs a near-solid plate: at the shared 74% a dark wallpaper drops it to ~3.5:1.
+ * 92% keeps it at ~4.8:1 even on the darkest preset, and only this plate changes. */
+.thread.has-backdrop .ts.unread-divider {
+  display: flex; padding: 3px 10px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+.thread.has-backdrop .ts.unread-divider::before,
+.thread.has-backdrop .ts.unread-divider::after { content: none; }

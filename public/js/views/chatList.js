@@ -8,7 +8,7 @@ import { listTime } from '../ui/format.js'
 import { velocityTracker, project, rubberband, spring } from '../ui/spring.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
-import { state, on, sortedChats, getDraft, patchRoom, upsertRoom } from '../store.js'
+import { state, on, sortedChats, getDraft, patchRoom, upsertRoom, listLast } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
@@ -193,7 +193,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   function preview(c) {
     const draft = state.open === c.id ? '' : getDraft(c.id)
     if (draft) return [h('span', { class: 'draft' }, '[草稿] '), draft.replace(/\s+/g, ' ')]
-    const last = c.last
+    const last = listLast(c)
     if (!last) return [c.room ? `${c.count || ''}${c.count ? ' 位成员' : ''}` : '']
     if (last.status === 'failed') return [h('span', { class: 'failed' }, '[未发送] '), last.text]
     if (last.status === 'sending') return ['发送中… ', last.text]
@@ -204,7 +204,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     const parts = [c.name]
     if (c.kind === 'dm' && c.online) parts.push('在线')
     if (c.unread) parts.push(`${c.unread} 条未读`)
-    if (c.last?.text) parts.push(c.last.text)
+    const last = listLast(c)
+    if (last?.text) parts.push(last.text)
     if (c.ts) parts.push(listTime(c.ts))
     return parts.join('，')
   }
@@ -802,16 +803,16 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       const recent = rooms.slice(0, 10)
       if (recent.length) {
         results.append(h('div', { class: 'section-title' }, '最近'))
-        for (const c of recent) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: c.last?.text, onClick: () => onOpen(c.id) }))
+        for (const c of recent) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: listLast(c)?.text, onClick: () => onOpen(c.id) }))
       }
       return
     }
     const lc = q.toLowerCase()
-    const roomHits = rooms.filter(c => c.name.toLowerCase().includes(lc) || c.last?.text?.toLowerCase().includes(lc)).slice(0, 20)
+    const roomHits = rooms.filter(c => c.name.toLowerCase().includes(lc) || listLast(c)?.text?.toLowerCase().includes(lc)).slice(0, 20)
     const contactHits = state.contacts.filter(c => c.display?.toLowerCase().includes(lc) || c.username?.toLowerCase().includes(lc))
     if (roomHits.length) {
       results.append(h('div', { class: 'section-title' }, '会话'))
-      for (const c of roomHits) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: c.last?.text, onClick: () => onOpen(c.id) }))
+      for (const c of roomHits) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: listLast(c)?.text, onClick: () => onOpen(c.id) }))
     }
     if (contactHits.length) {
       results.append(h('div', { class: 'section-title' }, '联系人'))

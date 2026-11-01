@@ -206,7 +206,7 @@ img { -webkit-user-drag: none; }
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--blue);
   color: #fff;
   font-size: var(--t-caption);
@@ -226,7 +226,7 @@ img { -webkit-user-drag: none; }
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  border-radius: 12px;
+  border-radius: var(--r-s);
   transition: opacity var(--press-dur) ease-out;
 }
 .text-button:active { opacity: 0.45; }

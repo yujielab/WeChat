@@ -31,7 +31,7 @@
   margin-left: auto;
   height: 56px;
   padding: 0 24px;
-  border-radius: 28px;
+  border-radius: 999px;
   background: var(--ink);
   color: var(--on-ink);
   font-size: var(--t-subhead);
@@ -67,7 +67,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: 22px;
+  border-radius: var(--r-l);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -78,7 +78,7 @@
   display: flex;
   gap: 2px;
   padding: 6px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
 }

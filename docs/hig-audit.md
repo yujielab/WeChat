@@ -87,7 +87,7 @@
   - 退出登录：用 `confirmAction`（“退出登录？” / “退出登录” / “取消”）。
 - **负责人**：代码工程师 + UX交互体验设计师
 
-### P1-2 会话列表字号偏小，主次层级不够清楚
+### P1-2 会话列表字号偏小，主次层级不够清楚 ✅ 已关闭（837f906，HIG 复核通过）
 - **问题**：列表行里名字 15px、预览 13px、时间 11px，三者都比 iOS“信息”小一档。预览是用户扫列表时最主要读的内容，13px 读起来吃力。
 - **证据**：`list.css:68`（.882rem）、`list.css:75`（.765rem）、`list.css:72`（.647rem）、`list.css:78`。截图 `10-unfolded-dark.png`。
 - **HIG 依据**：Typography › iOS 默认字号：Headline 17、Subheadline 15、Footnote 13；次要信息不要低于 Footnote。
@@ -97,7 +97,7 @@
   - narrow 和 leading 两个变体（`list.css:171-200`）同步修改。
 - **负责人**：UI 设计师
 
-### P1-3 一批字号写死成 px，不跟随 Dynamic Type，最小的只有 9px
+### P1-3 一批字号写死成 px，不跟随 Dynamic Type，最小的只有 9px ✅ 已关闭（837f906，HIG 复核通过）
 - **证据**：
   - `duo-layout.css:53` `.bar-badge` 9px：低于 HIG 最小 11pt。
   - `thread.css:740` 回应胶囊 14px、`thread.css:749` 回应计数 11px。

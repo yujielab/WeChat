@@ -18,7 +18,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 18px;
+  border-radius: var(--r-m);
   text-align: left;
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line);
@@ -39,7 +39,7 @@
   align-items: center;
   gap: 12px;
   padding: 0 12px;
-  border-radius: 14px;
+  border-radius: var(--r-s);
   text-align: left;
   color: var(--label);
   font-size: var(--t-body);
@@ -54,7 +54,7 @@
 .side-scope.current .side-scope-icon { color: var(--label); --sym-w: 2.2; } /* semibold, like its label */
 .side-scope-icon .icon { width: 19px; height: 19px; }
 .side-scope-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 11px; background: var(--badge-bg); color: var(--badge-text); font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; }
+.side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 999px; background: var(--badge-bg); color: var(--badge-text); font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; }
 @media (hover: hover) and (pointer: fine) {
   .side-scope:not(.current):hover { background: var(--fill-4); }
 }

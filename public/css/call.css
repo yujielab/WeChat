@@ -66,7 +66,7 @@
   width: 104px;
   height: 150px;
   object-fit: cover;
-  border-radius: 18px;
+  border-radius: var(--r-m);
   z-index: 3;
   background: #18181b;
   box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6);

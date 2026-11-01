@@ -126,7 +126,7 @@
 .profile.has-cover h3, .profile.has-cover p { position: relative; }
 
 /* Editing it: the cover across the top, the photo over its lower edge. */
-.cover-edit { position: relative; display: block; width: 100%; height: 132px; margin-top: 4px; border-radius: 20px; overflow: hidden; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.cover-edit { position: relative; display: block; width: 100%; height: 132px; margin-top: 4px; border-radius: var(--r-m); overflow: hidden; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
 .cover-edit .backdrop { --wash-l: transparent; --wash-d: rgb(0 0 0 / 0.12); }
 .cover-edit-label { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px; font-size: var(--t-caption); font-weight: var(--w-semibold); color: var(--label); background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .cover-edit-label .icon { width: 14px; height: 14px; }
@@ -134,14 +134,14 @@
 .over-cover .avatar { box-shadow: 0 0 0 4px var(--bg-elevated); }
 
 /* A backdrop's value in a settings row: a little swatch of it. */
-.bd-swatch { position: relative; flex: none; width: 26px; height: 26px; border-radius: 8px; overflow: hidden; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.bd-swatch { position: relative; flex: none; width: 26px; height: 26px; border-radius: var(--r-xs); overflow: hidden; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
 .bd-swatch .backdrop { --wash-l: transparent; --wash-d: transparent; }
 .cell .bd-value { display: inline-flex; align-items: center; gap: 8px; color: var(--label-2); font-size: var(--t-body); }
 
 /* ---- the picker */
 .bd-picker { padding: 4px 16px 16px; }
 .bd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px 10px; }
-.bd-tile { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+.bd-tile { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: var(--r-m); overflow: hidden; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
 .bd-tile.bd-cover { aspect-ratio: 16 / 9; }
 .bd-tile.bd-call { background: #000; }
 .bd-tile.is-pressed { transform: scale(0.96); }
@@ -149,7 +149,7 @@
 .bd-tile .backdrop { --wash-l: rgb(255 255 255 / 0.2); --wash-d: rgb(0 0 0 / 0.3); }
 .bd-name { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 3px 6px; border-radius: 999px; text-align: center; font-size: var(--t-caption-2); font-weight: var(--w-semibold); color: var(--label); background: color-mix(in srgb, var(--bg) 80%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-sample { position: absolute; inset: 14px 10px 34px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-.bd-sample i { display: block; height: 12px; border-radius: 7px; }
+.bd-sample i { display: block; height: 12px; border-radius: var(--r-xs); }
 .bd-sample .in { width: 58%; background: var(--bubble-in, var(--field)); }
 .bd-sample .out { width: 50%; align-self: flex-end; background: var(--bubble-out, var(--ink)); }
 .bd-call .bd-sample { align-items: center; }

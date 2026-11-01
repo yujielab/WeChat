@@ -226,11 +226,49 @@ export function thread(chat) {
 }
 function sortThread(t) { t.list.sort((a, b) => a.ts - b.ts || (a.seq || 0) - (b.seq || 0)) }
 
+// Messages deleted "from this device" stay deleted here: the server still
+// has them (the other side still sees them), so every load filters them out.
+const DELETED_KEY = 'deleted:msgs'
+const DELETED_MAX = 1000
+let deletedHere = null
+function deletedSet() {
+  if (!deletedHere) {
+    try { deletedHere = new Set(JSON.parse(storage(DELETED_KEY) || '[]')) } catch { deletedHere = new Set() }
+  }
+  return deletedHere
+}
+export function isDeletedHere(id) { return deletedSet().has(String(id)) }
+function rememberDeleted(id) {
+  const set = deletedSet()
+  set.add(String(id))
+  const ids = [...set].slice(-DELETED_MAX)
+  deletedHere = new Set(ids)
+  storage(DELETED_KEY, JSON.stringify(ids))
+}
+
+/**
+ * What the list shows as a conversation's latest message. One deleted on
+ * this device never shows its words there: the one before it (when this
+ * device has it) takes its place, or else nothing but the time.
+ */
+export function listLast(c) {
+  const last = c?.last
+  if (!last || !isDeletedHere(last.id)) return last || null
+  const prev = state.threads.get(c.id)?.list.at(-1)
+  if (!prev) return { ...last, status: 'sent', text: '' }
+  return {
+    id: prev.id, ts: prev.ts, out: prev.out, type: prev.type, status: prev.status,
+    text: previewText({ state: prev.status, sender: prev.from, type: prev.type, body: prev.text, meta: prev.meta }, c)
+  }
+}
+
 let seq = 0
 export function mergeMessages(chat, msgs, { older = false } = {}) {
   const t = thread(chat)
   const added = []
+  let skipped = false
   for (const m of msgs) {
+    if (isDeletedHere(m.id)) { skipped = true; continue }
     const prev = t.byId.get(m.id)
     if (prev) { Object.assign(prev, m); continue }
     const copy = { ...m, seq: older ? -(++seq) : ++seq }
@@ -239,11 +277,15 @@ export function mergeMessages(chat, msgs, { older = false } = {}) {
     added.push(copy)
   }
   sortThread(t)
+  // The list can now show the message before a deleted last one.
+  if (skipped && isDeletedHere(state.chats.get(chat)?.last?.id)) emit('chats', [chat])
   return added
 }
 export function upsertMessage(m) {
   const t = thread(m.chat)
   const prev = t.byId.get(m.id)
+  // An edit, reaction or recall of one deleted here doesn't bring it back.
+  if (!prev && isDeletedHere(m.id)) return null
   if (prev) { Object.assign(prev, m); emit('msg', prev, 'update'); return prev }
   const copy = { ...m, seq: ++seq }
   t.byId.set(m.id, copy)
@@ -267,7 +309,9 @@ export function replaceMessage(fromId, m) {
   emit('replace', fromId, prev)
   return prev
 }
-export function removeMessage(id, chat) {
+/** Take a message out of its thread; { here: true } keeps it out after reloads too. */
+export function removeMessage(id, chat, { here = false } = {}) {
+  if (here && !String(id).startsWith('local:')) rememberDeleted(id)
   const t = state.threads.get(chat)
   if (!t) return
   const m = t.byId.get(id)
@@ -275,6 +319,8 @@ export function removeMessage(id, chat) {
   t.byId.delete(id)
   t.list = t.list.filter(x => x !== m)
   emit('remove', id, chat)
+  // Deleted here while it was the latest: the list's preview moves off it.
+  if (here && state.chats.get(chat)?.last?.id === id) emit('chats', [chat])
 }
 
 // ---------------------------------------------------------------- drafts

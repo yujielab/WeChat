@@ -13,7 +13,7 @@
 .bar-group.capsule {
   gap: 2px;
   padding: 4px;
-  border-radius: 26px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
 }
@@ -47,10 +47,10 @@
   right: -5px;
   min-width: 17px;
   padding: 2px 4px;
-  border-radius: 9px;
+  border-radius: var(--r-xs);
   background: var(--ink);
   color: var(--on-ink);
-  font-size: 9px;
+  font-size: var(--t-caption-2);
   line-height: 1.1;
   font-weight: 600;
   box-shadow: 0 0 0 2px var(--bg);
@@ -107,7 +107,7 @@
 .thread-nav .bar-group { order: 1; }
 .thread-title { flex: 1; min-width: 0; min-height: 50px; gap: 11px; padding: 0; }
 .thread-title .avatar { --size: 40px; }
-.thread-title .name { font-size: 1.059rem; line-height: 1.25; letter-spacing: -.025em; }
+.thread-title .name { font-size: var(--t-headline); line-height: 1.25; letter-spacing: -.025em; }
 .thread-title .sub { font-size: var(--t-caption); margin-top: 5px; }
 .thread-title:focus-visible { outline-offset: 4px; }
 .thread>.edge-top { display: none; }

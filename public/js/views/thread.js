@@ -15,7 +15,7 @@ import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
-import { openMenu, openSheet, toast } from './overlay.js'
+import { openMenu, openSheet, toast, confirmAction } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 import { createBars } from '../ui/bars.js'
@@ -78,6 +78,20 @@ const FROZEN = [
   'justify-content', 'gap', 'border-top-left-radius', 'border-top-right-radius', 'border-bottom-left-radius',
   'border-bottom-right-radius', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'object-fit'
 ]
+/** An element's border-box size as laid out, with fractions and without its transform. */
+function layoutSize(el) {
+  const cs = getComputedStyle(el)
+  let w = parseFloat(cs.width)
+  let ht = parseFloat(cs.height)
+  if (!(w > 0) || !(ht > 0)) return { w: el.offsetWidth, ht: el.offsetHeight }
+  if (cs.boxSizing !== 'border-box') {
+    const sum = (...props) => props.reduce((n, p) => n + (parseFloat(cs.getPropertyValue(p)) || 0), 0)
+    w += sum('padding-left', 'padding-right', 'border-left-width', 'border-right-width')
+    ht += sum('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width')
+  }
+  return { w, ht }
+}
+
 function liftedCopy(bubble, width, height) {
   const copy = bubble.cloneNode(true)
   const from = [bubble, ...bubble.querySelectorAll('*')]
@@ -942,8 +956,17 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (m.text) await sendText(m.text, m.chat)
   }
 
-  function deleteLocal(m) {
-    removeMessage(m.id, m.chat)
+  // Only this device forgets it, so say so and ask first; the answer
+  // stays after a reload (store.js keeps the ids deleted here).
+  async function deleteLocal(m, anchor) {
+    const ok = await confirmAction(anchor?.isConnected ? anchor : nodes.get(m.id)?.querySelector('.bubble') || scroller, {
+      title: '只从这台设备删除？对方仍能看到这条消息',
+      confirm: '删除'
+    })
+    if (!ok) return
+    if (editingId === m.id) composer.endEdit()
+    removeMessage(m.id, m.chat, { here: true })
+    announce('已删除')
   }
 
   // ------------------------------------------------------------ interactions
@@ -1099,8 +1122,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     // The bubble may still be easing back from its press: its box, not its
     // drawn (scaled) rect, is its size; the drawn centre is still its centre.
     const drawn = bub.getBoundingClientRect()
-    const w = bub.offsetWidth
-    const ht = bub.offsetHeight
+    // Its exact laid-out size, unscaled: offsetWidth rounds, and a copy even
+    // a fraction of a pixel narrower wraps its last character (“你好了?”).
+    const { w, ht } = layoutSize(bub)
     const x = drawn.left + (drawn.width - w) / 2 - origin.left
     const y = drawn.top + (drawn.height - ht) / 2 - origin.top
     const rect = new DOMRect(x + origin.left, y + origin.top, w, ht)
@@ -1137,7 +1161,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const canRevoke = !photos && m.out && !String(m.id).startsWith('local:') && Date.now() - m.ts < 2 * 60 * 1000
     const danger = []
     if (canRevoke) danger.push({ label: '撤回', icon: 'undo', onSelect: () => revoke(m) })
-    if (!photos) danger.push({ label: '从本设备删除', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m) })
+    if (!photos) danger.push({ label: '从本设备删除', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m, bub) })
     items.push(danger)
 
     const header = !photos && reactable(m) ? choose => {

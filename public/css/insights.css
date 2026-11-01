@@ -11,7 +11,7 @@
   min-height: 100%;
   margin: -4px 0 0;
   padding: 14px 14px 28px;
-  border-radius: 26px;
+  border-radius: var(--r-xl);
   background: linear-gradient(180deg, #4d6c99 0%, #7f9cc3 34%, #b9cce3 68%, #dce6f1 100%);
   color: var(--ins-ink);
 }
@@ -33,7 +33,7 @@
   width: 100%;
   min-height: 84px;
   padding: 16px 18px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   text-align: left;
   color: var(--ins-ink);
   background: var(--ins-card);
@@ -47,13 +47,13 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
 .ins-line { font-size: 1.06rem; line-height: 1.75; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .ins-line b { font-weight: var(--w-semibold); }
 .ins-sub { font-size: var(--t-footnote); line-height: 1.4; color: var(--ins-ink-2); overflow-wrap: anywhere; }
-.ins-chip { display: inline-block; margin-right: 2px; padding: 1px 9px; border-radius: 9px; font-weight: var(--w-medium); background: var(--ins-chip); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.04); line-height: 1.6; }
+.ins-chip { display: inline-block; margin-right: 2px; padding: 1px 9px; border-radius: var(--r-xs); font-weight: var(--w-medium); background: var(--ins-chip); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.04); line-height: 1.6; }
 /* The person, inline like an app's icon: picture on the line's middle, name on its baseline. */
 .ins-who { white-space: nowrap; }
 .ins-who .avatar { --size: 24px; display: inline-grid; margin: 0 5px 0 1px; vertical-align: -5px; font-size: 11px; box-shadow: 0 0 0 1.5px var(--ins-card); }
 .ins-art { flex: none; display: grid; place-items: center; }
 .ins-glyph { width: 22px; height: 22px; color: var(--ins-ink-2); }
-.ins-thumb { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; background: var(--fill-4); }
+.ins-thumb { width: 56px; height: 56px; border-radius: var(--r-s); object-fit: cover; background: var(--fill-4); }
 
 /* The stack: plates under the last standing card, as if more lay beneath. */
 .ins-more { position: relative; display: block; height: 22px; margin-top: -18px; }
@@ -72,11 +72,11 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
 .ins-skeleton .ins-text { gap: 10px; }
 
 /* Weather: a widget with the place, and two tiles. */
-.ins-weather { margin-top: 18px; padding: 18px; border-radius: 30px; background: var(--ins-card); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 24px -16px rgb(20 40 80 / 0.45); }
+.ins-weather { margin-top: 18px; padding: 18px; border-radius: var(--r-sheet); background: var(--ins-card); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 24px -16px rgb(20 40 80 / 0.45); }
 .ins-weather-head { display: flex; align-items: center; gap: 10px; margin: 0 4px 14px; font-size: 1.06rem; }
 .ins-weather-head .icon { width: 26px; height: 26px; }
 .ins-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.ins-tile { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 20px; background: color-mix(in srgb, #fff 55%, transparent); }
+.ins-tile { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--r-m); background: color-mix(in srgb, #fff 55%, transparent); }
 :root[data-theme="dark"] .ins-tile { background: rgb(255 255 255 / 0.06); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ins-tile { background: rgb(255 255 255 / 0.06); } }
 .ins-tile-label { font-size: var(--t-subhead); color: var(--ins-ink-2); }
@@ -85,7 +85,7 @@ button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--
 /* In a conversation's details: the same cards, on the page itself. */
 .ins-section { margin: 0 0 6px; }
 .ins-plain { margin: 0 20px; }
-.ins-plain .ins-card { --ins-card: var(--bg-elevated); --ins-chip: var(--field); --ins-ink: var(--label); --ins-ink-2: var(--label-2); min-height: 0; padding: 14px 16px; border-radius: 22px; box-shadow: 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.ins-plain .ins-card { --ins-card: var(--bg-elevated); --ins-chip: var(--field); --ins-ink: var(--label); --ins-ink-2: var(--label-2); min-height: 0; padding: 14px 16px; border-radius: var(--r-l); box-shadow: 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .ins-plain .ins-line { font-size: var(--t-body); line-height: 1.7; }
 
 /* The way in, at the top of the list. */

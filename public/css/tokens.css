@@ -41,8 +41,20 @@
   /* Words in a system color use these readable variants (≥4.5:1); icons and fills keep the originals. */
   --blue-text: #0062cc;         /* 5.8:1 on white */
   --orange-text: #c93400;       /* 5.3:1 on white */
-  --badge-bg: #0062cc;          /* unread counts: white on it is 5.8:1 */
-  --badge-text: #ffffff;
+  /* Brand green, sampled from WhatsApp's own iOS screenshots (docs/style-spec.md §7).
+     WhatsApp's #00ad59 carries no words here (white on it is 2.95:1): fills and icons only.
+     Words and anything with white on it use the deeper green. */
+  --brand: #00ad59;
+  --brand-text: #007a4d;        /* 5.4:1 on white, 4.8:1 on the wallpaper */
+  --brand-strong: #007a4d;      /* badges and the send key: white on it is 5.4:1 */
+  --on-brand: #ffffff;
+  --badge-bg: var(--brand-strong);
+  --badge-text: var(--on-brand);
+  /* The conversation canvas and its notes (wired up in steps 3-4 of the style spec). */
+  --wallpaper: #f6f1ea;
+  --wallpaper-doodle: #ece0d1;
+  --notice-bg: #ffefd1;
+  --tick-read: #007dff;         /* an icon: 3.5:1 on the outgoing bubble, over the 3:1 for graphics */
   --orange: #ff9500;
   --yellow: #ffcc00;
   --green: #34c759;
@@ -123,10 +135,16 @@
   --margin: 16px;
   --hit: 44px;
   --r-bubble: 20px;
-  --r-card: 20px;
-  --r-tile: 22px;
-  --r-menu: 20px;
+  /* 圆角六档（P2-2）：胶囊一律 999px；嵌套圆角 = 外层 − 内边距 */
+  --r-xs: 8px;
+  --r-s: 12px;
+  --r-m: 18px;
+  --r-l: 23px;
+  --r-xl: 26px;
   --r-sheet: 30px;
+  --r-card: var(--r-m);
+  --r-tile: var(--r-l);
+  --r-menu: var(--r-m);
   --hairline: 1px;
 
   --safe-top: env(safe-area-inset-top, 0px);
@@ -229,8 +247,15 @@
     --red-text: #ff453a;
     --blue-text: #0a84ff;
     --orange-text: #ff9f0a;
-    --badge-bg: #0a84ff;
-    --badge-text: #000000;
+    --brand-text: #00c357;      /* WhatsApp's dark green words: 8.9:1 on black */
+    --brand-strong: #00c357;    /* dark badges and send key carry black, as WhatsApp's do: 8.9:1 */
+    --on-brand: #000000;
+    --badge-bg: var(--brand-strong);
+    --badge-text: var(--on-brand);
+    --wallpaper: #0a0a0a;
+    --wallpaper-doodle: #232323;
+    --notice-bg: #232626;
+    --tick-read: #27a8ff;
     --orange: #ff9f0a;
     --yellow: #ffd60a;
     --green: #30d158;
@@ -296,8 +321,15 @@
   --red-text: #ff453a;
   --blue-text: #0a84ff;
   --orange-text: #ff9f0a;
-  --badge-bg: #0a84ff;
-  --badge-text: #000000;
+  --brand-text: #00c357;    /* WhatsApp's dark green words: 8.9:1 on black */
+  --brand-strong: #00c357;    /* dark badges and send key carry black, as WhatsApp's do: 8.9:1 */
+  --on-brand: #000000;
+  --badge-bg: var(--brand-strong);
+  --badge-text: var(--on-brand);
+  --wallpaper: #0a0a0a;
+  --wallpaper-doodle: #232323;
+  --notice-bg: #232626;
+  --tick-read: #27a8ff;
   --orange: #ff9f0a;
   --yellow: #ffd60a;
   --green: #30d158;
@@ -340,3 +372,30 @@
 
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
+
+/* ---- Increase Contrast (HIG P1-6): secondary words, hairlines, fills and
+   switch tracks get firmer, not just the glass rims. Same three entry points
+   as the palette: light, dark by system, dark by choice. */
+@media (prefers-contrast: more) {
+  :root {
+    --label-2: #3a3a3c;
+    --label-3: #6c6c70;
+    --separator: rgb(60 60 67 / 0.5);
+    --line: #c7c7cc;
+    --fill: rgb(120 120 128 / 0.42);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --label-2: rgb(240 240 250 / 0.8);
+    --label-3: rgb(240 240 250 / 0.6);
+    --line: rgb(240 240 250 / 0.3);
+  }
+}
+@media (prefers-contrast: more) {
+  :root[data-theme="dark"] {
+    --label-2: rgb(240 240 250 / 0.8);
+    --label-3: rgb(240 240 250 / 0.6);
+    --line: rgb(240 240 250 / 0.3);
+  }
+}

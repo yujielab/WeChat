@@ -179,6 +179,13 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     const s = e.state || {}
     const col = Number.isInteger(s.duo) ? s.duo : LIST
     const instant = Boolean(e.hasUAVisualTransition)
+    // The browser's Back with ink on the board: the entry goes back on, the
+    // board stays, and the same question as Close decides.
+    if (strip.focus === ARTIFACT && col < ARTIFACT && artifact.unsaved) {
+      history.pushState(entry(ARTIFACT), '')
+      mayDiscardDrawing().then(ok => { if (ok) back(ARTIFACT) })
+      return
+    }
     if (col < strip.focus) {
       while (pushed.length && pushed.at(-1) > col) pushed.pop()
       go(col, { instant })
