@@ -13,7 +13,7 @@ import { createThread } from './thread.js'
 import { createArtifact } from './artifact.js'
 import { openSettings, openNewChat, rememberOpen } from './sheets.js'
 import { openInsights } from './insights.js'
-import { closeAllOverlays, healOverlays } from './overlay.js'
+import { closeAllOverlays, healOverlays, confirmAction } from './overlay.js'
 import { h } from '../ui/dom.js'
 
 const SIDEBAR = 0
@@ -57,7 +57,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     socketSend
   })
   const artifact = createArtifact(panes[ARTIFACT], {
-    onClose: () => back(ARTIFACT),
+    onClose: () => leaveArtifact(),
     onSend: (blob, size) => thread.sendDrawing(blob, size),
     loadContacts
   })
@@ -74,7 +74,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
         if (pane.dataset.role !== 'hidden') views[panes.indexOf(pane)].setLayout(pane.dataset.role)
       }
     },
-    onSwipeBack: ({ from, velocity }) => back(from, { velocity }),
+    onSwipeBack: ({ from, velocity }) => (from === ARTIFACT ? leaveArtifact({ velocity, swiped: true }) : back(from, { velocity })),
     swipeZone: pane => (pane.dataset.edgeSwipe !== undefined ? 40 : pane.clientWidth * 0.6)
   })
 
@@ -142,8 +142,32 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
   shell.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || e.defaultPrevented || strip.focus !== ARTIFACT) return
     e.preventDefault()
-    back(ARTIFACT)
+    leaveArtifact()
   })
+
+  /**
+   * Back from the details column, but a drawing that hasn't been sent is
+   * not thrown away without asking (Close, Escape, the 手绘 tool again, or a
+   * swipe back all come here). An empty board closes at once.
+   */
+  let asking = false
+  /** true when there's nothing to lose or the drawing may go; null while already asking. */
+  async function mayDiscardDrawing() {
+    const unsaved = artifact.unsaved
+    if (!unsaved) return true
+    if (asking) return null
+    asking = true
+    const ok = await confirmAction(unsaved.anchor, { title: '放弃这张手绘？画好的内容不会保存', confirm: '放弃' })
+    asking = false
+    if (!ok) unsaved.anchor.focus?.({ preventScroll: true })
+    return ok
+  }
+  async function leaveArtifact({ velocity = 0, swiped = false } = {}) {
+    // A swipe that let go with ink on the board springs back first; the board stays until answered.
+    if (swiped && artifact.unsaved) go(ARTIFACT, { velocity })
+    if (!await mayDiscardDrawing()) return
+    return back(ARTIFACT, { velocity })
+  }
 
   window.addEventListener('popstate', e => {
     if (skipPop) {
@@ -212,7 +236,16 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
 
   function toggleArtifact(kind, chat) {
     const shown = artifact.current
-    if (strip.focus === ARTIFACT && shown?.kind === kind && shown.chat === chat) return back(ARTIFACT)
+    if (strip.focus === ARTIFACT && shown?.kind === kind && shown.chat === chat) return leaveArtifact()
+    // Swapping an unsent drawing for the details asks first, as closing does.
+    if (artifact.unsaved && kind !== 'draw') {
+      return mayDiscardDrawing().then(ok => {
+        if (!ok) return
+        closeAllOverlays()
+        artifact.show(kind, chat)
+        return forward(ARTIFACT)
+      })
+    }
     closeAllOverlays()
     artifact.show(kind, chat)
     return forward(ARTIFACT)

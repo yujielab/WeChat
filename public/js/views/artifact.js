@@ -66,6 +66,10 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
   return {
     show,
     clear,
+    /** An unsent drawing would be lost by leaving: { anchor } to ask from, or null. */
+    get unsaved() {
+      return current?.kind === 'draw' && current.view.dirty ? { anchor: current.view.closeButton } : null
+    },
     get current() {
       return current && { kind: current.kind, chat: current.chat }
     },
