@@ -189,7 +189,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 .cell .value { color: var(--label-2); font-size: var(--t-body); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
 .cell .chev { color: var(--label-3); width: 14px; height: 14px; }
 .cell.destructive { color: var(--red-text); justify-content: center; }
-.cell.tint { color: var(--blue); }
+.cell.tint { color: var(--blue-text); }
 /* Monochrome tiles: the label says what a row is, not a color. */
 .cell-icon {
   width: 30px;

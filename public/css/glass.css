@@ -89,7 +89,7 @@
   transition: transform var(--spring-snappy-dur) var(--spring-snappy);
 }
 .glass-btn .icon { width: 22px; height: 22px; }
-.glass-btn.tint { color: var(--blue); }
+.glass-btn.tint { color: var(--blue-text); }
 
 .glass-pill {
   min-height: var(--hit);

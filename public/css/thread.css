@@ -515,14 +515,14 @@
 @keyframes edit-in { from { opacity: 0; transform: translateY(4px); } }
 .composer-edit-icon { flex: none; width: 17px; height: 17px; color: var(--blue); }
 .composer-edit-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; line-height: 1.3; }
-.composer-edit-text b { font-size: var(--t-caption); font-weight: var(--w-semibold); color: var(--blue); }
+.composer-edit-text b { font-size: var(--t-caption); font-weight: var(--w-semibold); color: var(--blue-text); }
 .composer-edit-quote { font-size: var(--t-caption); color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-edit-cancel { flex: none; width: 30px; height: 30px; margin-right: 2px; border-radius: 50%; display: grid; place-items: center; color: var(--label-2); background: var(--fill-4, var(--field)); }
 .composer-edit-cancel .icon { width: 13px; height: 13px; }
 /* Its bubble is marked meanwhile. */
 .m.editing .bubble { outline: 2px solid var(--blue); outline-offset: 2px; }
 /* A message rewritten by its sender says so under the bubble; tapped, each wording. */
-.m-edited { margin: 3px 10px 0; padding: 2px 2px; min-height: 22px; font-size: var(--t-caption-2); font-weight: var(--w-medium); color: var(--blue); }
+.m-edited { margin: 3px 10px 0; padding: 2px 2px; min-height: 22px; font-size: var(--t-caption-2); font-weight: var(--w-medium); color: var(--blue-text); }
 .edit-history-wrap { padding: 4px 18px 18px; }
 .edit-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
 .edit-version { display: flex; flex-direction: column; gap: 6px; }
@@ -623,7 +623,7 @@
 /* ---------------------------------------------------------------- new-model additions */
 
 
-.thread-title .sub.typing { color: var(--blue); }
+.thread-title .sub.typing { color: var(--blue-text); }
 
 /* Call record: a record rather than a message, so a compact, quiet chip
    with no outline; only a call you missed is red. */
@@ -846,3 +846,20 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+
+/* ---- UI polish: bubble runs.
+ * A run from one sender reads as one stack: tighter spacing inside it, and the
+ * corners that face the sender's edge pinch in where bubbles meet, rounding
+ * out again only at the run's ends. Media, stickers, jumbo emoji and call logs
+ * keep their own shapes. */
+.m { --gap: 3px; }
+.m.first { --gap: 16px; }
+.m.in:not(.first) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-top-left-radius: 8px; }
+.m.in:not(.last) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-bottom-left-radius: 8px; }
+.m.out:not(.first) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-top-right-radius: 8px; }
+.m.out:not(.last) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-bottom-right-radius: 8px; }
+.m.out .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.voice) { background-image: var(--bubble-out-sheen, none); }
+
+/* The day in a timestamp carries the weight; the clock steps back. */
+.ts { letter-spacing: 0.01em; color: var(--label-3); }
+.ts b { font-weight: var(--w-semibold); color: var(--label-2); }
