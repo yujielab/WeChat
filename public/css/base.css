@@ -221,7 +221,7 @@ img { -webkit-user-drag: none; }
 .text-button {
   min-height: var(--hit);
   padding: 0 var(--s-2);
-  color: var(--blue);
+  color: var(--blue-text);
   font-size: var(--t-body);
   display: inline-flex;
   align-items: center;

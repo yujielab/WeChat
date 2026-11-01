@@ -28,7 +28,7 @@
 .large-title { margin: 0; font-size: 1.882rem; font-weight: var(--w-bold); line-height: 1.17; letter-spacing: -0.02em; color: var(--label); }
 .conn-status { font-size: .706rem; font-weight: 500; color: var(--label-2); display: inline-flex; align-items: center; gap: 5px; max-width: 44%; }
 .conn-status .icon { width: 14px; height: 14px; }
-.conn-status.warn { color: var(--orange); }
+.conn-status.warn { color: var(--orange-text); }
 
 /* The capsule follows the actual button geometry instead of assuming equal labels. */
 .list-filters { position: relative; display: flex; align-items: center; width: max-content; max-width: calc(100% - var(--list-inset) * 2); gap: 3px; margin: 15px var(--list-inset) 14px; padding: 0; min-height: 44px; isolation: isolate; overflow-x: auto; scrollbar-width: none; }
@@ -40,7 +40,7 @@
 .filter-tab:focus-visible { outline: 2px solid var(--label-2); outline-offset: -1px; }
 .filter-tab:active { opacity: .65; }
 .filter-note { margin: 0 var(--list-inset) 10px; font-size: .765rem; color: var(--label-2); }
-.filter-note button { color: var(--blue); }
+.filter-note button { color: var(--blue-text); }
 
 /* Pinned people stay airy and distinct from the conversation rows. The grid
    keeps an even number of columns so it divides cleanly at the fold. */
@@ -75,7 +75,7 @@
 .row-preview { flex: 1; min-width: 0; color: var(--label-2); font-size: .765rem; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.unread .row-preview { color: var(--label); }
 .row-preview .draft, .row-preview .failed { color: var(--red-text); }
-.row-count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font-size: .647rem; line-height: 1; font-weight: 650; color: #fff; background: var(--blue); }
+.row-count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font-size: .647rem; line-height: 1; font-weight: 650; color: var(--badge-text); background: var(--badge-bg); }
 .row.muted .row-count { background: var(--fill); color: var(--label-2); }
 .row.menu-open .row-inner { background: var(--paper, var(--fill-4)); }
 .pin.menu-open { background: var(--paper, var(--field)); }
@@ -129,7 +129,7 @@
 .contact-row .name { font-size: .882rem; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row .sub { margin-top: 4px; font-size: .706rem; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row.is-pressed { background: var(--paper, var(--fill-4)); }
-mark { background: none; color: var(--blue); }
+mark { background: none; color: var(--blue-text); }
 
 /* Connection recovery remains part of the real connection state. */
 .offline-banner { position: absolute; z-index: var(--z-chrome); left: var(--list-inset); right: var(--list-inset); bottom: calc(max(var(--safe-bottom), 10px) + 72px); border-radius: 20px; padding: 11px 12px; display: flex; align-items: center; gap: 9px; font-size: .706rem; color: var(--label-2); animation: materialize 320ms var(--ease-out) backwards; }

@@ -38,6 +38,11 @@
   --red: #ff3b30;
   --red-text: #d70015;          /* red words: 5.4:1 on white, where --red is 3.5:1 */
   --red-ring: rgb(255 59 48 / 0.12);
+  /* Words in a system color use these readable variants (≥4.5:1); icons and fills keep the originals. */
+  --blue-text: #0062cc;         /* 5.8:1 on white */
+  --orange-text: #c93400;       /* 5.3:1 on white */
+  --badge-bg: #0062cc;          /* unread counts: white on it is 5.8:1 */
+  --badge-text: #ffffff;
   --orange: #ff9500;
   --yellow: #ffcc00;
   --green: #34c759;
@@ -222,6 +227,10 @@
     --blue-press: #409cff;
     --red: #ff453a;
     --red-text: #ff453a;
+    --blue-text: #0a84ff;
+    --orange-text: #ff9f0a;
+    --badge-bg: #0a84ff;
+    --badge-text: #000000;
     --orange: #ff9f0a;
     --yellow: #ffd60a;
     --green: #30d158;
@@ -284,6 +293,10 @@
   --blue-press: #409cff;
   --red: #ff453a;
   --red-text: #ff453a;
+  --blue-text: #0a84ff;
+  --orange-text: #ff9f0a;
+  --badge-bg: #0a84ff;
+  --badge-text: #000000;
   --orange: #ff9f0a;
   --yellow: #ffd60a;
   --green: #30d158;
