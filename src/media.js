@@ -10,6 +10,7 @@ const KINDS = new Set(['image', 'voice', 'video', 'file', 'avatar', 'cover', 'bg
 // and cover (seen by anyone), and the backdrops it chose (seen only by it).
 const OWN = new Set(['avatar', 'cover', 'bg'])
 const PUBLIC = new Set(['avatar', 'cover'])
+const LOCAL_ID = /^[A-Za-z0-9_-]{1,64}$/
 
 const DOWNLOAD_HEADERS = {
   'cache-control': 'private, max-age=31536000, immutable',
@@ -44,23 +45,32 @@ async function upload(request, url, user, hub) {
 
   const contentType = request.headers.get('content-type') || 'application/octet-stream'
   const scope = OWN.has(kind) ? user.id : room
-  const key = `${kind}/${scope}/${rid()}`
+  // A picture from the outbox carries its message's localId: the same upload
+  // repeated (its answer lost, a reload in between) is the same object, not
+  // another copy. Keyed by the uploader too, so nobody else's id can reach it.
+  const localId = OWN.has(kind) ? '' : String(url.searchParams.get('localId') || '')
+  const key = LOCAL_ID.test(localId) ? `${kind}/${scope}/l${user.id}-${localId}` : `${kind}/${scope}/${rid()}`
 
-  await hub.env.MEDIA.put(key, request.body, {
-    httpMetadata: { contentType },
-    customMetadata: { by: user.id }
-  })
+  const existing = LOCAL_ID.test(localId) ? await hub.env.MEDIA.head(key) : null
+  if (existing) {
+    await request.body.cancel?.().catch(() => {})
+  } else {
+    await hub.env.MEDIA.put(key, request.body, {
+      httpMetadata: { contentType },
+      customMetadata: { by: user.id }
+    })
+  }
 
   // Display metadata is supplied by the client (dimensions, duration, name).
   const meta = {
     type: contentType,
-    size,
+    size: existing ? existing.size : size,
     name: safeName(url.searchParams.get('name')),
     w: numOr(url.searchParams.get('w')),
     h: numOr(url.searchParams.get('h')),
     dur: numOr(url.searchParams.get('dur'))
   }
-  return j({ ok: true, key, url: `/api/media/${key}`, meta })
+  return j({ ok: true, key, url: `/api/media/${key}`, meta, ...(existing && { repeat: true }) })
 }
 
 async function download(key, user, hub) {

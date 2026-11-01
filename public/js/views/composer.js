@@ -9,15 +9,17 @@
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
 import { getDraft, setDraft } from '../store.js'
+import { storage } from '../ui/dom.js'
 import { openAttachments } from './attachments.js'
 import { createPredictor } from './predict.js'
+import { avatar } from './avatar.js'
 
 // The field shows up to five lines, fewer when the window is short, then
 // scrolls inside.
 const MAX_LINES = 5
 let panelIds = 0
 
-export function createComposer({ onSend, onImages, onHeight, onType, tools = [] }) {
+export function createComposer({ onSend, onImages, onHeight, onType, mentionable, tools = [] }) {
   const textarea = h('textarea', {
     rows: 1,
     placeholder: '消息',
@@ -29,7 +31,11 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   // Measures the text at the field's width without touching the live
   // editor, so its caret, selection and IME composition never jump.
   const twin = h('div', { class: 'field-twin', 'aria-hidden': 'true' })
-  const field = h('div', { class: 'field glass' }, textarea, twin)
+  // The names a message @-mentions, highlighted where they stand: a layer
+  // behind the field's own text (same box, font and scroll), so typing, IME
+  // composition, selection and paste stay the textarea's own.
+  const marks = h('div', { class: 'field-mentions', 'aria-hidden': 'true', hidden: true })
+  const field = h('div', { class: 'field glass' }, marks, textarea, twin)
   // What you're likely to type next, drawn after the caret (predict.js);
   // never for a message being edited.
   const predictor = createPredictor({ textarea, field, chat: () => (editing ? null : chat) })
@@ -72,6 +78,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   let open = false
   let hasText = false
   let editing = null // { original, draft, onSave, onEnd }
+  let replying = null // { id, name, text }: the message the next one answers
 
   function openImages(files = []) {
     if (readonly || !chat) return false
@@ -111,7 +118,40 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     textarea.style.height = `${Math.ceil(height)}px`
     field.classList.toggle('multiline', twin.scrollHeight > line + pad + 2)
     setHasText(textarea.value.trim().length > 0)
+    paintMentions()
   }
+  function paintMentions() {
+    const v = textarea.value
+    const names = v.includes('@') ? mentionTokens().map(t => t.text) : []
+    const parts = []
+    if (names.length) {
+      // Longest first, so "@小红豆" isn't taken as "@小红".
+      const re = new RegExp(names.sort((a, b) => b.length - a.length).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+      let at = 0
+      for (const hit of v.matchAll(re)) {
+        if (hit.index > at) parts.push(v.slice(at, hit.index))
+        parts.push(h('span', { class: 'mention' }, hit[0]))
+        at = hit.index + hit[0].length
+      }
+      if (parts.length) parts.push(v.slice(at))
+    }
+    marks.hidden = !parts.length
+    if (!parts.length) return marks.replaceChildren()
+    const cs = getComputedStyle(textarea)
+    Object.assign(marks.style, {
+      left: `${textarea.offsetLeft}px`,
+      top: `${textarea.offsetTop}px`,
+      width: `${textarea.clientWidth}px`,
+      // The height it is growing to, not the one it's passing through.
+      height: textarea.style.height || `${textarea.clientHeight}px`,
+      font: cs.font,
+      letterSpacing: cs.letterSpacing,
+      padding: cs.padding
+    })
+    marks.replaceChildren(...parts, '\u200b')
+    marks.scrollTop = textarea.scrollTop
+  }
+  textarea.addEventListener('scroll', () => { if (!marks.hidden) marks.scrollTop = textarea.scrollTop }, { passive: true })
 
   // ------------------------------------------------------------ the button
   // One button, two jobs: it always holds its place, and only its symbol and
@@ -188,7 +228,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     autosize()
     clearTimeout(draftTimer)
     if (chat) setDraft(chat, '')
-    onSend(text.replace(/\s+$/, ''))
+    onSend(text.replace(/\s+$/, ''), { replyTo: takeReply(), mentions: takeMentions(text) })
     onType?.('')
     // Keep the keyboard up for the next message.
     textarea.focus({ preventScroll: true })
@@ -197,6 +237,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   textarea.addEventListener('input', () => {
     autosize()
     predictor.input()
+    syncMentions()
     // What is typed into a message being edited is neither the draft nor
     // shown to the others as it's typed: they see the edit once it's saved.
     if (editing) return
@@ -205,6 +246,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     onType?.(textarea.value)
   })
   textarea.addEventListener('keydown', e => {
+    if (mentionKey(e)) return
     if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return
     if (e.shiftKey || e.altKey) return
     e.preventDefault()
@@ -230,6 +272,10 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       e.preventDefault()
       e.stopPropagation()
       endEdit()
+    } else if (e.key === 'Escape' && replying && !e.isComposing) {
+      e.preventDefault()
+      e.stopPropagation()
+      endReply()
     }
   })
 
@@ -252,6 +298,8 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
   function startEdit({ text, onSave, onEnd }) {
     if (readonly || !chat) return false
     if (editing) endEdit()
+    // An edit isn't an answer to anything: the reply waits for the next message.
+    if (replying) { replyStrip.remove(); form.classList.remove('replying') }
     setOpen(false, { focus: false })
     clearTimeout(draftTimer)
     editing = { original: text, draft: textarea.value, onSave, onEnd }
@@ -286,7 +334,182 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     autosize()
     setHasText(textarea.value.trim().length > 0, true)
     predictor.reset()
+    if (replying) showReply(replying)
     onEnd?.()
+  }
+
+  // ------------------------------------------------------------ @ mentions (groups)
+  // Typing @ offers the members (who spoke last first), narrowed by what
+  // follows it; picking one writes "@name " and remembers who it is. A
+  // backspace at the end of a picked name takes the whole name; what is sent
+  // names those still in the text.
+  let tokens = [] // [{ id, text: '@name' }]
+  let picker = null // { el, items, active, start }
+  function mentionQuery() {
+    if (!mentionable || editing || textarea.selectionStart !== textarea.selectionEnd) return null
+    const before = textarea.value.slice(0, textarea.selectionStart)
+    const hit = before.match(/(^|[^\w@])@([^\s@]{0,20})$/)
+    return hit ? { start: before.length - hit[2].length - 1, q: hit[2].toLowerCase() } : null
+  }
+  /** The names in the text that mention someone: picked ones, and members' names typed out in full. */
+  function mentionTokens() {
+    if (!mentionable || editing) return []
+    const v = textarea.value
+    const typed = (mentionable() || []).map(p => ({ id: p.id, text: `@${p.display}` })).filter(t => v.includes(t.text))
+    const all = [...tokens.filter(t => v.includes(t.text)), ...typed]
+    return all.filter((t, i) => all.findIndex(x => x.text === t.text) === i)
+  }
+  function syncMentions() {
+    tokens = tokens.filter(t => textarea.value.includes(t.text))
+    const query = mentionQuery()
+    const people = query && mentionable()
+    const found = people ? people.filter(p => !query.q || p.display.toLowerCase().includes(query.q) || (p.username || '').toLowerCase().includes(query.q)).slice(0, 8) : []
+    if (!found.length) return closePicker()
+    if (!picker) {
+      const el = h('div', { class: 'mention-picker', id: `${panelId}-mentions`, role: 'listbox', 'aria-label': '提到群成员' })
+      // Choosing keeps the keyboard up.
+      el.addEventListener('pointerdown', e => e.preventDefault())
+      picker = { el, items: [], active: 0 }
+      ;(form.parentElement || form).append(el)
+      textarea.setAttribute('aria-controls', el.id)
+      textarea.setAttribute('aria-expanded', 'true')
+    }
+    picker.start = query.start
+    picker.people = found
+    picker.active = Math.min(picker.active, found.length - 1)
+    picker.items = found.map((p, i) => {
+      const item = h('button', { class: 'mention-picker-item', type: 'button', role: 'option', id: `${panelId}-m${i}`, tabindex: '-1' },
+        avatar(p.avatar, p.display, { size: 28 }), h('span', {}, p.display))
+      item.addEventListener('click', () => pickMention(i))
+      return item
+    })
+    picker.el.replaceChildren(...picker.items)
+    markActive()
+  }
+  function markActive() {
+    picker.items.forEach((item, i) => {
+      item.classList.toggle('is-active', i === picker.active)
+      item.setAttribute('aria-selected', String(i === picker.active))
+    })
+    textarea.setAttribute('aria-activedescendant', picker.items[picker.active]?.id || '')
+    picker.items[picker.active]?.scrollIntoView({ block: 'nearest' })
+  }
+  function closePicker() {
+    if (!picker) return
+    picker.el.remove()
+    picker = null
+    textarea.removeAttribute('aria-controls')
+    textarea.removeAttribute('aria-expanded')
+    textarea.removeAttribute('aria-activedescendant')
+  }
+  function pickMention(i) {
+    const p = picker?.people[i]
+    if (!p) return
+    const text = `@${p.display}`
+    const v = textarea.value
+    const end = textarea.selectionStart
+    textarea.value = `${v.slice(0, picker.start)}${text} ${v.slice(end)}`
+    const caret = picker.start + text.length + 1
+    textarea.setSelectionRange(caret, caret)
+    if (!tokens.some(t => t.id === p.id && t.text === text)) tokens.push({ id: p.id, text })
+    closePicker()
+    haptic()
+    textarea.dispatchEvent(new Event('input'))
+    textarea.focus({ preventScroll: true })
+  }
+  /** Keys for the picker, and Backspace over a whole picked name. True when handled. */
+  function mentionKey(e) {
+    if (e.isComposing || e.keyCode === 229) return false
+    if (picker) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        const n = picker.items.length
+        picker.active = (picker.active + (e.key === 'ArrowDown' ? 1 : -1) + n) % n
+        markActive()
+        return true
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        pickMention(picker.active)
+        return true
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        closePicker()
+        return true
+      }
+    }
+    if (e.key === 'Backspace' && !e.isComposing && textarea.selectionStart === textarea.selectionEnd && textarea.value.includes('@')) {
+      const at = textarea.selectionStart
+      const before = textarea.value.slice(0, at)
+      const t = mentionTokens().sort((a, b) => b.text.length - a.text.length).find(t => before.endsWith(t.text))
+      if (t) {
+        e.preventDefault()
+        const from = at - t.text.length
+        textarea.setRangeText('', from, at, 'end')
+        textarea.dispatchEvent(new Event('input'))
+        return true
+      }
+    }
+    return false
+  }
+  /** Who the message being sent names (ids), then forget them. */
+  function takeMentions(text) {
+    // A name typed out in full (or kept in a draft) counts as much as a picked one.
+    const typed = text.includes('@') && mentionable ? (mentionable() || []).filter(p => text.includes(`@${p.display}`)).map(p => p.id) : []
+    const ids = [...new Set([...tokens.filter(t => text.includes(t.text)).map(t => t.id), ...typed])]
+    tokens = []
+    closePicker()
+    return ids.length ? ids : undefined
+  }
+  textarea.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== textarea) closePicker() }, 0))
+  textarea.addEventListener('click', () => syncMentions())
+
+  // ------------------------------------------------------------ replying to a message
+  // Like editing, a strip at the top of the field says which message the
+  // next one answers (sender and its first line), with ✕ to drop it. It is
+  // part of the draft: leaving the conversation and coming back keeps it.
+  const replyName = h('b')
+  const replyQuote = h('span')
+  const replyClose = h('button', { class: 'composer-reply-close', type: 'button', 'aria-label': '取消回复' }, icon('xmark'))
+  const replyStrip = h('div', { class: 'composer-reply', role: 'status' },
+    h('span', { class: 'composer-reply-text' }, replyName, replyQuote),
+    replyClose)
+  replyClose.addEventListener('pointerdown', e => e.preventDefault())
+  replyClose.addEventListener('click', () => {
+    endReply()
+    textarea.focus({ preventScroll: true })
+  })
+  const replyKey = c => `reply:${c}`
+  function showReply(r) {
+    replyName.textContent = `回复 ${r.name}`
+    replyQuote.textContent = String(r.text || '').replace(/\s+/g, ' ')
+    field.prepend(replyStrip)
+    form.classList.add('replying')
+  }
+  function startReply(r) {
+    if (readonly || !chat || !r?.id) return false
+    if (editing) endEdit()
+    setOpen(false, { focus: false })
+    replying = { id: r.id, name: r.name || '', text: r.text || '' }
+    if (chat) storage(replyKey(chat), JSON.stringify(replying))
+    showReply(replying)
+    textarea.focus({ preventScroll: true })
+    return true
+  }
+  function endReply({ keep = false } = {}) {
+    if (!replying) return
+    if (!keep && chat) storage(replyKey(chat), null)
+    replying = null
+    replyStrip.remove()
+    form.classList.remove('replying')
+  }
+  /** The message being answered (its id), dropped now that something answers it. */
+  function takeReply() {
+    const id = replying?.id || null
+    endReply()
+    return id
   }
   // Keep focus in the field when tapping the button, so the keyboard doesn't drop.
   action.addEventListener('pointerdown', e => { if (document.activeElement === textarea) e.preventDefault() })
@@ -316,8 +539,17 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
         clearTimeout(draftTimer)
         setDraft(chat, textarea.value)
       }
+      endReply({ keep: true })
+      tokens = []
+      closePicker()
       chat = id
       readonly = ro
+      if (id && !ro) {
+        try {
+          const kept = JSON.parse(storage(replyKey(id)) || 'null')
+          if (kept?.id) { replying = kept; showReply(kept) }
+        } catch {}
+      }
       form.classList.toggle('readonly', ro)
       textarea.disabled = ro
       textarea.placeholder = ro ? '无法发送消息' : '消息'
@@ -328,6 +560,8 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
       autosize()
       requestAnimationFrame(() => field.classList.remove('no-grow'))
     },
+    /** Members just arrived (or changed): names already in the text light up. */
+    paintMentions: () => paintMentions(),
     flushDraft() {
       if (chat) setDraft(chat, editing ? editing.draft : textarea.value)
     },
@@ -335,6 +569,11 @@ export function createComposer({ onSend, onImages, onHeight, onType, tools = [] 
     edit: startEdit,
     /** Stop editing (the message went, or the conversation changed). */
     endEdit,
+    /** Answer a message: { id, name, text } shown above the field until sent or dropped. */
+    reply: startReply,
+    endReply,
+    takeReply,
+    get replying() { return replying },
     /** The message being edited, if any (its original words). */
     get editing() { return editing ? editing.original : null },
     openImages,

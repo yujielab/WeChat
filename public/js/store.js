@@ -62,7 +62,9 @@ export function normRoom(r) {
     peer: r.peer || null,
     peerRead: r.peerRead || 0,
     unread: r.unread || 0,
+    lastRead: r.lastRead || 0,
     marked: Boolean(r.marked),
+    mention: r.mention || null, // the first unread message that @-mentions me (groups)
     muted: Boolean(r.muted),
     pinned: Boolean(r.pinned),
     count: r.count || 0,
@@ -147,6 +149,7 @@ export function normMsg(m) {
     size: meta.size,
     call: m.type === 'call' ? meta : null,
     replyTo: m.replyTo || null,
+    reply: m.reply || null, // what it answers, as the server last saw it (src/store.js replySnapshot)
     reactions: m.reactions || [],
     edited: m.edited || 0 // rewritten by its sender this many times (meta.history: the earlier wordings)
   }
@@ -224,7 +227,11 @@ export function thread(chat) {
   }
   return t
 }
-function sortThread(t) { t.list.sort((a, b) => a.ts - b.ts || (a.seq || 0) - (b.seq || 0)) }
+// Still on its way (not yet given a place by the server): after everything
+// that has one, in the order written. Once it lands it takes the server's
+// time, which is later than whatever arrived meanwhile, so it doesn't jump.
+const pending = m => m.status === 'sending' && String(m.id).startsWith('local:')
+function sortThread(t) { t.list.sort((a, b) => pending(a) - pending(b) || a.ts - b.ts || (a.seq || 0) - (b.seq || 0)) }
 
 // Messages deleted "from this device" stay deleted here: the server still
 // has them (the other side still sees them), so every load filters them out.
@@ -286,7 +293,14 @@ export function upsertMessage(m) {
   const prev = t.byId.get(m.id)
   // An edit, reaction or recall of one deleted here doesn't bring it back.
   if (!prev && isDeletedHere(m.id)) return null
-  if (prev) { Object.assign(prev, m); emit('msg', prev, 'update'); return prev }
+  if (prev) {
+    // Sent again (failed → sending): it waits with the others at the end.
+    const was = pending(prev)
+    Object.assign(prev, m)
+    if (pending(prev) !== was) sortThread(t)
+    emit('msg', prev, 'update')
+    return prev
+  }
   const copy = { ...m, seq: ++seq }
   t.byId.set(m.id, copy)
   t.list.push(copy)
@@ -306,6 +320,7 @@ export function replaceMessage(fromId, m) {
   }
   Object.assign(prev, m)
   t.byId.set(m.id, prev)
+  sortThread(t)
   emit('replace', fromId, prev)
   return prev
 }

@@ -231,6 +231,12 @@
 .bubble.media img.loaded { opacity: 1; }
 .bubble.media .ph { display: grid; place-items: center; color: var(--label-3); }
 .bubble.media .ph .icon { width: 28px; height: 28px; }
+/* Failed with its picture lost (a reload where it couldn't be kept): the
+   cell keeps its size; a photo mark, 图片已丢失, and 重新选择 (44pt). */
+.bubble.media:has(> .ph > .text-button) { background: var(--fill-3); box-shadow: none; }
+.bubble.media .ph:has(> .text-button) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: normal; text-align: center; }
+.bubble.media .ph:has(> .text-button) > span { font-size: var(--t-footnote); color: var(--label); }
+.bubble.media .ph > .text-button { min-height: var(--hit); min-width: var(--hit); font-size: var(--t-footnote); font-weight: var(--w-semibold); color: var(--blue-text); }
 .bubble.media.sending img { filter: brightness(0.85); }
 .media-badge {
   position: absolute;
@@ -466,6 +472,12 @@
 }
 .field-predict .rest { color: var(--label-3); pointer-events: auto; cursor: pointer; }
 .field textarea.has-prediction::placeholder { color: transparent; }
+/* @ names in the field: a layer under the textarea's own text, same box,
+   font and scroll; only the highlight shows, never a second copy of the text
+   (no padding or weight change, which would move the letters). */
+.field textarea { position: relative; z-index: 1; }
+.field-mentions { position: absolute; z-index: 0; overflow: hidden; pointer-events: none; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; color: transparent; }
+.field-mentions .mention { padding: 0; margin: 0; font-weight: inherit; white-space: inherit; color: transparent; box-shadow: 0 0 0 2px var(--blue-ring); border-radius: 4px; }
 .field-twin {
   position: absolute;
   visibility: hidden;
@@ -599,6 +611,9 @@
 :root[data-kb="1"] .jump { bottom: calc(var(--composer-h, 56px) + 12px); }
 .jump.on { opacity: 1; transform: none; pointer-events: auto; }
 .jump .badge { position: absolute; top: -6px; right: -4px; }
+/* (feat) While the connection banner shows above the field, the newest
+   message stays clear of it (--banner-h: its height, from thread.js). */
+.thread:has(.offline-banner:not([hidden])) .thread-scroll { --foot: calc(var(--composer-h, 76px) + 22px + var(--banner-h, 66px)); }
 
 .thread-empty {
   position: absolute;
@@ -918,7 +933,9 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .m.is-flash .bubble { animation: flash 900ms ease-out; }
 
 /* Offline banner, carried into the conversation: sits above the composer, orange words. */
-.thread .offline-banner { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); }
+/* One step under the composer, so its open + menu (手绘 included) sits above
+   the banner and stays usable offline. */
+.thread .offline-banner { z-index: calc(var(--z-chrome) - 1); left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); }
 :root[data-kb="1"] .thread .offline-banner { bottom: calc(var(--composer-h, 56px) + 12px); }
 .thread .offline-banner b { color: var(--orange-text); }
 

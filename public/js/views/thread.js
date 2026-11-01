@@ -1,6 +1,6 @@
 // Conversation view.
 
-import { h, icon, clear, reducedMotion, announce, edge } from '../ui/dom.js'
+import { h, icon, clear, reducedMotion, announce, edge, storage } from '../ui/dom.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { threadTime, callSummary } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
@@ -9,7 +9,9 @@ import {
   state, on, thread, mergeMessages, upsertMessage, replaceMessage, removeMessage, chatInfo,
   unreadTotal, newCid, patchRoom, upsertRoom, normMsg, avatarOf, nameOf, setMembers, previewText as listPreview
 } from '../store.js'
-import { api } from '../api.js'
+import { api, ApiError } from '../api.js'
+import { outbox, blobStore } from '../outbox.js'
+import { stillBelow } from './unread.js'
 import { avatar } from './avatar.js'
 import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
@@ -47,7 +49,31 @@ const myReaction = m => m.reactions?.find(g => g.users.includes(state.me?.id))?.
 // What a bubble shows, apart from its reactions: a reaction alone patches the
 // chip in place rather than rebuilding (and re-fading) the whole message.
 // What a bubble shows; its key words (src/assist.js) arrive after it and redraw it.
-const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name, (m.meta?.keys || []).join('\u0002'), m.edited || 0].join('\u0001')
+const bodySig = m => [m.type, m.text, m.url, m.status === 'read' ? 'sent' : m.status, m.w, m.h, m.dur, m.name, (m.meta?.keys || []).join('\u0002'), m.edited || 0, quoteSig(m), m.lost ? 'lost' : ''].join('\u0001')
+// What a reply's quote shows: the answered message as this device knows it
+// now (taken back since?), else as the server last saw it.
+function quoted(m) {
+  if (!m?.replyTo) return null
+  const live = state.threads.get(m.chat)?.byId.get(m.replyTo)
+  if (live) return { id: live.id, sender: live.from, type: live.type, state: live.status, body: live.text, url: live.url, emoji: live.meta?.emoji }
+  return m.reply || { id: m.replyTo, missing: true }
+}
+const quoteSig = m => {
+  const q = quoted(m)
+  return q ? [q.id, q.state === 'revoked' ? 'r' : '', q.body || '', q.url || ''].join('\u0003') : ''
+}
+/** One line saying what a message is, for a quote of it. */
+export function quotePreview(q) {
+  if (!q || q.missing) return '原消息不可用'
+  if (q.state === 'revoked') return '原消息已撤回'
+  if (q.type === 'image') return '[图片]'
+  if (q.type === 'drawing') return '[手绘]'
+  if (q.type === 'sticker') return `[表情]${q.emoji ? ` ${q.emoji}` : ''}`
+  if (q.type === 'voice') return '[语音]'
+  if (q.type === 'video') return '[视频]'
+  if (q.type === 'file') return '[文件]'
+  return String(q.body || '').replace(/\s+/g, ' ')
+}
 // A text message can be rewritten by whoever sent it, for 15 minutes, five
 // times (the server holds the same rule: src/store.js editProblem).
 const EDIT_WINDOW = 15 * 60 * 1000
@@ -112,9 +138,13 @@ function liftedCopy(bubble, width, height) {
 
 export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend }) {
   pane.classList.add('pane-thread')
+  // Back is a swipe from the leading edge only: across a message, a swipe
+  // to the right answers it (as in Messages).
+  pane.dataset.edgeSwipe = ''
   let current = null
   let editingId = null // the message whose words are in the field
   let newCount = 0
+  let newIds = [] // the new messages behind newCount, oldest first
   let suppressClick = false
   const nodes = new Map()
   const seps = new Map()
@@ -174,15 +204,164 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
 
+  // Mentions of me not yet seen in this conversation: a capsule jumps to each in turn.
+  let mentionIds = []
+  const mentionCount = h('span', { class: 'jump-pill-count' })
+  const mentionPill = h('button', { class: 'jump-pill mention-jump', type: 'button', hidden: true }, h('span', { 'aria-hidden': 'true' }, '@'), mentionCount)
+  mentionPill.addEventListener('click', () => {
+    const id = mentionIds.shift()
+    showMentions()
+    if (id) jumpTo(id)
+  })
+  function showMentions() {
+    mentionPill.hidden = !mentionIds.length
+    mentionCount.textContent = String(mentionIds.length)
+    mentionPill.setAttribute('aria-label', `有 ${mentionIds.length} 条消息提到你，点按查看`)
+    syncPills()
+  }
+
+  // Opened with unread messages: it opens at the first of them, and the
+  // rest wait below behind "↓ N 条新消息" (to the latest; gone at the
+  // bottom). Scrolled up when more arrive: they don't pull the conversation
+  // down; "↓ 新消息 N" at the foot does. The foot has one capsule at a time:
+  // a mention of me first, then new messages (the round button stays for
+  // "back to the latest" with nothing new).
+  let unreadSince = Infinity // messages after this were unread on arrival
+  let unreadTotal0 = 0
+  let unreadUpTo = Infinity // …and before this (what had arrived by the time it opened)
+  let openedUnread = false // the capsule counts what was unread on arrival
+  const downLabel = h('span', {}, '新消息')
+  const downCount = h('span', { class: 'jump-pill-count' })
+  const downPill = h('button', { class: 'jump-pill down', type: 'button', hidden: true }, icon('chevron-down'), downLabel, downCount)
+  downPill.addEventListener('click', () => scrollToBottom(true))
+  function syncPills() {
+    const down = newCount > 0 && !mentionIds.length
+    downPill.hidden = !down
+    const n = newCount > 99 ? '99+' : String(newCount)
+    downLabel.textContent = openedUnread ? `${n} 条新消息` : '新消息'
+    downCount.textContent = n
+    downCount.hidden = openedUnread
+    downPill.setAttribute('aria-label', `${newCount} 条新消息，点按回到最新`)
+    // The round button gives way to the capsule that says more.
+    jump.hidden = down
+  }
+  /** The count is what's still below the foot: it goes down as they come into view. */
+  function recountBelow() {
+    if (!newIds.length) return
+    const line = composer.el.getBoundingClientRect().top
+    const topOf = id => {
+      const group = nodes.has(id) ? null : [...photoGroups].find(([, photos]) => photos.some(p => p.id === id))
+      const node = nodes.get(group ? group[0] : id)
+      return node?.isConnected ? node.getBoundingClientRect().top : null
+    }
+    newIds = stillBelow(newIds, topOf, line)
+    newCount = newIds.length
+    if (!newCount) openedUnread = false
+    jumpBadge.textContent = newCount > 99 ? '99+' : String(newCount)
+    jumpBadge.hidden = !newCount
+    syncPills()
+  }
+  // Counted the way the list counts its badge: the last N from others. The
+  // cached read mark can lag behind the server's, so it only bounds the search.
+  const unreadCandidates = () => current
+    ? thread(current).list.filter(m => m.ts > unreadSince && m.ts <= unreadUpTo && !m.out && !isSys(m) && m.status !== 'revoked')
+    : []
+  const firstUnread = () => {
+    const c = unreadCandidates()
+    return c.length > unreadTotal0 ? c[c.length - unreadTotal0] : c[0]
+  }
+  /** Open at the first unread (loading older pages for it), or stay at the bottom when they all fit. */
+  async function openAtFirstUnread(chat) {
+    const t = thread(chat)
+    for (let i = 0; i < 20 && t.hasMore && unreadCandidates().length < unreadTotal0 && (t.list[0]?.ts || 0) > unreadSince; i++) {
+      if (t.loading) await new Promise(r => setTimeout(r, 120))
+      else await loadOlder()
+      if (current !== chat) return
+    }
+    // Not found within 20 pages: as far back as was loaded.
+    const found = unreadCandidates().length >= unreadTotal0 || !t.hasMore
+    const first = found ? firstUnread() : t.list.find(m => !isSys(m))
+    if (!first) return
+    // "以下为新消息" just above it, for as long as the conversation stays open.
+    if (found) {
+      dividerAt = first.id
+      keepPosition(reconcile)
+    }
+    const node = nodes.get(first.id)
+    if (!node?.isConnected) return
+    // All of them on screen from the bottom: nothing to move.
+    if (node.getBoundingClientRect().top >= nav.getBoundingClientRect().bottom) return
+    await jumpTo(first.id, { flash: false, instant: true })
+    if (current !== chat || atBottom()) return
+    openedUnread = true
+    newIds = unreadCandidates().slice(-unreadTotal0).map(m => m.id)
+    newCount = newIds.length
+    recountBelow()
+  }
+  let dividerAt = null
+  let roomsFresh = !state.restored
+  const freshWaiters = []
+  on('chats', ids => {
+    if (ids !== null) return
+    roomsFresh = true
+    for (const done of freshWaiters.splice(0)) done()
+  })
+  const unreadDivider = h('div', { class: 'ts unread-divider', role: 'separator', 'aria-label': '以下为新消息' }, '以下为新消息')
+
+  // Read receipts follow the eyes: the newest message from others that has
+  // actually been on screen (between the heading and the composer) is what
+  // the read mark says, and the list's badge counts what's left below it.
+  let seenIO = null
+  let readUpTo = 0 // newest message seen
+  let readSent = 0 // what the server was last told
+  let readFloor = Infinity // older than this was read before opening
+  function watchSeen() {
+    seenIO?.disconnect()
+    const top = Math.max(0, nav.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top)
+    const foot = Math.max(0, scroller.getBoundingClientRect().bottom - composer.el.getBoundingClientRect().top)
+    seenIO = new IntersectionObserver(entries => {
+      let moved = false
+      for (const e of entries) {
+        if (!e.isIntersecting) continue
+        // Half of it, or half the screen for one taller than that.
+        const enough = e.intersectionRatio >= 0.5 || e.intersectionRect.height >= (e.rootBounds?.height || Infinity) / 2
+        if (!enough) continue
+        const m = msgOf(e.target)
+        if (m && m.ts > readUpTo && !String(m.id).startsWith('local:')) {
+          readUpTo = m.ts
+          moved = true
+        }
+      }
+      if (moved) markReadSoon()
+    }, { root: scroller, rootMargin: `-${Math.round(top)}px 0px -${Math.round(foot)}px 0px`, threshold: [0, 0.5, 1] })
+    for (const el of nodes.values()) if (el.isConnected) seenIO.observe(el)
+  }
+  const mentionsMe = m => !m.out && m.status !== 'revoked' && Array.isArray(m.meta?.mentions) && m.meta.mentions.includes(state.me?.id)
+  /** Whether a message's row is on screen, between the heading and the bar. */
+  function onScreen(id) {
+    const node = nodes.get(id)
+    if (!node?.isConnected) return false
+    const r = node.getBoundingClientRect()
+    return r.bottom > nav.getBoundingClientRect().bottom && r.top < composer.el.getBoundingClientRect().top
+  }
+
   const composer = createComposer({
-    onSend: text => sendText(text),
+    onSend: (text, { replyTo, mentions } = {}) => sendText(text, current, replyTo, mentions),
+    // In a group, @ offers its members: whoever spoke last first.
+    mentionable: () => {
+      if (!current || !isGroup(current)) return null
+      const members = [...(state.members.get(current)?.values() || [])].filter(u => u.id !== state.me?.id)
+      const spoke = new Map()
+      thread(current).list.forEach((m, i) => { if (m.from) spoke.set(m.from, i) })
+      return members.sort((a, b) => (spoke.get(b.id) ?? -1) - (spoke.get(a.id) ?? -1) || a.display.localeCompare(b.display, 'zh'))
+    },
     onImages: (files, options) => sendImages(files, options),
     onHeight: px => root.style.setProperty('--composer-h', `${px}px`),
     onType: text => sendTyping(text),
     // Photos and the drawing board come from the button after the field.
     tools: [
       { id: 'photo', icon: 'photo', title: '照片', onSelect: () => current && composer.openImages() },
-      { id: 'sticker', icon: 'face', title: '表情', onSelect: () => current && openStickers({ onPick: st => sendSticker(st), origin: composer.el.querySelector('.composer-action') }) },
+      { id: 'sticker', icon: 'face', title: '表情', onSelect: () => current && openStickers({ onPick: st => sendSticker(st, current, composer.takeReply()), origin: composer.el.querySelector('.composer-action') }) },
       { id: 'draw', icon: 'brush', title: '手绘', onSelect: () => current && onDraw(current) }
     ]
   })
@@ -190,7 +369,30 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const edgeTop = edge('top')
   // What was chosen to sit behind this conversation (views/backdrops.js).
   const backdrop = backdropLayer('', 'thread-backdrop')
-  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, composer.el, jump)
+  // While the connection is down the conversation says so too, just above
+  // the field (the list's .offline-banner, in this column); it goes by
+  // itself once connected. A drop shorter than a second shows nothing.
+  const offline = h('div', { class: 'offline-banner glass', role: 'status', hidden: true },
+    icon('wifi'), h('div', { class: 'grow' }, h('b', {}, '正在连接…')))
+  let offlineEffect = null
+  let offlineTimer = 0
+  function setOffline(on) {
+    clearTimeout(offlineTimer)
+    if (!on) {
+      offline.hidden = true
+      offlineEffect?.stop()
+      offlineEffect = null
+      return
+    }
+    if (!offline.hidden) return
+    offlineTimer = setTimeout(() => {
+      offline.hidden = false
+      // Capsules at the foot stack above it rather than under it.
+      root.style.setProperty('--banner-h', `${offline.offsetHeight}px`)
+      if (!reducedMotion()) offlineEffect = symbolEffect(offline.querySelector('.icon'), 'variable-color')
+    }, 1000)
+  }
+  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, composer.el, jump, downPill, mentionPill, offline)
   nav.append(bars.top)
   composer.el.classList.add('dock')
   composer.dock(bars.bottom)
@@ -237,7 +439,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       }
       const bubble = node.querySelector('.bubble.media:not(.photo-stack)')
       if (!message || !bubble) continue
-      const [w, h] = mediaSize(message.w, message.h, Math.max(64, ctx.maxMedia - (message.status === 'failed' ? 34 : 0)), message.type === 'video' ? 300 : 320)
+      const [w, h] = mediaSize(message.w, message.h, Math.max(64, ctx.maxMedia - (message.status === 'failed' && !message.lost ? 34 : 0)), message.type === 'video' ? 300 : 320)
       bubble.style.setProperty('--w', `${w}px`)
       bubble.style.setProperty('--h', `${h}px`)
     }
@@ -251,7 +453,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     let el = seps.get(m.id)
     if (!el) {
       const [day, time] = threadTime(m.ts)
-      el = h('div', { class: 'ts', role: 'separator' }, h('b', {}, day), ` ${time}`)
+      el = h('div', { class: 'ts', role: 'separator', 'aria-label': `${day} ${time}` }, h('b', {}, day), ` ${time}`)
       seps.set(m.id, el)
     }
     return el
@@ -266,24 +468,45 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (isSys(m)) return h('div', { class: 'sys', dataset: { id: m.id } }, m.status === 'revoked' ? revokedNote(m) : m.text || '')
     const room = isGroup(current)
     const who = m.fromName || nameOf(m.from, current)
-    const retryShown = m.status === 'failed' || (m.status === 'sending' && retrying.has(m.id))
+    // Its picture lost: 重新选择 sits in the cell itself, which keeps its size.
+    const lost = m.status === 'failed' && m.lost
+    const retryShown = (m.status === 'failed' && !lost) || (m.status === 'sending' && retrying.has(m.id))
     const bub = renderBubble(m, retryShown ? { ...ctx, maxMedia: Math.max(64, ctx.maxMedia - 78) } : ctx)
     const sender = room && !m.out ? h('div', { class: 'm-sender' }, who) : null
     const av = h('span', { class: 'm-avatar', 'aria-hidden': 'true' }, avatar(avatarOf(m.from, current), who))
     // Where it failed: a compact 重试 beside the message itself, which turns
     // into 发送中 in place while it goes, and folds away once it's sent.
-    const status = m.status === 'failed'
+    const status = lost ? null : m.status === 'failed'
       ? h('button', { class: 'm-retry', type: 'button', 'aria-label': '发送失败，重试' }, icon('refresh'), h('span', { 'aria-hidden': 'true' }, '重试'))
       : retryShown ? h('span', { class: 'm-retry busy', role: 'status', 'aria-label': '正在重新发送' }, h('span', { class: 'spinner' }), h('span', { 'aria-hidden': 'true' }, '发送中'))
         : null
+    // A reply carries the message it answers: inside a text bubble, above any other.
+    const quote = quoteBlock(m)
+    const inside = quote && bub.classList.contains('text')
+    if (inside) bub.prepend(quote)
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
-    }, av, h('div', { class: 'm-col' }, sender, bub, reactionChip(m), editedNote(m)), status)
+    }, av, h('div', { class: 'm-col' }, sender, inside ? null : quote, bub, reactionChip(m), editedNote(m)), status)
     if (editingId === m.id) el.classList.add('editing')
     el.bodySig = bodySig(m)
     el.reactSig = reactSig(m)
     return el
+  }
+
+  /** The message a reply answers: who, and its first line; tapped, it scrolls there. */
+  function quoteBlock(m) {
+    const q = quoted(m)
+    if (!q) return null
+    const gone = q.missing || q.state === 'revoked'
+    const who = gone && q.missing ? '' : q.sender === state.me?.id ? '我' : nameOf(q.sender, m.chat) || '对方'
+    const text = quotePreview(q)
+    return h('button', {
+      class: ['quote', gone && 'is-recalled'],
+      type: 'button',
+      'aria-label': gone ? `回复的${text}` : `回复 ${who}：${text}，点按查看原消息`,
+      'aria-disabled': gone ? 'true' : null
+    }, who ? h('span', { class: 'quote-name' }, who) : null, h('span', { class: 'quote-text' }, text))
   }
 
   /** Rewritten by its sender: says so under the bubble; tapped, shows each wording. */
@@ -335,7 +558,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return el
   }
 
-  const groupablePhoto = m => m?.type === 'image' && m.url && !['sending', 'failed', 'revoked'].includes(m.status) && !String(m.id).startsWith('local:') && !expandedPhotos.has(m.id)
+  const groupablePhoto = m => m?.type === 'image' && m.url && !m.replyTo && !['sending', 'failed', 'revoked'].includes(m.status) && !String(m.id).startsWith('local:') && !expandedPhotos.has(m.id)
   function expandPhotos(photos) {
     const group = nodes.get(photos[photos.length - 1]?.id)
     const offset = group ? group.getBoundingClientRect().top - scroller.getBoundingClientRect().top : null
@@ -487,11 +710,13 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       const last = run[run.length - 1]
       const message = run.length > 1 ? { ...last, ts: first.ts } : first
       if (!prev || first.ts - prev.ts > TS_GAP) want.push(sepFor(message))
+      if (dividerAt && run.some(x => x.id === dividerAt)) want.push(unreadDivider)
       want.push(calls.length > 1 ? callGroupNode(calls) : photos.length > 1 ? photoNode(photos) : nodeFor(message))
       visible.push(message)
       prev = last
     }
     const keep = new Set(want)
+    if (!keep.has(unreadDivider)) unreadDivider.remove()
     for (const [id, el] of nodes) {
       if (!keep.has(el)) {
         el.remove()
@@ -514,6 +739,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       msgs.insertBefore(el, cursor)
     }
     decorate(visible)
+    if (seenIO) for (const el of nodes.values()) seenIO.observe(el)
     placeMeta(list)
     mountStickers(msgs)
     if (t.loaded && !list.length) olderEl.textContent = ''
@@ -536,7 +762,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   function scrollToBottom(smooth = false) {
     newCount = 0
+    newIds = []
+    openedUnread = false
     jumpBadge.hidden = true
+    syncPills()
     scroller.scrollTo({ top: 0, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
     readingAnchor = { bottom: true }
   }
@@ -580,10 +809,18 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       rememberReadingAnchor()
       edgeTop.classList.toggle('on', distTop() > 2)
       jump.classList.toggle('on', scroller.scrollTop < -320)
+      recountBelow()
       if (atBottom() && newCount) {
         newCount = 0
+        newIds = []
+    newIds = []
+        openedUnread = false
         jumpBadge.hidden = true
-        markReadSoon()
+        syncPills()
+      }
+      if (mentionIds.length && mentionIds.some(onScreen)) {
+        mentionIds = mentionIds.filter(id => !onScreen(id))
+        showMentions()
       }
       if (distTop() < 500) loadOlder()
     })
@@ -620,8 +857,24 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     titleSub.classList.remove('typing')
     clearGhost()
     newCount = 0
+    newIds = []
     jumpBadge.hidden = true
     jump.classList.remove('on')
+    // What was unread on arrival is settled once the list is the server's
+    // (below); until then nothing is placed or read by it.
+    unreadSince = Infinity
+    unreadTotal0 = 0
+    unreadUpTo = Infinity
+    openedUnread = false
+    dividerAt = null
+    unreadDivider.remove()
+    seenIO?.disconnect()
+    seenIO = null
+    readUpTo = 0
+    readSent = 0
+    readFloor = Infinity
+    mentionIds = []
+    showMentions()
     for (const el of [...msgs.children]) if (el !== olderEl) el.remove()
     // A page still loading for the last conversation isn't this one's.
     olderEl.replaceChildren()
@@ -669,7 +922,35 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         toast(err.message, { type: 'error' })
       }
     }
-    markReadSoon(true)
+    // Launched from the cached list: what's unread is only known once the
+    // server's list is in (a moment; not longer than a few seconds).
+    if (current === id && !roomsFresh) await new Promise(done => { freshWaiters.push(done); setTimeout(done, 4000) })
+    if (current !== id) return
+    const arrival = chatInfo(id) || {}
+    // Marked unread by hand is a flag, not messages to find.
+    const counted = arrival.marked ? 0 : arrival.unread || 0
+    const since = counted ? arrival.lastRead || 0 : Infinity
+    unreadSince = since
+    unreadTotal0 = counted
+    mentionIds = arrival.mention && counted ? [arrival.mention] : []
+    // Every unread mention among what's loaded, oldest first, except what is already on screen.
+    if (current === id) {
+      const unseen = thread(id).list.filter(m => m.ts > since && mentionsMe(m)).map(m => m.id)
+      mentionIds = [...new Set([...mentionIds, ...unseen])].filter(m => !onScreen(m))
+      showMentions()
+      const t = thread(id)
+      if (unreadTotal0) {
+        unreadUpTo = t.list.at(-1)?.ts ?? Infinity
+        await openAtFirstUnread(id)
+        if (current !== id) return
+      }
+      // Read is what has been on screen: from here on, as it scrolls into view.
+      const first = dividerAt && thread(id).byId.get(dividerAt)
+      readFloor = first ? first.ts - 1 : unreadTotal0 ? (arrival.lastRead || 0) : (t.list.at(-1)?.ts ?? 0)
+      watchSeen()
+    }
+    // A hand-made unread mark goes on opening.
+    markReadSoon(Boolean(arrival.marked))
   }
 
   /** Pull room metadata + members (names/avatars for group bubbles). */
@@ -678,7 +959,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       const r = await api.get(`/api/room/${encodeURIComponent(id)}`)
       if (r.room) upsertRoom(r.room)
       if (r.members) setMembers(id, r.members)
-      if (current === id) { renderHeader(); reconcile() }
+      if (current === id) { renderHeader(); reconcile(); composer.paintMentions() }
     } catch {}
   }
 
@@ -730,6 +1011,18 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // screen; a read held back meanwhile goes out when it comes back.
   let readTimer = 0
   let readHeld = false
+  // The app opens from its cached list before the server answers (main.js);
+  // that copy has to know what was read here, or the next launch would open
+  // this conversation at messages already read.
+  function cacheRead(id, patch) {
+    try {
+      const boot = JSON.parse(storage('cache:boot') || 'null')
+      const row = boot?.rooms?.find(r => r.id === id)
+      if (!row) return
+      Object.assign(row, patch)
+      storage('cache:boot', JSON.stringify(boot))
+    } catch {}
+  }
   function markReadSoon(force = false) {
     clearTimeout(readTimer)
     readTimer = setTimeout(() => {
@@ -740,11 +1033,29 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       }
       readHeld = false
       const c = state.chats.get(current)
-      if (!force && !c?.unread) return
-      if (c?.unread) patchRoom(current, { unread: 0 })
-      socketSend({ t: 'read', room: current, ts: Date.now() })
+      if (!c) return
+      const t = thread(current)
+      const upTo = Math.max(readFloor === Infinity ? 0 : readFloor, readUpTo)
+      // Still unread: from others, after what has been seen (only once it's known where that starts).
+      const left = readFloor === Infinity ? c.unread || 0
+        : t.list.filter(m => !m.out && !isSys(m) && m.status !== 'revoked' && m.ts > upTo).length
+      const mentionTs = c.mention && t.byId.get(c.mention)?.ts
+      const patch = {}
+      if (left !== (c.unread || 0) || c.marked) Object.assign(patch, { unread: left, marked: false })
+      if (c.mention && (!left || (mentionTs && mentionTs <= upTo))) patch.mention = null
+      // lastRead too: the cached list is what the next open measures "unread since" from.
+      if (readUpTo > (c.lastRead || 0)) patch.lastRead = readUpTo
+      if (Object.keys(patch).length) {
+        patchRoom(current, patch)
+        cacheRead(current, patch)
+      }
+      if (readUpTo > readSent || force) {
+        readSent = Math.max(readSent, readUpTo)
+        socketSend({ t: 'read', room: current, ts: readUpTo || c.lastRead || 0 })
+      }
     }, 350)
   }
+
 
   // ------------------------------------------------------------ sending
   const previewText = m => ({ image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]' }[m.type] || m.text || '')
@@ -759,56 +1070,122 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   async function uploadMedia(kind, file, info = {}) {
     const qs = new URLSearchParams({ kind })
-    for (const k of ['room', 'name', 'w', 'h', 'dur']) if (info[k]) qs.set(k, info[k])
-    const res = await fetch(`/api/media/upload?${qs}`, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'content-type': file.type || 'application/octet-stream' }, body: file
-    })
+    for (const k of ['room', 'name', 'w', 'h', 'dur', 'localId']) if (info[k]) qs.set(k, info[k])
+    let res
+    try {
+      res = await fetch(`/api/media/upload?${qs}`, {
+        method: 'POST', credentials: 'same-origin', signal: info.signal,
+        headers: { 'content-type': file.type || 'application/octet-stream' }, body: file
+      })
+    } catch (err) {
+      // No network, or it took too long: the outbox waits this out.
+      if (err?.name === 'AbortError' || err?.name === 'TimeoutError') throw Object.assign(new Error('上传超时'), { name: 'AbortError' })
+      throw new ApiError('网络连接不可用', 0)
+    }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok || !data.ok) throw new Error(data.error || '上传失败')
+    if (!res.ok || !data.ok) throw new ApiError(data.error || '上传失败', res.status, data)
     return data
   }
 
-  async function sendText(text, chat = current) {
+  /** A reply's own record of what it answers, until the server's comes back. */
+  function replyFields(chat, replyTo) {
+    if (!replyTo) return {}
+    const o = thread(chat).byId.get(replyTo)
+    return { replyTo, reply: o ? { id: o.id, sender: o.from, type: o.type, state: o.status, body: o.text, url: o.url, emoji: o.meta?.emoji } : null }
+  }
+
+  async function sendText(text, chat = current, replyTo = null, mentions = undefined) {
     if (!chat) return
     const cid = newCid()
-    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'text', text, status: 'sending' }
+    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'text', text, status: 'sending', ...(mentions && { meta: { mentions } }), ...replyFields(chat, replyTo) }
     upsertMessage(local)
     bumpList(local)
     if (chat === current) scrollToBottom()
-    try {
-      const r = await api.post('/api/messages', { room: chat, type: 'text', text, localId: cid })
-      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
-    } catch (err) {
-      upsertMessage({ ...local, status: 'failed' })
-      toast(err.message || '发送失败', { type: 'error' })
-    }
+    outbox.add({ cid, chat, body: { room: chat, type: 'text', text, ...(replyTo && { replyTo }), ...(mentions && { mentions }) }, local })
   }
 
   // A sticker goes like a text: shown at once, then confirmed (or offered a retry).
-  async function sendSticker(st, chat = current) {
+  async function sendSticker(st, chat = current, replyTo = null) {
     if (!chat) return
     const cid = newCid()
     const meta = { id: st.id, kind: st.kind, emoji: st.emoji || '', ...(st.set && { set: st.set }) }
-    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'sticker', text: '', meta, status: 'sending' }
+    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, fromName: state.me?.display, type: 'sticker', text: '', meta, status: 'sending', ...replyFields(chat, replyTo) }
     upsertMessage(local)
     bumpList(local)
     if (chat === current) scrollToBottom()
-    try {
-      const r = await api.post('/api/messages', { room: chat, type: 'sticker', meta, localId: cid })
-      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
-    } catch (err) {
-      upsertMessage({ ...local, status: 'failed' })
-      toast(err.message || '发送失败', { type: 'error' })
-    }
+    outbox.add({ cid, chat, body: { room: chat, type: 'sticker', meta, ...(replyTo && { replyTo }) }, local })
   }
+
+  // Texts, stickers, photos and drawings leave through the outbox: one line,
+  // in order, waiting out a lost connection, picked up again after a reload
+  // (outbox.js). A picture's file waits on the device under the account's id.
+  const files = blobStore()
+  const fileKey = cid => `${state.me?.id || ''}:${cid}`
+  const showFile = (cid, file) => {
+    if (!file || state.previews.has(cid)) return
+    state.previews.set(cid, URL.createObjectURL(file))
+  }
+  outbox.connect({
+    post: body => api.post('/api/messages', body, { signal: AbortSignal.timeout?.(15000) }),
+    blob: cid => files.get(fileKey(cid)),
+    upload: (e, file) => uploadMedia('image', file, { room: e.chat, name: e.media.name, w: e.media.w, h: e.media.h, localId: e.media.key || e.cid, signal: AbortSignal.timeout?.(60000) }),
+    forget: cid => { files.del(fileKey(cid)) },
+    onLanded: (e, r) => {
+      retrying.delete(`local:${e.cid}`)
+      retryFiles.delete(e.cid)
+      if (!r?.msg) return
+      const m = normMsg(r.msg)
+      replaceMessage(`local:${e.cid}`, m)
+      // A message that went while another conversation was open still updates its row.
+      if (state.chats.get(e.chat)?.last?.id === `local:${e.cid}`) bumpList(m)
+    },
+    onFailed: (e, err) => {
+      const t = thread(e.chat)
+      const m = t.byId.get(`local:${e.cid}`) || (e.local && { ...e.local })
+      retrying.delete(`local:${e.cid}`)
+      // Its file is gone (a reload where it couldn't be kept): 重新选择.
+      if (m) upsertMessage({ ...m, status: 'failed', lost: Boolean(err.noFile) })
+      toast(err.message || (e.media ? '图片发送失败' : '发送失败'), { type: 'error' })
+      announce('发送失败')
+    },
+    // Restored after a reload: the bubbles come back, still on their way; a
+    // picture shows its kept file again (or, without one, fails visibly when
+    // its turn comes).
+    // A failed one comes back failed, in its place, with 重试 (or, its file
+    // gone, 重新选择).
+    onRestore: list => {
+      for (const e of list) {
+        if (!e.local) continue
+        upsertMessage({ ...e.local, status: e.failed ? 'failed' : 'sending', lost: Boolean(e.failed && e.lost) })
+        if (e.media) files.get(fileKey(e.cid)).then(file => {
+          const m = thread(e.chat).byId.get(`local:${e.cid}`)
+          if (!file) {
+            // Failed and nothing kept to send again: say so where it is.
+            if (m && e.failed && !e.uploaded) upsertMessage({ ...m, lost: true })
+            return
+          }
+          retryFiles.set(e.cid, { file, w: e.media.w, h: e.media.h, kind: e.media.kind, replyTo: e.local.replyTo || null })
+          showFile(e.cid, file)
+          if (m) upsertMessage({ ...m, url: state.previews.get(e.cid) })
+        })
+      }
+    },
+    load: () => JSON.parse(storage(`outbox:${state.me?.id || ''}`) || '[]'),
+    save: list => storage(`outbox:${state.me?.id || ''}`, list.length ? JSON.stringify(list) : null)
+  })
+  // Nothing waiting: any file still kept for this account belonged to a send
+  // that ended while the page was closing.
+  files.prune(fileKey(''), new Set(outbox.keptFiles().map(fileKey)))
 
   async function sendImages(files, { from = [] } = {}) {
     const chat = current
     if (!chat) return
+    // A reply goes with the first photo of the batch.
+    let replyTo = composer.takeReply()
     for (const [i, f] of files.entries()) {
       try {
-        await sendPrepared(chat, await prepareImage(f), from[i])
+        await sendPrepared(chat, await prepareImage(f), from[i], replyTo)
+        replyTo = null
       } catch (err) {
         toast(err.message || '无法处理这张图片', { type: 'error' })
       }
@@ -837,27 +1214,36 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     })
   }
 
-  async function sendPrepared(chat, { file, w, h: hh }, from) {
-    const cid = newCid()
-    const preview = URL.createObjectURL(file)
-    state.previews.set(cid, preview)
-    retryFiles.set(cid, { file, w, h: hh })
-    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'image', w, h: hh, url: preview, status: 'sending' }
+  function sendPrepared(chat, { file, w, h: hh }, from, replyTo = null) {
+    queuePicture(chat, { file, w, h: hh, kind: 'image', name: file.name || 'photo.jpg', replyTo, from })
+  }
+
+  /**
+   * A photo or drawing: shown at once, then into the outbox behind whatever
+   * was written before it. Its file is kept on the device first, so a reload
+   * can still send it; where it can't be kept, this page still sends it, and
+   * after a reload it comes back failed (请重新选择这张图片), never just gone.
+   * A retry passes its own cid: the same message, never a second one.
+   */
+  function queuePicture(chat, { file, w, h: hh, kind, name, replyTo = null, from, cid = newCid(), local: again, key }) {
+    showFile(cid, file)
+    retryFiles.set(cid, { file, w, h: hh, kind, replyTo })
+    if (again) retrying.add(again.id)
+    const local = again
+      ? { ...again, type: kind, w, h: hh, url: state.previews.get(cid), status: 'sending', lost: false }
+      : { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: kind, w, h: hh, url: state.previews.get(cid), status: 'sending', ...replyFields(chat, replyTo) }
     upsertMessage(local)
-    bumpList(local)
-    if (chat === current) {
-      scrollToBottom()
-      carryIn(local.id, from)
+    if (!again) {
+      bumpList(local)
+      if (chat === current) {
+        scrollToBottom()
+        if (kind === 'image') carryIn(local.id, from)
+      }
     }
-    try {
-      const up = await uploadMedia('image', file, { room: chat, name: file.name || 'photo.jpg', w, h: hh })
-      const r = await api.post('/api/messages', { room: chat, type: 'image', meta: { ...up.meta, url: up.url }, localId: cid })
-      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
-      retryFiles.delete(cid)
-    } catch (err) {
-      upsertMessage({ ...local, status: 'failed' })
-      toast(err.message || '图片发送失败', { type: 'error' })
-    }
+    files.put(fileKey(cid), file)
+    // The kept copy has no use for a page-only object URL.
+    const { url, seq, lost, ...kept } = local
+    outbox.add({ cid, chat, body: { room: chat, type: kind, ...(replyTo && { replyTo }) }, local: kept, media: { kind, name, w, h: hh, ...(key && { key }) } })
   }
 
   let typingSentAt = 0
@@ -883,21 +1269,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const chat = current
     if (!chat) return
     const file = new File([blob], 'drawing.png', { type: 'image/png' })
-    const cid = newCid()
-    const preview = URL.createObjectURL(file)
-    state.previews.set(cid, preview)
-    const local = { id: `local:${cid}`, cid, localId: cid, chat, ts: Date.now(), out: true, from: state.me?.id, type: 'drawing', w, h, url: preview, status: 'sending' }
-    upsertMessage(local)
-    bumpList(local)
-    scrollToBottom()
-    try {
-      const up = await uploadMedia('image', file, { room: chat, name: 'drawing.png', w, h })
-      const r = await api.post('/api/messages', { room: chat, type: 'drawing', meta: { ...up.meta, url: up.url }, localId: cid })
-      if (r.msg) replaceMessage(local.id, normMsg(r.msg))
-    } catch (err) {
-      upsertMessage({ ...local, status: 'failed' })
-      toast(err.message || '发送失败', { type: 'error' })
-    }
+    queuePicture(chat, { file, w, h, kind: 'drawing', name: 'drawing.png', replyTo: composer.takeReply() })
   }
 
   let ghostEl = null
@@ -930,31 +1302,62 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // A failed text is sent again in place, with the same localId (the server
   // answers a repeat with the message that already landed); a tap while it
   // is on its way does nothing.
+  // Tapped, it says so at once: 发送中 where 重试 was (retrying), until it
+  // lands or fails again (onLanded/onFailed).
   async function retry(m) {
-    const again = m.type === 'text' && m.text ? { type: 'text', text: m.text } : m.type === 'sticker' && m.meta?.id ? { type: 'sticker', meta: m.meta } : null
-    if (again && m.cid) {
-      if (retrying.has(m.id)) return
+    if (m.lost) return pickAgain(m)
+    if (m.cid && outbox.has(m.cid)) return
+    // Kept by the outbox since it failed (text or picture, its file too).
+    if (m.cid && outbox.isFailed(m.cid)) {
       retrying.add(m.id)
       upsertMessage({ ...m, status: 'sending' })
-      try {
-        const r = await api.post('/api/messages', { room: m.chat, ...again, localId: m.cid })
-        if (r.msg) replaceMessage(m.id, normMsg(r.msg))
-      } catch (err) {
-        upsertMessage({ ...m, status: 'failed' })
-        toast(err.message || '发送失败', { type: 'error' })
-      } finally {
-        retrying.delete(m.id)
-      }
+      const { seq, status, lost, url, ...local } = m
+      outbox.retry(m.cid, { ...local, status: 'sending' })
       return
     }
-    removeMessage(m.id, m.chat)
-    if (m.type === 'image') {
-      const f = retryFiles.get(m.cid)
-      if (f) return sendPrepared(m.chat, f)
-      return toast('请重新选择这张图片', { type: 'error' })
+    const again = m.type === 'text' && m.text ? { type: 'text', text: m.text, ...(m.meta?.mentions && { mentions: m.meta.mentions }) } : m.type === 'sticker' && m.meta?.id ? { type: 'sticker', meta: m.meta } : null
+    if (again && m.cid) {
+      retrying.add(m.id)
+      upsertMessage({ ...m, status: 'sending' })
+      const { id, status, seq, ...local } = m
+      outbox.add({ cid: m.cid, chat: m.chat, body: { room: m.chat, ...again, ...(m.replyTo && { replyTo: m.replyTo }) }, local: { ...local, id, status: 'sending' } })
+      return
     }
-    if (m.text) await sendText(m.text, m.chat)
+    // A photo or drawing goes again as the same message (same cid), from the
+    // file still held here; without it, it asks for the picture again.
+    if ((m.type === 'image' || m.type === 'drawing') && m.cid) {
+      const f = retryFiles.get(m.cid)
+      if (!f) return pickAgain(m)
+      return queuePicture(m.chat, { ...f, kind: m.type, name: m.type === 'drawing' ? 'drawing.png' : (f.file.name || 'photo.jpg'), replyTo: m.replyTo || f.replyTo || null, cid: m.cid, local: m })
+    }
+    removeMessage(m.id, m.chat)
+    if (m.text) await sendText(m.text, m.chat, m.replyTo, m.meta?.mentions)
   }
+
+  // Its picture didn't survive a reload: 重新选择 opens the photo picker
+  // straight away, and what's picked goes as that same message (same cid
+  // and localId, still a reply if it was one), in place of the lost one.
+  const repick = h('input', { type: 'file', accept: 'image/*', hidden: true, 'aria-hidden': 'true', tabindex: '-1' })
+  root.append(repick)
+  let repickFor = null
+  function pickAgain(m) {
+    repickFor = m
+    repick.value = ''
+    repick.click()
+  }
+  repick.addEventListener('change', async () => {
+    const m = repickFor && thread(repickFor.chat).byId.get(repickFor.id)
+    const file = repick.files?.[0]
+    repickFor = null
+    if (!m || !file || m.status !== 'failed') return
+    try {
+      const p = await prepareImage(file)
+      // Its own upload key: the lost file may have landed under the cid.
+      queuePicture(m.chat, { file: p.file, w: p.w, h: p.h, kind: 'image', name: p.file.name || 'photo.jpg', replyTo: m.replyTo || null, cid: m.cid, local: m, key: `${m.cid}-r${Date.now().toString(36)}` })
+    } catch (err) {
+      toast(err.message || '无法处理这张图片', { type: 'error' })
+    }
+  })
 
   // Only this device forgets it, so say so and ask first; the answer
   // stays after a reload (store.js keeps the ids deleted here).
@@ -964,6 +1367,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       confirm: '删除'
     })
     if (!ok) return
+    // Still queued: it won't go. Already on its way: it can't be stopped here.
+    // Failed (kept by the outbox, with its file): it goes, file and all.
+    if (m.cid && outbox.has(m.cid) && !outbox.drop(m.cid)) return toast('正在发送，稍后再删除')
+    if (m.cid && outbox.isFailed(m.cid)) outbox.drop(m.cid)
+    if (m.cid) retryFiles.delete(m.cid)
+    retrying.delete(m.id)
     if (editingId === m.id) composer.endEdit()
     removeMessage(m.id, m.chat, { here: true })
     announce('已删除')
@@ -981,7 +1390,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const m = msgOf(node)
     if (!m) return
     if (e.target.closest('.m-retry')) return m.status === 'failed' ? retry(m) : undefined
+    if (e.target.closest('.bubble.media .ph .text-button')) return m.status === 'failed' && m.lost ? pickAgain(m) : undefined
     if (e.target.closest('.m-reactions')) return messageMenu(node, m)
+    const q = e.target.closest('.quote')
+    if (q) return q.classList.contains('is-recalled') ? undefined : jumpTo(m.replyTo)
     if (e.target.closest('a')) return
     const bub = e.target.closest('.bubble')
     if (!bub) return
@@ -1100,6 +1512,49 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   }, { passive: true })
   scroller.addEventListener('pointerup', cancelLong)
   scroller.addEventListener('pointercancel', cancelLong)
+
+  // Swipe a message to the right to answer it: the row follows the finger
+  // (resisting past the threshold) and settles back; past 56px it replies.
+  const SWIPE_REPLY = 56
+  let swipe = null
+  scroller.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || e.button > 0) return
+    const node = e.target.closest('.m')
+    if (!node || !e.target.closest('.bubble')) return
+    swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, node, active: false, armed: false }
+  }, { passive: true })
+  scroller.addEventListener('pointermove', e => {
+    if (!swipe || e.pointerId !== swipe.id) return
+    const dx = e.clientX - swipe.x
+    const dy = e.clientY - swipe.y
+    if (!swipe.active) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return }
+      if (dx < 12 || dx < Math.abs(dy) * 1.5) return
+      if (!reactable(msgOf(swipe.node))) { swipe = null; return }
+      swipe.active = true
+      cancelLong()
+      swipe.node.style.transition = 'none'
+    }
+    const shift = dx <= SWIPE_REPLY ? Math.max(0, dx) : SWIPE_REPLY + (dx - SWIPE_REPLY) * 0.25
+    swipe.node.style.transform = `translateX(${Math.min(shift, 84)}px)`
+    const armed = dx >= SWIPE_REPLY
+    if (armed && !swipe.armed) haptic()
+    swipe.armed = armed
+  }, { passive: true })
+  const endSwipe = e => {
+    if (!swipe || (e && e.pointerId !== swipe.id)) return
+    const { node, active, armed } = swipe
+    swipe = null
+    if (!active) return
+    suppressClick = true
+    node.style.transition = reducedMotion() ? 'none' : 'transform 220ms var(--ease-out)'
+    node.style.transform = ''
+    setTimeout(() => { node.style.transition = '' }, 240)
+    const m = msgOf(node)
+    if (armed && e?.type === 'pointerup' && m) startReply(m)
+  }
+  scroller.addEventListener('pointerup', endSwipe)
+  scroller.addEventListener('pointercancel', endSwipe)
   scroller.addEventListener('scroll', cancelLong, { passive: true })
   scroller.addEventListener('contextmenu', e => {
     const node = e.target.closest('.m')
@@ -1145,7 +1600,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       main.push({ label: `查看 ${photos.length} 张照片`, icon: 'photo', onSelect: () => openPhotoStack({ messages: photos, thumb: bub.querySelector('.photo-stack-cover img'), findThumb: () => nodes.get(m.id)?.querySelector('.photo-stack-cover img') }) })
       main.push({ label: '逐张展开', icon: 'photo', onSelect: () => expandPhotos(photos) })
     }
-    if (m.status === 'failed') main.push({ label: '重新发送', icon: 'refresh', onSelect: () => retry(m) })
+    if (!photos && reactable(m)) main.push({ label: '回复', icon: 'reply', onSelect: () => startReply(m) })
+    if (m.status === 'failed') main.push(m.lost ? { label: '重新选择', icon: 'photo', onSelect: () => pickAgain(m) } : { label: '重新发送', icon: 'refresh', onSelect: () => retry(m) })
     if (m.type === 'text' && m.text) {
       main.push({ label: '复制', icon: 'copy', onSelect: () => copy(m.text) })
     }
@@ -1232,6 +1688,53 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     } catch {
       toast('无法复制', { type: 'error' })
     }
+  }
+
+  // ------------------------------------------------------------ replying
+  function startReply(m) {
+    if (!current || m.chat !== current || !reactable(m)) return
+    const who = m.out ? '我' : m.fromName || nameOf(m.from, current) || '对方'
+    composer.reply({ id: m.id, name: who, text: quotePreview({ type: m.type, state: m.status, body: m.text, emoji: m.meta?.emoji }) })
+    haptic()
+  }
+
+  /**
+   * Bring a message into view (loading older pages until it's there) and
+   * flash it once: from a quote, an unread or a mention capsule.
+   */
+  async function jumpTo(id, { flash = true, instant = false } = {}) {
+    const chat = current
+    if (!chat || !id) return false
+    const t = thread(chat)
+    const nodeOf = () => nodes.get(id) || nodes.get([...photoGroups].find(([, ps]) => ps.some(p => p.id === id))?.[0])
+    for (let i = 0; i < 20 && !t.byId.has(id) && t.hasMore; i++) {
+      if (t.loading) await new Promise(r => setTimeout(r, 120))
+      else await loadOlder()
+      if (current !== chat) return false
+    }
+    const node = nodeOf()
+    if (!node?.isConnected) {
+      toast('找不到原消息', { iconName: 'info' })
+      return false
+    }
+    // Into the upper third of what's on screen, below the heading.
+    const top = nav.getBoundingClientRect().bottom + 12
+    const room = scroller.getBoundingClientRect().bottom - top - (parseFloat(getComputedStyle(scroller).getPropertyValue('--foot')) || 90)
+    const rect = node.getBoundingClientRect()
+    const want = top + Math.max(0, Math.min(room / 3, room - rect.height))
+    scroller.scrollBy({ top: rect.top - want, behavior: instant || reducedMotion() ? 'auto' : 'smooth' })
+    if (flash) {
+      node.classList.remove('is-flash', 'flash')
+      void node.offsetWidth
+      node.classList.add('is-flash', 'flash')
+      setTimeout(() => node.classList.remove('is-flash', 'flash'), 900)
+    }
+    // A jump someone asked for takes focus there; opening in place doesn't.
+    if (flash) {
+      node.querySelector('.bubble')?.setAttribute('tabindex', '-1')
+      node.querySelector('.bubble')?.focus({ preventScroll: true })
+    }
+    return true
   }
 
   // ------------------------------------------------------------ editing
@@ -1348,7 +1851,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (kind === 'update') {
       // Taken back (here or on another device) while being edited: stop.
       if (m.id === editingId && m.status === 'revoked') composer.endEdit()
+      if (m.status === 'revoked' && composer.replying?.id === m.id) composer.endReply()
       refreshNode(m)
+      // Replies quoting it show what it is now (taken back, rewritten).
+      for (const other of thread(current).list) if (other.replyTo === m.id) refreshNode(other)
       reconcile()
       return
     }
@@ -1358,14 +1864,28 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       el.classList.add('enter')
       el.addEventListener('animationend', () => el.classList.remove('enter'), { once: true })
     }
-    if (m.out) return
+    if (m.out) {
+      // Sending is reading, on the server too: what's above it counts as read.
+      if (!String(m.id).startsWith('local:') && m.ts > readUpTo) {
+        readUpTo = m.ts
+        markReadSoon()
+      }
+      return
+    }
     composer.offerReply()
-    if (wasBottom && document.visibilityState === 'visible') markReadSoon(true)
-    else {
-      newCount++
+    if (mentionsMe(m) && !(wasBottom && document.visibilityState === 'visible')) {
+      mentionIds.push(m.id)
+      showMentions()
+    }
+    // Counted (or read) once it has been on screen.
+    markReadSoon()
+    if (!(wasBottom && document.visibilityState === 'visible')) {
+      newIds.push(m.id)
+      newCount = newIds.length
       jumpBadge.textContent = newCount > 99 ? '99+' : String(newCount)
       jumpBadge.hidden = false
       jump.classList.add('on')
+      syncPills()
       symbolEffect(jump.querySelector('.icon'), 'bounce-down')
     }
     announce(`${m.fromName ? `${m.fromName}：` : ''}${m.text || '新消息'}`)
@@ -1373,6 +1893,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   on('replace', (fromId, m) => {
     if (m.chat !== current) return
+    // Sent from here: the server took it as reading everything before it.
+    if (m.out && m.ts > readUpTo) {
+      readUpTo = m.ts
+      markReadSoon()
+    }
     const el = nodes.get(fromId)
     if (el) {
       nodes.delete(fromId)
@@ -1431,6 +1956,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     get current() {
       return current
     },
+    /** The connection's state, as the list shows it: { spinner } while connecting. */
+    setStatus({ spinner = false } = {}) { setOffline(spinner) },
     showEmpty() {
       close()
       root.hidden = true
@@ -1440,7 +1967,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     setLayout(layout) {
       pane.dataset.layout = layout
       arrangeBars()
-      if (readHeld && current) markReadSoon(true)
+      if (readHeld && current) markReadSoon()
     },
     bars,
     setTool: (id, active) => composer.setTool(id, active),

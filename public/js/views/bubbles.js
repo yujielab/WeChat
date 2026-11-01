@@ -3,7 +3,7 @@
 
 import { h, icon } from '../ui/dom.js'
 import { duration, fileSize, emojiOnly, callSummary } from '../ui/format.js'
-import { state } from '../store.js'
+import { state, nameOf } from '../store.js'
 import { stickerEl } from './stickers.js'
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"'，。！？、；：（）【】《》]+/gi
@@ -59,8 +59,34 @@ function textBubble(m) {
   }
   const el = h('div', { class: 'bubble text', dataset: { kind: 'text' } })
   const keys = m.status !== 'revoked' && Array.isArray(m.meta?.keys) ? m.meta.keys : []
-  el.append(...markKeys(linkify(text), keys))
+  el.append(...markKeys(markMentions(linkify(text), m), keys))
   return el
+}
+
+// The members a group message @-mentions (meta.mentions), marked where
+// "@name" appears; "me" when it's this account.
+function markMentions(parts, m) {
+  const ids = Array.isArray(m.meta?.mentions) ? m.meta.mentions : []
+  if (!ids.length) return parts
+  const names = new Map()
+  for (const id of ids) {
+    const name = nameOf(id, m.chat)
+    if (name) names.set(`@${name}`, id)
+  }
+  if (!names.size) return parts
+  const re = new RegExp([...names.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+  return parts.flatMap(part => {
+    if (typeof part !== 'string') return [part]
+    const out = []
+    let last = 0
+    for (const hit of part.matchAll(re)) {
+      if (hit.index > last) out.push(part.slice(last, hit.index))
+      out.push(h('span', { class: ['mention', names.get(hit[0]) === state.me?.id && 'me'] }, hit[0]))
+      last = hit.index + hit[0].length
+    }
+    if (last < part.length) out.push(part.slice(last))
+    return out
+  })
 }
 
 // A sent message's key words (src/assist.js) marked where they appear in
@@ -91,6 +117,15 @@ function imageBubble(m, ctx) {
     dataset: { kind: 'image' },
     style: { '--w': `${W}px`, '--h': `${H}px` }
   })
+  // Failed, and its picture didn't survive a reload: the cell says so, at its
+  // usual size, and offers to choose it again (thread.js opens the picker).
+  if (m.status === 'failed' && m.lost) {
+    el.append(h('div', { class: 'ph', role: 'group', 'aria-label': '图片已丢失' },
+      icon('photo'),
+      h('span', {}, '图片已丢失'),
+      h('button', { class: 'text-button', type: 'button', 'aria-label': '重新选择图片' }, '重新选择')))
+    return el
+  }
   const src = m.url || (m.cid ? state.previews.get(m.cid) : '')
   const img = new Image()
   img.alt = m.type === 'drawing' ? '手绘' : '图片'

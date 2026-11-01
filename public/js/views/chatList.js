@@ -195,6 +195,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     if (draft) return [h('span', { class: 'draft' }, '[草稿] '), draft.replace(/\s+/g, ' ')]
     const last = listLast(c)
     if (!last) return [c.room ? `${c.count || ''}${c.count ? ' 位成员' : ''}` : '']
+    // Someone @-mentioned me in a group I haven't read yet.
+    if (c.mention && c.unread) return [h('span', { class: 'draft' }, '[有人@我] '), last.text || '']
     if (last.status === 'failed') return [h('span', { class: 'failed' }, '[未发送] '), last.text]
     if (last.status === 'sending') return ['发送中… ', last.text]
     return [last.text || '']
@@ -204,6 +206,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     const parts = [c.name]
     if (c.kind === 'dm' && c.online) parts.push('在线')
     if (c.unread) parts.push(`${c.unread} 条未读`)
+    if (c.mention && c.unread) parts.push('有人@我')
     const last = listLast(c)
     if (last?.text) parts.push(last.text)
     if (c.ts) parts.push(listTime(c.ts))

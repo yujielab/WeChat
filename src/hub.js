@@ -555,19 +555,36 @@ export class Hub {
       if (!STICKER_ID.test(String(m.id || '')) || !STICKER_KINDS.includes(m.kind)) return json({ ok: false, error: '表情无效' }, 400)
       body.meta = { id: m.id, kind: m.kind, emoji: cleanText(m.emoji, 16), ...(SET_NAME.test(String(m.set || '')) && { set: m.set }) }
     }
-    // A retry carries the same localId: if the first attempt landed (its
-    // answer was lost on the way back), it gets that message, not a copy.
-    const localKey = typeof body.localId === 'string' && body.localId ? `${user.id}:${roomId}:${body.localId.slice(0, 64)}` : ''
-    const landed = localKey && this.sentLocal?.get(localKey)
-    if (landed) return json({ ok: true, msg: landed, localId: body.localId })
+    // A reply names a message in the same conversation; anything else is
+    // dropped rather than refused, so the message itself still goes.
+    const replyTo = typeof body.replyTo === 'string' && body.replyTo && this.store.replySnapshot(body.replyTo.slice(0, 64), roomId) ? body.replyTo.slice(0, 64) : ''
+    // A retry, or a replay after reconnecting, carries the same localId: if
+    // the first attempt landed (its answer was lost on the way back), it gets
+    // that message, not a copy. Kept with the message, so a hub restart in
+    // between doesn't forget it.
+    const localKey = typeof body.localId === 'string' && body.localId ? body.localId.slice(0, 64) : ''
+    const landed = this.store.findLocal(roomId, user.id, localKey)
+    if (landed) return json({ ok: true, msg: landed, localId: body.localId, repeat: true })
+    // Group @: the members a text names, kept with it (meta.mentions) so the
+    // list can say 有人@我 and the push reaches them even when muted.
+    // Only the server's own reading counts, never a list a client put in meta.
+    let meta = body.meta && typeof body.meta === 'object' ? { ...body.meta } : null
+    if (meta) delete meta.mentions
+    if (type === 'text' && Array.isArray(body.mentions) && this.store.getRoom(roomId)?.kind === 'group') {
+      const members = new Set(this.store.roomMembers(roomId))
+      const named = [...new Set(body.mentions.filter(id => typeof id === 'string' && id !== user.id && members.has(id)))].slice(0, 50)
+      if (named.length) meta = { ...meta, mentions: named }
+    }
+    if (meta && !Object.keys(meta).length) meta = null
     const msg = this.store.addMessage({
       room: roomId,
       sender: user.id,
-      ts: Date.now(),
+      ts: this.store.nextTs(roomId),
+      localKey,
       type,
       body: type === 'text' ? String(body.text).slice(0, 8000) : (body.caption || ''),
-      meta: body.meta || null,
-      replyTo: body.replyTo || ''
+      meta,
+      replyTo
     })
     this.markRead(roomId, user.id, msg.ts) // sending is reading
     // Others get the message; the sender's own devices get it tagged with the
@@ -581,12 +598,6 @@ export class Hub {
     if (type === 'text' && assistConfigured(this.env)) {
       const work = this.markKeys(msg)
       this.ctx.waitUntil?.(work)
-    }
-    if (localKey) {
-      this.sentLocal ||= new Map()
-      this.sentLocal.set(localKey, msg)
-      // Only recent sends can be retried; keep the memory small.
-      if (this.sentLocal.size > 500) this.sentLocal.delete(this.sentLocal.keys().next().value)
     }
     return json({ ok: true, msg, localId: body.localId || null })
   }
@@ -798,11 +809,14 @@ export class Hub {
     const room = this.store.getRoom(roomId)
     const title = room.kind === 'dm' ? sender.display : (room.name || '群聊')
     const preview = room.kind === 'dm' ? this.preview(msg) : `${sender.display}: ${this.preview(msg)}`
+    const named = this.store.mentions(msg)
     for (const uid of this.store.roomMembers(roomId)) {
       if (uid === sender.id || this.isOnline(uid)) continue
-      if (this.store.membership(roomId, uid)?.muted) continue
+      // Being mentioned gets through a muted group, and says so.
+      const mentioned = named.includes(uid)
+      if (this.store.membership(roomId, uid)?.muted && !mentioned) continue
       await this.pushTo(uid, {
-        title, body: preview, tag: roomId, badge: this.store.unreadTotal(uid),
+        title: mentioned ? `${sender.display} 在${title}中提到了你` : title, body: preview, tag: roomId, badge: this.store.unreadTotal(uid),
         link: `/?chat=${encodeURIComponent(roomId)}`
       }, { topic: roomId })
     }

@@ -4,6 +4,7 @@ import { initViewport } from './ui/viewport.js'
 import { initPress } from './ui/press.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
+import { outbox } from './outbox.js'
 import { storage, reducedMotion } from './ui/dom.js'
 import {
   state, setMe, setPrefs, setRooms, upsertRoom, patchRoom, setContacts, setPresence, markPresence,
@@ -15,6 +16,9 @@ import { createCalls } from './views/call.js'
 import { syncPush } from './ui/push.js'
 import { prewarmStickers } from './views/stickers.js'
 import { toast, closeAllOverlays } from './views/overlay.js'
+
+// The browser says the network is back: the outbox tries again at once.
+window.addEventListener('online', () => outbox.resume())
 
 const app = document.getElementById('app')
 let socket = null
@@ -66,7 +70,7 @@ async function boot() {
   try {
     status = await fetch('/auth/status', { credentials: 'same-origin' }).then(r => r.json())
   } catch {
-    if (shell) shell.setStatus({ text: '连接中…', spinner: true })
+    if (shell) shell.setStatus({ text: '正在连接…', spinner: true })
     else {
       app.replaceChildren()
       toast('无法连接服务器，请检查网络', { type: 'error', duration: 6000 })
@@ -87,15 +91,16 @@ async function start(me) {
     await refresh()
   } catch (err) {
     // A restored app says it is still connecting; a blank one says why.
-    if (shell) shell.setStatus({ text: '连接中…', spinner: true })
+    if (shell) shell.setStatus({ text: '正在连接…', spinner: true })
     else toast(err.message, { type: 'error' })
     return setTimeout(() => start(me), 3000)
   }
   socket?.close()
   socket = connectSocket({
     onMessage: handle,
-    onOpen: () => { state.socket = true; shell?.setStatus({}); refresh().catch(() => {}) },
-    onClose: () => { state.socket = false; shell?.setStatus({ text: '连接中…', spinner: true }) }
+    // Back online: whatever waited in the outbox goes now, in order.
+    onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}) },
+    onClose: () => { state.socket = false; shell?.setStatus({ text: '正在连接…', spinner: true }) }
   })
   enterApp()
 }
@@ -248,9 +253,12 @@ function bumpRoom(m, raw) {
     patchRoom(m.chat, {
       ts: m.ts,
       last: { id: m.id, ts: m.ts, out: m.out, type: m.type, status: m.status, text: previewText(raw, existing) },
-      unread: incUnread ? counted + 1 : (state.open === m.chat ? 0 : existing.unread),
+      // The open conversation counts its own: what hasn't been on screen yet (thread.js).
+      unread: incUnread ? counted + 1 : existing.unread,
       ...(raw.type !== 'system' && { hidden: false }),
-      ...(incUnread && { marked: false })
+      ...(incUnread && { marked: false }),
+      // Mentioned while elsewhere: the list says 有人@我 until it's read.
+      ...(incUnread && !existing.mention && raw.meta?.mentions?.includes(state.me?.id) && { mention: m.id })
     })
   } else {
     // A brand-new room (first message of a fresh DM/group) — fetch it in.

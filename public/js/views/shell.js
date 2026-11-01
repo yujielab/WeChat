@@ -332,6 +332,6 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
       sidebar.setMe(me)
       list.setMe(me)
     },
-    setStatus(s) { list.setStatus(s) }
+    setStatus(s) { list.setStatus(s); thread.setStatus(s) }
   }
 }

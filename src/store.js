@@ -99,6 +99,11 @@ export class Store {
     // someone marked unread themselves.
     this.#column('users', 'cover', `TEXT NOT NULL DEFAULT ''`)
     this.#column('room_members', 'marked', 'INTEGER NOT NULL DEFAULT 0')
+    // A client's own id for a message it sent (its localId): a send repeated
+    // after a lost answer, or replayed after reconnecting, finds the message
+    // that already landed instead of making a copy, even after the hub restarts.
+    this.#column('messages', 'local_key', `TEXT NOT NULL DEFAULT ''`)
+    s(`CREATE INDEX IF NOT EXISTS idx_msg_local ON messages (room, sender, local_key)`)
   }
 
   /** Add a column to a table made before it existed (once: then it's there). */
@@ -295,6 +300,8 @@ export class Store {
       )[0].n
       // Marked unread by hand: one, until it's read or something new arrives.
       const unread = count || (m.marked ? 1 : 0)
+      // The earliest unread message that mentions this person (group @).
+      const mention = room.kind === 'group' && count ? this.firstMention(room.id, user, m.last_read) : null
       const row = {
         id: room.id,
         kind: room.kind,
@@ -305,6 +312,7 @@ export class Store {
         lastRead: m.last_read,
         unread,
         marked: Boolean(m.marked && !count),
+        mention,
         last,
         ts: last ? last.ts : room.created
       }
@@ -329,11 +337,11 @@ export class Store {
   addMessage(m) {
     const id = m.id || rid()
     this.exec(
-      `INSERT INTO messages (id, room, sender, ts, type, body, meta, reply_to, state)
-       VALUES (?,?,?,?,?,?,?,?,?)
+      `INSERT INTO messages (id, room, sender, ts, type, body, meta, reply_to, state, local_key)
+       VALUES (?,?,?,?,?,?,?,?,?,?)
        ON CONFLICT(id) DO NOTHING`,
       id, m.room, m.sender, m.ts || now(), m.type || 'text', m.body || '',
-      m.meta ? JSON.stringify(m.meta) : '', m.replyTo || '', m.state || 'sent'
+      m.meta ? JSON.stringify(m.meta) : '', m.replyTo || '', m.state || 'sent', m.localKey || ''
     )
     // Something new brings a deleted conversation back, and replaces a
     // hand-made unread mark.
@@ -356,7 +364,49 @@ export class Store {
     if (!r) return null
     const m = this.#msg(r)
     m.reactions = this.#reactionGroups(this.exec(`SELECT msg, user, emoji FROM reactions WHERE msg=? ORDER BY ts, rowid`, id))[id] || []
+    if (m.replyTo) m.reply = this.replySnapshot(m.replyTo, m.room)
     return m
+  }
+  /** Who a message mentions (group @), as user ids. */
+  mentions(m) {
+    return Array.isArray(m?.meta?.mentions) ? m.meta.mentions : []
+  }
+  /** The first message after `since` in a room that mentions `user` (not taken back), or null. */
+  firstMention(room, user, since = 0) {
+    const rows = this.exec(
+      `SELECT id, meta FROM messages WHERE room=? AND ts>? AND sender<>? AND state<>'revoked' AND instr(meta, ?)>0
+       ORDER BY ts ASC, id ASC LIMIT 50`, room, since, user, `"${user}"`)
+    return rows.find(r => { try { return (JSON.parse(r.meta).mentions || []).includes(user) } catch { return false } })?.id || null
+  }
+  /**
+   * What a reply shows of the message it answers: who sent it, its kind and
+   * a short preview (a photo's address for its thumbnail). A message taken
+   * back says only that it was; one from another room, or gone, is null.
+   */
+  replySnapshot(id, room) {
+    const r = this.exec(`SELECT id, room, sender, ts, type, body, meta, state FROM messages WHERE id=?`, id)[0]
+    if (!r || r.room !== room) return null
+    if (r.state === 'revoked') return { id: r.id, sender: r.sender, ts: r.ts, type: r.type, state: 'revoked' }
+    const meta = r.meta ? JSON.parse(r.meta) : {}
+    const out = { id: r.id, sender: r.sender, ts: r.ts, type: r.type, state: r.state, body: Array.from(r.body || '').slice(0, 120).join('') }
+    if ((r.type === 'image' || r.type === 'drawing') && meta.url) out.url = meta.url
+    if (r.type === 'sticker') out.emoji = meta.emoji || ''
+    return out
+  }
+  /** The message a sender already sent with this localId in this room, if any. */
+  findLocal(room, sender, localKey) {
+    if (!localKey) return null
+    const r = this.exec(`SELECT id FROM messages WHERE room=? AND sender=? AND local_key=? LIMIT 1`, room, sender, localKey)[0]
+    return r ? this.getMessage(r.id) : null
+  }
+  /**
+   * A time for the next message in a room: now, but never at or before the
+   * last one, so the order the hub took them in is the order everyone sees
+   * (and "before/after this ts" pages never split two messages sharing one).
+   */
+  nextTs(room) {
+    const last = this.exec(`SELECT MAX(ts) AS ts FROM messages WHERE room=?`, room)[0]?.ts || 0
+    return Math.max(now(), last + 1)
   }
   lastMessage(room) {
     const r = this.exec(`SELECT * FROM messages WHERE room=? ORDER BY ts DESC, id DESC LIMIT 1`, room)[0]
@@ -382,7 +432,10 @@ export class Store {
        WHERE m.room=? AND m.ts BETWEEN ? AND ? ORDER BY r.ts, r.rowid`,
       room, list[0].ts, list[list.length - 1].ts
     ))
-    for (const m of list) m.reactions = groups[m.id] || []
+    for (const m of list) {
+      m.reactions = groups[m.id] || []
+      if (m.replyTo) m.reply = this.replySnapshot(m.replyTo, room)
+    }
     return list
   }
   /** Set (or with no emoji, clear) one person's reaction to a message. */

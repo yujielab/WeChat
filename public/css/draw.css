@@ -73,7 +73,10 @@
 }
 .draw-palette::-webkit-scrollbar, .draw-sizes::-webkit-scrollbar { display: none; }
 .draw-sizes { justify-content: center; }
-.draw-palette { justify-content: space-between; gap: 6px; }
+/* 14px between swatches and at least 7px at each end: every swatch's 44pt
+   hit area (::before below) is whole and its own, none clipped by the
+   scrolling row (it scrolls when nine don't fit). */
+.draw-palette { justify-content: space-between; gap: 14px; padding-inline: 12px; }
 .draw-tools {
   display: flex;
   gap: 2px;
@@ -111,6 +114,13 @@
 }
 .draw-size span { background: var(--label); border-radius: 50%; display: block; }
 .draw-size.on { background: var(--fill-3); transform: scale(1.05); }
+/* HIG: at least 44pt to hit, however small the swatch looks (30+14, 36+8). */
+.draw-color, .draw-size { position: relative; }
+.draw-color::before, .draw-size::before { content: ''; position: absolute; inset: -7px; }
+.draw-size::before { inset: -4px; }
+/* The chosen one is drawn larger (scale); its hit area stays 44pt, not more, so it never covers a neighbour's. */
+.draw-color.on::before { inset: calc((44px / 1.18 - 30px) / -2); }
+.draw-size.on::before { inset: calc((44px / 1.05 - 36px) / -2); }
 
 .draw-tool { width: 44px; height: 44px; }
 .draw-tool .icon { width: 20px; height: 20px; }

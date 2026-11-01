@@ -7,21 +7,26 @@ import { h, icon } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
 
-const COLORS = ['#18181b', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#5856d6', '#ff2d92', '#ffffff']
+const COLORS = [
+  { c: '#18181b', name: '黑色' }, { c: '#ff3b30', name: '红色' }, { c: '#ff9500', name: '橙色' },
+  { c: '#ffcc00', name: '黄色' }, { c: '#34c759', name: '绿色' }, { c: '#007aff', name: '蓝色' },
+  { c: '#5856d6', name: '紫色' }, { c: '#ff2d92', name: '粉色' }, { c: '#ffffff', name: '白色' }
+]
 const SIZES = [3, 6, 12, 22]
+const SIZE_NAMES = ['细', '中', '粗', '特粗']
 
 /** Build the board into `host`; onClose() when Close or Send is chosen. Returns { el, destroy }. */
 export function createDrawing(host, { onSend, onClose }) {
   const canvas = h('canvas', { class: 'draw-canvas' })
   const stage = h('div', { class: 'draw-stage' }, canvas)
 
-  const swatches = COLORS.map(c => {
-    const b = h('button', { class: 'draw-color', type: 'button', style: { '--c': c }, 'aria-label': `颜色 ${c}` })
+  const swatches = COLORS.map(({ c, name }) => {
+    const b = h('button', { class: 'draw-color', type: 'button', style: { '--c': c }, 'aria-label': name, 'aria-pressed': 'false' })
     b.addEventListener('click', () => setColor(c, b))
     return b
   })
-  const sizeBtns = SIZES.map(sz => {
-    const b = h('button', { class: 'draw-size', type: 'button', 'aria-label': `画笔 ${sz}` }, h('span', { style: { width: `${Math.min(sz, 18)}px`, height: `${Math.min(sz, 18)}px` } }))
+  const sizeBtns = SIZES.map((sz, i) => {
+    const b = h('button', { class: 'draw-size', type: 'button', 'aria-label': SIZE_NAMES[i], 'aria-pressed': 'false' }, h('span', { style: { width: `${Math.min(sz, 18)}px`, height: `${Math.min(sz, 18)}px` } }))
     b.addEventListener('click', () => setSize(sz, b))
     return b
   })
@@ -31,8 +36,8 @@ export function createDrawing(host, { onSend, onClose }) {
   const closeBtn = h('button', { class: 'glass glass-btn draw-close', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
   const sendBtn = h('button', { class: 'draw-send solid-press', type: 'button', title: '发送', 'aria-label': '发送', disabled: true }, icon('arrow-up'), h('span', { class: 'draw-send-label', 'aria-hidden': 'true' }, '发送'))
 
-  const palette = h('div', { class: 'draw-palette glass glass-thick' }, ...swatches)
-  const sizes = h('div', { class: 'draw-sizes glass glass-thick' }, ...sizeBtns)
+  const palette = h('div', { class: 'draw-palette glass glass-thick', role: 'group', 'aria-label': '画笔颜色' }, ...swatches)
+  const sizes = h('div', { class: 'draw-sizes glass glass-thick', role: 'group', 'aria-label': '画笔粗细' }, ...sizeBtns)
   // Like every column, the board ends in one bar: Close leads, Undo and
   // Clear share a capsule, Send ends it.
   const tools = h('div', { class: 'draw-tools' }, undoBtn, clearBtn)
@@ -46,7 +51,7 @@ export function createDrawing(host, { onSend, onClose }) {
   let dpr = 1, W = 0, H = 0
   const undoStack = []
   let dirty = false
-  let color = COLORS[0]
+  let color = COLORS[0].c
   let size = SIZES[1]
   setColor(color, swatches[0])
   setSize(size, sizeBtns[1])
@@ -125,11 +130,17 @@ export function createDrawing(host, { onSend, onClose }) {
   }
   function setColor(c, btn) {
     color = c
-    for (const b of swatches) b.classList.toggle('on', b === btn)
+    for (const b of swatches) {
+      b.classList.toggle('on', b === btn)
+      b.setAttribute('aria-pressed', String(b === btn))
+    }
   }
   function setSize(sz, btn) {
     size = sz
-    for (const b of sizeBtns) b.classList.toggle('on', b === btn)
+    for (const b of sizeBtns) {
+      b.classList.toggle('on', b === btn)
+      b.setAttribute('aria-pressed', String(b === btn))
+    }
   }
 
   closeBtn.addEventListener('click', () => onClose())
