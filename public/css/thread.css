@@ -894,7 +894,7 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 /* @ mentions: a tinted token, never just colored text. */
 .mention { padding: 0 3px; margin: 0 1px; border-radius: 6px; background: var(--blue-ring); color: var(--blue-text); font-weight: var(--w-medium); white-space: nowrap; }
 .m.out .bubble .mention { background: color-mix(in srgb, var(--bubble-out-text) 20%, transparent); color: inherit; }
-.mention.me { background: var(--blue); color: #fff; }
+.mention.me { background: var(--badge-bg); color: var(--badge-text); }
 .m.out .bubble .mention.me { background: var(--bubble-out-text); color: var(--bubble-out); }
 
 /* Member picker over the composer: a glass list, 44pt rows. */
@@ -906,14 +906,13 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 @media (hover: hover) and (pointer: fine) { .mention-picker-item:hover { background: var(--fill-4); } }
 
 /* Jump pills ("↓ 新消息", "@ 1"): 36pt glass capsule with a 44pt target, beside the existing jump button. */
-.jump-pill { position: absolute; z-index: var(--z-chrome); left: 50%; bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; transform: translateX(-50%); font-size: var(--t-subhead); font-weight: var(--w-semibold); color: var(--label); background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow); animation: pill-in var(--spring-snappy-dur) var(--spring-snappy) backwards; }
+.jump-pill { position: absolute; z-index: var(--z-chrome); left: 50%; bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; font-size: var(--t-subhead); font-weight: var(--w-semibold); color: var(--label); background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow); animation: pill-in var(--spring-snappy-dur) var(--spring-snappy) backwards; }
 .jump-pill::after { content: ""; position: absolute; inset: -4px 0; }
 .jump-pill .icon { width: 15px; height: 15px; }
 .jump-pill.up { bottom: auto; top: calc(var(--head-h, 60px) + var(--safe-top) + 10px); }
 .jump-pill.mention-jump { color: var(--blue-text); }
 .jump-pill-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 10px; font-size: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--badge-text); background: var(--badge-bg); }
 :root[data-kb="1"] .jump-pill:not(.up) { bottom: calc(var(--composer-h, 56px) + 12px); }
-@keyframes pill-in { from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.9); } }
 
 /* Where a jump lands: the bubble breathes once (alias of the existing .flash). */
 .m.is-flash .bubble { animation: flash 900ms ease-out; }
@@ -923,9 +922,21 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 :root[data-kb="1"] .thread .offline-banner { bottom: calc(var(--composer-h, 56px) + 12px); }
 .offline-banner b { color: var(--orange-text); }
 
+/* Reduce Motion, from the system or from the app's own setting: these only fade.
+   (.m.is-flash changes brightness, not position, so it stays.) */
 @media (prefers-reduced-motion: reduce) {
-  .composer-reply, .mention-picker, .jump-pill { animation-name: fade-in; animation-timing-function: ease-out; animation-duration: 150ms; }
+  :root:not([data-motion="full"]) :is(.composer-reply, .mention-picker, .jump-pill) { animation: fade-in 150ms ease-out backwards; }
 }
+:root[data-motion="reduce"] :is(.composer-reply, .mention-picker, .jump-pill) { animation: fade-in 150ms ease-out backwards; }
+/* .jump-pill is centred with transform; the fade must not drop it. */
+.jump-pill { translate: -50% 0; transform: none; }
+@keyframes pill-in { from { opacity: 0; transform: translateY(8px) scale(0.9); } }
+
+/* Offline and new messages at once: the banner keeps the bottom, the pill and jump button stack above it. */
+.thread:has(.offline-banner:not([hidden])) .jump-pill:not(.up),
+.thread:has(.offline-banner:not([hidden])) .jump { bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px + var(--banner-h, 66px) + 8px); }
+:root[data-kb="1"] .thread:has(.offline-banner:not([hidden])) .jump-pill:not(.up),
+:root[data-kb="1"] .thread:has(.offline-banner:not([hidden])) .jump { bottom: calc(var(--composer-h, 56px) + 12px + var(--banner-h, 66px) + 8px); }
 
 /* Your own bubbles never carry your avatar: the side tells who sent them. */
 .m.out .m-avatar, .m.out.has-avatar .m-avatar { display: none; }
