@@ -846,3 +846,20 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+
+/* ---- UI polish: bubble runs.
+ * A run from one sender reads as one stack: tighter spacing inside it, and the
+ * corners that face the sender's edge pinch in where bubbles meet, rounding
+ * out again only at the run's ends. Media, stickers, jumbo emoji and call logs
+ * keep their own shapes. */
+.m { --gap: 3px; }
+.m.first { --gap: 16px; }
+.m.in:not(.first) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-top-left-radius: 8px; }
+.m.in:not(.last) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-bottom-left-radius: 8px; }
+.m.out:not(.first) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-top-right-radius: 8px; }
+.m.out:not(.last) .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { border-bottom-right-radius: 8px; }
+.m.out .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.voice) { background-image: var(--bubble-out-sheen, none); }
+
+/* The day in a timestamp carries the weight; the clock steps back. */
+.ts { letter-spacing: 0.01em; color: var(--label-3); }
+.ts b { font-weight: var(--w-semibold); color: var(--label-2); }

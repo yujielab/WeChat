@@ -53,6 +53,8 @@
   --bubble-out-text: var(--on-ink);
   --bubble-in: #ededf0;
   --bubble-in-text: #0b0b0d;
+  /* A breath of light across the top of your bubbles, so ink reads as a surface, not a hole. */
+  --bubble-out-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0) 62%);
   --bubble-card: #ffffff;
   --bubble-card-line: var(--line);
   --link-in: #0062cc;
@@ -227,6 +229,7 @@
     --bubble-out: var(--ink);
     --bubble-in: #1a1a1d;
     --bubble-in-text: #f5f5fa;
+    --bubble-out-sheen: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / 0.06));
     --bubble-card: #111113;
     --link-in: #5eb0ff;
     --scrim: rgb(0 0 0 / 0.6);
@@ -288,6 +291,7 @@
   --bubble-out: var(--ink);
   --bubble-in: #1a1a1d;
   --bubble-in-text: #f5f5fa;
+  --bubble-out-sheen: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / 0.06));
   --bubble-card: #111113;
   --link-in: #5eb0ff;
   --scrim: rgb(0 0 0 / 0.6);
