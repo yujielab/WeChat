@@ -111,6 +111,10 @@ for (const query of Object.values(segments)) query.addEventListener?.('change', 
 // touch screen — not half of it (split view), not a desktop window — and
 // data-column="beside" says so; backdrops fade out into it (backdrops.css).
 function measureColumn() {
+  if (root.dataset.wide === 'outer') {
+    delete root.dataset.column
+    return
+  }
   const landscape = matchMedia('(orientation: landscape)').matches
   const screenWidth = landscape ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)
   const extra = screenWidth - window.innerWidth

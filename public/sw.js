@@ -26,6 +26,7 @@ const SHELL_FILES = [
   '/css/insights.css',
   '/css/backdrops.css',
   '/js/boot.js',
+  '/js/viewport-boot.js',
   '/js/main.js',
   '/js/api.js',
   '/js/outbox.js',
