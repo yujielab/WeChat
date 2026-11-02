@@ -1,7 +1,8 @@
 // Fold-aware overlays for iPhone Duo. Unfolded, a dialog, photo or call
-// belongs to the column it was opened from, so the hinge never runs through
-// it. The region follows the column's live geometry, which already accounts
-// for viewport segments and the fold gap; if that column has slid out of the
+// belongs to one column — the one it was opened from (a call: the one beside
+// the conversation, views/call.js) — so the hinge never runs through it. The
+// region follows the column's live geometry, which already accounts for
+// viewport segments and the fold gap; if that column has slid out of the
 // window, the overlay moves to the half of the screen nearest to it.
 
 import { getLayout, onLayout } from './viewport.js'

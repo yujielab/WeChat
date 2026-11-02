@@ -1,28 +1,40 @@
-/* Full-screen voice / video call. Dark, calm, big tactile controls. */
+/* Voice / video calls (js/views/call.js). Full screen folded, one column
+   unfolded (fold.js), always dark: the call's own backdrop behind, their
+   picture over it once it comes, the controls floating over the picture.
+   It shrinks into a picture in picture that floats over the app: on the way
+   the root is pinned and transformed (.moving) and --mini runs 0 → 1, fading
+   the controls; resting, a button (.call-pip) lies over it to be pressed,
+   dragged and thrown. */
 
 .call {
+  /* The foot the controls take: padding, a 64pt button, its caption, the safe area. */
+  --controls-h: calc(122px + max(var(--safe-bottom), 20px));
   position: absolute;
   inset: 0;
   z-index: var(--z-viewer);
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
   background: #000;
   color: #fff;
   opacity: 0;
   transform: scale(1.04);
   transition: opacity 240ms var(--ease-out), transform 320ms var(--ease-morph);
   pointer-events: auto;
+  /* A swipe down shrinks it; nothing in it scrolls. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  outline: none;
 }
 .call.on { opacity: 1; transform: none; }
+/* Driven frame by frame on the way into or out of the picture in picture. */
+.call.moving { transition: none; transform-origin: 0 0; will-change: transform; }
+/* Over everything the app opens meanwhile (a photo, a sheet); under toasts. */
+.call.pip { z-index: var(--z-pip); }
+.call.resting { pointer-events: none; }
 
-.call-stage {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
+/* ---------------------------------------------------------------- pictures */
+.call-stage { position: absolute; inset: 0; overflow: hidden; }
 .call-remote {
   position: absolute;
   inset: 0;
@@ -32,65 +44,127 @@
   background: #000;
   display: none;
 }
-.call.remote-video .call-remote { display: block; }
+.call.remote-video .call-remote,
+.call.swapped .call-remote { display: block; }
+.call-remote.mirror, .call-local.mirror { transform: scaleX(-1); }
+.call video { -webkit-touch-callout: none; pointer-events: none; }
+.call-audio { display: none; }
 
+/* Their face, between the heading and the controls, until their picture comes. */
 .call-poster {
+  position: absolute;
+  inset: calc(var(--safe-top) + 96px) 0 var(--controls-h);
   display: grid;
   place-items: center;
-  gap: 18px;
-  text-align: center;
-  z-index: 1;
+  pointer-events: none;
 }
-.call-poster .avatar { box-shadow: 0 20px 60px -20px rgb(0 0 0 / 0.7); }
-.call.remote-video .call-poster { display: none; }
-
-.call-head {
+.call.remote-video .call-poster,
+.call.swapped .call-poster { display: none; }
+.call-face {
+  position: relative;
+  /* Shrinking, it moves to the middle of the window and keeps a size that reads there. */
+  transform: translateY(calc(var(--mini, 0) * (var(--controls-h) - var(--safe-top) - 96px) / 2)) scale(var(--face-k, 1));
+}
+.call-face .avatar { --size: 112px; box-shadow: 0 20px 60px -20px rgb(0 0 0 / 0.7); }
+/* Their voice, seen: a ring that follows how loud they are. */
+.call-ring {
   position: absolute;
-  top: calc(var(--safe-top) + 28px);
-  left: 0; right: 0;
+  inset: -9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.6), 0 0 24px 2px rgb(255 255 255 / 0.18);
+  opacity: min(1, calc(var(--level, 0) * 1.8));
+  transform: scale(calc(1 + var(--level, 0) * 0.2));
+  transition: opacity 140ms linear, transform 140ms linear;
+  pointer-events: none;
+}
+.call.room-face .call-ring { border-radius: 34%; }
+
+/* ---------------------------------------------------------------- heading */
+.call-top {
+  position: absolute;
   z-index: 2;
-  text-align: center;
+  top: calc(var(--safe-top) + 10px);
+  left: calc(var(--safe-left) + 12px);
+  right: calc(var(--safe-right) + 12px);
   display: grid;
-  gap: 6px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: start;
+  gap: 8px;
+  transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
+}
+.call-icon-btn {
+  grid-column: 1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(255 255 255 / 0.16);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: transform var(--press-out) var(--ease-out), background-color var(--dur-quick) ease-out;
+}
+.call-icon-btn .icon { width: 22px; height: 22px; }
+.call-icon-btn:active { transform: scale(var(--press-scale)); background: rgb(255 255 255 / 0.26); transition-duration: var(--press-in); }
+.call-icon-btn:focus-visible, .call-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.call-head {
+  grid-column: 2;
+  min-width: 0;
+  padding-top: 4px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
   pointer-events: none;
   text-shadow: 0 1px 10px rgb(0 0 0 / 0.5);
 }
-.call-name { font-size: var(--t-title-1); font-weight: var(--w-bold); letter-spacing: -0.02em; }
-.call-status { font-size: var(--t-subhead); color: rgb(255 255 255 / 0.75); min-height: 1.2em; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
-
-/* Local self-view: small rounded tile, picture-in-picture top-right. */
-.call-local {
-  position: absolute;
-  top: calc(var(--safe-top) + 16px);
-  right: 16px;
-  width: 104px;
-  height: 150px;
-  object-fit: cover;
-  border-radius: var(--r-m);
-  z-index: 3;
-  background: #18181b;
-  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6);
-  transform: scaleX(-1); /* mirror self-view */
-  display: none;
+.call-name {
+  max-width: 100%;
+  font-size: var(--t-title-1);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.call.video .call-local { display: block; }
+.call-status { font-size: var(--t-subhead); color: rgb(255 255 255 / 0.78); min-height: 1.3em; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.call-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 4px; }
+.call-badges:empty { display: none; }
+.call-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.42);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: var(--t-caption);
+  text-shadow: none;
+}
+.call-badge .icon { width: 14px; height: 14px; }
 
-.call-controls {
+/* ---------------------------------------------------------------- controls */
+.call-controls,
+.call-incoming {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 24px;
-  padding: 22px 0 calc(max(var(--safe-bottom), 20px) + 10px);
-  z-index: 2;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 26px calc(var(--safe-right) + 12px) calc(max(var(--safe-bottom), 20px) + 10px) calc(var(--safe-left) + 12px);
+  transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
 }
-.call-incoming {
-  display: flex;
-  justify-content: space-evenly;
-  align-items: center;
-  padding: 22px 0 calc(max(var(--safe-bottom), 20px) + 10px);
-  z-index: 2;
-}
-
+/* Over a picture the captions keep a little shade under them. */
+.call.video .call-controls { background: linear-gradient(to top, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0)); }
+.call-incoming { justify-content: space-evenly; }
+.call-control { width: 76px; display: grid; justify-items: center; gap: 8px; }
+.call-caption { max-width: 100%; font-size: var(--t-caption); color: rgb(255 255 255 / 0.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 6px rgb(0 0 0 / 0.5); }
 .call-btn {
   width: 64px;
   height: 64px;
@@ -101,15 +175,168 @@
   background: rgb(255 255 255 / 0.16);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color var(--dur-quick) ease-out;
+  transition: transform var(--spring-snappy-dur) var(--spring-snappy), background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out;
 }
 .call-btn .icon { width: 26px; height: 26px; }
 .call-btn:active { transform: scale(var(--press-scale)); filter: brightness(1.12); transition-duration: var(--press-in); }
+/* A toggle that is on (muted, camera off) turns white, as on iOS. */
 .call-btn.toggle.active { background: #fff; color: #18181b; }
 .call-btn.hang { background: var(--red); }
 .call-btn.accept { background: var(--green); }
 .call-incoming .call-btn { width: 72px; height: 72px; }
+.call.ending :is(.call-controls, .call-top) { opacity: 0.5; pointer-events: none; }
+@media (max-width: 360px) {
+  .call-controls { gap: 6px; }
+  .call-control { width: 70px; }
+}
+
+/* Watching a video call the controls step aside; a tap brings them back. */
+.call.calm .call-top { opacity: 0; transform: translateY(-10px); pointer-events: none; }
+.call.calm .call-controls { opacity: 0; transform: translateY(14px); pointer-events: none; }
+
+/* ---------------------------------------------------------------- the self view */
+.call-tile {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  width: 104px;
+  height: 150px;
+  padding: 0;
+  border-radius: var(--r-m);
+  overflow: hidden;
+  background: #18181b;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6), 0 0 0 0.5px rgb(255 255 255 / 0.16);
+  display: none;
+  touch-action: none;
+  cursor: grab;
+  transition: opacity 240ms var(--ease-out);
+}
+.call.wide .call-tile { width: 150px; height: 104px; }
+.call.has-local .call-tile { display: block; }
+.call-tile video { width: 100%; height: 100%; object-fit: cover; }
+.call-tile:active { cursor: grabbing; }
+.call-tile:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+/* Your camera off: the tile stays, with the camera struck through. */
+.call-tile-off { position: absolute; inset: 0; display: none; place-items: center; color: rgb(255 255 255 / 0.72); background: #18181b; }
+.call.cam-off:not(.swapped) .call-tile-off { display: grid; }
+.call-tile-off .icon { width: 28px; height: 28px; }
+/* Where it may rest: below the heading, above the controls — or, with them
+   stepped aside, right up to the edges. */
+.call-tile-frame {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  top: calc(var(--safe-top) + 112px);
+  bottom: calc(var(--controls-h) + 8px);
+  left: calc(var(--safe-left) + 12px);
+  right: calc(var(--safe-right) + 12px);
+}
+.call.calm .call-tile-frame { top: calc(var(--safe-top) + 12px); bottom: calc(max(var(--safe-bottom), 12px) + 12px); }
+
+/* ---------------------------------------------------------------- shrinking */
+.call.moving:not(.calm) :is(.call-top, .call-controls, .call-incoming, .call-tile) {
+  opacity: clamp(0, calc(1 - var(--mini, 0) * 2.4), 1);
+  transition: none;
+}
+.call.moving.calm .call-tile { opacity: clamp(0, calc(1 - var(--mini, 0) * 2.4), 1); }
+/* Away from the screen's edge, the backdrop has no status column to fade into. */
+.call.moving .call-backdrop { --fade-left: 0px; --fade-right: 0px; }
+.call.moving .call-backdrop::before,
+.call.moving .call-backdrop::after { display: none; }
+
+/* ---------------------------------------------------------------- the picture in picture */
+.overlays > .call-pip {
+  position: absolute;
+  z-index: calc(var(--z-pip) + 1);
+  left: 0;
+  top: 0;
+  display: block;
+  padding: 0;
+  border-radius: 18px;
+  color: #fff;
+  background: transparent;
+  box-shadow: 0 14px 34px -10px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.18), inset 0 0 0 0.5px rgb(255 255 255 / 0.22);
+  touch-action: none;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 160ms ease-out, box-shadow 200ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.call-pip.on { opacity: 1; }
+.call-pip.dragging { cursor: grabbing; box-shadow: 0 22px 44px -12px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.2), inset 0 0 0 0.5px rgb(255 255 255 / 0.22); }
+.call-pip:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.call-pip-time {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  max-width: calc(100% - 12px);
+  padding: 2px 8px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgb(0 0 0 / 0.42);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: var(--t-caption);
+  font-weight: var(--w-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+/* Over their picture the window is just the picture. */
+.call.remote-video + .call-pip:not(.ending) .call-pip-time { display: none; }
+/* Your microphone is off: said in the corner, so you don't talk unheard. */
+.call-pip-mute {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.5);
+  pointer-events: none;
+}
+.call-pip-mute .icon { width: 14px; height: 14px; }
+/* Tucked against a side: a strip shows, shaded, with a handle pointing back in. */
+.call-pip[data-stashed]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.42);
+  pointer-events: none;
+}
+.call-pip-tab { position: absolute; top: 0; bottom: 0; width: 28px; display: none; place-items: center; pointer-events: none; }
+.call-pip-tab .icon { width: 18px; height: 18px; }
+.call-pip[data-stashed="right"] .call-pip-tab { display: grid; left: 0; }
+.call-pip[data-stashed="left"] .call-pip-tab { display: grid; right: 0; }
+.call-pip[data-stashed="left"] .call-pip-tab .icon { transform: rotate(180deg); }
+.call-pip[data-stashed] :is(.call-pip-time, .call-pip-mute) { display: none; }
+
+/* The room it may rest in: inside the safe areas, clear of the headings at
+   the top and the bars at the foot, above the keyboard. */
+.overlays > .call-pip-frame {
+  --pip-gap: 12px;
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  top: calc(var(--safe-top) + min(84px, 13vh));
+  bottom: calc(max(var(--safe-bottom), 16px) + min(72px, 12vh));
+  left: calc(var(--safe-left) + var(--pip-gap));
+  right: calc(var(--safe-right) + var(--pip-gap));
+}
+:root[data-kb="1"] .overlays > .call-pip-frame { bottom: 76px; }
+
+/* Its menu opens over it. */
+.menu.call-pip-menu { z-index: calc(var(--z-pip) + 2); }
 
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .call { transition: opacity 160ms linear; transform: none; }
+  :root:not([data-motion="full"]) .call-ring { transform: none; }
 }
+:root[data-motion="reduce"] .call { transition: opacity 160ms linear; transform: none; }
+:root[data-motion="reduce"] .call-ring { transform: none; }
