@@ -187,6 +187,7 @@
   --z-overlay: 100;
   --z-menu: 200;
   --z-viewer: 300;
+  --z-pip: 350;      /* a call's picture in picture floats over the app and what it opens */
   --z-toast: 400;
 }
 

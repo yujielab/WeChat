@@ -45,6 +45,13 @@ export function duration(seconds) {
   return `${Math.floor(s / 60)}:${pad(s % 60)}`
 }
 
+/** A call's running clock: 00:42 · 12:05 · 1:02:09. */
+export function callClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(s / 3600)
+  return hours ? `${hours}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}` : `${pad(Math.floor(s / 60))}:${pad(s % 60)}`
+}
+
 export function fileSize(bytes) {
   if (!bytes) return ''
   const units = ['B', 'KB', 'MB', 'GB']
@@ -88,8 +95,9 @@ export function emojiOnly(text) {
 
 /**
  * What a call record says from this side of it. `mine`: this account placed
- * the call. The caller hears how it went (对方未接听, 已取消, 对方已拒绝);
- * the person called learns of a call they missed (未接来电, in red).
+ * the call. The caller hears how it went (对方未接听, 已取消, 对方已拒绝,
+ * 对方忙线); the person called learns of a call they missed (未接来电, in
+ * red) — one that came while they were on another call, too.
  */
 export function callSummary(call = {}, mine) {
   const media = call.media === 'video' ? '视频' : '语音'
@@ -99,6 +107,7 @@ export function callSummary(call = {}, mine) {
   if (result === 'completed') text = call.duration >= 1 ? `通话时长 ${duration(call.duration)}` : '通话已结束'
   else if (result === 'failed') text = '连接失败'
   else if (result === 'declined') text = mine ? '对方已拒绝' : '已拒绝'
+  else if (result === 'busy' && mine) text = '对方忙线'
   else if (mine) text = result === 'cancelled' ? '已取消' : '对方未接听'
   else {
     text = '未接来电'

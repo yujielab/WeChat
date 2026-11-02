@@ -19,8 +19,8 @@ export const RING_MS = 45000
 export const ALERT_MS = 2500
 const RTC_TIMEOUT_MS = 15000
 // How an unanswered call ended: nobody picked up, the callee declined, the
-// caller hung up first, or it couldn't connect.
-const CALL_RESULTS = ['missed', 'declined', 'cancelled', 'failed']
+// caller hung up first, it couldn't connect, or the callee was on another call.
+const CALL_RESULTS = ['missed', 'declined', 'cancelled', 'failed', 'busy']
 
 export class CallBroker {
   constructor(hub) {
@@ -36,7 +36,7 @@ export class CallBroker {
   // A call is kept in storage while it rings or runs: a callee who comes back
   // from its notification finds it even if the Durable Object slept between.
   // { callId, media, caller, started, participants, ringing, alerted, notified,
-  //   published: { [uid]: { sessionId, tracks } } }
+  //   published: { [uid]: { sessionId, tracks } }, states: { [uid]: { mic, cam } } }
   get(room) { return this.hub.store.kvGet(`call:${room}`) }
   put(room, call) { this.hub.store.kvSet(`call:${room}`, call) }
   drop(room) { this.hub.store.kvDelete(`call:${room}`) }
@@ -77,12 +77,28 @@ export class CallBroker {
           if (!current.participants.includes(from)) current.participants.push(from)
           this.put(room, current)
           // Whatever is already published reaches the one joining, whenever
-          // its own connection is ready for it.
+          // its own connection is ready for it, and so does whether each
+          // microphone and camera is on.
           for (const [uid, pub] of Object.entries(current.published || {})) {
             if (uid !== from) this.hub.sendToUser(from, { t: 'call', kind: 'tracks', room, callId, from: uid, ...pub })
           }
+          for (const [uid, st] of Object.entries(current.states || {})) {
+            if (uid !== from) this.hub.sendToUser(from, { t: 'call', kind: 'state', room, callId, from: uid, ...st })
+          }
         }
         relay({})
+        break
+      }
+      case 'state': {
+        // "My microphone / camera is on or off": the others show it (a face
+        // instead of a dark picture, 对方已静音). Kept with the call, like tracks.
+        const st = mediaState(msg)
+        if (!st) return
+        if (current) {
+          current.states = { ...current.states, [from]: st }
+          this.put(room, current)
+        }
+        relay(st)
         break
       }
       case 'tracks': {
@@ -105,6 +121,7 @@ export class CallBroker {
           current.participants = current.participants.filter(u => u !== from)
           current.ringing = current.ringing.filter(u => u !== from)
           if (current.published) delete current.published[from]
+          if (current.states) delete current.states[from]
           if (kind === 'cancel' && from === current.caller) {
             // Unanswered: whoever was reached by notification learns they missed it.
             if (msg.missed) this.notifyMissed(room, current).catch(() => {})
@@ -112,7 +129,8 @@ export class CallBroker {
           } else if (!current.participants.length && !current.ringing.length) this.drop(room)
           else this.put(room, current)
         }
-        relay({ missed: Boolean(msg.missed) })
+        // A callee already on another call says so: the caller hears 对方正在通话中.
+        relay({ missed: Boolean(msg.missed), ...(kind === 'decline' && msg.busy === true && { busy: true }) })
         if (kind === 'cancel' || (kind === 'hangup' && !this.get(room))) this.logCall(room, from, msg, caller)
         break
       }
@@ -196,6 +214,7 @@ export class CallBroker {
       if (call.participants.includes(uid)) {
         call.participants = call.participants.filter(u => u !== uid)
         if (call.published) delete call.published[uid]
+        if (call.states) delete call.states[uid]
         for (const u of [...call.participants, ...call.ringing]) {
           this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId: call.callId, from: uid })
         }
@@ -355,6 +374,11 @@ function validTracks(tracks) {
   return (location === 'local' || location === 'remote') &&
     tracks.every(t => t && t.location === location && typeof t.trackName === 'string' && t.trackName &&
       (location === 'local' ? typeof t.mid === 'string' : typeof t.sessionId === 'string'))
+}
+
+/** A participant's microphone and camera, as announced: two booleans, or null. */
+function mediaState(msg) {
+  return typeof msg.mic === 'boolean' && typeof msg.cam === 'boolean' ? { mic: msg.mic, cam: msg.cam } : null
 }
 
 /** A participant's announced publication, or null if it isn't one. */

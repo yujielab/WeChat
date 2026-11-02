@@ -24,6 +24,9 @@
   /* The far half recedes with the overlay's own backdrop (--shade). */
   box-shadow: 0 0 0 100vmax rgb(0 0 0 / calc(var(--shade, 1) * .38));
 }
+/* A call goes on for a while: the column beside it stays bright and in use
+   (it's the conversation, side by side with the call). */
+.overlays[data-layout="split"] .call[data-region] { box-shadow: none; }
 .overlays[data-layout="split"] .draw[data-region] { --safe-left: 0px; }
 .overlays[data-layout="split"] :is(.viewer, .call)[data-place="trailing"] { --safe-left: 0px; }
 .overlays[data-layout="split"] :is(.viewer, .call)[data-place="leading"] { --safe-right: 0px; }
