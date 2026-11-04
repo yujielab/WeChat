@@ -169,7 +169,9 @@ export class CallBroker {
           } else this.put(room, current)
         }
         // A callee already on another call says so: the caller hears 对方正在通话中.
-        relay({ missed: Boolean(msg.missed), ...(kind === 'decline' && msg.busy === true && { busy: true }) })
+        // ongoing: the call is still on for the rest (a group with someone in it or being rung),
+        // so nobody else's call or ring is put away with this one leaving.
+        relay({ missed: Boolean(msg.missed), ongoing: Boolean(this.get(room)), ...(kind === 'decline' && msg.busy === true && { busy: true }) })
         // A hang-up for a call the server already ended and recorded is not recorded twice.
         const recorded = finished || !current && this.hub.store.kvGet(`callend:${room}`) === callId
         if (kind === 'cancel' || (kind === 'hangup' && !this.get(room) && !recorded)) this.logCall(room, from, msg, caller)
@@ -317,12 +319,13 @@ export class CallBroker {
     call.participants = call.participants.filter(u => u !== uid)
     if (call.published) delete call.published[uid]
     if (call.states) delete call.states[uid]
+    // Fewer than two still really in it, and nobody being rung: the call is over.
+    const over = !call.ringing.length && present(call).length < 2
     // reason 'lost': the others say 对方网络中断 rather than a plain 通话结束.
     for (const u of [...call.participants, ...call.ringing]) {
-      this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId, from: uid, reason: 'lost' })
+      this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId, from: uid, reason: 'lost', ongoing: !over })
     }
-    // Fewer than two still really in it, and nobody being rung: the call is over.
-    if (!call.ringing.length && present(call).length < 2) this.finish(room, call, uid)
+    if (over) this.finish(room, call, uid)
     else this.put(room, call)
     this.arm()
   }

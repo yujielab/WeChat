@@ -1146,3 +1146,6 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .composer.has-text .composer-badge,
 .composer.editing .composer-badge,
 .composer.panel-open .composer-badge { display: none; }
+
+/* UI 设计师: the spoken 「提及 某某」 inside a mention stays out of a copy. */
+.mention .sr-only { user-select: none; -webkit-user-select: none; }

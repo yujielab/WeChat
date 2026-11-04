@@ -63,6 +63,21 @@ function textBubble(m) {
   return el
 }
 
+// What a reader hears for a message's text: each "@name" it mentions said
+// as 「提及 名字」 (「提及你」 for this account), the same as in the bubble.
+export function spokenMentions(text, m) {
+  const ids = Array.isArray(m?.meta?.mentions) ? m.meta.mentions : []
+  if (!text || !ids.length) return text
+  const names = new Map()
+  for (const id of ids) {
+    const name = nameOf(id, m.chat)
+    if (name) names.set(`@${name}`, id === state.me?.id ? '提及你' : `提及 ${name}`)
+  }
+  if (!names.size) return text
+  const re = new RegExp([...names.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+  return text.replace(re, hit => names.get(hit))
+}
+
 // The members a group message @-mentions (meta.mentions), marked where
 // "@name" appears; "me" when it's this account.
 function markMentions(parts, m) {
@@ -81,7 +96,11 @@ function markMentions(parts, m) {
     let last = 0
     for (const hit of part.matchAll(re)) {
       if (hit.index > last) out.push(part.slice(last, hit.index))
-      out.push(h('span', { class: ['mention', names.get(hit[0]) === state.me?.id && 'me'] }, hit[0]))
+      // A reader hears 「提及 某某」 (「提及你」 for me), not 「at 某某」.
+      const mine = names.get(hit[0]) === state.me?.id
+      out.push(h('span', { class: ['mention', mine && 'me'] },
+        h('span', { 'aria-hidden': 'true' }, hit[0]),
+        h('span', { class: 'sr-only' }, mine ? '提及你' : `提及 ${hit[0].slice(1)}`)))
       last = hit.index + hit[0].length
     }
     if (last < part.length) out.push(part.slice(last))

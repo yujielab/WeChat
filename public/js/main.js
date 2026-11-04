@@ -101,7 +101,9 @@ async function start(me) {
   socket = connectSocket({
     onMessage: handle,
     // Back online: whatever waited in the outbox goes now, in order.
-    onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}) },
+    // The open conversation fetches what came while it was off (a call record
+    // the server wrote meanwhile, say); the others do when they're opened.
+    onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}); shell?.thread.catchUp().catch(() => {}) },
     // Off the socket, who is online is unknown: nobody shows 在线 or a green
     // dot until hello brings presence again.
     onClose: () => { state.socket = false; setPresence([]); shell?.setStatus({ text: '正在连接…', spinner: true }) }

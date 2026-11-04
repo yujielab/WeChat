@@ -13,7 +13,7 @@ import { api, ApiError } from '../api.js'
 import { outbox, blobStore } from '../outbox.js'
 import { stillBelow } from './unread.js'
 import { avatar } from './avatar.js'
-import { renderBubble, hasTail, mediaSize, callMine, bubbleMeta, fillMeta } from './bubbles.js'
+import { renderBubble, hasTail, mediaSize, callMine, bubbleMeta, fillMeta, spokenMentions } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
@@ -507,7 +507,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return h('button', {
       class: ['quote', gone && 'is-recalled'],
       type: 'button',
-      'aria-label': gone ? `回复的${text}` : `回复 ${who}：${text}，点按查看原消息`,
+      'aria-label': gone ? `回复的${text}` : `回复 ${who}：${spokenMentions(text, state.threads.get(m.chat)?.byId.get(m.replyTo))}，点按查看原消息`,
       'aria-disabled': gone ? 'true' : null
     }, who ? h('span', { class: 'quote-name' }, who) : null, h('span', { class: 'quote-text' }, text))
   }
@@ -1919,7 +1919,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       syncPills()
       symbolEffect(jump.querySelector('.icon'), 'bounce-down')
     }
-    announce(`${m.fromName ? `${m.fromName}：` : ''}${m.text || '新消息'}`)
+    announce(`${m.fromName ? `${m.fromName}：` : ''}${spokenMentions(m.text, m) || '新消息'}`)
   })
 
   on('replace', (fromId, m) => {

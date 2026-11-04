@@ -30,6 +30,8 @@ import { callClock } from '../ui/format.js'
 
 // An unanswered call gives up after this long (the server keeps it ringing as long).
 const RING_MS = 45000
+// Someone else's connection must stay down this long before it is shown or read out.
+const SHAKY_MS = 2000
 // How many times a pull of the other side's tracks is retried while its media starts.
 const PULL_TRIES = 6
 // How the caller hears each callee was reached, best first.
@@ -100,32 +102,54 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     announce(text)
     end(true)
   }
-  // Someone's connection dropped (or came back): said once, cleared when they return.
+  // Someone's connection dropped (or came back). A blip shorter than SHAKY_MS
+  // is never shown or read out, so a flapping network doesn't chatter; once it
+  // has been said, coming back is said too (对方网络已恢复).
   function unstable(call, msg, on) {
-    if (!msg.from || msg.from === state.me?.id) return
+    const uid = msg.from
+    if (!uid || uid === state.me?.id) return
     call.shaky ??= new Set()
-    const had = call.shaky.has(msg.from)
-    if (on) call.shaky.add(msg.from)
-    else call.shaky.delete(msg.from)
-    if (!call.answered || had === on) return
-    const who = isGroup(call.room) ? nameOf(msg.from, call.room) : ''
+    call.shakyShown ??= new Set()
+    call.shakyTimers ??= new Map()
+    const had = call.shaky.has(uid)
+    if (on) call.shaky.add(uid)
+    else call.shaky.delete(uid)
+    if (had === on) return
+    const who = isGroup(call.room) ? nameOf(uid, call.room) : ''
     if (on) {
-      const text = who ? `${who}网络不稳定` : '对方网络不稳定'
-      call.shakyText = text
-      showNotice(call)
-      announce(text)
-    } else showNotice(call)
+      clearTimeout(call.shakyTimers.get(uid))
+      call.shakyTimers.set(uid, setTimeout(() => {
+        call.shakyTimers.delete(uid)
+        if (active !== call || call.ending || !call.answered || !call.shaky.has(uid)) return
+        const text = who ? `${who}网络不稳定` : '对方网络不稳定'
+        call.shakyShown.add(uid)
+        call.shakyText = text
+        showNotice(call)
+        announce(text)
+      }, SHAKY_MS))
+      return
+    }
+    clearTimeout(call.shakyTimers.get(uid))
+    call.shakyTimers.delete(uid)
+    if (!call.shakyShown.delete(uid)) return
+    // Someone else in a group may still be down: the line names them instead.
+    const still = [...call.shakyShown][0]
+    if (still) call.shakyText = isGroup(call.room) ? `${nameOf(still, call.room)}网络不稳定` : '对方网络不稳定'
+    showNotice(call)
+    if (call.answered && !call.ending) announce(who ? `${who}网络已恢复` : '对方网络已恢复')
   }
   // One notice line: our own reconnecting outranks someone else's shaky line,
   // which outranks nothing; clearing one never clears the other.
   function showNotice(call) {
-    call.ui.setNotice(call.selfShaky ? '网络不稳定，正在重新连接…' : call.shaky?.size ? call.shakyText : null)
+    call.ui.setNotice(call.selfShaky ? '网络不稳定，正在重新连接…' : call.shakyShown?.size ? call.shakyText : null)
   }
 
   function accepted(call, msg) {
     if (msg.from) call.peers.add(msg.from)
     // Someone else joining a group call that is already under way.
     if (call.answered) return
+    // Still ringing here: someone else answering doesn't answer it for us.
+    if (call.role !== 'caller') return
     clearTimeout(call.ringTimer)
     call.answered = true
     stopRinging(call)
@@ -157,15 +181,33 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
 
   function left(call, msg) {
     if (msg.from) call.peers.delete(msg.from)
-    if (!call.answered) return end(true)
-    // A group call goes on while anyone else is still in it.
-    if (isGroup(call.room) && call.peers.size) {
+    // Gone from the call: their shaky line goes with them, unsaid.
+    if (msg.from && call.shaky?.delete(msg.from)) {
+      clearTimeout(call.shakyTimers?.get(msg.from))
+      call.shakyTimers?.delete(msg.from)
+      if (call.shakyShown?.delete(msg.from)) {
+        const still = [...call.shakyShown][0]
+        if (still) call.shakyText = `${nameOf(still, call.room)}网络不稳定`
+        showNotice(call)
+      }
+    }
+    const group = isGroup(call.room)
+    // Still ringing here: in a group only the caller hanging up, or the call
+    // really being over, puts the ring away; anyone else leaving doesn't.
+    if (!call.answered) {
+      if (group && msg.ongoing && (msg.from !== call.callerId || msg.reason === 'lost')) return
+      return end(true)
+    }
+    // A group call goes on while anyone else is in it or still being rung
+    // (the server says so); the rest only hear who left, said as shown.
+    if (group && (call.peers.size || msg.ongoing)) {
       const who = nameOf(msg.from, call.room)
       if (who) toast(msg.reason === 'lost' ? `${who}网络中断，已离开通话` : `${who}已离开通话`)
       return
     }
     // reason 'lost': the server ended it when their grace period ran out.
-    endSoon(msg.reason === 'lost' ? '对方网络中断，通话已结束' : '通话结束')
+    const who = group ? nameOf(msg.from, call.room) : ''
+    endSoon(msg.reason === 'lost' ? `${who || '对方'}网络中断，通话已结束` : '通话结束')
   }
 
   function remoteState(call, msg) {
@@ -188,6 +230,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     }
     const call = active = newCall({ room: msg.room, callId: msg.callId, media: msg.media, role: 'callee', caller: msg.caller })
     if (msg.from) call.peers.add(msg.from)
+    call.callerId = msg.from
     // Their photo: as the invitation brought it, else as this device knows them.
     const caller = { ...msg.caller, avatar: msg.caller?.avatar || avatarOf(msg.caller?.id, msg.room) }
     call.ui.showIncoming(caller, msg.media, {
