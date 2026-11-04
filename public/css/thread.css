@@ -1112,3 +1112,10 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
   :root:not([data-motion="full"]) .m-reactions.pop { animation: fade-in var(--dur-reduce) linear both !important; }
 }
 :root[data-motion="reduce"] .m-reactions.pop { animation: fade-in var(--dur-reduce) linear both !important; }
+
+/* ---- 第 6 步：回应胶囊（WhatsApp 底 + Instagram 位置）----
+   胶囊和收到的气泡同色（浅白 / 深 #232626），在默认壁纸上加一圈壁纸色的 2px 描边，
+   把它从压着的气泡上切开；选了背景时保留原来的细线。计数 --label-2：白底 5.1、深底 5.8。 */
+.m-reactions { background: var(--bubble-in); }
+.thread:not(.has-backdrop) .m-reactions { box-shadow: 0 0 0 2px var(--wallpaper), var(--chip-shadow); }
+.thread:not(.has-backdrop) .m-reactions.mine { box-shadow: 0 0 0 2px var(--wallpaper), 0 0 0 3.5px color-mix(in srgb, var(--label) 30%, var(--line)); }

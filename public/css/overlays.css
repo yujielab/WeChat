@@ -706,3 +706,9 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   .ctx-reactions.menu-reactions::-webkit-scrollbar { display: none; }
   .ctx-reactions.menu-reactions > .menu-reaction { flex: none; scroll-snap-align: start; }
 }
+
+/* ---- 第 6 步：长按菜单改 WhatsApp 排法——文字在左、图标靠右，行高 44，卡片圆角 --r-m。 */
+.menu.ctx-menu { border-radius: var(--r-m); }
+.menu.ctx-menu .menu-item { min-height: var(--hit); padding: 0 16px; gap: 12px; }
+.menu.ctx-menu .menu-item .menu-action-icon { order: 1; margin-left: auto; width: 20px; height: 20px; }
+.menu.ctx-menu .menu-sep { height: 6px; }
