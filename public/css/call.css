@@ -340,3 +340,20 @@
 }
 :root[data-motion="reduce"] .call { transition: opacity 160ms linear; transform: none; }
 :root[data-motion="reduce"] .call-ring { transform: none; }
+
+/* ---- HIG #45 follow-ups.
+ * The window's time reads at 4:1 even over a white picture. */
+.call-pip-time { background: rgb(0 0 0 / 0.5); }
+/* Over a picture the name at the top gets the same shade the controls have at the bottom,
+ * not only a text shadow. It spans the full width and fades with .call-top (calm, ending). */
+.call.video .call-top::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * (var(--safe-top) + 10px));
+  left: calc(-1 * (var(--safe-left) + 12px));
+  right: calc(-1 * (var(--safe-right) + 12px));
+  bottom: -28px;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0));
+  pointer-events: none;
+}

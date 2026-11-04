@@ -2,6 +2,7 @@
 
 import { initViewport } from './ui/viewport.js'
 import { initPress } from './ui/press.js'
+import { initInputModality } from './ui/input-modality.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
 import { outbox } from './outbox.js'
@@ -27,6 +28,7 @@ let calls = null
 
 initViewport()
 initPress()
+initInputModality()
 syncThemeColor()
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeColor)
 
@@ -99,11 +101,17 @@ async function start(me) {
   socket = connectSocket({
     onMessage: handle,
     // Back online: whatever waited in the outbox goes now, in order.
-    onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}) },
-    onClose: () => { state.socket = false; shell?.setStatus({ text: '正在连接…', spinner: true }) }
+    // The open conversation fetches what came while it was off (a call record
+    // the server wrote meanwhile, say); the others do when they're opened.
+    onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}); shell?.thread.catchUp().catch(() => {}) },
+    // Off the socket, who is online is unknown: nobody shows 在线 or a green
+    // dot until hello brings presence again.
+    onClose: () => { state.socket = false; setPresence([]); shell?.setStatus({ text: '正在连接…', spinner: true }) }
   })
   enterApp()
 }
+// The device itself going offline is known before the socket notices.
+window.addEventListener('offline', () => setPresence([]))
 
 // From sign-in the app cross-fades in rather than cutting over.
 function enterApp() {
@@ -148,11 +156,18 @@ function applyBoot(boot) {
 
 function mountShell() {
   if (shell) { shell.setMe(state.me); return }
-  calls = createCalls({ socketSend: obj => socket?.send(obj), connected: () => Boolean(socket?.connected) })
+  calls = createCalls({
+    socketSend: obj => socket?.send(obj),
+    connected: () => Boolean(socket?.connected),
+    onCover: (callId, on) => shell?.callCover(callId, on),
+    focusBack: () => shell?.focusAfterCall()
+  })
   shell = createShell(app, {
     socketSend: obj => socket?.send(obj),
     loadContacts,
     onCall: (room, media) => calls.start(room, media),
+    onCallBack: () => calls.back(),
+    callRinging: () => calls.ringing,
     onLogout: logout
   })
   shell.setMe(state.me)
@@ -165,6 +180,8 @@ function handle(msg) {
     case 'hello':
       setMe(msg.me)
       setPresence(msg.presence)
+      // Back on the socket mid-call: is the call still on over there?
+      calls?.resync()
       break
     case 'msg': {
       const m = normMsg(msg.msg)

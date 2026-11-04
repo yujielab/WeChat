@@ -234,3 +234,10 @@ mark { background: none; color: var(--blue-text); }
 :root[data-motion="reduce"] .row-in,
 :root[data-motion="reduce"] .sk::after { animation: none; }
 :root[data-motion="reduce"] .offline-banner { animation: fade-in 120ms linear backwards !important; }
+
+/* ---- P2-1: a clear focus ring with a keyboard and pointer (see overlays.css). */
+@media (hover: hover) and (pointer: fine) {
+  .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2), var(--chrome-shadow); }
+}
+/* Keyboard on a coarse pointer (iPad + hardware keyboard): same ring, set by input-modality.js. */
+:root[data-input="keyboard"] .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2), var(--chrome-shadow); }

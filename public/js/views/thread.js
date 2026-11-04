@@ -2,7 +2,7 @@
 
 import { h, icon, clear, reducedMotion, announce, edge, storage } from '../ui/dom.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
-import { threadTime, callSummary } from '../ui/format.js'
+import { threadTime, callSummary, sendState, groupState } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
@@ -13,7 +13,7 @@ import { api, ApiError } from '../api.js'
 import { outbox, blobStore } from '../outbox.js'
 import { stillBelow } from './unread.js'
 import { avatar } from './avatar.js'
-import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
+import { renderBubble, hasTail, mediaSize, callMine, bubbleMeta, fillMeta, spokenMentions } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
@@ -23,6 +23,9 @@ import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
 import { createBars } from '../ui/bars.js'
 import { backdropLayer, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
 import { chatBackdrop } from './backdrops.js'
+
+// A mouse or trackpad drag-selects text already (thread.css); touch asks for it from the menu.
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)')
 
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
@@ -484,6 +487,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const quote = quoteBlock(m)
     const inside = quote && bub.classList.contains('text')
     if (inside) bub.prepend(quote)
+    // Time and ticks live in the bubble's corner (a lost picture's cell too:
+    // CSS keeps it clear of 重新选择).
+    bub.append(bubbleMeta(m, isRead(m), isDm()))
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
@@ -504,7 +510,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return h('button', {
       class: ['quote', gone && 'is-recalled'],
       type: 'button',
-      'aria-label': gone ? `回复的${text}` : `回复 ${who}：${text}，点按查看原消息`,
+      'aria-label': gone ? `回复的${text}` : `回复 ${who}：${spokenMentions(text, state.threads.get(m.chat)?.byId.get(m.replyTo))}，点按查看原消息`,
       'aria-disabled': gone ? 'true' : null
     }, who ? h('span', { class: 'quote-name' }, who) : null, h('span', { class: 'quote-text' }, text))
   }
@@ -581,7 +587,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         avatar: avatar(avatarOf(last.from, current), who, { size: 30 }),
         label: `${who} · ${threadTime(photos[0].ts)[1]}`
       }
-      fresh.querySelector('.bubble').replaceWith(renderPhotoStack(photos, ctx, { onExpand: expandPhotos, sender }))
+      const stack = renderPhotoStack(photos, ctx, { onExpand: expandPhotos, sender })
+      stack.append(bubbleMeta({ ...last, type: 'image-stack' }, false, isDm()))
+      fresh.querySelector('.bubble').replaceWith(stack)
       fresh.classList.add('has-stack')
       fresh.photoSignature = signature
       node?.replaceWith(fresh)
@@ -606,6 +614,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       const fresh = buildNode(last)
       fresh.querySelector('.bubble').replaceWith(callGroup(calls))
       fresh.callSignature = signature
+      fresh.callIds = calls.map(c => c.id)
       node?.replaceWith(fresh)
       node = fresh
       nodes.set(last.id, node)
@@ -630,7 +639,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       'aria-label': `${latest.label}，共 ${calls.length} 次${open ? '' : '，点按展开'}`
     }, glyph(latest), h('span', { class: 't', 'aria-hidden': 'true' }, latest.text),
     h('span', { class: 'call-count tabular', 'aria-hidden': 'true' }, `${calls.length} 次`), icon('chevron-down', 'call-chevron'))
-    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle)
+    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle, bubbleMeta(calls[calls.length - 1], false, isDm()))
     toggle.addEventListener('click', () => {
       const on = !group.classList.contains('open')
       group.classList.toggle('open', on)
@@ -661,20 +670,43 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
   }
 
+  // Only a 1:1 chat (chatInfo kind 'dm') ever shows read; groups never.
+  const isDm = () => chatInfo(current)?.kind === 'dm'
+
+  // Read: the message itself says so, or (DMs) the peer read up to it.
+  function isRead(m) {
+    if (!m?.out) return false
+    const c = chatInfo(current)
+    if (!isDm()) return false
+    return m.status === 'read' || Boolean(c.peerRead && m.ts <= c.peerRead && !String(m.id).startsWith('local:') && m.status !== 'sending' && m.status !== 'failed')
+  }
+
+  // Every bubble's corner follows its message (read receipts don't rebuild
+  // a node); the 未发送 line sits under the newest outgoing message's bubble,
+  // in its column, so it lines up with the bubble's right edge.
   function placeMeta(list) {
-    const last = list[list.length - 1]
+    const t = thread(current)
+    for (const [id, node] of nodes) {
+      const m = t.byId.get(id)
+      const corner = m && node.querySelector(':scope > .m-col > .bubble > .m-meta')
+      if (!corner) continue
+      // A folded group shows its last message's time and its weakest state.
+      const dm = isDm()
+      const group = photoGroups.get(id) || node.callIds?.map(x => t.byId.get(x)).filter(Boolean)
+      const s = group ? groupState(group.map(x => sendState(x, isRead(x), dm))) : sendState(m, isRead(m), dm)
+      const shown = photoGroups.has(id) ? { ...m, type: 'image-stack' } : m
+      if (corner.metaSig !== `${s?.state || ''}|${m.ts}`) fillMeta(corner, shown, false, s)
+    }
     const lastOut = [...list].reverse().find(m => m.out && !isSys(m))
-    const show = lastOut && (lastOut === last || lastOut.status === 'sending' || lastOut.status === 'failed')
-    if (!show) {
+    if (!lastOut || lastOut.status !== 'failed') {
       meta.remove()
       return
     }
-    const c = chatInfo(current)
-    const read = c?.kind === 'dm' && (lastOut.status === 'read' || (c.peerRead && lastOut.ts <= c.peerRead))
-    meta.className = `m-meta${lastOut.status === 'failed' ? ' failed' : ''}${read ? ' read' : ''}`
-    meta.textContent = lastOut.status === 'sending' ? '发送中…' : lastOut.status === 'failed' ? '未发送' : read ? '已读' : '已发送'
-    const node = nodes.get(lastOut.id)
-    if (node && node.nextSibling !== meta) node.after(meta)
+    meta.className = 'm-meta failed'
+    meta.textContent = '未发送'
+    meta.setAttribute('aria-hidden', 'true')
+    const col = nodes.get(lastOut.id)?.querySelector(':scope > .m-col')
+    if (col && meta.parentNode !== col) col.append(meta)
   }
 
   /** Bring the DOM in line with the thread's message list, reusing nodes. */
@@ -1482,7 +1514,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   scroller.addEventListener('pointerdown', e => {
     suppressClick = false
     const bub = e.target.closest('.bubble')
-    if (!bub || e.button > 0) return
+    if (!bub || e.button > 0 || bub.dataset.selecting != null) return
     const node = bub.closest('.m')
     bub.classList.add('is-pressed')
     press = {
@@ -1520,7 +1552,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   scroller.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse' || e.button > 0) return
     const node = e.target.closest('.m')
-    if (!node || !e.target.closest('.bubble')) return
+    if (!node || !e.target.closest('.bubble') || e.target.closest('.bubble[data-selecting]')) return
     swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, node, active: false, armed: false }
   }, { passive: true })
   scroller.addEventListener('pointermove', e => {
@@ -1557,6 +1589,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   scroller.addEventListener('pointercancel', endSwipe)
   scroller.addEventListener('scroll', cancelLong, { passive: true })
   scroller.addEventListener('contextmenu', e => {
+    // Selecting text: the system's own menu (拷贝, 查询…), not ours.
+    if (e.target.closest('.bubble[data-selecting]')) return
     const node = e.target.closest('.m')
     const m = msgOf(node)
     if (!m) return
@@ -1604,6 +1638,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (m.status === 'failed') main.push(m.lost ? { label: '重新选择', icon: 'photo', onSelect: () => pickAgain(m) } : { label: '重新发送', icon: 'refresh', onSelect: () => retry(m) })
     if (m.type === 'text' && m.text) {
       main.push({ label: '复制', icon: 'copy', onSelect: () => copy(m.text) })
+      // Touch has no drag-select (the long press is the menu): this turns it on
+      // for this one bubble, with the system's own handles.
+      if (!finePointer.matches) main.push({ label: '选择文本', icon: 'doc', onSelect: () => selectText(m.id) })
     }
     if (!photos && editable(m)) main.push({ label: '编辑', icon: 'compose', onSelect: () => startEdit(m) })
     if (!photos && m.edited && !isSys(m)) main.push({ label: '编辑记录', icon: 'doc', onSelect: () => showEdits(m.id) })
@@ -1659,6 +1696,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         bar.style.left = `${Math.round(side(bar.offsetWidth, x))}px`
         bar.style.top = `${Math.round(top - above)}px`
         bar.style.setProperty('--ox', m.out ? '100%' : '0%')
+        // The conversation column's width, for the row's own sizing in CSS.
+        bar.style.setProperty('--ctx-col-w', `${Math.round(msgs.getBoundingClientRect().width)}px`)
       }
       return { left: side(mw, x), top: top + shown + GAP, originX: m.out ? mw : 0 }
     }
@@ -1680,6 +1719,54 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       }
     })
   }
+
+  // 选择文本: the bubble's words (not its time and ticks) selected with the
+  // system's handles; it ends when the selection goes or a touch lands elsewhere.
+  let selecting = null
+  function selectText(id) {
+    endSelect()
+    // After the menu has put the bubble back on screen.
+    setTimeout(() => {
+      const bub = nodes.get(id)?.querySelector('.bubble.text')
+      if (!bub) return
+      bub.dataset.selecting = ''
+      // Focus goes to the selected bubble (before the selection is made, so it stays).
+      bub.setAttribute('tabindex', '-1')
+      bub.focus({ preventScroll: true })
+      const range = document.createRange()
+      range.selectNodeContents(bub)
+      const meta = bub.querySelector(':scope > .m-meta')
+      if (meta) range.setEndBefore(meta)
+      const sel = getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+      selecting = { bub, armed: false }
+      // The selection just made fires one change itself; only later ones count.
+      setTimeout(() => { if (selecting?.bub === bub) selecting.armed = true }, 300)
+      announce('已选择文本，拖动两端调整范围')
+    }, 240)
+  }
+  function endSelect() {
+    if (!selecting) return
+    delete selecting.bub.dataset.selecting
+    selecting = null
+  }
+  document.addEventListener('selectionchange', () => {
+    if (!selecting?.armed) return
+    const sel = getSelection()
+    if (!sel.rangeCount || sel.isCollapsed || !selecting.bub.contains(sel.anchorNode)) endSelect()
+  })
+  document.addEventListener('pointerdown', e => {
+    if (selecting && !selecting.bub.contains(e.target)) endSelect()
+  }, { capture: true, passive: true })
+  // Esc ends it as well: the selection goes, focus stays on the bubble.
+  document.addEventListener('keydown', e => {
+    if (!selecting || e.key !== 'Escape') return
+    e.preventDefault()
+    e.stopPropagation()
+    getSelection().removeAllRanges()
+    endSelect()
+  }, { capture: true })
 
   async function copy(text) {
     try {
@@ -1888,7 +1975,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       syncPills()
       symbolEffect(jump.querySelector('.icon'), 'bounce-down')
     }
-    announce(`${m.fromName ? `${m.fromName}：` : ''}${m.text || '新消息'}`)
+    announce(`${m.fromName ? `${m.fromName}：` : ''}${spokenMentions(m.text, m) || '新消息'}`)
   })
 
   on('replace', (fromId, m) => {

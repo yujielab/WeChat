@@ -407,7 +407,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   -webkit-backdrop-filter: blur(26px) saturate(1.5);
   backdrop-filter: blur(26px) saturate(1.5);
   opacity: 0;
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--dur-quick) ease-out;
 }
 :root[data-glass="solid"] .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 .ctx-backdrop.on { opacity: 1; }
@@ -415,7 +415,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   position: absolute;
   margin: 0;
   /* Moves only as far as it must to make room, at once, without a bounce. */
-  transition: transform 220ms var(--ease-out);
+  transition: transform var(--dur-ui) var(--ease-out);
   pointer-events: none;
 }
 .ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.24), 0 2px 6px rgb(15 15 25 / 0.06); }
@@ -439,12 +439,12 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   transform-origin: var(--ox, 0%) 100%;
   opacity: 0;
   transform: translateY(6px) scale(.92);
-  transition: opacity 110ms ease-out, transform 140ms var(--ease-out);
+  transition: opacity var(--dur-reduce) ease-out, transform var(--dur-quick) var(--ease-out);
 }
-.ctx-reactions.menu-reactions.on { opacity: 1; transform: none; transition: opacity 160ms ease-out, transform 220ms var(--ease-out); }
+.ctx-reactions.menu-reactions.on { opacity: 1; transform: none; transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out); }
 .ctx-reactions.glass::before, .ctx-reactions.glass::after { display: none; }
 .ctx-reactions .menu-reaction { width: 44px; height: 44px; border-radius: 50%; font-size: 26px; }
-.ctx-reactions.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * 22ms) backwards; }
+.ctx-reactions.on .menu-reaction { animation: reaction-offer var(--spring-snappy-dur) var(--spring-snappy) calc(var(--i, 0) * var(--stagger)) backwards; }
 
 /* The actions: a card of rows, each an icon then its name, hairlines
    between rows and a band between groups. */
@@ -655,9 +655,59 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 @media (hover: hover) and (pointer: fine) {
   .menu-reaction:hover { transform: translateY(-2px) scale(1.16); }
 }
-.menu.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * 22ms) backwards; }
+.menu.on .menu-reaction { animation: reaction-offer var(--spring-snappy-dur) var(--spring-snappy) calc(var(--i, 0) * var(--stagger)) backwards; }
 @keyframes reaction-offer { from { opacity: 0; transform: translateY(6px) scale(0.6); } }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .menu.on .menu-reaction { animation: none; }
 }
 :root[data-motion="reduce"] .menu.on .menu-reaction { animation: none; }
+
+/* ---- P2-6: the › in settings rows sits on the text's centre line, not its baseline.
+ * The profile card's › is drawn with the same chevron.right shape as the rows' icon, not a text glyph. */
+.cell .chev { display: grid; place-items: center; align-self: center; flex: none; }
+.cell .chev .icon { width: 14px; height: 14px; }
+.profile.profile-btn::after {
+  content: ""; justify-self: end; align-self: center; width: 14px; height: 14px; font-size: 0;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 4.8l7.2 7.2-7.2 7.2' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 4.8l7.2 7.2-7.2 7.2' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---- P2-1: with a keyboard and pointer, a focused field gets a clear 2px ring (--label-2, at least 3:1).
+ * Touch keeps the soft halo: text fields count as :focus-visible even when tapped,
+ * so the input device is what tells the two apart. */
+@media (hover: hover) and (pointer: fine) {
+  .form-sheet .input:focus-visible { border-color: var(--label); box-shadow: 0 0 0 2px var(--label-2); }
+  .sheet-search .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2); }
+}
+/* Keyboard on a coarse pointer (iPad + hardware keyboard): same ring, set by input-modality.js. */
+:root[data-input="keyboard"] .form-sheet .input:focus-visible { border-color: var(--label); box-shadow: 0 0 0 2px var(--label-2); }
+:root[data-input="keyboard"] .sheet-search .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2); }
+
+/* ---- 第 5 步：长按菜单在 Reduce Motion 下只做 100ms 淡入，不位移不缩放。 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) :is(.ctx-backdrop, .menu.ctx-menu, .ctx-reactions.menu-reactions) { transform: none !important; transition: opacity var(--dur-reduce) linear !important; }
+}
+:root[data-motion="reduce"] :is(.ctx-backdrop, .menu.ctx-menu, .ctx-reactions.menu-reactions) { transform: none !important; transition: opacity var(--dur-reduce) linear !important; }
+/* 降低透明度：长按的背景退回纯色遮罩。 */
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-glass="glass"]) .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
+}
+/* 窄栏里表情行横向滚动，不换行、不挤小 44pt 的格子。长按层挂在全局 #overlays 上，
+   container query 量不到对话栏，所以宽度上限读 --ctx-col-w（由 thread.js 在 place() 时写对话栏宽度），
+   没写时退回整屏。滚动一直开着：表情按钮 44pt，放大动画在格子内，不会被裁。 */
+.ctx-reactions.menu-reactions {
+  max-width: min(calc(100% - 20px), calc(var(--ctx-col-w, 100vw) - 20px));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.ctx-reactions.menu-reactions::-webkit-scrollbar { display: none; }
+.ctx-reactions.menu-reactions > .menu-reaction { flex: none; scroll-snap-align: start; }
+
+/* ---- 第 6 步：长按菜单改 WhatsApp 排法——文字在左、图标靠右，行高 44，卡片圆角 --r-m。 */
+.menu.ctx-menu { border-radius: var(--r-m); }
+.menu.ctx-menu .menu-item { min-height: var(--hit); padding: 0 16px; gap: 12px; }
+.menu.ctx-menu .menu-item .menu-action-icon { order: 1; margin-left: auto; width: 20px; height: 20px; }
+.menu.ctx-menu .menu-sep { height: 6px; }

@@ -173,3 +173,16 @@
   :root:not([data-motion="full"]) .backdrop { transition: none; }
 }
 :root[data-motion="reduce"] .backdrop { transition: none; }
+
+/* ---- 默认壁纸（style-spec 第 4 步）：没选背景（值为 ''，选择器里叫「默认」）时，
+   会话底下铺 WhatsApp 式的米色 / 近黑底，加一层很淡的涂鸦纹理。
+   选择器里「默认」那张缩略图也画成同一张。 */
+.thread:not(.has-backdrop) > .thread-backdrop,
+.bd-chat .backdrop[data-backdrop=""] {
+  opacity: 1;
+  background: var(--wallpaper-pattern) 0 0 / 120px 120px, var(--wallpaper);
+}
+/* 顶栏放下自己的白底，像选了背景时一样；上下两道渐隐改成从壁纸色渐隐，
+   不在米色壁纸上盖一层白雾。只在这两个元素上把 --bg 换成壁纸色。 */
+.thread:not(.has-backdrop) .thread-nav { background: transparent; border-bottom-color: transparent; }
+.thread:not(.has-backdrop) :is(.edge-top, .edge-bottom) { --bg: var(--wallpaper); }

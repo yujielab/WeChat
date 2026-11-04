@@ -300,10 +300,10 @@ let nextMenuId = 0
  * inside it. place({ width, height, frame }): where the menu goes, for a
  * caller that lays out more than the menu (the message menu); it returns
  * { left, top, originX } in the overlay layer's coordinates. variant: an
- * extra class for the menu's look. focusFirst: false when it was opened by
+ * extra class for the menu's look. focusAt: which choice takes focus (-1 is the last). focusFirst: false when it was opened by
  * touch or mouse, so no row starts highlighted (arrow keys still reach them).
  */
-export function openMenu(anchor, sections, { title, header, apart = false, place, variant, focusFirst = true, preferAbove = false, onClose } = {}) {
+export function openMenu(anchor, sections, { title, header, apart = false, place, variant, focusFirst = true, focusAt = 0, preferAbove = false, onClose } = {}) {
   const root = layer()
   const scrim = h('div', { class: 'scrim clear' })
   const safeFrame = h('span', { class: 'menu-safe-frame', 'aria-hidden': 'true', inert: true })
@@ -466,7 +466,7 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
     if (ctl.closed) return
     menu.classList.add('on')
     aside?.classList.add('on')
-    ;((focusFirst && choices[0]) || menu).focus({ preventScroll: true })
+    ;((focusFirst && (choices.at(focusAt) || choices[0])) || menu).focus({ preventScroll: true })
   })
 
   function close(notify = true) {
@@ -566,8 +566,10 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
 export function confirmAction(anchor, { title, confirm, destructive = true }) {
   return new Promise(resolve => {
     let chosen = false
+    // Focus starts on 取消 (the last choice): Return right away keeps things as they are.
     openMenu(anchor, [[{ label: confirm, destructive, onSelect: () => { chosen = true; resolve(true) } }], [{ label: '取消' }]], {
       title,
+      focusAt: -1,
       onClose: () => { if (!chosen) resolve(false) }
     })
   })

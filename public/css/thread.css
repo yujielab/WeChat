@@ -158,7 +158,7 @@
   position: relative;
   max-width: 100%;
   padding: 11px 16px 12px;
-  border-radius: 23px;
+  border-radius: var(--r-bubble);
   font-size: var(--t-body);
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -247,7 +247,7 @@
   font-size: var(--t-caption);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
-  background: rgb(0 0 0 / 0.45);
+  background: rgb(0 0 0 / 0.55);   /* 白图上白字 4.7:1 */
   color: #fff;
 }
 .media-play {
@@ -504,9 +504,9 @@
   color: var(--label);
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
-  transition: background-color 170ms ease-out, color 170ms ease-out, box-shadow 170ms ease-out, transform var(--press-out) var(--ease-out);
+  transition: background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out, transform var(--press-out) var(--ease-out);
 }
-.composer-action .icon { grid-area: 1 / 1; width: 22px; height: 22px; transition: opacity 170ms ease-out, transform 190ms var(--ease-out); }
+.composer-action .icon { grid-area: 1 / 1; width: 22px; height: 22px; transition: opacity var(--dur-quick) ease-out, transform var(--spring-snappy-dur) var(--spring-snappy); }
 .composer-action .action-send { opacity: 0; transform: scale(.8); }
 .composer.has-text .composer-action { background: var(--ink); color: var(--on-ink); box-shadow: 0 0 0 1px transparent, var(--chrome-shadow); }
 .composer.has-text .composer-action .action-add { opacity: 0; transform: scale(.8); }
@@ -762,8 +762,8 @@
 .m-reactions.mine { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--label) 30%, var(--line)), 0 3px 9px -5px rgb(0 0 0 / 0.22); }
 .m-reactions.is-pressed { transform: scale(0.92); transition-duration: var(--press-dur); }
 .m-reaction-count { margin-left: 4px; font-size: var(--t-caption-2); font-weight: var(--w-semibold); }
-.m-reactions.pop { animation: reaction-pop var(--spring-bouncy-dur) var(--spring-bouncy) backwards; }
-.m-reactions.pop .m-reaction:last-of-type { animation: reaction-emoji 520ms var(--ease-out) backwards; }
+.m-reactions.pop { animation: reaction-pop var(--spring-snappy-dur) var(--spring-snappy) backwards; }
+.m-reactions.pop .m-reaction:last-of-type { animation: reaction-emoji var(--spring-snappy-dur) var(--ease-out) backwards; }
 @keyframes reaction-pop { from { opacity: 0; transform: translateY(-6px) scale(0.4); } }
 @keyframes reaction-emoji { 0% { transform: scale(0.3) rotate(-18deg); } 55% { transform: scale(1.35) rotate(6deg); } }
 .m-col { position: relative; }
@@ -775,7 +775,7 @@
   font-size: 34px;
   line-height: 1;
   pointer-events: none;
-  animation: reaction-burst 760ms var(--ease-out) forwards;
+  animation: reaction-burst var(--dur-burst) var(--ease-out) forwards;
 }
 @keyframes reaction-burst {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(0.3); }
@@ -979,3 +979,175 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 }
 .thread.has-backdrop .ts.unread-divider::before,
 .thread.has-backdrop .ts.unread-divider::after { content: none; }
+
+/* ---- 默认壁纸上的日期和系统提示（style-spec 第 4 步）：WhatsApp 式实心小底板。
+   日期 = 白 / 深灰底板；系统提示 = 浅黄提示底板。字色都过 4.5:1：
+   --label-2 在白底 5.1、深色底板 5.8；--notice-text 在浅黄底 6.3。 */
+.thread:not(.has-backdrop) .ts,
+.thread:not(.has-backdrop) .sys {
+  align-self: center;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 4px 10px;
+  border-radius: var(--r-xs);
+  background: var(--chip-bg);
+  box-shadow: var(--chip-shadow);
+}
+.thread:not(.has-backdrop) .ts { display: block; }
+.thread:not(.has-backdrop) .sys { background: var(--notice-bg); color: var(--notice-text); }
+/* 未读分隔：WhatsApp 那种整行横条，蓝字在白底 5.8、深色底板 5.9（--chip-accent）。 */
+.thread:not(.has-backdrop) .ts.unread-divider {
+  display: block;
+  align-self: stretch;
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 0;
+  color: var(--chip-accent);
+}
+.thread:not(.has-backdrop) .ts.unread-divider::before,
+.thread:not(.has-backdrop) .ts.unread-divider::after { content: none; }
+/* ---- P2-1: a clear focus ring on the message field with a keyboard and pointer (only the field's focus state). */
+@media (hover: hover) and (pointer: fine) {
+  .thread .composer .field:has(textarea:focus-visible) { box-shadow: 0 0 0 2px var(--label-2), var(--chrome-shadow); }
+}
+/* Keyboard on a coarse pointer (iPad + hardware keyboard): same ring, set by input-modality.js. */
+:root[data-input="keyboard"] .thread .composer .field:has(textarea:focus-visible) { box-shadow: 0 0 0 2px var(--label-2), var(--chrome-shadow); }
+/* 底板上的日期整行用 --label-2（--label-3 的钟点在白底只有 3.3:1）；靠字重分日和钟点。 */
+.thread:not(.has-backdrop) .ts:not(.unread-divider),
+.thread.has-backdrop .ts:not(.unread-divider) { color: var(--label-2); }
+/* 直接落在默认壁纸上的小字（已读 / 已发送、加载更早消息）：压到涂鸦线条上会掉到 3.9:1，
+   用壁纸色托一圈底，和有背景时的做法一样。 */
+.thread:not(.has-backdrop) :is(.m-meta, .load-older) { text-shadow: 0 0 6px var(--wallpaper), 0 0 2px var(--wallpaper); }
+
+/* Step 3 (code side): time and ticks inside the bubble, bottom-right.
+   Baseline only — colours, spacing and the inline-vs-own-line fit are the
+   style pass's. No transitions here, so nothing to drop under reduced motion. */
+.bubble > .m-meta {
+  float: right;
+  display: inline-flex; align-items: center; gap: 2px;
+  margin: 6px -6px -6px 10px; min-height: 0;
+  font-size: var(--t-caption-2); line-height: 1; white-space: nowrap;
+  color: var(--label-2); font-variant-numeric: tabular-nums;
+  text-shadow: none;
+}
+.bubble > .m-meta { -webkit-user-select: none; user-select: none; }
+.bubble > .m-meta.media-badge { float: none; margin: 0; color: #fff; }
+.bubble > .m-meta .icon { width: 14px; height: 14px; }
+.bubble > .m-meta.delivered .icon + .icon,
+.bubble > .m-meta.read .icon + .icon { margin-left: -9px; }
+.bubble > .m-meta.read .icon { color: var(--tick-read, var(--blue-text)); }
+.bubble > .m-meta.failed .icon { color: var(--red-text); }
+.m-col > .m-meta.failed { align-self: flex-end; margin: 4px 2px 0; }
+.bubble.video > .media-badge:not(.m-meta) { right: auto; left: 8px; }
+/* Lost-picture cell: the corner sits top-right and never takes a tap, so
+   重新选择 keeps its whole 44pt target. Call groups keep theirs in flow. */
+.bubble.media:has(> .ph > .text-button) > .m-meta { top: 8px; bottom: auto; pointer-events: none; }
+.bubble.call-group > .m-meta { float: none; align-self: flex-end; margin: 4px 0 0; }
+/* ---- 第 3 步：WhatsApp 气泡 ----
+   绿/白气泡带一层极淡的投影（深色下无），每组第一条在顶角带一个小尖角：
+   该角改成直角，再用 ::after 画一个同色三角，不靠背景色挖空，所以壁纸上也干净。 */
+.bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { box-shadow: var(--chip-shadow); }
+.m.in.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-top-left-radius: 0; }
+.m.out.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-top-right-radius: 0; }
+.m.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: auto;
+  width: 8px;
+  height: 13px;
+  border-radius: 0;
+  background: inherit;
+  background-image: none;
+}
+.m.in.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { left: -8px; right: auto; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.m.out.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { right: -8px; left: auto; clip-path: polygon(0 0, 100% 0, 0 100%); }
+/* 尖角取代旧的 iMessage 底部尾巴。 */
+.bubble.tail::before { content: none; }
+
+
+/* 丢图格子按宽度降级：<120 只留图标和「重新选择」，<80 只留图标且整格是按钮。
+   文字只做视觉隐藏，读屏仍能读到。 */
+.bubble.media:has(> .ph > .text-button) { container-type: inline-size; }
+@container (max-width: 119.98px) {
+  .bubble.media .ph:has(> .text-button) > span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
+@container (max-width: 79.98px) {
+  .bubble.media .ph:has(> .text-button) > .text-button {
+    position: absolute; inset: 0; min-width: var(--hit); min-height: var(--hit); font-size: 0; color: transparent;
+  }
+}
+/* ---- HIG P1-5: with a pointer, message text can be drag-selected (macOS, iPadOS trackpad, Duo laptop pose).
+ * Touch keeps the long-press menu; the body-wide user-select:none stays there. */
+@media (hover: hover) and (pointer: fine) {
+  .thread .bubble { -webkit-user-select: text; user-select: text; }
+}
+/* 选择文本 from the touch menu: this one bubble's words take the system's handles (time and ticks stay out). */
+.thread .bubble[data-selecting] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+
+/* ---- 第 3 步样式：气泡里的时间和勾（WhatsApp 挤排）----
+   时间浮在最后一行右侧，放得下就和正文同一行，放不下自动换到下一行。
+   字色取气泡字色 70% 混气泡底色（实色）：浅色收 6.5 / 发 6.1，深色收 7.1 / 发 4.9。
+   时间和勾不参与拖选复制。 */
+.bubble > .m-meta {
+  margin: 8px -7px -5px 12px;
+  gap: 3px;
+  letter-spacing: 0.01em;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.m.in .bubble > .m-meta:not(.media-badge) { color: color-mix(in srgb, var(--bubble-in-text) 70%, var(--bubble-in)); }
+.m.out .bubble > .m-meta:not(.media-badge) { color: color-mix(in srgb, var(--bubble-out-text) 70%, var(--bubble-out)); }
+.bubble > .m-meta .icon { width: 15px; height: 15px; }
+.bubble > .m-meta.sending .icon { width: 12px; height: 12px; }
+/* 图片 / 视频上的时间：右下角半透明深色底板。 */
+.bubble > .m-meta.media-badge { gap: 3px; }
+.m.out .bubble > .m-meta.failed .icon { color: var(--bubble-out-error, var(--red-text)); }
+.bubble.tail::after { content: none; }
+
+/* ---- 第 5 步：Reduce Motion 下的反馈改成 100ms 淡入（两套开关都写，!important 盖过 base.css 的全局 0.01ms）。 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .m-reactions.pop { animation: fade-in var(--dur-reduce) linear both !important; }
+}
+:root[data-motion="reduce"] .m-reactions.pop { animation: fade-in var(--dur-reduce) linear both !important; }
+
+/* ---- 第 6 步：回应胶囊（WhatsApp 底 + Instagram 位置）----
+   胶囊和收到的气泡同色（浅白 / 深 #232626），在默认壁纸上加一圈壁纸色的 2px 描边，
+   把它从压着的气泡上切开；选了背景时保留原来的细线。计数 --label-2：白底 5.1、深底 5.8。 */
+.m-reactions { background: var(--bubble-in); }
+.thread:not(.has-backdrop) .m-reactions { box-shadow: 0 0 0 2px var(--wallpaper), var(--chip-shadow); }
+.thread:not(.has-backdrop) .m-reactions.mine { box-shadow: 0 0 0 2px var(--wallpaper), 0 0 0 3.5px color-mix(in srgb, var(--label) 30%, var(--line)); }
+
+/* ---- 角标：关掉发图面板后，「+」右上角显示待发图片张数（WhatsApp 未读数样式）。
+ * 只用现有 token；数字只给视觉，张数由按钮名称读出（DOM 设 aria-hidden）。出现不加动效。
+ * 按钮变成发送、保存或面板打开时不显示，免得盖在箭头或 × 上。 */
+.composer-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  font-size: var(--t-caption-2);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+.composer-badge[hidden],
+.composer.has-text .composer-badge,
+.composer.editing .composer-badge,
+.composer.panel-open .composer-badge { display: none; }
+
+/* UI 设计师: the spoken 「提及 某某」 inside a mention stays out of a copy. */
+.mention .sr-only { user-select: none; -webkit-user-select: none; }

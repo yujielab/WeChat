@@ -115,3 +115,29 @@ export function callSummary(call = {}, mine) {
   }
   return { media, text, missed, label: `${media}通话，${text}` }
 }
+
+/**
+ * Where an outgoing message stands, as the bubble's corner shows it: a
+ * clock while it is queued or going (every queued one, not just the last),
+ * one tick once the hub has it, two once it reached the peer, two in the
+ * read colour once read (DMs only), a mark when it failed. The label is
+ * what a screen reader hears. Incoming messages have no state.
+ */
+export function sendState(m, read = false, dm = true) {
+  if (!m?.out) return null
+  if (m.status === 'failed') return { state: 'failed', label: '未发送' }
+  if (m.status === 'sending' || String(m.id).startsWith('local:')) return { state: 'sending', label: '发送中' }
+  // Group chats never show the read colour, whatever the server marks.
+  if (dm && (read || m.status === 'read')) return { state: 'read', label: '已读' }
+  if (m.status === 'delivered') return { state: 'delivered', label: '已送达' }
+  return { state: 'sent', label: '已发送' }
+}
+
+// For a folded group (photo stack, call run): the state that most needs
+// noticing. A failure wins, then anything still going, then the least
+// advanced tick, so the group never claims more than its weakest message.
+const RANK = { failed: 0, sending: 1, sent: 2, delivered: 3, read: 4 }
+export function groupState(states) {
+  const known = states.filter(Boolean)
+  return known.length ? known.reduce((a, b) => (RANK[b.state] < RANK[a.state] ? b : a)) : null
+}

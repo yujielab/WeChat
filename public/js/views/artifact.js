@@ -68,10 +68,14 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
     clear,
     /** An unsent drawing would be lost by leaving: { anchor } to ask from, or null. */
     get unsaved() {
-      return current?.kind === 'draw' && current.view.dirty ? { anchor: current.view.closeButton } : null
+      return current?.kind === 'draw' && current.view.dirty ? { anchor: current.view.closeButton, canvas: current.view.canvas } : null
     },
     get current() {
       return current && { kind: current.kind, chat: current.chat }
+    },
+    /** The drawing board's canvas, to give focus to, or null. */
+    get canvas() {
+      return current?.kind === 'draw' ? current.view.canvas || null : null
     },
     setLayout(layout) {
       pane.dataset.layout = layout

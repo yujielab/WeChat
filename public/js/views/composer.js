@@ -54,11 +54,24 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     toolButtons.set(tool.id, button)
     return button
   }))
+  let chat = null
+  const keptImages = new Map() // chat -> File[] picked but not sent
   const panel = h('div', { class: 'composer-panel', id: panelId, role: 'menu', 'aria-label': '添加' }, panelBody)
   // Names what the panel offers: 添加照片或手绘, 添加照片、表情或手绘.
   const addLabel = () => {
     const names = tools.filter(t => !toolButtons.get(t.id).hidden).map(t => t.title)
+    const waiting = keptImages.get(chat)?.length || 0
+    if (waiting) return `添加，已选 ${waiting} 张图片待发`
     return '添加' + (names.length > 1 ? `${names.slice(0, -1).join('、')}或${names.at(-1)}` : names[0] || '')
+  }
+  // Photos picked and dismissed in this conversation: a count on the plus.
+  // The number is for the eye only; the button's name carries it for a reader.
+  const badge = h('span', { class: 'composer-badge', 'aria-hidden': 'true', hidden: true })
+  function showKept() {
+    const waiting = keptImages.get(chat)?.length || 0
+    badge.textContent = waiting ? String(waiting) : ''
+    badge.hidden = !waiting || hasText || Boolean(editing)
+    if (!hasText && !editing) action.setAttribute('aria-label', addLabel())
   }
   const action = h('button', {
     class: 'composer-action',
@@ -67,10 +80,9 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     'aria-haspopup': 'menu',
     'aria-expanded': 'false',
     'aria-controls': panelId
-  }, icon('plus', 'action-add'), icon('arrow-up', 'action-send'), icon('check', 'action-save'))
+  }, icon('plus', 'action-add'), badge, icon('arrow-up', 'action-send'), icon('check', 'action-save'))
   const form = h('form', { class: 'composer', autocomplete: 'off' }, field, action, panel)
 
-  let chat = null
   let draftTimer = 0
   let readonly = false
   let attachmentSheet = null
@@ -87,8 +99,13 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       return attachmentSheet
     }
     const destination = chat
+    // Photos picked and then dismissed come back for the same conversation only.
+    const kept = keptImages.get(destination) || []
+    keptImages.delete(destination)
+    showKept()
     attachmentSheet = openAttachments({
-      files,
+      files: [...kept, ...files],
+      onDismiss: picks => { if (picks.length) keptImages.set(destination, picks); showKept() },
       onSend: (selected, options) => {
         if (readonly || chat !== destination) return false
         return onImages?.(selected, options)
@@ -166,6 +183,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     action.disabled = disabled
     action.type = hasText || editing ? 'submit' : 'button'
     action.setAttribute('aria-label', editing ? '保存修改' : hasText ? '发送' : addLabel())
+    showKept()
     if (hasText || editing) {
       action.removeAttribute('aria-haspopup')
       action.removeAttribute('aria-expanded')
@@ -204,11 +222,24 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   }
   panel.inert = true
 
+  let draftChat = null
   function saveDraftSoon() {
     clearTimeout(draftTimer)
-    const c = chat
-    draftTimer = setTimeout(() => c && setDraft(c, textarea.value), 300)
+    const c = draftChat = chat
+    draftTimer = setTimeout(() => { draftTimer = 0; draftChat = null; c && setDraft(c, textarea.value) }, 300)
   }
+  // Leaving the page or going to the background: the last words typed are
+  // kept now, not 300ms later when the page may already be gone.
+  function flushDraft() {
+    if (!draftTimer) return
+    clearTimeout(draftTimer)
+    draftTimer = 0
+    const c = draftChat
+    draftChat = null
+    if (c && c === chat) setDraft(c, textarea.value)
+  }
+  window.addEventListener('pagehide', flushDraft)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushDraft() })
 
   function submit() {
     const text = textarea.value
@@ -561,6 +592,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       // A different conversation's draft takes its height at once.
       field.classList.add('no-grow')
       autosize()
+      showKept()
       requestAnimationFrame(() => field.classList.remove('no-grow'))
     },
     /** Members just arrived (or changed): names already in the text light up. */

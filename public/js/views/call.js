@@ -30,6 +30,8 @@ import { callClock } from '../ui/format.js'
 
 // An unanswered call gives up after this long (the server keeps it ringing as long).
 const RING_MS = 45000
+// Someone else's connection must stay down this long before it is shown or read out.
+const SHAKY_MS = 2000
 // How many times a pull of the other side's tracks is retried while its media starts.
 const PULL_TRIES = 6
 // How the caller hears each callee was reached, best first.
@@ -38,7 +40,7 @@ const REACH_TEXT = { ringing: '对方响铃中…', notified: '已通知对方�
 
 const isGroup = room => chatInfo(room)?.kind === 'group'
 
-export function createCalls({ socketSend, connected = () => true }) {
+export function createCalls({ socketSend, connected = () => true, onCover = () => {}, focusBack = () => {} }) {
   let active = null // { room, callId, media, role, pc, sessionId, stream, ui, answered, liveAt, peers, remote, muted, camOff, … }
 
   // Back from the background, a video call keeps the screen awake again.
@@ -76,12 +78,78 @@ export function createCalls({ socketSend, connected = () => true }) {
     else if (kind === 'decline') declined(call, msg)
     else if (kind === 'cancel') end(true)
     else if (kind === 'hangup') left(call, msg)
+    else if (kind === 'unstable') unstable(call, msg, true)
+    else if (kind === 'back') unstable(call, msg, false)
+    else if (kind === 'alive') alive(call)
+    else if (kind === 'gone') gone(call)
+  }
+
+  /** After the socket comes back: the server says whether the call survived. */
+  function resync() {
+    if (!active || active.ending) return
+    socketSend({ t: 'call', kind: 'check', room: active.room, callId: active.callId })
+  }
+  function alive(call) {
+    if (!call.answered) return
+    // Our tracks again, for anyone who missed them; the clock or the picture clears 正在连接….
+    announceTracks()
+    checkLive(call)
+  }
+  function gone(call) {
+    if (call.ending) return
+    const text = '通话已结束（网络中断）'
+    toast(text, { duration: 4000 })
+    announce(text)
+    end(true)
+  }
+  // Someone's connection dropped (or came back). A blip shorter than SHAKY_MS
+  // is never shown or read out, so a flapping network doesn't chatter; once it
+  // has been said, coming back is said too (对方网络已恢复).
+  function unstable(call, msg, on) {
+    const uid = msg.from
+    if (!uid || uid === state.me?.id) return
+    call.shaky ??= new Set()
+    call.shakyShown ??= new Set()
+    call.shakyTimers ??= new Map()
+    const had = call.shaky.has(uid)
+    if (on) call.shaky.add(uid)
+    else call.shaky.delete(uid)
+    if (had === on) return
+    const who = isGroup(call.room) ? nameOf(uid, call.room) : ''
+    if (on) {
+      clearTimeout(call.shakyTimers.get(uid))
+      call.shakyTimers.set(uid, setTimeout(() => {
+        call.shakyTimers.delete(uid)
+        if (active !== call || call.ending || !call.answered || !call.shaky.has(uid)) return
+        const text = who ? `${who}网络不稳定` : '对方网络不稳定'
+        call.shakyShown.add(uid)
+        call.shakyText = text
+        showNotice(call)
+        announce(text)
+      }, SHAKY_MS))
+      return
+    }
+    clearTimeout(call.shakyTimers.get(uid))
+    call.shakyTimers.delete(uid)
+    if (!call.shakyShown.delete(uid)) return
+    // Someone else in a group may still be down: the line names them instead.
+    const still = [...call.shakyShown][0]
+    if (still) call.shakyText = isGroup(call.room) ? `${nameOf(still, call.room)}网络不稳定` : '对方网络不稳定'
+    showNotice(call)
+    if (call.answered && !call.ending) announce(who ? `${who}网络已恢复` : '对方网络已恢复')
+  }
+  // One notice line: our own reconnecting outranks someone else's shaky line,
+  // which outranks nothing; clearing one never clears the other.
+  function showNotice(call) {
+    call.ui.setNotice(call.selfShaky ? '网络不稳定，正在重新连接…' : call.shakyShown?.size ? call.shakyText : null)
   }
 
   function accepted(call, msg) {
     if (msg.from) call.peers.add(msg.from)
     // Someone else joining a group call that is already under way.
     if (call.answered) return
+    // Still ringing here: someone else answering doesn't answer it for us.
+    if (call.role !== 'caller') return
     clearTimeout(call.ringTimer)
     call.answered = true
     stopRinging(call)
@@ -113,14 +181,33 @@ export function createCalls({ socketSend, connected = () => true }) {
 
   function left(call, msg) {
     if (msg.from) call.peers.delete(msg.from)
-    if (!call.answered) return end(true)
-    // A group call goes on while anyone else is still in it.
-    if (isGroup(call.room) && call.peers.size) {
+    // Gone from the call: their shaky line goes with them, unsaid.
+    if (msg.from && call.shaky?.delete(msg.from)) {
+      clearTimeout(call.shakyTimers?.get(msg.from))
+      call.shakyTimers?.delete(msg.from)
+      if (call.shakyShown?.delete(msg.from)) {
+        const still = [...call.shakyShown][0]
+        if (still) call.shakyText = `${nameOf(still, call.room)}网络不稳定`
+        showNotice(call)
+      }
+    }
+    const group = isGroup(call.room)
+    // Still ringing here: in a group only the caller hanging up, or the call
+    // really being over, puts the ring away; anyone else leaving doesn't.
+    if (!call.answered) {
+      if (group && msg.ongoing && (msg.from !== call.callerId || msg.reason === 'lost')) return
+      return end(true)
+    }
+    // A group call goes on while anyone else is in it or still being rung
+    // (the server says so); the rest only hear who left, said as shown.
+    if (group && (call.peers.size || msg.ongoing)) {
       const who = nameOf(msg.from, call.room)
-      if (who) toast(`${who}已离开通话`)
+      if (who) toast(msg.reason === 'lost' ? `${who}网络中断，已离开通话` : `${who}已离开通话`)
       return
     }
-    endSoon('通话结束')
+    // reason 'lost': the server ended it when their grace period ran out.
+    const who = group ? nameOf(msg.from, call.room) : ''
+    endSoon(msg.reason === 'lost' ? `${who || '对方'}网络中断，通话已结束` : '通话结束')
   }
 
   function remoteState(call, msg) {
@@ -143,6 +230,7 @@ export function createCalls({ socketSend, connected = () => true }) {
     }
     const call = active = newCall({ room: msg.room, callId: msg.callId, media: msg.media, role: 'callee', caller: msg.caller })
     if (msg.from) call.peers.add(msg.from)
+    call.callerId = msg.from
     // Their photo: as the invitation brought it, else as this device knows them.
     const caller = { ...msg.caller, avatar: msg.caller?.avatar || avatarOf(msg.caller?.id, msg.room) }
     call.ui.showIncoming(caller, msg.media, {
@@ -151,6 +239,8 @@ export function createCalls({ socketSend, connected = () => true }) {
         stopRinging(call)
         socketSend({ t: 'call', kind: 'accept', room: msg.room, callId: msg.callId })
         call.answered = true
+        // In a group the call is the group's, not the caller's: it stays right when they leave.
+        if (isGroup(call.room)) call.ui.retitle(chatInfo(call.room))
         call.ui.setStatus('正在连接…')
         begin().catch(fail)
       },
@@ -209,8 +299,8 @@ export function createCalls({ socketSend, connected = () => true }) {
     // A dip in the network says so while it recovers, rather than ending the call.
     pc.oniceconnectionstatechange = () => {
       if (active !== call) return
-      if (pc.iceConnectionState === 'disconnected') call.ui.setNotice('网络不稳定，正在重新连接…')
-      else if (['connected', 'completed'].includes(pc.iceConnectionState)) call.ui.setNotice(null)
+      if (pc.iceConnectionState === 'disconnected') { call.selfShaky = true; showNotice(call) }
+      else if (['connected', 'completed'].includes(pc.iceConnectionState)) { call.selfShaky = false; showNotice(call) }
     }
     // Publish local tracks to the SFU: the session's first change, so
     // anything the other side published waits for it in the queue.
@@ -474,13 +564,20 @@ export function createCalls({ socketSend, connected = () => true }) {
       onMute: on => setMuted(call, on),
       onCamera: off => setCamOff(call, off),
       onFlip: () => flipCamera(call),
-      level: () => level(call)
+      level: () => level(call),
+      onCover: on => onCover(call.callId, on),
+      focusBack
     })
     if (info.role === 'caller') call.ui.showOutgoing(chatInfo(info.room), info.media)
     return call
   }
 
-  return { start, onSignal, get busy() { return Boolean(active) } }
+  /** The browser's Back over a full-screen call: 'minimized', 'ringing', 'ending' or 'none'. */
+  function back() {
+    return active ? active.ui.back() : 'none'
+  }
+
+  return { start, onSignal, resync, back, get ringing() { return Boolean(active?.ui.ringing) }, get busy() { return Boolean(active) } }
 }
 
 // Optional browser APIs answer with a promise, a value or an exception.
@@ -494,7 +591,7 @@ function quietly(fn) {
 // ---------------------------------------------------------------- call UI
 
 const RADIUS = 18 // the picture in picture's corners, on screen
-const STRIP = 28 // what shows of it tucked against a side
+const STRIP = 44 // what shows of it tucked against a side: a full 44pt hit target
 const FACE = 52 // the face in the picture in picture, on screen
 const PLACE_KEY = 'ui:call-pip'
 
@@ -518,7 +615,7 @@ function columnAt(x, width) {
   return document.querySelector(`.pane[data-role="${role}"]`)?.dataset.col || sideBesideThread()
 }
 
-function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
+function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCover = () => {}, focusBack = () => {} }) {
   const layer = document.getElementById('overlays')
   let hasVideo = media === 'video'
   let mode = 'full' // full | pip
@@ -543,7 +640,9 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
   let calmTimer = 0
   let locked = false
   const lockToken = { closed: false }
-  const previousFocus = document.activeElement
+  let previousFocus = document.activeElement
+  // Whether the call covers the app (and so holds a history entry, see shell.js).
+  let covered = false
 
   // ------------------------------------------------------------ the call itself
   // Their picture, or yours when swapped, fills the screen; the other one is
@@ -708,6 +807,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
     // Where it goes: where a throw was heading, else where it was last put.
     resting = false
     pipTile.moveTo(toward ? { corner: nearestCorner(frameRect(), size, toward) } : savedPlace(), { animate: false })
+    wasStashed = Boolean(pipTile.place.stashed)
     const t = pipTile.target()
     const to = { x: t.x, y: t.y, s: pipW / box.width, r: RADIUS }
     // A throw carries its speed into the shrink.
@@ -731,6 +831,9 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
 
   function expand({ velocity = 0 } = {}) {
     if (mode !== 'pip' || destroyed) return
+    // Shrinking again gives focus back here; never to the hidden mini window or the call.
+    const from = document.activeElement
+    if (from && !root.contains(from) && !pip.contains(from)) previousFocus = from
     mode = 'full'
     root.dataset.mode = 'full'
     resting = false
@@ -769,15 +872,20 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
     })
   }
 
+  // Focus that was in the call, or already lost to the page (it was on 接听,
+  // which went away), goes back to where it was before the call, else to the
+  // conversation's composer or the column in front (shell.js).
   function giveFocusBack() {
-    if (!root.contains(document.activeElement)) return
+    const now = document.activeElement
+    if (now && now !== document.body && !root.contains(now) && !pip.contains(now)) return
     if (previousFocus?.isConnected && !previousFocus.closest?.('[inert]') && previousFocus !== document.body) previousFocus.focus({ preventScroll: true })
-    else document.activeElement?.blur?.()
+    else focusBack()
   }
 
   // ------------------------------------------------------------ the picture in picture's gestures
   let pipMenu = null
   let pipPointerAt = 0
+  let wasStashed = false
   function applyPip(x, y) {
     pip.style.transform = `translate3d(${px(x)}, ${px(y)}, 0)`
     if (resting && geo) {
@@ -807,14 +915,21 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
       if (place.corner) storage(PLACE_KEY, place.corner)
       pip.classList.remove('dragging')
       syncPip(place)
+      // Said once each way, only when it really tucked away or came out.
+      const now = Boolean(place.stashed)
+      if (now !== wasStashed) {
+        wasStashed = now
+        announce(now ? '通话小窗已收到屏幕边缘' : '通话小窗已移回角落')
+      }
     },
     onDrag: () => pip.classList.add('dragging')
   })
-  function tapPip() {
+  function tapPip(keyed = false) {
     if (mode !== 'pip' || !resting) return
     const at = pipTile.place
-    // Tucked away: a tap brings it out first.
-    if (at.stashed) return pipTile.moveTo({ corner: unstashCorner(frameRect(), { w: pipW, h: pipH }, at.stashed, pipTile.position.y) })
+    // Tucked away: a tap brings it out first. Keys and screen readers can't
+    // see it peek out, so they go straight back to the call.
+    if (at.stashed && !keyed) return pipTile.moveTo({ corner: unstashCorner(frameRect(), { w: pipW, h: pipH }, at.stashed, pipTile.position.y) })
     expand()
   }
   pip.addEventListener('pointerdown', () => { pipPointerAt = performance.now() }, true)
@@ -822,7 +937,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
   // assistive technology arrive here on their own.
   pip.addEventListener('click', e => {
     if (e.detail !== 0 && performance.now() - pipPointerAt < 1000) return
-    tapPip()
+    tapPip(e.detail === 0)
   })
   pip.addEventListener('keydown', e => {
     if (!e.key.startsWith('Arrow') || mode !== 'pip' || !resting) return
@@ -846,6 +961,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
   function syncPip(place = pipTile.place) {
     if (place.stashed) pip.dataset.stashed = place.stashed
     else delete pip.dataset.stashed
+    syncStatus()
     if (place.corner) pip.dataset.corner = place.corner
     else delete pip.dataset.corner
     // Menus from it open on its side of the fold.
@@ -925,7 +1041,11 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
   root.addEventListener('lostpointercapture', e => { if (sw?.active && e.pointerId === sw.id) swipeEnd(e, true) })
   root.addEventListener('keydown', e => {
     wake()
-    if (e.key === 'Escape' && !e.defaultPrevented && mode === 'full' && canMinimize()) {
+    if (e.key === 'Escape' && !e.defaultPrevented && incomingUp) {
+      e.preventDefault()
+      e.stopPropagation()
+      announce('来电中，请接听或拒绝')
+    } else if (e.key === 'Escape' && !e.defaultPrevented && mode === 'full' && canMinimize()) {
       e.preventDefault()
       e.stopPropagation()
       minimize()
@@ -997,7 +1117,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
     const text = ending ? statusText : notice || (liveAt ? callClock(Date.now() - liveAt) : statusText)
     if (status.textContent !== text) status.textContent = text
     if (pipTime.textContent !== text) pipTime.textContent = text
-    pip.setAttribute('aria-label', `返回通话：${title}${text ? `，${text}` : ''}`)
+    pip.setAttribute('aria-label', `返回通话：${title}${text ? `，${text}` : ''}${pip.dataset.stashed ? '，已收在屏幕边缘' : ''}`)
   }
   function syncBadges() {
     const items = []
@@ -1017,6 +1137,10 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
     else if (!want && locked) unlockApp(lockToken)
     locked = want
     root.setAttribute('aria-modal', String(want))
+    if (want !== covered) {
+      covered = want
+      onCover(want)
+    }
   }
 
   // ------------------------------------------------------------ controls that step aside
@@ -1149,7 +1273,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
       root.style.transition = 'opacity 200ms ease-out'
       root.style.opacity = '0'
     } else root.classList.remove('on')
-    if (hadFocus && previousFocus?.isConnected && !previousFocus.closest?.('[inert]')) previousFocus.focus?.({ preventScroll: true })
+    if (hadFocus || !document.activeElement || document.activeElement === document.body) giveFocusBack()
     setTimeout(() => {
       root.remove()
       pip.remove()
@@ -1167,6 +1291,14 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
       // The conversation's own picture: the other person's photo, or the group's.
       setFace(room?.avatar || room?.peer?.avatar, room?.name || '', room?.kind === 'group')
       mount()
+    },
+    // Answered in a group: named and pictured as the group from here on.
+    retitle(room) {
+      if (!room?.name) return
+      title = room.name
+      name.textContent = title
+      root.setAttribute('aria-label', `与${title}通话`)
+      setFace(room.avatar, room.name, true)
     },
     showIncoming(caller, m, { accept, decline }) {
       incomingUp = true
@@ -1186,6 +1318,8 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
         controls.hidden = false
         minBtn.hidden = false
         accept()
+        // 接听 itself is gone: focus moves to 挂断, not to the page.
+        hang.button.focus({ preventScroll: true })
       } })
       incoming.append(no.el, yes.el)
       controls.hidden = true
@@ -1275,7 +1409,22 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level }) {
       flip.el.hidden = !yes
     },
     expand: () => expand(),
+    get ringing() { return incomingUp && !destroyed },
     minimize: () => minimize(),
+    /** Back took the call's history entry: shrink if it can; a ringing call stays. */
+    back() {
+      if (destroyed) return 'none'
+      if (incomingUp) {
+        announce('来电中，请接听或拒绝')
+        return 'ringing'
+      }
+      if (ending) return 'ending'
+      if (mode === 'full' && canMinimize()) {
+        minimize()
+        return 'minimized'
+      }
+      return 'none'
+    },
     systemPip,
     destroy
   }

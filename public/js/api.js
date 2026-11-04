@@ -112,6 +112,8 @@ export function connectSocket({ onMessage, onOpen, onClose }) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') wake()
   })
+  // 断网时主动关掉 socket，走现有的重连 → hello 流程，在线状态才会刷新回来。
+  window.addEventListener('offline', () => ws?.close())
   window.addEventListener('online', wake)
   window.addEventListener('pageshow', wake)
   open()

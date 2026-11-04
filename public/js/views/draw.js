@@ -17,7 +17,8 @@ const SIZE_NAMES = ['细', '中', '粗', '特粗']
 
 /** Build the board into `host`; onClose() when Close or Send is chosen. Returns { el, destroy }. */
 export function createDrawing(host, { onSend, onClose }) {
-  const canvas = h('canvas', { class: 'draw-canvas' })
+  // Focusable (not in the tab order) so a kept drawing can have the focus back.
+  const canvas = h('canvas', { class: 'draw-canvas', tabindex: '-1', role: 'img', 'aria-label': '画布' })
   const stage = h('div', { class: 'draw-stage' }, canvas)
 
   const swatches = COLORS.map(({ c, name }) => {
@@ -79,8 +80,7 @@ export function createDrawing(host, { onSend, onClose }) {
   canvas.addEventListener('pointerdown', e => {
     if (e.button > 0) return
     canvas.setPointerCapture(e.pointerId)
-    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
-    if (undoStack.length > 24) undoStack.shift()
+    snapshot()
     const p = pt(e)
     drawing = { last: p, mid: p, width: size }
     ctx.strokeStyle = color
@@ -112,20 +112,27 @@ export function createDrawing(host, { onSend, onClose }) {
   canvas.addEventListener('pointercancel', endStroke)
   canvas.addEventListener('pointerleave', endStroke)
 
-  function markDirty() { if (!dirty) { dirty = true; sendBtn.disabled = false } }
+  // Each step back remembers whether there was ink on the board then, so
+  // undoing a 清空 brings back 发送 and the question before closing.
+  function setDirty(on) { dirty = on; sendBtn.disabled = !on }
+  function markDirty() { if (!dirty) setDirty(true) }
+  function snapshot() {
+    undoStack.push({ img: ctx.getImageData(0, 0, canvas.width, canvas.height), inked: dirty })
+    if (undoStack.length > 24) undoStack.shift()
+  }
   function undo() {
-    const img = undoStack.pop()
-    if (!img) return
+    const step = undoStack.pop()
+    if (!step) return
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.putImageData(img, 0, 0)
+    ctx.putImageData(step.img, 0, 0)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     haptic()
-    if (!undoStack.length) { dirty = false; sendBtn.disabled = true }
+    setDirty(step.inked)
   }
   function clearAll() {
-    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
+    snapshot()
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
-    dirty = false; sendBtn.disabled = true
+    setDirty(false)
     haptic()
   }
   function setColor(c, btn) {
@@ -144,14 +151,17 @@ export function createDrawing(host, { onSend, onClose }) {
   }
 
   closeBtn.addEventListener('click', () => onClose())
+  // Not disabled while it sends: a focused button that turns disabled drops
+  // focus to the page, and the shell's focus fallback then has nothing to follow.
+  let sending = false
   sendBtn.addEventListener('click', async () => {
-    if (!dirty) return
-    sendBtn.disabled = true
+    if (!dirty || sending) return
+    sending = true
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'))
     if (blob) onSend(blob, { w: canvas.width, h: canvas.height })
     // Sent: nothing left to lose, so closing asks nothing.
     dirty = false
-    onClose()
+    onClose({ sent: true })
   })
 
   return {
@@ -159,6 +169,7 @@ export function createDrawing(host, { onSend, onClose }) {
     /** Ink on the board that hasn't been sent (closing would lose it). */
     get dirty() { return dirty },
     closeButton: closeBtn,
+    canvas,
     destroy() {
       ro.disconnect()
       root.remove()

@@ -2,7 +2,7 @@
 // recognized and rebuilt as anchors from the plain string.
 
 import { h, icon } from '../ui/dom.js'
-import { duration, fileSize, emojiOnly, callSummary } from '../ui/format.js'
+import { duration, fileSize, emojiOnly, callSummary, threadTime, sendState } from '../ui/format.js'
 import { state, nameOf } from '../store.js'
 import { stickerEl } from './stickers.js'
 
@@ -63,6 +63,21 @@ function textBubble(m) {
   return el
 }
 
+// What a reader hears for a message's text: each "@name" it mentions said
+// as 「提及 名字」 (「提及你」 for this account), the same as in the bubble.
+export function spokenMentions(text, m) {
+  const ids = Array.isArray(m?.meta?.mentions) ? m.meta.mentions : []
+  if (!text || !ids.length) return text
+  const names = new Map()
+  for (const id of ids) {
+    const name = nameOf(id, m.chat)
+    if (name) names.set(`@${name}`, id === state.me?.id ? '提及你' : `提及 ${name}`)
+  }
+  if (!names.size) return text
+  const re = new RegExp([...names.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+  return text.replace(re, hit => names.get(hit))
+}
+
 // The members a group message @-mentions (meta.mentions), marked where
 // "@name" appears; "me" when it's this account.
 function markMentions(parts, m) {
@@ -81,7 +96,11 @@ function markMentions(parts, m) {
     let last = 0
     for (const hit of part.matchAll(re)) {
       if (hit.index > last) out.push(part.slice(last, hit.index))
-      out.push(h('span', { class: ['mention', names.get(hit[0]) === state.me?.id && 'me'] }, hit[0]))
+      // A reader hears 「提及 某某」 (「提及你」 for me), not 「at 某某」.
+      const mine = names.get(hit[0]) === state.me?.id
+      out.push(h('span', { class: ['mention', mine && 'me'] },
+        h('span', { 'aria-hidden': 'true' }, hit[0]),
+        h('span', { class: 'sr-only' }, mine ? '提及你' : `提及 ${hit[0].slice(1)}`)))
       last = hit.index + hit[0].length
     }
     if (last < part.length) out.push(part.slice(last))
@@ -206,3 +225,28 @@ function card(m, { icon: name, iconClass = '', title, desc }) {
 
 /** Whether a message type draws the iMessage tail on the last bubble of a run. */
 export const hasTail = m => m.type === 'text' && !emojiOnly(m.text)
+
+/**
+ * The time, and for an outgoing message its state, in the bubble's
+ * bottom-right corner (WhatsApp): span.m-meta.<state> holding <time>, the
+ * state glyph(s) and the state said aloud in .sr-only. Over a picture,
+ * video or sticker it is a .media-badge on the corner instead.
+ */
+export function bubbleMeta(m, read = false, dm = true) {
+  const el = h('span', { class: 'm-meta' })
+  fillMeta(el, m, read, sendState(m, read, dm))
+  return el
+}
+
+export function fillMeta(el, m, read = false, s = sendState(m, read)) {
+  const overlay = m.type === 'image-stack' || m.type === 'image' || m.type === 'drawing' || m.type === 'video' || m.type === 'sticker'
+  el.className = ['m-meta', overlay && 'media-badge', s?.state].filter(Boolean).join(' ')
+  el.metaSig = `${s?.state || ''}|${m.ts}`
+  const time = threadTime(m.ts)[1]
+  const glyph = !s ? [] : s.state === 'sending' ? [icon('clock')] : s.state === 'failed' ? [icon('exclaim')]
+    : s.state === 'sent' ? [icon('check')] : [icon('check'), icon('check')]
+  el.replaceChildren(
+    h('time', { 'aria-hidden': 'true' }, time),
+    ...glyph,
+    h('span', { class: 'sr-only' }, s ? `${time} ${s.label}` : time))
+}
