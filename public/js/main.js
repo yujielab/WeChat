@@ -2,6 +2,7 @@
 
 import { initViewport } from './ui/viewport.js'
 import { initPress } from './ui/press.js'
+import { initInputModality } from './ui/input-modality.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
 import { outbox } from './outbox.js'
@@ -27,6 +28,7 @@ let calls = null
 
 initViewport()
 initPress()
+initInputModality()
 syncThemeColor()
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeColor)
 

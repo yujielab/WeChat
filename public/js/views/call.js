@@ -494,7 +494,7 @@ function quietly(fn) {
 // ---------------------------------------------------------------- call UI
 
 const RADIUS = 18 // the picture in picture's corners, on screen
-const STRIP = 28 // what shows of it tucked against a side
+const STRIP = 44 // what shows of it tucked against a side: a full 44pt hit target
 const FACE = 52 // the face in the picture in picture, on screen
 const PLACE_KEY = 'ui:call-pip'
 

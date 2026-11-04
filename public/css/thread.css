@@ -979,3 +979,44 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 }
 .thread.has-backdrop .ts.unread-divider::before,
 .thread.has-backdrop .ts.unread-divider::after { content: none; }
+
+/* ---- 默认壁纸上的日期和系统提示（style-spec 第 4 步）：WhatsApp 式实心小底板。
+   日期 = 白 / 深灰底板；系统提示 = 浅黄提示底板。字色都过 4.5:1：
+   --label-2 在白底 5.1、深色底板 5.8；--notice-text 在浅黄底 6.3。 */
+.thread:not(.has-backdrop) .ts,
+.thread:not(.has-backdrop) .sys {
+  align-self: center;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 4px 10px;
+  border-radius: var(--r-xs);
+  background: var(--chip-bg);
+  box-shadow: var(--chip-shadow);
+}
+.thread:not(.has-backdrop) .ts { display: block; }
+.thread:not(.has-backdrop) .sys { background: var(--notice-bg); color: var(--notice-text); }
+/* 未读分隔：WhatsApp 那种整行横条，蓝字在白底 5.8、深色底板 5.9（--chip-accent）。 */
+.thread:not(.has-backdrop) .ts.unread-divider {
+  display: block;
+  align-self: stretch;
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 0;
+  color: var(--chip-accent);
+}
+.thread:not(.has-backdrop) .ts.unread-divider::before,
+.thread:not(.has-backdrop) .ts.unread-divider::after { content: none; }
+/* ---- P2-1: a clear focus ring on the message field with a keyboard and pointer (only the field's focus state). */
+@media (hover: hover) and (pointer: fine) {
+  .thread .composer .field:has(textarea:focus-visible) { box-shadow: 0 0 0 2px var(--label-2), var(--chrome-shadow); }
+}
+/* Keyboard on a coarse pointer (iPad + hardware keyboard): same ring, set by input-modality.js. */
+:root[data-input="keyboard"] .thread .composer .field:has(textarea:focus-visible) { box-shadow: 0 0 0 2px var(--label-2), var(--chrome-shadow); }
+/* 底板上的日期整行用 --label-2（--label-3 的钟点在白底只有 3.3:1）；靠字重分日和钟点。 */
+.thread:not(.has-backdrop) .ts:not(.unread-divider),
+.thread.has-backdrop .ts:not(.unread-divider) { color: var(--label-2); }
+/* 直接落在默认壁纸上的小字（已读 / 已发送、加载更早消息）：压到涂鸦线条上会掉到 3.9:1，
+   用壁纸色托一圈底，和有背景时的做法一样。 */
+.thread:not(.has-backdrop) :is(.m-meta, .load-older) { text-shadow: 0 0 6px var(--wallpaper), 0 0 2px var(--wallpaper); }

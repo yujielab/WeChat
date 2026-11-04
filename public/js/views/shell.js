@@ -15,6 +15,7 @@ import { openSettings, openNewChat, rememberOpen } from './sheets.js'
 import { openInsights } from './insights.js'
 import { closeAllOverlays, healOverlays, confirmAction } from './overlay.js'
 import { h } from '../ui/dom.js'
+import { createDiscardGuard } from './draw-guard.js'
 
 const SIDEBAR = 0
 const LIST = 1
@@ -49,7 +50,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     onInsights: origin => openInsights({ origin, onOpen: id => openChat(id) })
   })
   const thread = createThread(panes[THREAD], {
-    onBack: () => back(THREAD),
+    onBack: () => leaveThread(),
     onInfo: id => toggleArtifact('info', id),
     onDraw: id => toggleArtifact('draw', id),
     onCompose: compose,
@@ -74,7 +75,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
         if (pane.dataset.role !== 'hidden') views[panes.indexOf(pane)].setLayout(pane.dataset.role)
       }
     },
-    onSwipeBack: ({ from, velocity }) => (from === ARTIFACT ? leaveArtifact({ velocity, swiped: true }) : back(from, { velocity })),
+    onSwipeBack: ({ from, velocity }) => (from === ARTIFACT ? leaveArtifact({ velocity, swiped: true }) : from === THREAD ? leaveThread({ velocity, swiped: true }) : back(from, { velocity })),
     swipeZone: pane => (pane.dataset.edgeSwipe !== undefined ? 40 : pane.clientWidth * 0.6)
   })
 
@@ -148,25 +149,32 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
   /**
    * Back from the details column, but a drawing that hasn't been sent is
    * not thrown away without asking (Close, Escape, the 手绘 tool again, or a
-   * swipe back all come here). An empty board closes at once.
+   * swipe back all come here). An empty board closes at once. The same
+   * question for every way out (views/draw-guard.js): the browser's Back is
+   * with popstate, another conversation with openChat.
    */
-  let asking = false
-  /** true when there's nothing to lose or the drawing may go; null while already asking. */
-  async function mayDiscardDrawing() {
-    const unsaved = artifact.unsaved
-    if (!unsaved) return true
-    if (asking) return null
-    asking = true
-    const ok = await confirmAction(unsaved.anchor, { title: '放弃这张手绘？画好的内容不会保存', confirm: '放弃' })
-    asking = false
-    if (!ok) unsaved.anchor.focus?.({ preventScroll: true })
-    return ok
-  }
+  const guard = createDiscardGuard({
+    unsaved: () => artifact.unsaved,
+    ask: anchor => confirmAction(anchor, { title: '放弃这张手绘？画好的内容不会保存', confirm: '放弃' })
+  })
+  const mayDiscardDrawing = () => guard.mayDiscard()
   async function leaveArtifact({ velocity = 0, swiped = false } = {}) {
     // A swipe that let go with ink on the board springs back first; the board stays until answered.
     if (swiped && artifact.unsaved) go(ARTIFACT, { velocity })
     if (!await mayDiscardDrawing()) return
     return back(ARTIFACT, { velocity })
+  }
+  /**
+   * The conversation's own back (its button, or a swipe from its edge) while
+   * the board is open beside it, unfolded: leaving the conversation would
+   * close the board too, so it asks first.
+   */
+  async function leaveThread({ velocity = 0, swiped = false } = {}) {
+    if (artifact.unsaved && strip.shows(ARTIFACT)) {
+      if (swiped) go(strip.focus, { velocity })
+      if (!await guard.mayDiscard({ focus: 'canvas' })) return
+    }
+    return back(THREAD, { velocity })
   }
 
   window.addEventListener('popstate', e => {
@@ -180,12 +188,18 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     const col = Number.isInteger(s.duo) ? s.duo : LIST
     const instant = Boolean(e.hasUAVisualTransition)
     // The browser's Back with ink on the board: the entry goes back on, the
-    // board stays, and the same question as Close decides.
-    if (strip.focus === ARTIFACT && col < ARTIFACT && artifact.unsaved) {
-      history.pushState(entry(ARTIFACT), '')
-      mayDiscardDrawing().then(ok => { if (ok) back(ARTIFACT) })
-      return
-    }
+    // board stays, and the same question as Close decides (5ba2794). Also
+    // Back or Forward onto another conversation's entry (the long-press
+    // history list): that would swap the board's conversation away.
+    // restore() puts back the entry of what's on screen; 放弃 then takes
+    // the step it held.
+    const elsewhere = Boolean(s.chat && s.chat !== thread.current && chatInfo(s.chat))
+    const held = guard.holdPop({
+      leaving: strip.shows(ARTIFACT) && (col < strip.focus || elsewhere),
+      restore: () => history.pushState(entry(strip.focus), ''),
+      leave: () => (col < strip.focus ? back(strip.focus) : showChat(s.chat, { focus: false }))
+    })
+    if (held) return
     if (col < strip.focus) {
       while (pushed.length && pushed.at(-1) > col) pushed.pop()
       go(col, { instant })
@@ -222,8 +236,23 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     }
   }
 
-  function openChat(id, { focus = true } = {}) {
+  /**
+   * Another conversation (a notification, the list beside it, search…) while
+   * a drawing for this one is unsent: only once it may go. Kept: nothing
+   * moves, and the board has the focus again.
+   */
+  function openChat(id, opts = {}) {
     if (!id) return
+    if (artifact.unsaved && strip.shows(ARTIFACT)) {
+      // The same conversation (its notification while drawing in it): the
+      // board stays as it is; bringing the conversation forward would close it.
+      if (id === thread.current) return
+      const trigger = document.activeElement
+      return guard.before(() => showChat(id, opts), { trigger: panes.some(p => p.contains(trigger)) ? trigger : null })
+    }
+    return showChat(id, opts)
+  }
+  function showChat(id, { focus = true } = {}) {
     closeAllOverlays()
     state.open = id
     rememberOpen(id)

@@ -661,3 +661,25 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   :root:not([data-motion="full"]) .menu.on .menu-reaction { animation: none; }
 }
 :root[data-motion="reduce"] .menu.on .menu-reaction { animation: none; }
+
+/* ---- P2-6: the › in settings rows sits on the text's centre line, not its baseline.
+ * The profile card's › is drawn with the same chevron.right shape as the rows' icon, not a text glyph. */
+.cell .chev { display: grid; place-items: center; align-self: center; flex: none; }
+.cell .chev .icon { width: 14px; height: 14px; }
+.profile.profile-btn::after {
+  content: ""; justify-self: end; align-self: center; width: 14px; height: 14px; font-size: 0;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 4.8l7.2 7.2-7.2 7.2' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 4.8l7.2 7.2-7.2 7.2' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---- P2-1: with a keyboard and pointer, a focused field gets a clear 2px ring (--label-2, at least 3:1).
+ * Touch keeps the soft halo: text fields count as :focus-visible even when tapped,
+ * so the input device is what tells the two apart. */
+@media (hover: hover) and (pointer: fine) {
+  .form-sheet .input:focus-visible { border-color: var(--label); box-shadow: 0 0 0 2px var(--label-2); }
+  .sheet-search .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2); }
+}
+/* Keyboard on a coarse pointer (iPad + hardware keyboard): same ring, set by input-modality.js. */
+:root[data-input="keyboard"] .form-sheet .input:focus-visible { border-color: var(--label); box-shadow: 0 0 0 2px var(--label-2); }
+:root[data-input="keyboard"] .sheet-search .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2); }

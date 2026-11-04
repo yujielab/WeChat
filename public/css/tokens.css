@@ -55,6 +55,11 @@
   --wallpaper-doodle: #ece0d1;
   --notice-bg: #ffefd1;
   --tick-read: #007dff;         /* an icon: 3.5:1 on the outgoing bubble, over the 3:1 for graphics */
+  --chip-bg: #ffffff;
+  --chip-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13);
+  --chip-accent: var(--blue-text);
+  --notice-text: #6b5525;
+  --wallpaper-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none' stroke='%23ece0d1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 14h22a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H24l-6 5v-5h-4a5 5 0 0 1-5-5V19a5 5 0 0 1 5-5z'/%3E%3Cpath d='M84 22c-3-4-9-3-9 2 0 4 9 9 9 9s9-5 9-9c0-5-6-6-9-2z'/%3E%3Cpath d='M58 58l2.4 5 5.6.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.6-.8z'/%3E%3Ccircle cx='98' cy='74' r='7'/%3E%3Cpath d='M22 78v12M16 84h12'/%3E%3Cpath d='M70 100c4-4 8 4 12 0s8 4 12 0'/%3E%3Ccircle cx='40' cy='104' r='2'/%3E%3Ccircle cx='104' cy='106' r='2'/%3E%3C/svg%3E");
   --orange: #ff9500;
   --yellow: #ffcc00;
   --green: #34c759;
@@ -257,6 +262,11 @@
     --wallpaper-doodle: #232323;
     --notice-bg: #232626;
     --tick-read: #27a8ff;
+    --chip-bg: #232626;
+    --chip-shadow: none;
+    --chip-accent: #27a8ff;
+    --notice-text: var(--label-2);
+    --wallpaper-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none' stroke='%23232323' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 14h22a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H24l-6 5v-5h-4a5 5 0 0 1-5-5V19a5 5 0 0 1 5-5z'/%3E%3Cpath d='M84 22c-3-4-9-3-9 2 0 4 9 9 9 9s9-5 9-9c0-5-6-6-9-2z'/%3E%3Cpath d='M58 58l2.4 5 5.6.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.6-.8z'/%3E%3Ccircle cx='98' cy='74' r='7'/%3E%3Cpath d='M22 78v12M16 84h12'/%3E%3Cpath d='M70 100c4-4 8 4 12 0s8 4 12 0'/%3E%3Ccircle cx='40' cy='104' r='2'/%3E%3Ccircle cx='104' cy='106' r='2'/%3E%3C/svg%3E");
     --orange: #ff9f0a;
     --yellow: #ffd60a;
     --green: #30d158;
@@ -293,7 +303,7 @@
     --bubble-card-line: var(--line);
     --recede: #000000;
     --card-shadow: none;
-    --chrome-shadow: none;
+    --chrome-shadow: 0 0 #0000; /* not "none": it sits inside shadow lists, and "none" there voids the whole declaration */
     --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 14px 38px rgb(0 0 0 / 0.6);
   }
 }
@@ -331,6 +341,11 @@
   --wallpaper-doodle: #232323;
   --notice-bg: #232626;
   --tick-read: #27a8ff;
+  --chip-bg: #232626;
+  --chip-shadow: none;
+  --chip-accent: #27a8ff;
+  --notice-text: var(--label-2);
+  --wallpaper-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none' stroke='%23232323' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 14h22a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H24l-6 5v-5h-4a5 5 0 0 1-5-5V19a5 5 0 0 1 5-5z'/%3E%3Cpath d='M84 22c-3-4-9-3-9 2 0 4 9 9 9 9s9-5 9-9c0-5-6-6-9-2z'/%3E%3Cpath d='M58 58l2.4 5 5.6.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.6-.8z'/%3E%3Ccircle cx='98' cy='74' r='7'/%3E%3Cpath d='M22 78v12M16 84h12'/%3E%3Cpath d='M70 100c4-4 8 4 12 0s8 4 12 0'/%3E%3Ccircle cx='40' cy='104' r='2'/%3E%3Ccircle cx='104' cy='106' r='2'/%3E%3C/svg%3E");
   --orange: #ff9f0a;
   --yellow: #ffd60a;
   --green: #30d158;
@@ -367,7 +382,7 @@
   --bubble-card-line: var(--line);
   --recede: #000000;
   --card-shadow: none;
-  --chrome-shadow: none;
+  --chrome-shadow: 0 0 #0000; /* not "none": it sits inside shadow lists, and "none" there voids the whole declaration */
   --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 14px 38px rgb(0 0 0 / 0.6);
 }
 

@@ -17,7 +17,8 @@ const SIZE_NAMES = ['细', '中', '粗', '特粗']
 
 /** Build the board into `host`; onClose() when Close or Send is chosen. Returns { el, destroy }. */
 export function createDrawing(host, { onSend, onClose }) {
-  const canvas = h('canvas', { class: 'draw-canvas' })
+  // Focusable (not in the tab order) so a kept drawing can have the focus back.
+  const canvas = h('canvas', { class: 'draw-canvas', tabindex: '-1', role: 'img', 'aria-label': '画布' })
   const stage = h('div', { class: 'draw-stage' }, canvas)
 
   const swatches = COLORS.map(({ c, name }) => {
@@ -159,6 +160,7 @@ export function createDrawing(host, { onSend, onClose }) {
     /** Ink on the board that hasn't been sent (closing would lose it). */
     get dirty() { return dirty },
     closeButton: closeBtn,
+    canvas,
     destroy() {
       ro.disconnect()
       root.remove()
