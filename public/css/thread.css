@@ -158,7 +158,7 @@
   position: relative;
   max-width: 100%;
   padding: 11px 16px 12px;
-  border-radius: 23px;
+  border-radius: var(--r-bubble);
   font-size: var(--t-body);
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -247,7 +247,7 @@
   font-size: var(--t-caption);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
-  background: rgb(0 0 0 / 0.45);
+  background: rgb(0 0 0 / 0.55);   /* 白图上白字 4.7:1 */
   color: #fff;
 }
 .media-play {
@@ -1020,3 +1020,89 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 /* 直接落在默认壁纸上的小字（已读 / 已发送、加载更早消息）：压到涂鸦线条上会掉到 3.9:1，
    用壁纸色托一圈底，和有背景时的做法一样。 */
 .thread:not(.has-backdrop) :is(.m-meta, .load-older) { text-shadow: 0 0 6px var(--wallpaper), 0 0 2px var(--wallpaper); }
+
+/* Step 3 (code side): time and ticks inside the bubble, bottom-right.
+   Baseline only — colours, spacing and the inline-vs-own-line fit are the
+   style pass's. No transitions here, so nothing to drop under reduced motion. */
+.bubble > .m-meta {
+  float: right;
+  display: inline-flex; align-items: center; gap: 2px;
+  margin: 6px -6px -6px 10px; min-height: 0;
+  font-size: var(--t-caption-2); line-height: 1; white-space: nowrap;
+  color: var(--label-2); font-variant-numeric: tabular-nums;
+  text-shadow: none;
+}
+.bubble > .m-meta { -webkit-user-select: none; user-select: none; }
+.bubble > .m-meta.media-badge { float: none; margin: 0; color: #fff; }
+.bubble > .m-meta .icon { width: 14px; height: 14px; }
+.bubble > .m-meta.delivered .icon + .icon,
+.bubble > .m-meta.read .icon + .icon { margin-left: -9px; }
+.bubble > .m-meta.read .icon { color: var(--tick-read, var(--blue-text)); }
+.bubble > .m-meta.failed .icon { color: var(--red-text); }
+.m-col > .m-meta.failed { align-self: flex-end; margin: 4px 2px 0; }
+.bubble.video > .media-badge:not(.m-meta) { right: auto; left: 8px; }
+/* Lost-picture cell: the corner sits top-right and never takes a tap, so
+   重新选择 keeps its whole 44pt target. Call groups keep theirs in flow. */
+.bubble.media:has(> .ph > .text-button) > .m-meta { top: 8px; bottom: auto; pointer-events: none; }
+.bubble.call-group > .m-meta { float: none; align-self: flex-end; margin: 4px 0 0; }
+/* ---- 第 3 步：WhatsApp 气泡 ----
+   绿/白气泡带一层极淡的投影（深色下无），每组第一条在顶角带一个小尖角：
+   该角改成直角，再用 ::after 画一个同色三角，不靠背景色挖空，所以壁纸上也干净。 */
+.bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card) { box-shadow: var(--chip-shadow); }
+.m.in.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-top-left-radius: 0; }
+.m.out.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-top-right-radius: 0; }
+.m.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: auto;
+  width: 8px;
+  height: 13px;
+  border-radius: 0;
+  background: inherit;
+  background-image: none;
+}
+.m.in.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { left: -8px; right: auto; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.m.out.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { right: -8px; left: auto; clip-path: polygon(0 0, 100% 0, 0 100%); }
+/* 尖角取代旧的 iMessage 底部尾巴。 */
+.bubble.tail::before { content: none; }
+
+
+/* 丢图格子按宽度降级：<120 只留图标和「重新选择」，<80 只留图标且整格是按钮。
+   文字只做视觉隐藏，读屏仍能读到。 */
+.bubble.media:has(> .ph > .text-button) { container-type: inline-size; }
+@container (max-width: 119.98px) {
+  .bubble.media .ph:has(> .text-button) > span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
+@container (max-width: 79.98px) {
+  .bubble.media .ph:has(> .text-button) > .text-button {
+    position: absolute; inset: 0; min-width: var(--hit); min-height: var(--hit); font-size: 0; color: transparent;
+  }
+}
+/* ---- HIG P1-5: with a pointer, message text can be drag-selected (macOS, iPadOS trackpad, Duo laptop pose).
+ * Touch keeps the long-press menu; the body-wide user-select:none stays there. */
+@media (hover: hover) and (pointer: fine) {
+  .thread .bubble { -webkit-user-select: text; user-select: text; }
+}
+
+/* ---- 第 3 步样式：气泡里的时间和勾（WhatsApp 挤排）----
+   时间浮在最后一行右侧，放得下就和正文同一行，放不下自动换到下一行。
+   字色取气泡字色 70% 混气泡底色（实色）：浅色收 6.5 / 发 6.1，深色收 7.1 / 发 4.9。
+   时间和勾不参与拖选复制。 */
+.bubble > .m-meta {
+  margin: 8px -7px -5px 12px;
+  gap: 3px;
+  letter-spacing: 0.01em;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.m.in .bubble > .m-meta:not(.media-badge) { color: color-mix(in srgb, var(--bubble-in-text) 70%, var(--bubble-in)); }
+.m.out .bubble > .m-meta:not(.media-badge) { color: color-mix(in srgb, var(--bubble-out-text) 70%, var(--bubble-out)); }
+.bubble > .m-meta .icon { width: 15px; height: 15px; }
+.bubble > .m-meta.sending .icon { width: 12px; height: 12px; }
+/* 图片 / 视频上的时间：右下角半透明深色底板。 */
+.bubble > .m-meta.media-badge { gap: 3px; }
+.m.out .bubble > .m-meta.failed .icon { color: var(--bubble-out-error, var(--red-text)); }
+.bubble.tail::after { content: none; }

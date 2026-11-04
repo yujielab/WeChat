@@ -2,7 +2,7 @@
 // recognized and rebuilt as anchors from the plain string.
 
 import { h, icon } from '../ui/dom.js'
-import { duration, fileSize, emojiOnly, callSummary } from '../ui/format.js'
+import { duration, fileSize, emojiOnly, callSummary, threadTime, sendState } from '../ui/format.js'
 import { state, nameOf } from '../store.js'
 import { stickerEl } from './stickers.js'
 
@@ -206,3 +206,28 @@ function card(m, { icon: name, iconClass = '', title, desc }) {
 
 /** Whether a message type draws the iMessage tail on the last bubble of a run. */
 export const hasTail = m => m.type === 'text' && !emojiOnly(m.text)
+
+/**
+ * The time, and for an outgoing message its state, in the bubble's
+ * bottom-right corner (WhatsApp): span.m-meta.<state> holding <time>, the
+ * state glyph(s) and the state said aloud in .sr-only. Over a picture,
+ * video or sticker it is a .media-badge on the corner instead.
+ */
+export function bubbleMeta(m, read = false, dm = true) {
+  const el = h('span', { class: 'm-meta' })
+  fillMeta(el, m, read, sendState(m, read, dm))
+  return el
+}
+
+export function fillMeta(el, m, read = false, s = sendState(m, read)) {
+  const overlay = m.type === 'image-stack' || m.type === 'image' || m.type === 'drawing' || m.type === 'video' || m.type === 'sticker'
+  el.className = ['m-meta', overlay && 'media-badge', s?.state].filter(Boolean).join(' ')
+  el.metaSig = `${s?.state || ''}|${m.ts}`
+  const time = threadTime(m.ts)[1]
+  const glyph = !s ? [] : s.state === 'sending' ? [icon('clock')] : s.state === 'failed' ? [icon('exclaim')]
+    : s.state === 'sent' ? [icon('check')] : [icon('check'), icon('check')]
+  el.replaceChildren(
+    h('time', { 'aria-hidden': 'true' }, time),
+    ...glyph,
+    h('span', { class: 'sr-only' }, s ? `${time} ${s.label}` : time))
+}

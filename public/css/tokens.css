@@ -71,12 +71,13 @@
   --ink: #000000;
   --on-ink: #ffffff;
 
-  --bubble-out: var(--ink);
-  --bubble-out-text: var(--on-ink);
-  --bubble-in: #ededf0;
-  --bubble-in-text: #0b0b0d;
+  --bubble-out: #d0fecf;         /* WhatsApp 发出绿（第 3 步） */
+  --bubble-out-text: #111b21;    /* 15.6:1 */
+  --bubble-in: #ffffff;
+  --bubble-in-text: #111b21;
   /* A breath of light across the top of your bubbles, so ink reads as a surface, not a hole. */
-  --bubble-out-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0) 62%);
+  --bubble-out-sheen: none;
+  --bubble-out-error: var(--red-text);
   --bubble-card: #ffffff;
   --bubble-card-line: var(--line);
   --link-in: #0062cc;
@@ -139,7 +140,7 @@
   --s-8: 32px;
   --margin: 16px;
   --hit: 44px;
-  --r-bubble: 20px;
+  --r-bubble: var(--r-s);
   /* 圆角六档（P2-2）：胶囊一律 999px；嵌套圆角 = 外层 − 内边距 */
   --r-xs: 8px;
   --r-s: 12px;
@@ -223,7 +224,6 @@
 @media (color-gamut: p3) {
   :root {
     --blue: color(display-p3 0.08 0.48 1);
-    --bubble-out: var(--ink);
   }
 }
 
@@ -271,10 +271,12 @@
     --yellow: #ffd60a;
     --green: #30d158;
     --indigo: #5e5ce6;
-    --bubble-out: var(--ink);
-    --bubble-in: #1a1a1d;
-    --bubble-in-text: #f5f5fa;
-    --bubble-out-sheen: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / 0.06));
+    --bubble-out: #004f35;
+    --bubble-out-text: #e9edef;
+    --bubble-in: #232626;
+    --bubble-in-text: #e9edef;
+    --bubble-out-sheen: none;
+    --bubble-out-error: #ff7a70;   /* 3.8:1 on #004f35 */
     --bubble-card: #111113;
     --link-in: #5eb0ff;
     --scrim: rgb(0 0 0 / 0.6);
@@ -350,10 +352,12 @@
   --yellow: #ffd60a;
   --green: #30d158;
   --indigo: #5e5ce6;
-  --bubble-out: var(--ink);
-  --bubble-in: #1a1a1d;
-  --bubble-in-text: #f5f5fa;
-  --bubble-out-sheen: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / 0.06));
+  --bubble-out: #004f35;
+  --bubble-out-text: #e9edef;
+  --bubble-in: #232626;
+  --bubble-in-text: #e9edef;
+  --bubble-out-sheen: none;
+  --bubble-out-error: #ff7a70;   /* 3.8:1 on #004f35 */
   --bubble-card: #111113;
   --link-in: #5eb0ff;
   --scrim: rgb(0 0 0 / 0.6);

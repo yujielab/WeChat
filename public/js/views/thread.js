@@ -2,7 +2,7 @@
 
 import { h, icon, clear, reducedMotion, announce, edge, storage } from '../ui/dom.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
-import { threadTime, callSummary } from '../ui/format.js'
+import { threadTime, callSummary, sendState, groupState } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
@@ -13,7 +13,7 @@ import { api, ApiError } from '../api.js'
 import { outbox, blobStore } from '../outbox.js'
 import { stillBelow } from './unread.js'
 import { avatar } from './avatar.js'
-import { renderBubble, hasTail, mediaSize, callMine } from './bubbles.js'
+import { renderBubble, hasTail, mediaSize, callMine, bubbleMeta, fillMeta } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
 import { openViewer } from './viewer.js'
@@ -484,6 +484,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const quote = quoteBlock(m)
     const inside = quote && bub.classList.contains('text')
     if (inside) bub.prepend(quote)
+    // Time and ticks live in the bubble's corner (a lost picture's cell too:
+    // CSS keeps it clear of 重新选择).
+    bub.append(bubbleMeta(m, isRead(m), isDm()))
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
@@ -581,7 +584,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         avatar: avatar(avatarOf(last.from, current), who, { size: 30 }),
         label: `${who} · ${threadTime(photos[0].ts)[1]}`
       }
-      fresh.querySelector('.bubble').replaceWith(renderPhotoStack(photos, ctx, { onExpand: expandPhotos, sender }))
+      const stack = renderPhotoStack(photos, ctx, { onExpand: expandPhotos, sender })
+      stack.append(bubbleMeta({ ...last, type: 'image-stack' }, false, isDm()))
+      fresh.querySelector('.bubble').replaceWith(stack)
       fresh.classList.add('has-stack')
       fresh.photoSignature = signature
       node?.replaceWith(fresh)
@@ -606,6 +611,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       const fresh = buildNode(last)
       fresh.querySelector('.bubble').replaceWith(callGroup(calls))
       fresh.callSignature = signature
+      fresh.callIds = calls.map(c => c.id)
       node?.replaceWith(fresh)
       node = fresh
       nodes.set(last.id, node)
@@ -630,7 +636,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       'aria-label': `${latest.label}，共 ${calls.length} 次${open ? '' : '，点按展开'}`
     }, glyph(latest), h('span', { class: 't', 'aria-hidden': 'true' }, latest.text),
     h('span', { class: 'call-count tabular', 'aria-hidden': 'true' }, `${calls.length} 次`), icon('chevron-down', 'call-chevron'))
-    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle)
+    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle, bubbleMeta(calls[calls.length - 1], false, isDm()))
     toggle.addEventListener('click', () => {
       const on = !group.classList.contains('open')
       group.classList.toggle('open', on)
@@ -661,20 +667,43 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
   }
 
+  // Only a 1:1 chat (chatInfo kind 'dm') ever shows read; groups never.
+  const isDm = () => chatInfo(current)?.kind === 'dm'
+
+  // Read: the message itself says so, or (DMs) the peer read up to it.
+  function isRead(m) {
+    if (!m?.out) return false
+    const c = chatInfo(current)
+    if (!isDm()) return false
+    return m.status === 'read' || Boolean(c.peerRead && m.ts <= c.peerRead && !String(m.id).startsWith('local:') && m.status !== 'sending' && m.status !== 'failed')
+  }
+
+  // Every bubble's corner follows its message (read receipts don't rebuild
+  // a node); the 未发送 line sits under the newest outgoing message's bubble,
+  // in its column, so it lines up with the bubble's right edge.
   function placeMeta(list) {
-    const last = list[list.length - 1]
+    const t = thread(current)
+    for (const [id, node] of nodes) {
+      const m = t.byId.get(id)
+      const corner = m && node.querySelector(':scope > .m-col > .bubble > .m-meta')
+      if (!corner) continue
+      // A folded group shows its last message's time and its weakest state.
+      const dm = isDm()
+      const group = photoGroups.get(id) || node.callIds?.map(x => t.byId.get(x)).filter(Boolean)
+      const s = group ? groupState(group.map(x => sendState(x, isRead(x), dm))) : sendState(m, isRead(m), dm)
+      const shown = photoGroups.has(id) ? { ...m, type: 'image-stack' } : m
+      if (corner.metaSig !== `${s?.state || ''}|${m.ts}`) fillMeta(corner, shown, false, s)
+    }
     const lastOut = [...list].reverse().find(m => m.out && !isSys(m))
-    const show = lastOut && (lastOut === last || lastOut.status === 'sending' || lastOut.status === 'failed')
-    if (!show) {
+    if (!lastOut || lastOut.status !== 'failed') {
       meta.remove()
       return
     }
-    const c = chatInfo(current)
-    const read = c?.kind === 'dm' && (lastOut.status === 'read' || (c.peerRead && lastOut.ts <= c.peerRead))
-    meta.className = `m-meta${lastOut.status === 'failed' ? ' failed' : ''}${read ? ' read' : ''}`
-    meta.textContent = lastOut.status === 'sending' ? '发送中…' : lastOut.status === 'failed' ? '未发送' : read ? '已读' : '已发送'
-    const node = nodes.get(lastOut.id)
-    if (node && node.nextSibling !== meta) node.after(meta)
+    meta.className = 'm-meta failed'
+    meta.textContent = '未发送'
+    meta.setAttribute('aria-hidden', 'true')
+    const col = nodes.get(lastOut.id)?.querySelector(':scope > .m-col')
+    if (col && meta.parentNode !== col) col.append(meta)
   }
 
   /** Bring the DOM in line with the thread's message list, reusing nodes. */
