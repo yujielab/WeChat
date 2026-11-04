@@ -85,7 +85,9 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
   const pushed = []
   let skipPop = 0
   let afterPop = null
-  const entry = col => ({ duo: col, chat: thread.current, art: col === ARTIFACT ? artifact.current : null })
+  // d: how many entries this app has pushed up to this one, so a popstate
+  // can tell how many steps it jumped (the long-press history list).
+  const entry = (col, d = pushed.length) => ({ duo: col, chat: thread.current, art: col === ARTIFACT ? artifact.current : null, d })
 
   function go(col, opts) {
     const active = document.activeElement
@@ -106,7 +108,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     if (col > strip.focus && col >= THREAD) {
       // One entry per column passed, so Back retraces every step.
       for (let c = Math.max(strip.focus + 1, THREAD); c <= col; c++) {
-        history.pushState(entry(c), '')
+        history.pushState(entry(c, pushed.length + 1), '')
         pushed.push(c)
       }
     } else history.replaceState(entry(col), '')
@@ -120,7 +122,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
       const from = strip.focus
       if (col < 0 || panes[col].dataset.role === 'hidden' || !strip.touch(col)) return
       if (col === THREAD && from < THREAD) {
-        history.pushState(entry(THREAD), '')
+        history.pushState(entry(THREAD, pushed.length + 1), '')
         pushed.push(THREAD)
       }
     }, { capture: true })
@@ -194,10 +196,28 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     // restore() puts back the entry of what's on screen; 放弃 then takes
     // the step it held.
     const elsewhere = Boolean(s.chat && s.chat !== thread.current && chatInfo(s.chat))
+    // How far the browser jumped: back is positive. Entries from before d
+    // existed fall back to pushing the current one again.
+    const steps = Number.isInteger(s.d) ? pushed.length - s.d : null
     const held = guard.holdPop({
       leaving: strip.shows(ARTIFACT) && (col < strip.focus || elsewhere),
-      restore: () => history.pushState(entry(strip.focus), ''),
-      leave: () => (col < strip.focus ? back(strip.focus) : showChat(s.chat, { focus: false }))
+      // Return to the very entry that was showing, so no entry is lost and
+      // the ones after it (Forward) stay too.
+      restore: () => {
+        if (steps) { skipPop++; afterPop = null; history.go(steps) }
+        else history.pushState(entry(strip.focus), '')
+      },
+      leave: () => {
+        if (col < strip.focus && steps > 1) {
+          // 放弃 after a jump of several steps: take the whole jump.
+          skipPop++
+          afterPop = null
+          history.go(-steps)
+          while (pushed.length && pushed.at(-1) > col) pushed.pop()
+          return go(col)
+        }
+        return col < strip.focus ? back(strip.focus) : showChat(s.chat, { focus: false })
+      }
     })
     if (held) return
     if (col < strip.focus) {
