@@ -504,9 +504,9 @@
   color: var(--label);
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
-  transition: background-color 170ms ease-out, color 170ms ease-out, box-shadow 170ms ease-out, transform var(--press-out) var(--ease-out);
+  transition: background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out, transform var(--press-out) var(--ease-out);
 }
-.composer-action .icon { grid-area: 1 / 1; width: 22px; height: 22px; transition: opacity 170ms ease-out, transform 190ms var(--ease-out); }
+.composer-action .icon { grid-area: 1 / 1; width: 22px; height: 22px; transition: opacity var(--dur-quick) ease-out, transform var(--dur-fade) var(--ease-out); }
 .composer-action .action-send { opacity: 0; transform: scale(.8); }
 .composer.has-text .composer-action { background: var(--ink); color: var(--on-ink); box-shadow: 0 0 0 1px transparent, var(--chrome-shadow); }
 .composer.has-text .composer-action .action-add { opacity: 0; transform: scale(.8); }
@@ -775,7 +775,7 @@
   font-size: 34px;
   line-height: 1;
   pointer-events: none;
-  animation: reaction-burst 760ms var(--ease-out) forwards;
+  animation: reaction-burst var(--dur-burst) var(--ease-out) forwards;
 }
 @keyframes reaction-burst {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(0.3); }
@@ -1106,3 +1106,9 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .bubble > .m-meta.media-badge { gap: 3px; }
 .m.out .bubble > .m-meta.failed .icon { color: var(--bubble-out-error, var(--red-text)); }
 .bubble.tail::after { content: none; }
+
+/* ---- 第 5 步：Reduce Motion 下的反馈改成 100ms 淡入（两套开关都写，!important 盖过 base.css 的全局 0.01ms）。 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .m-reactions.pop { animation: fade-in var(--dur-reduce) linear both !important; }
+}
+:root[data-motion="reduce"] .m-reactions.pop { animation: fade-in var(--dur-reduce) linear both !important; }

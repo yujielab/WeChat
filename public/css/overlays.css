@@ -407,7 +407,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   -webkit-backdrop-filter: blur(26px) saturate(1.5);
   backdrop-filter: blur(26px) saturate(1.5);
   opacity: 0;
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--dur-fade) ease-out;
 }
 :root[data-glass="solid"] .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 .ctx-backdrop.on { opacity: 1; }
@@ -415,7 +415,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   position: absolute;
   margin: 0;
   /* Moves only as far as it must to make room, at once, without a bounce. */
-  transition: transform 220ms var(--ease-out);
+  transition: transform var(--dur-ui) var(--ease-out);
   pointer-events: none;
 }
 .ctx-preview .bubble { box-shadow: 0 14px 34px -10px rgb(15 15 25 / 0.24), 0 2px 6px rgb(15 15 25 / 0.06); }
@@ -439,12 +439,12 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   transform-origin: var(--ox, 0%) 100%;
   opacity: 0;
   transform: translateY(6px) scale(.92);
-  transition: opacity 110ms ease-out, transform 140ms var(--ease-out);
+  transition: opacity var(--dur-reduce) ease-out, transform var(--dur-quick) var(--ease-out);
 }
-.ctx-reactions.menu-reactions.on { opacity: 1; transform: none; transition: opacity 160ms ease-out, transform 220ms var(--ease-out); }
+.ctx-reactions.menu-reactions.on { opacity: 1; transform: none; transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out); }
 .ctx-reactions.glass::before, .ctx-reactions.glass::after { display: none; }
 .ctx-reactions .menu-reaction { width: 44px; height: 44px; border-radius: 50%; font-size: 26px; }
-.ctx-reactions.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * 22ms) backwards; }
+.ctx-reactions.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * var(--stagger)) backwards; }
 
 /* The actions: a card of rows, each an icon then its name, hairlines
    between rows and a band between groups. */
@@ -683,3 +683,26 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 /* Keyboard on a coarse pointer (iPad + hardware keyboard): same ring, set by input-modality.js. */
 :root[data-input="keyboard"] .form-sheet .input:focus-visible { border-color: var(--label); box-shadow: 0 0 0 2px var(--label-2); }
 :root[data-input="keyboard"] .sheet-search .search-pill:has(:focus-visible) { box-shadow: 0 0 0 2px var(--label-2); }
+
+/* ---- 第 5 步：长按菜单在 Reduce Motion 下只做 100ms 淡入，不位移不缩放。 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) :is(.ctx-backdrop, .menu.ctx-menu, .ctx-reactions.menu-reactions) { transform: none !important; transition: opacity var(--dur-reduce) linear !important; }
+}
+:root[data-motion="reduce"] :is(.ctx-backdrop, .menu.ctx-menu, .ctx-reactions.menu-reactions) { transform: none !important; transition: opacity var(--dur-reduce) linear !important; }
+/* 降低透明度：长按的背景退回纯色遮罩。 */
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-glass="glass"]) .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
+}
+/* 窄栏里（Duo 折叠单栏的窄档、分栏里的窄列）表情行横向滚动，不换行、不挤小 44pt 的格子。
+   只在窄屏开滚动，免得宽屏上放大的表情被 overflow 裁掉。 */
+@media (max-width: 374px) {
+  .ctx-reactions.menu-reactions {
+    max-width: calc(100% - 20px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .ctx-reactions.menu-reactions::-webkit-scrollbar { display: none; }
+  .ctx-reactions.menu-reactions > .menu-reaction { flex: none; scroll-snap-align: start; }
+}
