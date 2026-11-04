@@ -467,3 +467,70 @@ test('the caller hanging up on one person while another still rings ends it, rec
   t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 6 })
   assert.equal(records(), n, 'B hanging up afterwards is not recorded again')
 })
+
+test('a group call down to one person after a hang-up is over, recorded once', () => {
+  const t = setup()
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  t.sockets.add(c)
+  const g = t.store.createGroup({ name: 'G', creator: t.ids.a, members: [t.ids.b, c] })
+  const room = g.id ?? g
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room, callId: 'g1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room, callId: 'g1' })
+  t.broker.signal(c, { t: 'call', kind: 'accept', room, callId: 'g1' })
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room, callId: 'g1', media: 'audio', duration: 3 })
+  assert.ok(t.broker.get(room), 'B and C go on')
+  t.sent.length = 0
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room, callId: 'g1', media: 'audio', duration: 4 })
+  assert.equal(t.broker.get(room), null, 'C alone: over')
+  assert.equal(t.sent.find(m => m.kind === 'hangup' && m.to === c).ongoing, false)
+  t.broker.signal(c, { t: 'call', kind: 'hangup', room, callId: 'g1', media: 'audio', duration: 4 })
+  assert.equal(t.store.listMessages(room, { limit: 50 }).filter(m => m.type === 'call').length, 1)
+})
+
+function groupCall(clock) {
+  const t = setup()
+  t.broker = clock.broker = new CallBroker(t.broker.hub, clock.opts)
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  t.sockets.add(c)
+  const g = t.store.createGroup({ name: 'G', creator: t.ids.a, members: [t.ids.b, c] })
+  const room = g.id ?? g
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room, callId: 'g1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room, callId: 'g1' })
+  t.broker.signal(c, { t: 'call', kind: 'accept', room, callId: 'g1' })
+  t.sent.length = 0
+  return { t, c, room }
+}
+
+test('a group call is not over while the second-to-last person is only reconnecting; it is once they time out', () => {
+  const clock = fakeClock()
+  const { t, c, room } = groupCall(clock)
+  t.sockets.delete(t.ids.b)
+  t.broker.onDisconnect(t.ids.b)
+  t.broker.signal(c, { t: 'call', kind: 'hangup', room, callId: 'g1', media: 'audio', duration: 3 })
+  assert.ok(t.broker.get(room), 'B is in the grace period: A and B go on')
+  assert.equal(t.sent.find(m => m.kind === 'hangup' && m.to === t.ids.a).ongoing, true)
+  clock.advance(15000)
+  assert.equal(t.broker.get(room), null, 'B never came back: A alone, over')
+  assert.equal(t.sent.filter(m => m.kind === 'hangup' && m.to === t.ids.a).at(-1).ongoing, false)
+  assert.equal(t.store.listMessages(room, { limit: 50 }).filter(m => m.type === 'call').length, 1)
+})
+
+test('the caller hanging up while another still rings does not end it if someone is only reconnecting', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  const d = t.store.createUser({ username: 'dave', display: 'D', salt: 's', hash: 'h' }).id
+  t.sockets.add(c)
+  t.sockets.add(d)
+  const call = t.broker.get(t.room)
+  call.participants.push(c)
+  call.ringing.push(d)
+  t.broker.put(t.room, call)
+  t.sockets.delete(c)
+  t.broker.onDisconnect(c)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 6 })
+  assert.ok(t.broker.get(t.room), 'C is reconnecting: B is not alone')
+  clock.advance(15000)
+  assert.equal(t.broker.get(t.room), null, 'C timed out: B alone with the caller gone, over')
+  assert.equal(t.sent.filter(m => m.kind === 'hangup' && m.to === t.ids.b).at(-1).ongoing, false)
+})

@@ -239,6 +239,8 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
         stopRinging(call)
         socketSend({ t: 'call', kind: 'accept', room: msg.room, callId: msg.callId })
         call.answered = true
+        // In a group the call is the group's, not the caller's: it stays right when they leave.
+        if (isGroup(call.room)) call.ui.retitle(chatInfo(call.room))
         call.ui.setStatus('正在连接…')
         begin().catch(fail)
       },
@@ -1289,6 +1291,14 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
       // The conversation's own picture: the other person's photo, or the group's.
       setFace(room?.avatar || room?.peer?.avatar, room?.name || '', room?.kind === 'group')
       mount()
+    },
+    // Answered in a group: named and pictured as the group from here on.
+    retitle(room) {
+      if (!room?.name) return
+      title = room.name
+      name.textContent = title
+      root.setAttribute('aria-label', `与${title}通话`)
+      setFace(room.avatar, room.name, true)
     },
     showIncoming(caller, m, { accept, decline }) {
       incomingUp = true

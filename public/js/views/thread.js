@@ -1730,6 +1730,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       const bub = nodes.get(id)?.querySelector('.bubble.text')
       if (!bub) return
       bub.dataset.selecting = ''
+      // Focus goes to the selected bubble (before the selection is made, so it stays).
+      bub.setAttribute('tabindex', '-1')
+      bub.focus({ preventScroll: true })
       const range = document.createRange()
       range.selectNodeContents(bub)
       const meta = bub.querySelector(':scope > .m-meta')
@@ -1756,6 +1759,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   document.addEventListener('pointerdown', e => {
     if (selecting && !selecting.bub.contains(e.target)) endSelect()
   }, { capture: true, passive: true })
+  // Esc ends it as well: the selection goes, focus stays on the bubble.
+  document.addEventListener('keydown', e => {
+    if (!selecting || e.key !== 'Escape') return
+    e.preventDefault()
+    e.stopPropagation()
+    getSelection().removeAllRanges()
+    endSelect()
+  }, { capture: true })
 
   async function copy(text) {
     try {
