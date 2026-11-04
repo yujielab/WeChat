@@ -436,10 +436,9 @@ test('someone dropping while another is still being rung: the hang-up says the c
   assert.ok(lost.length >= 1)
   assert.ok(lost.every(m => m.ongoing === true), 'A and C hear it goes on')
   assert.ok(t.broker.get(t.room), 'C still rings: not over')
-  // A hanging up too: with only C being rung it is still on for the ring to finish.
+  // The caller (A) hanging up too.
   t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 5 })
-  const last = t.sent.filter(m => m.kind === 'hangup').at(-1)
-  assert.equal(last.ongoing, Boolean(t.broker.get(t.room)))
+  assert.equal(t.broker.get(t.room), null, 'the caller gone with nobody else in it: over, the ring stops with it')
 })
 
 test('alone in a call when the other drops: the hang-up says it is over', () => {
@@ -449,4 +448,22 @@ test('alone in a call when the other drops: the hang-up says it is over', () => 
   t.broker.onDisconnect(t.ids.a)
   clock.advance(15000)
   assert.equal(t.sent.find(m => m.kind === 'hangup').ongoing, false)
+})
+
+test('the caller hanging up on one person while another still rings ends it, recorded once', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  t.sockets.add(c)
+  const call = t.broker.get(t.room)
+  call.ringing.push(c)
+  t.broker.put(t.room, call)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 6 })
+  assert.equal(t.broker.get(t.room), null, 'B is not left alone in it')
+  assert.equal(t.sent.filter(m => m.kind === 'hangup' && m.to === t.ids.b).at(-1).ongoing, false)
+  const records = () => t.store.listMessages(t.room, { limit: 50 }).filter(m => m.type === 'call').length
+  const n = records()
+  assert.equal(n, 1, 'one record')
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 6 })
+  assert.equal(records(), n, 'B hanging up afterwards is not recorded again')
 })

@@ -1086,6 +1086,8 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 @media (hover: hover) and (pointer: fine) {
   .thread .bubble { -webkit-user-select: text; user-select: text; }
 }
+/* 选择文本 from the touch menu: this one bubble's words take the system's handles (time and ticks stay out). */
+.thread .bubble[data-selecting] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 
 /* ---- 第 3 步样式：气泡里的时间和勾（WhatsApp 挤排）----
    时间浮在最后一行右侧，放得下就和正文同一行，放不下自动换到下一行。

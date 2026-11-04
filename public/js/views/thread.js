@@ -24,6 +24,9 @@ import { createBars } from '../ui/bars.js'
 import { backdropLayer, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
 import { chatBackdrop } from './backdrops.js'
 
+// A mouse or trackpad drag-selects text already (thread.css); touch asks for it from the menu.
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)')
+
 const TS_GAP = 5 * 60 * 1000
 const RUN_GAP = 3 * 60 * 1000
 const PAGE = 60
@@ -1511,7 +1514,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   scroller.addEventListener('pointerdown', e => {
     suppressClick = false
     const bub = e.target.closest('.bubble')
-    if (!bub || e.button > 0) return
+    if (!bub || e.button > 0 || bub.dataset.selecting != null) return
     const node = bub.closest('.m')
     bub.classList.add('is-pressed')
     press = {
@@ -1549,7 +1552,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   scroller.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse' || e.button > 0) return
     const node = e.target.closest('.m')
-    if (!node || !e.target.closest('.bubble')) return
+    if (!node || !e.target.closest('.bubble') || e.target.closest('.bubble[data-selecting]')) return
     swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, node, active: false, armed: false }
   }, { passive: true })
   scroller.addEventListener('pointermove', e => {
@@ -1586,6 +1589,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   scroller.addEventListener('pointercancel', endSwipe)
   scroller.addEventListener('scroll', cancelLong, { passive: true })
   scroller.addEventListener('contextmenu', e => {
+    // Selecting text: the system's own menu (拷贝, 查询…), not ours.
+    if (e.target.closest('.bubble[data-selecting]')) return
     const node = e.target.closest('.m')
     const m = msgOf(node)
     if (!m) return
@@ -1633,6 +1638,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (m.status === 'failed') main.push(m.lost ? { label: '重新选择', icon: 'photo', onSelect: () => pickAgain(m) } : { label: '重新发送', icon: 'refresh', onSelect: () => retry(m) })
     if (m.type === 'text' && m.text) {
       main.push({ label: '复制', icon: 'copy', onSelect: () => copy(m.text) })
+      // Touch has no drag-select (the long press is the menu): this turns it on
+      // for this one bubble, with the system's own handles.
+      if (!finePointer.matches) main.push({ label: '选择文本', icon: 'doc', onSelect: () => selectText(m.id) })
     }
     if (!photos && editable(m)) main.push({ label: '编辑', icon: 'compose', onSelect: () => startEdit(m) })
     if (!photos && m.edited && !isSys(m)) main.push({ label: '编辑记录', icon: 'doc', onSelect: () => showEdits(m.id) })
@@ -1711,6 +1719,43 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       }
     })
   }
+
+  // 选择文本: the bubble's words (not its time and ticks) selected with the
+  // system's handles; it ends when the selection goes or a touch lands elsewhere.
+  let selecting = null
+  function selectText(id) {
+    endSelect()
+    // After the menu has put the bubble back on screen.
+    setTimeout(() => {
+      const bub = nodes.get(id)?.querySelector('.bubble.text')
+      if (!bub) return
+      bub.dataset.selecting = ''
+      const range = document.createRange()
+      range.selectNodeContents(bub)
+      const meta = bub.querySelector(':scope > .m-meta')
+      if (meta) range.setEndBefore(meta)
+      const sel = getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+      selecting = { bub, armed: false }
+      // The selection just made fires one change itself; only later ones count.
+      setTimeout(() => { if (selecting?.bub === bub) selecting.armed = true }, 300)
+      announce('已选择文本，拖动两端调整范围')
+    }, 240)
+  }
+  function endSelect() {
+    if (!selecting) return
+    delete selecting.bub.dataset.selecting
+    selecting = null
+  }
+  document.addEventListener('selectionchange', () => {
+    if (!selecting?.armed) return
+    const sel = getSelection()
+    if (!sel.rangeCount || sel.isCollapsed || !selecting.bub.contains(sel.anchorNode)) endSelect()
+  })
+  document.addEventListener('pointerdown', e => {
+    if (selecting && !selecting.bub.contains(e.target)) endSelect()
+  }, { capture: true, passive: true })
 
   async function copy(text) {
     try {

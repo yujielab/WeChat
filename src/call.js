@@ -156,13 +156,16 @@ export class CallBroker {
           current.ringing = current.ringing.filter(u => u !== from)
           if (current.published) delete current.published[from]
           if (current.states) delete current.states[from]
+          const callerLeftOne = kind === 'hangup' && from === current.caller && current.answered && current.ringing.length && present(current).length < 2
           if (kind === 'cancel' && from === current.caller) {
             // Unanswered: whoever was reached by notification learns they missed it.
             if (msg.missed) this.notifyMissed(room, current).catch(() => {})
             this.drop(room)
           } else if (!current.participants.length && !current.ringing.length) this.drop(room)
-          else if (!current.ringing.length && !present(current).length) {
-            // Everyone left is away: nobody would hear them come back to it.
+          else if (!present(current).length && !current.ringing.length || callerLeftOne) {
+            // Everyone left is away (nobody would hear them come back to it), or
+            // the caller hung up on one person while others still ring: over,
+            // and the rings stop with it.
             this.finish(room, current, from, msg)
             this.arm()
             finished = true
@@ -320,7 +323,8 @@ export class CallBroker {
     if (call.published) delete call.published[uid]
     if (call.states) delete call.states[uid]
     // Fewer than two still really in it, and nobody being rung: the call is over.
-    const over = !call.ringing.length && present(call).length < 2
+    // The caller dropping out leaves one person alone with nobody to talk to: over too.
+    const over = present(call).length < 2 && (!call.ringing.length || uid === call.caller)
     // reason 'lost': the others say 对方网络中断 rather than a plain 通话结束.
     for (const u of [...call.participants, ...call.ringing]) {
       this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId, from: uid, reason: 'lost', ongoing: !over })
