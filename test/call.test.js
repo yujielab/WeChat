@@ -244,3 +244,179 @@ test('declarative push message format', () => {
   assert.deepEqual(m.notification, { title: '小禾', body: '你好', navigate: 'https://duo.example/?chat=r1', lang: 'zh-CN', dir: 'ltr', silent: false, tag: 'r1', app_badge: '3' })
   assert.equal('app_badge' in declarativeMessage({ title: 't', navigate: 'https://x.example/' }).notification, false)
 })
+
+/** A fake clock and storage alarm: advance() fires the alarm once it's due. */
+function fakeClock() {
+  let now = 1000
+  const c = {
+    alarm: null,
+    armed: [],
+    broker: null,
+    opts: {
+      graceMs: 15000,
+      now: () => now,
+      setAlarm: at => { c.alarm = at; c.armed.push(at) },
+      deleteAlarm: () => { c.alarm = null }
+    },
+    advance(ms) {
+      now += ms
+      while (c.alarm !== null && c.alarm <= now) { c.alarm = null; c.broker.settle() }
+    },
+    pending: () => c.alarm !== null
+  }
+  return c
+}
+function inCall(clock, setupOpts) {
+  const t = setup(setupOpts)
+  t.broker = clock.broker = new CallBroker(t.broker.hub, clock.opts)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  t.sent.length = 0
+  return t
+}
+
+test('a participant who drops off is not hung up on at once; the other hears the line is shaky', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  assert.deepEqual(t.kinds(t.ids.b), ['unstable'])
+  assert.equal(clock.alarm, 1000 + 15000, 'the alarm is set for the deadline')
+  clock.advance(14000)
+  assert.ok(!t.kinds(t.ids.b).includes('hangup'))
+  assert.deepEqual(t.broker.get(t.room).participants, [t.ids.a, t.ids.b])
+})
+
+test('coming back within the grace period keeps the call, clears the alarm, and the other hears so', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  clock.advance(3000)
+  t.sockets.add(t.ids.a)
+  t.broker.onConnect(t.ids.a)
+  assert.equal(clock.pending(), false)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'check', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.a), ['alive'])
+  clock.advance(20000)
+  assert.deepEqual(t.kinds(t.ids.b), ['unstable', 'back'])
+  assert.ok(t.broker.get(t.room).participants.includes(t.ids.a))
+})
+
+test('the alarm going off hangs up, and a late check hears the call is gone', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  clock.advance(15000)
+  assert.deepEqual(t.kinds(t.ids.b), ['unstable', 'hangup'])
+  assert.equal(t.sent.find(m => m.kind === 'hangup').reason, 'lost', 'the other hears it was the network')
+  assert.equal(t.broker.get(t.room), null, 'alone in it, the call is over')
+  assert.equal(clock.pending(), false)
+  t.sockets.add(t.ids.a)
+  t.broker.onConnect(t.ids.a)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'check', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.a), ['gone'])
+})
+
+test('with several deadlines the alarm settles the earliest and re-arms for the next', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  // A second call in another room, dropping later.
+  const room2 = t.store.getOrCreateDM(t.ids.b, c)
+  t.sockets.add(c)
+  t.broker.signal(c, { t: 'call', kind: 'invite', room: room2, callId: 'c2', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: room2, callId: 'c2' })
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  clock.advance(5000)
+  t.sockets.delete(c)
+  t.broker.onDisconnect(c)
+  assert.equal(clock.alarm, 16000, 'earliest deadline first')
+  clock.advance(10000)
+  assert.equal(t.broker.get(t.room), null)
+  assert.equal(clock.alarm, 21000, 're-armed for the next')
+  assert.ok(t.broker.get(room2).participants.includes(c))
+  clock.advance(5000)
+  assert.equal(t.broker.get(room2), null)
+  assert.equal(clock.pending(), false)
+})
+
+test('a deadline whose alarm was missed is settled on the next connect', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  clock.alarm = null // the alarm never ran
+  clock.advance(16000)
+  t.broker.onConnect(t.ids.b)
+  assert.ok(t.kinds(t.ids.b).includes('hangup'))
+})
+
+test('hanging up on purpose still ends the call at once', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 5 })
+  assert.deepEqual(t.kinds(t.ids.b), ['hangup'])
+  assert.equal(clock.pending(), false)
+})
+
+test('the other hanging up during the grace period ends the call at once, recorded once; the one back hears it is gone', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' }) // no-op for the caller
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  clock.advance(4000)
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 7 })
+  assert.equal(t.broker.get(t.room), null, 'dropped, not left waiting for A')
+  assert.equal(clock.pending(), false, 'alarm cleared')
+  const rec = t.store.lastMessage(t.room)
+  assert.equal(rec.type, 'call')
+  assert.equal(rec.meta.duration, 7)
+  t.sockets.add(t.ids.a)
+  t.broker.onConnect(t.ids.a)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'check', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.a), ['gone'])
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 3 })
+  assert.equal(t.store.lastMessage(t.room).id, rec.id, 'the late hang-up is not recorded again')
+})
+
+test('the grace period running out writes the call record, and the hang-up the other sends after is not recorded twice', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  clock.advance(15000)
+  const rec = t.store.lastMessage(t.room)
+  assert.equal(rec?.type, 'call')
+  assert.equal(rec.meta.media, 'audio')
+  assert.equal(rec.meta.duration, 15)
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 15 })
+  assert.equal(t.store.lastMessage(t.room).id, rec.id)
+})
+
+test('in a group, a check is alive while one other is still really in the call', () => {
+  const clock = fakeClock()
+  const t = inCall(clock)
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  t.sockets.add(c)
+  const call = t.broker.get(t.room)
+  call.participants.push(c) // a third already in it
+  t.broker.put(t.room, call)
+  t.sockets.delete(t.ids.a)
+  t.broker.onDisconnect(t.ids.a)
+  t.sockets.delete(c)
+  t.broker.onDisconnect(c)
+  clock.advance(3000)
+  t.sockets.add(t.ids.a)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'check', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.a), ['alive', 'unstable'], 'B is still there; C is still away')
+  // B leaving now leaves only C, who is away: over.
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 4 })
+  assert.deepEqual(t.broker.get(t.room).participants, [t.ids.a, c], 'A is present, so it goes on')
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 5 })
+  assert.equal(t.broker.get(t.room), null, 'only away people left: dropped')
+  assert.equal(clock.pending(), false)
+})

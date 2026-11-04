@@ -22,7 +22,7 @@ const LIST = 1
 const THREAD = 2
 const ARTIFACT = 3
 
-export function createShell(app, { socketSend, loadContacts, onCall, onLogout }) {
+export function createShell(app, { socketSend, loadContacts, onCall, onCallBack = () => 'none', onLogout }) {
   const panes = ['边栏', '会话列表', '对话', '详情'].map(label => h('section', { class: 'pane', tabindex: '-1', 'aria-label': label }))
   const shell = h('div', { class: 'shell', dataset: { layout: getLayout() } }, ...panes)
   app.replaceChildren(shell)
@@ -179,6 +179,50 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
     return back(THREAD, { velocity })
   }
 
+  // ------------------------------------------------------------ a call over the whole app (P2-11)
+  // A call that covers the app holds one history entry of its own: the same
+  // route and depth as the one under it, plus `call`. Back takes it and only
+  // shrinks the call; at most one is ever there.
+  let callEntry = false
+  function callCover(callId, on) {
+    if (on && !callEntry) {
+      history.pushState({ ...entry(strip.focus, Number.isInteger(history.state?.d) ? history.state.d : pushed.length), call: callId }, '')
+      callEntry = true
+    } else if (!on && callEntry) {
+      callEntry = false
+      skipPop++
+      afterPop = null
+      history.back()
+    }
+  }
+  /** The call entry was just popped (or Forward landed on a stale one): handled here, the route stays. */
+  function callPop(s) {
+    if (callEntry && !s.call) {
+      callEntry = false
+      const steps = Number.isInteger(s.d) ? pushed.length - s.d : 0
+      if (onCallBack() === 'ringing') {
+        // Still ringing: the entry goes back on, the call stays as it is.
+        skipPop++
+        afterPop = null
+        history.go(steps + 1)
+        callEntry = true
+      } else if (steps > 0) {
+        // A jump of several steps: only the call shrank, back to the entry under it.
+        skipPop++
+        afterPop = null
+        history.go(steps)
+      }
+      return true
+    }
+    if (s.call && !callEntry) {
+      skipPop++
+      afterPop = null
+      history.back()
+      return true
+    }
+    return false
+  }
+
   window.addEventListener('popstate', e => {
     if (skipPop) {
       skipPop--
@@ -186,6 +230,8 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
       afterPop = null
       return
     }
+    // Before the drawing's guard: Back over a full-screen call only shrinks it.
+    if (callPop(e.state || {})) return
     const s = e.state || {}
     const col = Number.isInteger(s.duo) ? s.duo : LIST
     const instant = Boolean(e.hasUAVisualTransition)
@@ -366,6 +412,12 @@ export function createShell(app, { socketSend, loadContacts, onCall, onLogout })
   list.render()
 
   return {
+    callCover,
+    /** After a call shrinks: where focus goes when what had it is gone. */
+    focusAfterCall() {
+      if (strip.focus === THREAD && thread.current) thread.focusComposer()
+      else panes[strip.focus].focus({ preventScroll: true })
+    },
     list,
     thread,
     sidebar,

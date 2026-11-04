@@ -407,7 +407,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
   -webkit-backdrop-filter: blur(26px) saturate(1.5);
   backdrop-filter: blur(26px) saturate(1.5);
   opacity: 0;
-  transition: opacity var(--dur-fade) ease-out;
+  transition: opacity var(--dur-quick) ease-out;
 }
 :root[data-glass="solid"] .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 .ctx-backdrop.on { opacity: 1; }
@@ -444,7 +444,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 .ctx-reactions.menu-reactions.on { opacity: 1; transform: none; transition: opacity var(--dur-quick) ease-out, transform var(--dur-ui) var(--ease-out); }
 .ctx-reactions.glass::before, .ctx-reactions.glass::after { display: none; }
 .ctx-reactions .menu-reaction { width: 44px; height: 44px; border-radius: 50%; font-size: 26px; }
-.ctx-reactions.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * var(--stagger)) backwards; }
+.ctx-reactions.on .menu-reaction { animation: reaction-offer var(--spring-snappy-dur) var(--spring-snappy) calc(var(--i, 0) * var(--stagger)) backwards; }
 
 /* The actions: a card of rows, each an icon then its name, hairlines
    between rows and a band between groups. */
@@ -655,7 +655,7 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 @media (hover: hover) and (pointer: fine) {
   .menu-reaction:hover { transform: translateY(-2px) scale(1.16); }
 }
-.menu.on .menu-reaction { animation: reaction-offer 360ms var(--ease-out) calc(var(--i, 0) * 22ms) backwards; }
+.menu.on .menu-reaction { animation: reaction-offer var(--spring-snappy-dur) var(--spring-snappy) calc(var(--i, 0) * var(--stagger)) backwards; }
 @keyframes reaction-offer { from { opacity: 0; transform: translateY(6px) scale(0.6); } }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .menu.on .menu-reaction { animation: none; }
@@ -693,19 +693,18 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 @media (prefers-reduced-transparency: reduce) {
   :root:not([data-glass="glass"]) .ctx-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--scrim); }
 }
-/* 窄栏里（Duo 折叠单栏的窄档、分栏里的窄列）表情行横向滚动，不换行、不挤小 44pt 的格子。
-   只在窄屏开滚动，免得宽屏上放大的表情被 overflow 裁掉。 */
-@media (max-width: 374px) {
-  .ctx-reactions.menu-reactions {
-    max-width: calc(100% - 20px);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-  }
-  .ctx-reactions.menu-reactions::-webkit-scrollbar { display: none; }
-  .ctx-reactions.menu-reactions > .menu-reaction { flex: none; scroll-snap-align: start; }
+/* 窄栏里表情行横向滚动，不换行、不挤小 44pt 的格子。长按层挂在全局 #overlays 上，
+   container query 量不到对话栏，所以宽度上限读 --ctx-col-w（由 thread.js 在 place() 时写对话栏宽度），
+   没写时退回整屏。滚动一直开着：表情按钮 44pt，放大动画在格子内，不会被裁。 */
+.ctx-reactions.menu-reactions {
+  max-width: min(calc(100% - 20px), calc(var(--ctx-col-w, 100vw) - 20px));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
 }
+.ctx-reactions.menu-reactions::-webkit-scrollbar { display: none; }
+.ctx-reactions.menu-reactions > .menu-reaction { flex: none; scroll-snap-align: start; }
 
 /* ---- 第 6 步：长按菜单改 WhatsApp 排法——文字在左、图标靠右，行高 44，卡片圆角 --r-m。 */
 .menu.ctx-menu { border-radius: var(--r-m); }

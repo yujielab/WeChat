@@ -696,6 +696,9 @@ export class Hub {
 
   webSocketError(ws) { this.webSocketClose(ws) }
 
+  // The one storage alarm: a call's grace period for someone who dropped off.
+  async alarm() { this.calls.settle() }
+
   // --- presence helpers
   sockets() {
     return this.ctx.getWebSockets()

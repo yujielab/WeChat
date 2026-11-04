@@ -18,14 +18,25 @@ const RTC_BASE = 'https://rtc.live.cloudflare.com/v1'
 export const RING_MS = 45000
 export const ALERT_MS = 2500
 const RTC_TIMEOUT_MS = 15000
+// How long someone in a call may drop off (a network blip, iOS closing the
+// socket in the background) before the others are hung up on.
+export const GRACE_MS = 15000
 // How an unanswered call ended: nobody picked up, the callee declined, the
 // caller hung up first, it couldn't connect, or the callee was on another call.
 const CALL_RESULTS = ['missed', 'declined', 'cancelled', 'failed', 'busy']
 
 export class CallBroker {
-  constructor(hub) {
+  constructor(hub, { graceMs = GRACE_MS, now = Date.now, setAlarm, deleteAlarm } = {}) {
     this.hub = hub
     this.env = hub.env
+    this.graceMs = graceMs
+    const storage = hub.ctx?.storage
+    this.setAlarm = setAlarm || (at => storage?.setAlarm(at))
+    this.deleteAlarm = deleteAlarm || (() => storage?.deleteAlarm())
+    this.now = now
+    // Pending hang-ups for someone who dropped off live with the call
+    // (`away`, persisted) and are settled by the Hub's one storage alarm, set
+    // for the earliest deadline; onConnect settles any it missed too.
   }
 
   configured() {
@@ -75,6 +86,8 @@ export class CallBroker {
         if (current) {
           current.ringing = current.ringing.filter(u => u !== from)
           if (!current.participants.includes(from)) current.participants.push(from)
+          // When it got under way: a record the server writes itself is timed from here.
+          current.answered ??= this.now()
           this.put(room, current)
           // Whatever is already published reaches the one joining, whenever
           // its own connection is ready for it, and so does whether each
@@ -113,11 +126,32 @@ export class CallBroker {
         relay(pub)
         break
       }
+      case 'check': {
+        // A device back on the socket asks whether its call is still on.
+        // Alive only while someone else is still really in it (or still being
+        // rung): alone with people who are themselves away is no call at all.
+        const mine = Boolean(current?.participants.includes(from))
+        const alive = mine && (present(current, from).length > 0 || current.ringing.length > 0)
+        if (alive) this.rejoin(room, current, from)
+        else if (mine) this.finish(room, current, from)
+        this.hub.sendToUser(from, { t: 'call', kind: alive ? 'alive' : 'gone', room, callId })
+        if (alive) {
+          for (const [uid, pub] of Object.entries(current.published || {})) {
+            if (uid !== from) this.hub.sendToUser(from, { t: 'call', kind: 'tracks', room, callId, from: uid, ...pub })
+          }
+          for (const u of Object.keys(current.away || {})) {
+            if (u !== from) this.hub.sendToUser(from, { t: 'call', kind: 'unstable', room, callId, from: u })
+          }
+        }
+        break
+      }
       case 'decline':
       case 'cancel':
       case 'hangup': {
         const caller = current?.caller
+        let finished = false
         if (current) {
+          if (current.away) delete current.away[from]
           current.participants = current.participants.filter(u => u !== from)
           current.ringing = current.ringing.filter(u => u !== from)
           if (current.published) delete current.published[from]
@@ -127,11 +161,18 @@ export class CallBroker {
             if (msg.missed) this.notifyMissed(room, current).catch(() => {})
             this.drop(room)
           } else if (!current.participants.length && !current.ringing.length) this.drop(room)
-          else this.put(room, current)
+          else if (!current.ringing.length && !present(current).length) {
+            // Everyone left is away: nobody would hear them come back to it.
+            this.finish(room, current, from, msg)
+            this.arm()
+            finished = true
+          } else this.put(room, current)
         }
         // A callee already on another call says so: the caller hears 对方正在通话中.
         relay({ missed: Boolean(msg.missed), ...(kind === 'decline' && msg.busy === true && { busy: true }) })
-        if (kind === 'cancel' || (kind === 'hangup' && !this.get(room))) this.logCall(room, from, msg, caller)
+        // A hang-up for a call the server already ended and recorded is not recorded twice.
+        const recorded = finished || !current && this.hub.store.kvGet(`callend:${room}`) === callId
+        if (kind === 'cancel' || (kind === 'hangup' && !this.get(room) && !recorded)) this.logCall(room, from, msg, caller)
         break
       }
       default:
@@ -197,7 +238,17 @@ export class CallBroker {
 
   /** A device connected: a call still ringing for its user rings there too. */
   onConnect(uid) {
-    for (const [room, call] of this.all()) {
+    for (const [room, stored] of this.all()) {
+      // Deadlines passed while the object slept and its timers with it.
+      for (const [u, until] of Object.entries(stored.away || {})) {
+        if (u !== uid && until <= this.now()) this.expire(room, stored.callId, u)
+      }
+      const call = this.get(room)
+      if (!call) continue
+      if (call.participants.includes(uid)) {
+        if (call.away?.[uid]) this.rejoin(room, call, uid)
+        continue
+      }
       if (Date.now() - call.started > RING_MS + 15000) { this.drop(room); continue }
       if (!call.ringing.includes(uid)) continue
       this.hub.sendToUser(uid, { t: 'call', kind: 'invite', room, callId: call.callId, from: call.caller, media: call.media, caller: this.callerOf(call.caller) })
@@ -212,20 +263,80 @@ export class CallBroker {
   onDisconnect(uid) {
     for (const [room, call] of this.all()) {
       if (call.participants.includes(uid)) {
-        call.participants = call.participants.filter(u => u !== uid)
-        if (call.published) delete call.published[uid]
-        if (call.states) delete call.states[uid]
-        for (const u of [...call.participants, ...call.ringing]) {
-          this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId: call.callId, from: uid })
+        // Not gone yet: the others hear the line is shaky, and the hang-up
+        // waits out the grace period in case this device comes back.
+        if (call.away?.[uid]) continue
+        call.away = { ...call.away, [uid]: this.now() + this.graceMs }
+        this.put(room, call)
+        for (const u of others(call, uid)) {
+          this.hub.sendToUser(u, { t: 'call', kind: 'unstable', room, callId: call.callId, from: uid })
         }
-        if (!call.participants.length) this.drop(room)
-        else this.put(room, call)
+        this.arm()
       } else if (call.alerted.includes(uid)) {
         call.alerted = call.alerted.filter(u => u !== uid)
         this.put(room, call)
         this.notify(room, call.callId, [uid]).catch(() => {})
       }
     }
+  }
+
+  /** Back within the grace period: the hang-up is off and the others hear so. */
+  rejoin(room, call, uid) {
+    if (!call.away?.[uid]) return
+    delete call.away[uid]
+    this.put(room, call)
+    this.arm()
+    for (const u of others(call, uid)) {
+      this.hub.sendToUser(u, { t: 'call', kind: 'back', room, callId: call.callId, from: uid })
+    }
+  }
+
+  /** The alarm goes off for the earliest deadline still pending, or not at all. */
+  arm() {
+    const next = Math.min(...this.all().flatMap(([, c]) => Object.values(c.away || {})))
+    if (Number.isFinite(next)) this.setAlarm(next)
+    else this.deleteAlarm()
+  }
+
+  /** The Hub's alarm: everyone whose grace period ran out has left their call. */
+  settle() {
+    for (const [room, call] of this.all()) {
+      for (const [u, until] of Object.entries(call.away || {})) {
+        if (until <= this.now()) this.expire(room, call.callId, u)
+      }
+    }
+    this.arm()
+  }
+
+  /** The grace period ran out: they have left the call. */
+  expire(room, callId, uid) {
+    const call = this.get(room)
+    if (call?.callId !== callId || !call.away?.[uid] || !call.participants.includes(uid)) return
+    if (this.hub.isOnline(uid)) return this.rejoin(room, call, uid)
+    delete call.away[uid]
+    call.participants = call.participants.filter(u => u !== uid)
+    if (call.published) delete call.published[uid]
+    if (call.states) delete call.states[uid]
+    // reason 'lost': the others say 对方网络中断 rather than a plain 通话结束.
+    for (const u of [...call.participants, ...call.ringing]) {
+      this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId, from: uid, reason: 'lost' })
+    }
+    // Fewer than two still really in it, and nobody being rung: the call is over.
+    if (!call.ringing.length && present(call).length < 2) this.finish(room, call, uid)
+    else this.put(room, call)
+    this.arm()
+  }
+
+  /**
+   * The server ends the call itself (the last one really in it left, or a
+   * grace period ran out): dropped, with the same record a hang-up writes.
+   * Remembered so the hang-up a client sends afterwards isn't recorded again.
+   */
+  finish(room, call, from, msg = {}) {
+    this.drop(room)
+    this.hub.store.kvSet(`callend:${room}`, call.callId)
+    const duration = msg.duration ?? (call.answered ? (this.now() - call.answered) / 1000 : 0)
+    this.logCall(room, from, { media: call.media, duration }, call.caller)
   }
 
   logCall(room, from, msg, caller) {
@@ -387,6 +498,15 @@ function publication(msg) {
     Array.isArray(msg.tracks) && msg.tracks.length > 0 && msg.tracks.length <= 8 &&
     msg.tracks.every(t => typeof t === 'string' && t.length <= 128)
   return ok ? { sessionId: msg.sessionId, tracks: msg.tracks } : null
+}
+
+/** Those in the call and not away, but for `uid`. */
+function present(call, uid) {
+  return call.participants.filter(u => u !== uid && !call.away?.[u])
+}
+
+function others(call, uid) {
+  return [...call.participants, ...call.ringing].filter(u => u !== uid)
 }
 
 function fmtDur(s) {

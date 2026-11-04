@@ -150,11 +150,17 @@ function applyBoot(boot) {
 
 function mountShell() {
   if (shell) { shell.setMe(state.me); return }
-  calls = createCalls({ socketSend: obj => socket?.send(obj), connected: () => Boolean(socket?.connected) })
+  calls = createCalls({
+    socketSend: obj => socket?.send(obj),
+    connected: () => Boolean(socket?.connected),
+    onCover: (callId, on) => shell?.callCover(callId, on),
+    focusBack: () => shell?.focusAfterCall()
+  })
   shell = createShell(app, {
     socketSend: obj => socket?.send(obj),
     loadContacts,
     onCall: (room, media) => calls.start(room, media),
+    onCallBack: () => calls.back(),
     onLogout: logout
   })
   shell.setMe(state.me)
@@ -167,6 +173,8 @@ function handle(msg) {
     case 'hello':
       setMe(msg.me)
       setPresence(msg.presence)
+      // Back on the socket mid-call: is the call still on over there?
+      calls?.resync()
       break
     case 'msg': {
       const m = normMsg(msg.msg)
