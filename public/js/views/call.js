@@ -1265,6 +1265,8 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
         controls.hidden = false
         minBtn.hidden = false
         accept()
+        // 接听 itself is gone: focus moves to 挂断, not to the page.
+        hang.button.focus({ preventScroll: true })
       } })
       incoming.append(no.el, yes.el)
       controls.hidden = true

@@ -1688,6 +1688,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         bar.style.left = `${Math.round(side(bar.offsetWidth, x))}px`
         bar.style.top = `${Math.round(top - above)}px`
         bar.style.setProperty('--ox', m.out ? '100%' : '0%')
+        // The conversation column's width, for the row's own sizing in CSS.
+        bar.style.setProperty('--ctx-col-w', `${Math.round(msgs.getBoundingClientRect().width)}px`)
       }
       return { left: side(mw, x), top: top + shown + GAP, originX: m.out ? mw : 0 }
     }

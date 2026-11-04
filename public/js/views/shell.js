@@ -58,7 +58,8 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
     socketSend
   })
   const artifact = createArtifact(panes[ARTIFACT], {
-    onClose: () => leaveArtifact(),
+    // After sending a drawing, typing carries on in the composer.
+    onClose: opts => leaveArtifact().then(() => { if (opts?.sent) thread.focusComposer() }),
     onSend: (blob, size) => thread.sendDrawing(blob, size),
     loadContacts
   })

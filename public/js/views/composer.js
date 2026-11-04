@@ -209,11 +209,24 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   }
   panel.inert = true
 
+  let draftChat = null
   function saveDraftSoon() {
     clearTimeout(draftTimer)
-    const c = chat
-    draftTimer = setTimeout(() => c && setDraft(c, textarea.value), 300)
+    const c = draftChat = chat
+    draftTimer = setTimeout(() => { draftTimer = 0; draftChat = null; c && setDraft(c, textarea.value) }, 300)
   }
+  // Leaving the page or going to the background: the last words typed are
+  // kept now, not 300ms later when the page may already be gone.
+  function flushDraft() {
+    if (!draftTimer) return
+    clearTimeout(draftTimer)
+    draftTimer = 0
+    const c = draftChat
+    draftChat = null
+    if (c && c === chat) setDraft(c, textarea.value)
+  }
+  window.addEventListener('pagehide', flushDraft)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushDraft() })
 
   function submit() {
     const text = textarea.value

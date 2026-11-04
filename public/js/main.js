@@ -102,10 +102,14 @@ async function start(me) {
     onMessage: handle,
     // Back online: whatever waited in the outbox goes now, in order.
     onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}) },
-    onClose: () => { state.socket = false; shell?.setStatus({ text: '正在连接…', spinner: true }) }
+    // Off the socket, who is online is unknown: nobody shows 在线 or a green
+    // dot until hello brings presence again.
+    onClose: () => { state.socket = false; setPresence([]); shell?.setStatus({ text: '正在连接…', spinner: true }) }
   })
   enterApp()
 }
+// The device itself going offline is known before the socket notices.
+window.addEventListener('offline', () => setPresence([]))
 
 // From sign-in the app cross-fades in rather than cutting over.
 function enterApp() {
