@@ -9,6 +9,7 @@ import { pushSupported, currentSubscription, enablePush, disablePush } from '../
 import { hapticsAvailable } from '../ui/haptics.js'
 import { assistPrefs, setAssistPref } from './predict.js'
 import { insightsOn, setInsightsPref, insightsSection } from './insights.js'
+import { openMemorySheet } from './memory.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -159,6 +160,10 @@ export function openSettings({ onLogout, origin }) {
       cell('智能通知', toggle(insightsOn(), on => setInsightsPref(on), '智能通知'))
     ) : null,
     state.assist ? foot('智能通知从最近的私聊里整理提醒，只给你自己看。') : null,
+    state.assist ? group(
+      cell('记忆', chev(), { icon: 'sparkles', onClick: () => openMemorySheet(origin) })
+    ) : null,
+    state.assist ? foot('输入联想会记住你的用词习惯，只来自你自己发过的消息，随时可以清除。') : null,
     groupTitle('通知'),
     pushSlot,
     h('div', { style: { height: '20px' } }),

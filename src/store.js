@@ -400,6 +400,37 @@ export class Store {
     return r ? this.getMessage(r.id) : null
   }
   /**
+   * The texts of a room's messages, oldest first, for reading a conversation
+   * or building a memory of it: no reactions, no replies, no per-message
+   * lookups — just the words, so a long history costs one query.
+   */
+  listTexts(room, { limit = 100, before, sender } = {}) {
+    const where = ["room=?", "type='text'", "state<>'revoked'", "body<>''"]
+    const binds = [room]
+    if (before !== undefined && before !== null) { where.push('ts<?'); binds.push(before) }
+    if (sender) { where.push('sender=?'); binds.push(sender) }
+    const rows = this.exec(
+      `SELECT ts, sender, body FROM messages WHERE ${where.join(' AND ')} ORDER BY ts DESC, id DESC LIMIT ?`,
+      ...binds, limit
+    )
+    return rows.reverse().map(r => ({ ts: r.ts, sender: r.sender, text: r.body }))
+  }
+  /**
+   * Every text message a person sent, across their conversations, newest
+   * first: what a style profile is counted from. The words are all they
+   * wrote; nobody else's are included.
+   */
+  listTextsBy(user, { limit = 400, after } = {}) {
+    const where = ["sender=?", "type='text'", "state<>'revoked'", "body<>''"]
+    const binds = [user]
+    if (after !== undefined && after !== null) { where.push('ts>?'); binds.push(after) }
+    const rows = this.exec(
+      `SELECT ts, room, body FROM messages WHERE ${where.join(' AND ')} ORDER BY ts DESC, id DESC LIMIT ?`,
+      ...binds, limit
+    )
+    return rows.map(r => ({ ts: r.ts, room: r.room, text: r.body }))
+  }
+  /**
    * A time for the next message in a room: now, but never at or before the
    * last one, so the order the hub took them in is the order everyone sees
    * (and "before/after this ts" pages never split two messages sharing one).

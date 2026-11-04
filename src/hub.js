@@ -10,7 +10,11 @@ import {
 import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
-import { assistConfigured, allowSuggestion, suggest, keywords } from './assist.js'
+import { assistConfigured, allowSuggestion, suggest, keywords, ask, CONTEXT } from './assist.js'
+import {
+  readStyle, writeStyle, mergeStyle, styleOf, styleText, confidence, styleKey, digestKey,
+  readDigest, writeDigest, digestPrompt, readDigestAnswer
+} from './memory.js'
 import { backdrop, readPrefs, patchPrefs } from './prefs.js'
 import { insightRooms, analyze, photosToRead, describePhoto, allowRefresh } from './insights.js'
 import { geocode, weatherAt } from './weather.js'
@@ -26,6 +30,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,24}$/
 const NAME_MAX = 40
 const BIO_MAX = 120
 const GROUP_MAX = 500
+const DIGEST_EVERY = 10 * 60 * 1000 // how often a conversation's digest is rebuilt (10 minutes)
 
 /** Free text from a client: a string on one line, at most `max` characters. */
 export function cleanText(value, max) {
@@ -323,15 +328,36 @@ export class Hub {
       const roomId = String(body.room || '')
       const draft = String(body.draft ?? '').slice(0, 200)
       if (!assistConfigured(this.env) || !this.store.isMember(roomId, user.id) || /\n/.test(draft) || !allowSuggestion(user.id)) return json({ ok: true, text: '' })
-      const history = this.store.listMessages(roomId, { limit: 12 })
-        .filter(m => m.type === 'text' && m.state !== 'revoked' && m.body)
-        .map(m => ({ mine: m.sender === user.id, text: m.body }))
+      const history = this.store.listTexts(roomId, { limit: CONTEXT })
+        .map(m => ({ mine: m.sender === user.id, text: m.text }))
       try {
-        return json({ ok: true, text: await suggest(this.env, { history, draft }) })
+        return json({ ok: true, text: await suggest(this.env, {
+          history,
+          draft,
+          digest: this.digestFor(user.id, roomId),
+          style: this.styleFor(user.id)
+        }) })
       } catch (err) {
         console.warn('assist suggest', err.message)
         return json({ ok: true, text: '' })
       }
+    }
+    // The writing help's memory (src/memory.js): what it remembers about
+    // you, and the way to forget it. Only your own words are kept, so this
+    // is yours to read and yours to clear.
+    if (path === '/api/ai/memory' && method === 'GET') {
+      const style = readStyle(this.store, user.id)
+      return json({
+        ok: true,
+        style: { words: style.words || [], endings: style.endings || [], messages: style.messages || 0, at: style.at || 0 },
+        confidence: confidence(style),
+        digests: this.digestsOf(user.id)
+      })
+    }
+    if (path === '/api/ai/memory' && method === 'DELETE') {
+      this.store.kvDelete(styleKey(user.id))
+      for (const d of this.digestsOf(user.id)) this.store.kvDelete(digestKey(user.id, d.room))
+      return json({ ok: true })
     }
     // Smart panels (src/insights.js): what each recent one-to-one conversation
     // says about the other person, read for you alone, and the weather where
@@ -599,6 +625,11 @@ export class Hub {
       const work = this.markKeys(msg)
       this.ctx.waitUntil?.(work)
     }
+    // The writer's memory of their own words grows with what they sent.
+    if (type === 'text') {
+      const work = this.remember(user.id, roomId)
+      this.ctx.waitUntil?.(work)
+    }
     return json({ ok: true, msg, localId: body.localId || null })
   }
 
@@ -611,6 +642,123 @@ export class Hub {
       if (updated) this.fanoutToRoom(msg.room, { t: 'keys', id: msg.id, room: msg.room, keys })
     } catch (err) {
       console.warn('assist keys', err.message)
+    }
+  }
+
+  // ---------------------------------------------------------------- memory
+  /**
+   * The long-context memory of the writing help (src/memory.js): how this
+   * person writes, and what this conversation was about before it scrolled
+   * out of the window.
+   *
+   * Both are built from messages already sent. The style crosses
+   * conversations but holds only the writer's own habitual words; the digest
+   * never leaves the conversation it came from.
+   */
+  /**
+   * How this person writes, as a hint for the model — or nothing, when there
+   * is too little of it to be worth saying. A profile built from a handful
+   * of messages would talk over the conversation rather than colour it, so
+   * it is left out until there is enough of it to be a voice.
+   */
+  styleFor(userId) {
+    const style = readStyle(this.store, userId)
+    // A profile with nothing in it yet is not worth reading; build it.
+    if (!style.messages) this.buildStyle(userId)
+    const built = readStyle(this.store, userId)
+    return confidence(built) === 'none' ? '' : styleText(built)
+  }
+
+  /**
+   * What this conversation was about before it scrolled out of the window.
+   * Read only: the digest is built in the background when messages are sent
+   * (see remember), never here — a suggestion must not wait on a model.
+   */
+  digestFor(userId, roomId) {
+    return readDigest(this.store, userId, roomId).text
+  }
+
+  /**
+   * This person's digests, one per conversation. The key holds the person
+   * and the conversation, so it is read apart: a digest is only ever the
+   * one it belongs to.
+   */
+  digestsOf(userId) {
+    const prefix = 'memory:digest:'
+    const mine = `${prefix}${userId}:`
+    return this.store.kvList(prefix)
+      .filter(([k]) => k.startsWith(mine))
+      .map(([k, v]) => ({ room: k.slice(mine.length), text: v?.text || '', at: v?.at || 0 }))
+      .sort((a, b) => b.at - a.at)
+  }
+
+  /**
+   * Recount the style from what this person has written. Cheap — it is
+   * counting, not asking a model — so it runs whenever they send a message.
+   *
+   * Only what they wrote since the last count is read again; the rest is
+   * already in the style. A full recount happens now and then, so a habit
+   * that stopped being used can fall away.
+   */
+  buildStyle(userId) {
+    const old = readStyle(this.store, userId)
+    const since = old.counted || 0
+    const fresh = since
+      ? this.store.listTextsBy(userId, { limit: 200, after: since })
+      : this.store.listTextsBy(userId, { limit: 400 })
+    if (!fresh.length) return
+    const counted = styleOf(fresh)
+    // Every so often, count everything again from the start: a habit that is
+    // no longer used should stop being remembered.
+    const recount = !since || (old.messages || 0) > 200
+    const merged = recount
+      ? mergeStyle(old, styleOf(this.store.listTextsBy(userId, { limit: 400 })))
+      : mergeStyle(old, counted)
+    writeStyle(this.store, userId, merged)
+  }
+
+  /**
+   * Compress what a conversation was about before the recent window, so a
+   * suggestion still knows about a plan agreed three hundred messages ago.
+   * This one asks the model, so it is bounded and only runs when it can.
+   */
+  async buildDigest(userId, roomId, { force = false } = {}) {
+    if (!assistConfigured(this.env)) return
+    const held = readDigest(this.store, userId, roomId)
+    // A digest that is still fresh is left alone: rebuilding it on every
+    // message would ask the model far more often than it is worth.
+    if (!force && held.text && Date.now() - (held.at || 0) < DIGEST_EVERY) return
+    // Only what is older than the window the suggestion already sees.
+    const older = this.store.listTexts(roomId, { limit: 120, before: this.digestBoundary(roomId) })
+    if (older.length < 8) return
+    const lines = older.slice(-60).map(m => `${m.sender === userId ? '我' : '对方'}：${m.text.slice(0, 200)}`).join('\n')
+    try {
+      const raw = await ask(this.env, digestPrompt(lines), 300, { timeout: 15000 })
+      const text = readDigestAnswer(raw)
+      if (text) writeDigest(this.store, userId, roomId, text)
+    } catch (err) {
+      console.warn('assist digest', err.message)
+    }
+  }
+
+  /**
+   * The point where the recent window begins: everything older than it is
+   * what the digest is about.
+   */
+  digestBoundary(roomId) {
+    const recent = this.store.listTexts(roomId, { limit: CONTEXT })
+    return recent[0]?.ts || 0
+  }
+
+  /** Keep a writer's memory in step with what they just sent. */
+  async remember(userId, roomId) {
+    try {
+      this.buildStyle(userId)
+      // The digest is only worth asking for once there is enough history.
+      const recent = this.store.listTexts(roomId, { limit: CONTEXT })
+      if (recent.length >= CONTEXT) await this.buildDigest(userId, roomId)
+    } catch (err) {
+      console.warn('assist memory', err.message)
     }
   }
 

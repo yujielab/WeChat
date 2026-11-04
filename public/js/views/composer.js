@@ -228,6 +228,9 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     autosize()
     clearTimeout(draftTimer)
     if (chat) setDraft(chat, '')
+    // The memory behind the suggestions grew with what was just sent, so the
+    // ones made of the older memory are dropped.
+    predictor.forget()
     onSend(text.replace(/\s+$/, ''), { replyTo: takeReply(), mentions: takeMentions(text) })
     onType?.('')
     // Keep the keyboard up for the next message.

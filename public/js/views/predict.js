@@ -10,7 +10,7 @@
 
 import { h, storage } from '../ui/dom.js'
 import { api } from '../api.js'
-import { state } from '../store.js'
+import { state, on } from '../store.js'
 
 const WAIT_MS = 450
 const MAX_DRAFT = 200
@@ -181,9 +181,25 @@ export function createPredictor({ textarea, field, chat }) {
   document.addEventListener('selectionchange', () => { if (document.activeElement === textarea) draw() })
   new ResizeObserver(() => draw()).observe(textarea)
 
+  // The memory behind the suggestions grew with what was sent, or was
+  // forgotten in the settings: either way the suggestions made of the older
+  // memory are dropped.
+  on('memory', () => cache.clear())
+
   return {
     input,
     clear,
+    /**
+     * What was suggested before is dropped: the memory behind it grew with
+     * what was just sent, so an answer made of the older memory is no
+     * longer the best one. The next suggestion is asked for afresh.
+     *
+     * The messages already answered are not forgotten — that is about not
+     * offering the same reply twice, which has nothing to do with the memory.
+     */
+    forget() {
+      cache.clear()
+    },
     /** A different conversation (or none): nothing carries over. */
     reset() {
       clear()

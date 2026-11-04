@@ -1,0 +1,62 @@
+/* What the writing help remembers (views/memory.js): the words a person
+   reaches for, and what each conversation was about before it scrolled out
+   of view. Plain words on paper, quiet about how much of it there is. */
+
+.memory-sheet { padding: 2px 0 4px; }
+
+.memory-loading {
+  padding: 30px 0;
+  text-align: center;
+  color: var(--label-2);
+  font-size: var(--t-subhead);
+}
+
+.memory-empty { padding: 40px 26px 34px; text-align: center; color: var(--label-2); }
+.memory-empty .empty-art { margin: 0 auto 14px; color: var(--label-3); }
+.memory-empty .empty-art .icon { width: 44px; height: 44px; margin: 0 auto; }
+.memory-empty h2 { margin: 0; color: var(--label); font-size: var(--t-title-3); line-height: 1.4; letter-spacing: -.5px; font-weight: 650; }
+.memory-empty p { margin: 10px auto 0; max-width: 250px; font-size: var(--t-subhead); line-height: 1.8; white-space: pre-line; }
+
+/* A heading for each part of what is remembered, and how much of it there is. */
+.memory-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 10px;
+  font-size: var(--t-subhead);
+  font-weight: 600;
+  color: var(--label);
+}
+.memory-head:first-child { margin-top: 4px; }
+.memory-note { font-size: var(--t-caption); font-weight: 400; color: var(--label-3); }
+
+/* The words themselves: chips that read as words, not as data. */
+.memory-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+.memory-tag {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--fill-3);
+  color: var(--label);
+  font-size: var(--t-subhead);
+  line-height: 1.4;
+}
+.memory-tag.ending { color: var(--label-2); font-style: normal; }
+
+/* What a conversation was about before it scrolled away. */
+.memory-digest {
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-radius: var(--r-lg);
+  background: var(--fill-2);
+}
+.memory-digest-text {
+  font-size: var(--t-subhead);
+  line-height: 1.7;
+  color: var(--label);
+  white-space: pre-line;
+}
+.memory-digest .memory-note { margin-top: 6px; }
+
+.memory-clear { margin-top: 26px; display: flex; justify-content: center; }
+.memory-clear .btn { min-width: 160px; }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { suggest, keywords, keysIn, cleanSuggestion, allowSuggestion, assistConfigured, DEFAULT_MODEL } from '../src/assist.js'
+import { suggest, keywords, keysIn, cleanSuggestion, allowSuggestion, assistConfigured, DEFAULT_MODEL, contextText } from '../src/assist.js'
 
 /** Workers AI as the binding gives it: run(model, input), answering with { response }. */
 function ai(answer) {
@@ -77,4 +77,35 @@ test('another model can be chosen; an OpenAI-shaped answer reads too', async () 
   env.AI_MODEL = '@cf/zai-org/glm-4.7-flash'
   assert.equal(await suggest(env, { history: [{ mine: false, text: '收到吗' }], draft: '' }), '好的')
   assert.equal(calls[0].model, '@cf/zai-org/glm-4.7-flash')
+})
+
+test('the suggestion reads the conversation, its digest and the writer\'s style', async () => {
+  const { env, calls } = ai('好的')
+  await suggest(env, {
+    history: [{ mine: false, text: '收到吗' }],
+    draft: '',
+    digest: '约好明天在会议室开会',
+    style: '我常用的词：好的、材料'
+  })
+  const said = prompt(calls[0])
+  assert.match(said, /收到吗/, 'the conversation is read')
+  assert.match(said, /约好明天在会议室开会/, 'what the conversation was about earlier is read')
+  assert.match(said, /我常用的词：好的、材料/, 'how the writer writes is read')
+})
+
+test('the three layers are in the prompt, in order, and a missing one is skipped', () => {
+  const text = contextText('我：你好', '早前聊了开会', '我常用的词：好的')
+  const at = s => text.indexOf(s)
+  assert.ok(at('你好') < at('开会'), 'the conversation comes first')
+  assert.ok(at('开会') < at('我常用的词'), 'the digest before the style')
+  assert.equal(contextText('我：你好'), '聊天记录：\n我：你好')
+  assert.ok(!contextText('我：你好', '', '风格').includes('早前'), 'no empty layer is left in')
+})
+
+test('the style is never louder than the conversation', async () => {
+  const { env, calls } = ai('好的')
+  await suggest(env, { history: [{ mine: false, text: '收到吗' }], draft: '', style: '我常用的词：好的' })
+  const said = prompt(calls[0])
+  assert.match(said, /聊天记录：/, 'the conversation is still there')
+  assert.match(said, /我常用的词/, 'the style is there too')
 })

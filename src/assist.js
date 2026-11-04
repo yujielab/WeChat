@@ -8,9 +8,15 @@
 // never reaches the model, and a suggestion lives only on the device it was
 // made for — it becomes part of the draft, and so of what the others see
 // being typed, only once its writer takes it.
+//
+// What the model reads is three layers (src/memory.js): the messages of this
+// conversation, a digest of what this conversation was about before it
+// scrolled out of that window, and how this person writes — the words they
+// reach for. The last one is why a suggestion sounds like the writer rather
+// than like a stranger.
 
 export const DEFAULT_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8'
-const CONTEXT = 8           // messages read for a suggestion
+export const CONTEXT = 24   // messages read for a suggestion
 const CONTEXT_CHARS = 200   // of each
 const MAX_SUGGESTION = 24   // characters suggested
 const PER_MINUTE = 30       // suggestions per person
@@ -53,8 +59,11 @@ export function allowSuggestion(uid, now = Date.now()) {
  * messages, oldest first, as { mine, text }; draft: what is in the field.
  * With a draft, the rest of it; without, a short reply to the last message
  * when it came from someone else. '' when there is nothing good to offer.
+ *
+ * digest: what this conversation was about before it scrolled out of the
+ * window. style: how this person writes, kept across conversations.
  */
-export async function suggest(env, { history, draft }) {
+export async function suggest(env, { history, draft, digest = '', style = '' }) {
   const said = history.filter(m => m.text).slice(-CONTEXT)
   if (!draft && (!said.length || said.at(-1).mine)) return ''
   const lines = said.map(m => `${m.mine ? '我' : '对方'}：${m.text.slice(0, CONTEXT_CHARS)}`).join('\n')
@@ -63,9 +72,22 @@ export async function suggest(env, { history, draft }) {
     : '替我写一句简短自然的回复（不超过15个字）。只输出这句话，不要解释，不要加引号。'
   const raw = await ask(env, [
     { role: 'system', content: '你是聊天输入法的联想功能：只输出要补上的文字，语气和我平时一样。' },
-    { role: 'user', content: `聊天记录：\n${lines || '（无）'}\n\n${task} /no_think` }
+    { role: 'user', content: contextText(lines, digest, style) + `\n\n${task} /no_think` }
   ], 40)
   return cleanSuggestion(raw, draft)
+}
+
+/**
+ * The three layers, in the order the model should weigh them: this
+ * conversation's own words first, then what this conversation was about
+ * before, then how this person writes. The style is the last and the
+ * weakest — it colours the wording, never the content.
+ */
+export function contextText(lines, digest = '', style = '') {
+  const parts = [`聊天记录：\n${lines || '（无）'}`]
+  if (digest) parts.push(`这个聊天早前的内容：\n${digest}`)
+  if (style) parts.push(`我平时的用词和语气：\n${style}`)
+  return parts.join('\n\n')
 }
 
 export function cleanSuggestion(raw, draft = '') {
