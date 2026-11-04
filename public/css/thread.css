@@ -1119,3 +1119,30 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 .m-reactions { background: var(--bubble-in); }
 .thread:not(.has-backdrop) .m-reactions { box-shadow: 0 0 0 2px var(--wallpaper), var(--chip-shadow); }
 .thread:not(.has-backdrop) .m-reactions.mine { box-shadow: 0 0 0 2px var(--wallpaper), 0 0 0 3.5px color-mix(in srgb, var(--label) 30%, var(--line)); }
+
+/* ---- 角标：关掉发图面板后，「+」右上角显示待发图片张数（WhatsApp 未读数样式）。
+ * 只用现有 token；数字只给视觉，张数由按钮名称读出（DOM 设 aria-hidden）。出现不加动效。
+ * 按钮变成发送、保存或面板打开时不显示，免得盖在箭头或 × 上。 */
+.composer-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  font-size: var(--t-caption-2);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+.composer-badge[hidden],
+.composer.has-text .composer-badge,
+.composer.editing .composer-badge,
+.composer.panel-open .composer-badge { display: none; }
