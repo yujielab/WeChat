@@ -161,6 +161,7 @@ function mountShell() {
     loadContacts,
     onCall: (room, media) => calls.start(room, media),
     onCallBack: () => calls.back(),
+    callRinging: () => calls.ringing,
     onLogout: logout
   })
   shell.setMe(state.me)

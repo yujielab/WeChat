@@ -80,6 +80,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   let editing = null // { original, draft, onSave, onEnd }
   let replying = null // { id, name, text }: the message the next one answers
 
+  const keptImages = new Map() // chat -> File[] picked but not sent
   function openImages(files = []) {
     if (readonly || !chat) return false
     if (attachmentSheet && !attachmentSheet.closed) {
@@ -87,8 +88,12 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       return attachmentSheet
     }
     const destination = chat
+    // Photos picked and then dismissed come back for the same conversation only.
+    const kept = keptImages.get(destination) || []
+    keptImages.delete(destination)
     attachmentSheet = openAttachments({
-      files,
+      files: [...kept, ...files],
+      onDismiss: picks => { if (picks.length) keptImages.set(destination, picks) },
       onSend: (selected, options) => {
         if (readonly || chat !== destination) return false
         return onImages?.(selected, options)

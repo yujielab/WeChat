@@ -9,9 +9,10 @@ const hasFiles = event => [...(event.dataTransfer?.types || [])].includes('Files
 const isImage = file => file?.type?.startsWith('image/') || (!file?.type && IMAGE_EXT.test(file?.name || ''))
 const sizeText = bytes => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1048576).toFixed(1).replace(/\.0$/, '')} MB`
 
-export function openAttachments({ files = [], onSend } = {}) {
+export function openAttachments({ files = [], onSend, onDismiss } = {}) {
   const selected = new Map()
   let submitting = false
+  let sent = false
   let serial = 0
   let depth = 0
   const fileInput = h('input', { class: 'attachment-file-input', type: 'file', accept: 'image/*', multiple: true, hidden: true })
@@ -31,6 +32,9 @@ export function openAttachments({ files = [], onSend } = {}) {
     title: '分享图片', content, label: '预览并发送图片', side: 'thread',
     onClose() {
       cleanupField()
+      // Closed without sending (Escape, a swipe down): the picks are handed
+      // back so the next open shows them again (UX audit P2-6).
+      if (!sent) onDismiss?.([...selected.values()].map(item => item.file))
       for (const item of selected.values()) URL.revokeObjectURL(item.url)
       selected.clear()
     }
@@ -134,6 +138,7 @@ export function openAttachments({ files = [], onSend } = {}) {
       const from = [...selected.values()].map(item => (item.image.hidden ? null : item.image.getBoundingClientRect()))
       const delivery = onSend([...selected.values()].map(item => item.file), { from })
       if (delivery === false) throw new Error('当前聊天已变化，请重新选择发送位置。')
+      sent = true
       await ctl.close()
       Promise.resolve(delivery).catch(err => toast(err?.message || '图片发送失败，请在聊天中重试。', { type: 'error' }))
     } catch (err) {

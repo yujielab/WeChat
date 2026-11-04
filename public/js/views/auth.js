@@ -79,7 +79,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
   }
   loginTab.addEventListener('click', () => setMode('login'))
   registerTab.addEventListener('click', () => setMode('register'))
-  for (const input of [username.input, password.input, display.input, code.input]) input.addEventListener('input', () => { error.textContent = '' })
+  for (const input of [username.input, password.input, display.input, code.input]) input.addEventListener('input', () => { error.textContent = ''; input.removeAttribute('aria-invalid') })
   apply()
 
   form.addEventListener('submit', async e => {
@@ -93,6 +93,7 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
     main.classList.add('is-submitting')
     submit.replaceChildren(h('span', { class: 'spinner' }), h('span', {}, mode === 'register' ? '正在创建账号…' : '正在登录…'))
     error.textContent = ''
+    for (const f of [username, password, display, code]) f.input.removeAttribute('aria-invalid')
     try {
       const res = await fetch(mode === 'register' ? '/auth/register' : '/auth/login', {
         method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'same-origin',
@@ -115,6 +116,17 @@ export function renderAuth(app, { needsCode = false, onSuccess }) {
       submit.disabled = loginTab.disabled = registerTab.disabled = false
       main.classList.remove('is-submitting')
       submit.replaceChildren(submitLabel)
+      // Focus goes where the fix is (UX audit P2-5): the password after a
+      // refused sign-in, marked invalid; the button again when the network failed.
+      if (err instanceof TypeError) submit.focus({ preventScroll: true })
+      else {
+        const msg = String(err?.message || '')
+        const at = /邀请码/.test(msg) && !code.wrap.hidden ? code : /用户名(?!或密码)|昵称/.test(msg) ? username : password
+        at.input.setAttribute('aria-invalid', 'true')
+        at.input.setAttribute('aria-describedby', 'auth-error')
+        at.input.focus({ preventScroll: true })
+        at.input.select?.()
+      }
     }
   })
 }

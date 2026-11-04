@@ -22,7 +22,7 @@ const LIST = 1
 const THREAD = 2
 const ARTIFACT = 3
 
-export function createShell(app, { socketSend, loadContacts, onCall, onCallBack = () => 'none', onLogout }) {
+export function createShell(app, { socketSend, loadContacts, onCall, onCallBack = () => 'none', callRinging = () => false, onLogout }) {
   const panes = ['边栏', '会话列表', '对话', '详情'].map(label => h('section', { class: 'pane', tabindex: '-1', 'aria-label': label }))
   const shell = h('div', { class: 'shell', dataset: { layout: getLayout() } }, ...panes)
   app.replaceChildren(shell)
@@ -214,6 +214,16 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
       }
       return true
     }
+    // Unfolded, a ringing call holds no entry, so the route already went back:
+    // straight back to where it was (no list flashes), and only the reminder.
+    if (!callEntry && !s.call && callRinging()) {
+      const steps = Number.isInteger(s.d) ? pushed.length - s.d : 0
+      skipPop++
+      afterPop = null
+      history.go(steps || 1)
+      onCallBack()
+      return true
+    }
     if (s.call && !callEntry) {
       skipPop++
       afterPop = null
@@ -345,13 +355,25 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
         if (!ok) return
         closeAllOverlays()
         artifact.show(kind, chat)
-        return forward(ARTIFACT)
+        return forward(ARTIFACT).then(r => { focusBoard(kind); return r })
       })
     }
     closeAllOverlays()
     artifact.show(kind, chat)
-    return forward(ARTIFACT)
+    return forward(ARTIFACT).then(r => { focusBoard(kind); return r })
   }
+  // The board takes focus once it's on screen, unfolded too, where the + that
+  // opened it would otherwise keep it (UX audit P2-13).
+  function focusBoard(kind) {
+    const canvas = kind === 'draw' ? artifact.canvas : null
+    if (canvas?.isConnected) canvas.focus({ preventScroll: true })
+  }
+  // Reloading or closing the tab with ink on the board asks too (UX audit P2-8).
+  window.addEventListener('beforeunload', e => {
+    if (!artifact.unsaved) return
+    e.preventDefault()
+    e.returnValue = ''
+  })
 
   // ------------------------------------------------------------ touch always lands
   // A touch that reaches no control at all — the shell between columns, the

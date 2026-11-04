@@ -532,7 +532,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     return active ? active.ui.back() : 'none'
   }
 
-  return { start, onSignal, resync, back, get busy() { return Boolean(active) } }
+  return { start, onSignal, resync, back, get ringing() { return Boolean(active?.ui.ringing) }, get busy() { return Boolean(active) } }
 }
 
 // Optional browser APIs answer with a promise, a value or an exception.
@@ -827,10 +827,13 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     })
   }
 
+  // Focus that was in the call, or already lost to the page (it was on 接听,
+  // which went away), goes back to where it was before the call, else to the
+  // conversation's composer or the column in front (shell.js).
   function giveFocusBack() {
-    if (!root.contains(document.activeElement)) return
+    const now = document.activeElement
+    if (now && now !== document.body && !root.contains(now) && !pip.contains(now)) return
     if (previousFocus?.isConnected && !previousFocus.closest?.('[inert]') && previousFocus !== document.body) previousFocus.focus({ preventScroll: true })
-    // Gone: the conversation's composer, else the column in front (shell.js).
     else focusBack()
   }
 
@@ -1225,7 +1228,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
       root.style.transition = 'opacity 200ms ease-out'
       root.style.opacity = '0'
     } else root.classList.remove('on')
-    if (hadFocus && previousFocus?.isConnected && !previousFocus.closest?.('[inert]')) previousFocus.focus?.({ preventScroll: true })
+    if (hadFocus || !document.activeElement || document.activeElement === document.body) giveFocusBack()
     setTimeout(() => {
       root.remove()
       pip.remove()
@@ -1351,6 +1354,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
       flip.el.hidden = !yes
     },
     expand: () => expand(),
+    get ringing() { return incomingUp && !destroyed },
     minimize: () => minimize(),
     /** Back took the call's history entry: shrink if it can; a ringing call stays. */
     back() {

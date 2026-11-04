@@ -73,6 +73,10 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
     get current() {
       return current && { kind: current.kind, chat: current.chat }
     },
+    /** The drawing board's canvas, to give focus to, or null. */
+    get canvas() {
+      return current?.kind === 'draw' ? current.view.canvas || null : null
+    },
     setLayout(layout) {
       pane.dataset.layout = layout
       current?.view.relayout?.()
