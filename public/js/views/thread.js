@@ -182,8 +182,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   // The calls and the details sit in the heading, after the name; Back
   // leads the bar at the foot of the conversation, before the field, and the
-  // field's own button (photos and drawing, or Send) follows it. Beside the
-  // list (unfolded) there is no Back: the list is right there. Details open
+  // field's own button (photos and drawing, or Send) follows it. Unfolded
+  // there is no Back: beside the list the list is right there, and beside
+  // the details their Close does the same (back to the list and the
+  // conversation), so the one way out is in the column being left. Details open
   // in the next column, so their item shows whether it's open. Where the
   // system keeps its column on the right edge (the Duo) they all stand in a
   // rail there instead — Back, the calls, the details — and the heading and
@@ -203,7 +205,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     arrange: axis => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
-      const back = pane.dataset.layout === 'trailing' ? [] : [['back']]
+      const back = pane.dataset.layout === 'single' ? [['back']] : []
       return axis === 'vertical' ? { top: [...back, ...calls, ['info']], bottom: [] } : { top: [...calls, ['info']], bottom: back }
     }
   })

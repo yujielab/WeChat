@@ -60,7 +60,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px calc(var(--margin) + var(--safe-right)) calc(max(var(--safe-bottom), 12px) + 8px) calc(var(--margin) + var(--safe-left));
+  /* Its bar at the foot sits where every other column's does (16pt up), so Close is where Back was. */
+  padding: 12px calc(var(--margin) + var(--safe-right)) max(var(--safe-bottom), 16px) calc(var(--margin) + var(--safe-left));
 }
 .draw-palette, .draw-sizes {
   display: flex;

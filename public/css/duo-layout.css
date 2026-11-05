@@ -31,6 +31,8 @@
   transition: transform var(--press-out) var(--ease-out), background-color var(--press-out) ease-out;
 }
 .bar-item::before, .bar-item::after { display: none; }
+/* Back is carried against its column's slide (js/ui/strip.js) so it stays put; what slides beneath it passes under. */
+.bar-item[data-item="back"] { z-index: 2; }
 .bar-group.capsule .bar-item { background: transparent; box-shadow: none; }
 .bar-group.capsule .bar-item.active { background: var(--ink); color: var(--on-ink); }
 .bar-item .icon { width: 20px; height: 20px; }

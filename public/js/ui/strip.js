@@ -42,13 +42,42 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
 
   panes.forEach((pane, i) => { pane.dataset.col = COLS[i] })
 
+  // Back stays where it is. Every column has its own Back, in the same place
+  // on screen; as the columns slide each one is carried back by as much as
+  // its column moved, so the button stays put and is only revealed or
+  // covered where the columns meet — going from the list to the conversation
+  // and back is one button under the thumb, not two sliding past each other.
+  // Only while one column fills the screen: with two side by side there is
+  // no Back to carry (the details' Close is the way out).
+  let backs = []
+  let slide = 0
+  let stale = true
+  // A column's Back can arrive after the slide has begun (the details lay out
+  // their bar a frame after they open), so the lookup is made again whenever
+  // a column's contents changed.
+  const watch = new MutationObserver(() => { stale = true })
+  panes.forEach(pane => watch.observe(pane, { childList: true, subtree: true }))
+  function carry() {
+    stale = false
+    slide = (panes[start].getBoundingClientRect().width || shell.clientWidth) + gap()
+    backs = panes.map(pane => [...pane.querySelectorAll('.bar-item[data-item="back"]')])
+  }
+
   function render(p) {
     pos = p
+    if (stale && shell.dataset.anim !== undefined) carry()
     const lo = Math.floor(p + 1e-4)
     const hi = Math.ceil(p - 1e-4) + count - 1
     panes.forEach((pane, i) => {
+      const off = i < lo || i > hi
       pane.style.transform = `translate3d(calc(${(i - p).toFixed(4)} * (100% + var(--gap))), 0, 0)`
-      pane.classList.toggle('off', i < lo || i > hi)
+      pane.classList.toggle('off', off)
+      for (const el of backs[i] || []) {
+        // Only for a column on its way into or out of view; one out of the window is left alone.
+        const by = count === 1 && !off ? (p - i) * slide : 0
+        if (Math.abs(by) < 0.01) el.style.removeProperty('translate')
+        else el.style.translate = `${by.toFixed(2)}px 0`
+      }
     })
   }
 
@@ -86,6 +115,7 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
       for (const pane of panes) if (pane.dataset.role !== 'hidden') pane.animate?.([{ opacity: 0.4 }, { opacity: 1 }], { duration: 160, easing: 'linear' })
       return Promise.resolve(true)
     }
+    carry()
     shell.dataset.anim = ''
     // Moving between list, conversation and details is the app's most
     // frequent navigation: quick, critically damped, no lingering.
@@ -154,6 +184,7 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
       g.active = true
       g.x0 = e.clientX
       g.step = step()
+      carry()
       anim?.stop()
       anim = null
       cancelPress()

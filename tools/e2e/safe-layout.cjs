@@ -71,7 +71,7 @@ for(const id of['audio','video','info'])if(item(id)){assert.ok(item(id).x>=d.tit
 // The bar at the foot: Back leads it, before the field; drawing and photos follow the field; one row.
 // A field grown taller (long text, large type) keeps the bar on its bottom edge.
 const onRow=i=>i.bottom<=d.field.bottom+.5&&i.bottom>=d.field.bottom-7
-if(c.split)assert.ok(!item('back'),'no Back beside the list')
+if(c.split||c.lead)assert.ok(!item('back'),'no Back beside the list or the details (the details\' Close is the way out)')
 else{assert.ok(item('back'),'Back never overflows');assert.ok(item('back').x-(c.left||0)<=24,'each inset counted once '+item('back').x);assert.ok(item('back').right<=d.field.x+.5&&onRow(item('back')),'Back leads the bar '+JSON.stringify({back:item('back'),field:d.field}))}
 // The field's one button (photos and drawing, or Send) follows it on the same row.
 assert.ok(d.action.x>=d.field.right-.5&&onRow(d.action),'button after the field '+JSON.stringify({action:d.action,field:d.field}))
