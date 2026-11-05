@@ -66,13 +66,19 @@
 :root[data-kb="1"] .sheet { bottom: 8px; }
 
 /* Unfolded: a centered form sheet that materializes in place, in the middle
-   of the screen beside any column the system keeps at its edge. */
+   of the screen itself, as the system's own are — not of what is left beside
+   the status column at its edge, which put it 42pt left of the middle. Where
+   the system keeps that column outside the page (--column-beside, from
+   js/ui/viewport.js), the screen's middle is half of it further right. It
+   never reaches over the column: on a screen too narrow for that it moves
+   aside just enough. */
 .overlays[data-layout="split"] .sheet {
-  left: calc(var(--safe-left) + (100% - var(--safe-left) - var(--safe-right)) / 2);
+  --sheet-w: min(520px, calc(100% - var(--safe-left) - var(--safe-right) - 64px));
+  left: clamp(calc(var(--safe-left) + 32px + var(--sheet-w) / 2), calc(50% + var(--column-beside, 0px) / 2), calc(100% - var(--safe-right) - 32px - var(--sheet-w) / 2));
   right: auto;
   top: 50%;
   bottom: auto;
-  width: min(520px, calc(100% - var(--safe-left) - var(--safe-right) - 64px));
+  width: var(--sheet-w);
   max-height: min(680px, calc(100% - var(--safe-top) - 48px));
   transform: translate(-50%, -48%) scale(0.96);
   opacity: 0;
@@ -526,6 +532,11 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 }
 /* In: resolves out of blur and settles down into place. Out: spreads a
    little, defocuses and fades — shorter, on an accelerating curve. */
+/* Unfolded, in the middle of the screen itself, as sheets are, and never over the status column. */
+.overlays[data-layout="split"] .toast {
+  left: calc(50% + var(--column-beside, 0px) / 2);
+  max-width: calc(min(100% - var(--column-beside, 0px) - 2 * var(--safe-right), 100% + var(--column-beside, 0px) - 2 * var(--safe-left)) - 32px);
+}
 .toast.on { animation: toast-in 300ms var(--ease-out) both; }
 .toast.out { animation: toast-out 200ms var(--ease-exit) both; }
 @keyframes toast-in {

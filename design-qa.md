@@ -963,3 +963,20 @@ Service Worker 缓存升到 `shell-v32`。
 `strip.cjs`、`duo-layout.cjs` 原来断言“打开时两栏等宽”，按新规则改成放平时窄 / 宽；其余相关回归（continuity、motion、back、rail、safe-layout、steady、touch、
 message-menu、avatar-editor、backdrops、memory、routine、call-avatar、wide-viewport）都通过。
 `call-pip.cjs`（“a strip still shows: 44”）和 `call-back.cjs`（“timed out: answered”）在这次改动之前的分支上同样失败，与姿态无关。
+
+## 弹层在屏幕正中；合上时侧栏正对时钟
+
+依据用户的两张真机截图：“fix 弹窗位置和闭合时侧边导航栏位置”。
+
+**弹层**：内屏上设置表单的中心在 433.5pt，屏幕中心是 475.5pt——原来以“右缘系统列以外的部分”为准居中，看起来偏左 42pt。
+现在以屏幕本身的正中为准（`css/overlays.css`），用 `clamp()` 保证不压到系统列；系统列在页面之外时（iOS 27.2 把页面变窄），
+屏幕正中在页面正中再往右半个系统列的宽度（`viewport.js` 给出 `--column-beside`）。提示条同样。半开时仍留在所在那一栏。
+
+**侧栏**：在截图上逐像素量了状态栏时钟和侧栏按钮的中心。内屏上时钟离右缘 48.5pt、侧栏 49.8pt，是对齐的；
+外屏上时钟离右缘 48.2pt、侧栏却在 57pt，偏左约 9pt。原因是侧栏按“右侧安全区宽度 − 34pt”定位，而外屏报告的安全区约 91pt（内屏约 84pt），
+时钟的位置却不随它变。现在侧栏中线固定在离右缘 49pt（`--edge-centre`，`css/rail.css`），安全区太窄放不下时才收进安全区里。
+查看器、画板、通话、菜单的侧栏都由同一个变量定位，一起修正。
+
+**检查**：`rail.cjs` 新增：外屏（默认 90pt 与真机的 91pt 安全区）和内屏（84pt）上侧栏每个按钮的中心都在离右缘 49pt（±1）——
+改之前外屏会落在 410pt 而不是 417pt；`strip.cjs` 改为断言 84pt 系统列旁的表单在屏幕正中且不压到系统列。
+`rail`、`strip`、`postures`、`avatar-editor`、`safe-layout`、`duo-layout`、`wide-viewport`、`continuity`、`back` 都通过。

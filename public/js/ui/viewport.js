@@ -167,14 +167,21 @@ const INNER_MIN = 560
 function measureColumn() {
   if (root.dataset.wide === 'outer') {
     delete root.dataset.column
+    root.style.removeProperty('--column-beside')
     return
   }
   const landscape = matchMedia('(orientation: landscape)').matches
   const screenWidth = landscape ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)
   const extra = screenWidth - window.innerWidth
   const beside = matchMedia('(pointer: coarse)').matches && extra >= 48 && extra <= 140
-  if (beside) root.dataset.column = 'beside'
-  else delete root.dataset.column
+  if (beside) {
+    root.dataset.column = 'beside'
+    // How far the screen's middle is from the page's: sheets centre on the screen (overlays.css).
+    root.style.setProperty('--column-beside', `${Math.round(extra)}px`)
+  } else {
+    delete root.dataset.column
+    root.style.removeProperty('--column-beside')
+  }
 }
 
 // Both displays keep a column of their own down the right edge for the

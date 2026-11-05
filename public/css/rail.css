@@ -29,10 +29,15 @@
   --rail-right: calc(var(--safe-right) + var(--rail-inset));
   --rail-content: calc(var(--rail-right) + var(--rail-w) + var(--rail-gap));
 }
-/* The status column's centre is 50pt in from the edge (84pt wide, measured on
-   device folded and open); the rail is centred on it. */
+/* The rail is centred under the status bar's clock. Measured on device, the
+   clock's centre is 48–49pt in from the screen's edge on both displays —
+   though the inset iOS reports is ~84pt open and ~91pt closed, so the centre
+   is a distance from the edge, not a share of the inset (taken from the inset,
+   the rail stood 9pt left of the clock on the outer display). An inset too
+   narrow to hold it at 49pt keeps it inside the inset. */
+:root { --edge-centre: 49px; }
 :root[data-edge-column] :is(.pane:not([data-role="leading"]), .overlays, .viewer:not([data-place="leading"]), .call:not([data-place="leading"]), .draw) {
-  --rail-right: max(4px, calc(var(--safe-right) - 34px - var(--rail-w) / 2));
+  --rail-right: max(4px, calc(min(var(--edge-centre), var(--safe-right) - 34px) - var(--rail-w) / 2));
   --rail-content: max(calc(var(--safe-right) + var(--margin)), calc(var(--rail-right) + var(--rail-w) + var(--rail-gap)));
 }
 .pane { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }

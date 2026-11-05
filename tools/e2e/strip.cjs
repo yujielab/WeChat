@@ -142,13 +142,13 @@ for(const w of [951,901,851,800,751,700]){await p.setViewportSize({width:w,heigh
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 
 // With the system's edge column (84pt down the right, open or closed): unfolded, a sheet opened from the
-// conversation centres on the screen beside the column, clear of it; folded, it spans the app's side with even
+// conversation centres on the screen itself, clear of the column; folded, it spans the app's side with even
 // margins.
 await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>document.documentElement.style.setProperty('--safe-right','84px'));await sleep(300)
 await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
 let b=await p.locator('.sheet').boundingBox(),pane=await p.locator('.pane[data-col="thread"]').boundingBox()
 assert.ok(b.x>=17&&b.x+b.width<=951-84-17,'unfolded sheet clear of the column '+JSON.stringify(b))
-assert.ok(Math.abs(b.x+b.width/2-(951-84)/2)<2,'unfolded sheet centred beside the column '+JSON.stringify(b))
+assert.ok(Math.abs(b.x+b.width/2-951/2)<2,'unfolded sheet in the middle of the screen itself, as the system\'s are '+JSON.stringify(b))
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 await p.setViewportSize({width:466,height:678});await unposed();await sleep(300);await settled('thread')
 // Every bar at the foot stays inside the inset too.
