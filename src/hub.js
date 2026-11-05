@@ -16,6 +16,7 @@ import {
   readDigest, writeDigest, digestPrompt, readDigestAnswer
 } from './memory.js'
 import { backdrop, readPrefs, patchPrefs } from './prefs.js'
+import { routineKey, emptyRoutine, record, setLearning, summarizeRoutine, routineText, clampTz, localParts } from './routine.js'
 import { insightRooms, analyze, photosToRead, describePhoto, allowRefresh } from './insights.js'
 import { geocode, weatherAt } from './weather.js'
 import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
@@ -52,6 +53,11 @@ export class Hub {
     this.secret = null
     this.fails = new Map() // ip -> { n, until }
     this.calls = new CallBroker(this)
+    // The quarter hour last counted into each person's routine, and their
+    // time zone, so opening the app and reading touch the store at most once
+    // a quarter hour each (src/routine.js).
+    this.routineSlot = new Map()
+    this.routineTz = new Map()
   }
 
   // ---------------------------------------------------------------- secret
@@ -287,6 +293,7 @@ export class Hub {
       }
       if (action === 'read' && method === 'POST') {
         this.markRead(roomId, user.id, body.ts || Date.now())
+        this.learn(user.id, { kind: 'read', tz: clampTz(request.headers.get('x-tz')) })
         return json({ ok: true })
       }
       if (action === 'invite' && method === 'POST') {
@@ -320,7 +327,7 @@ export class Hub {
       return json({ ok: true, messages: this.store.listMessages(roomId, { before, after, limit }) })
     }
     if (path === '/api/messages' && method === 'POST') {
-      return this.postMessage(body, user)
+      return this.postMessage(body, user, { tz: clampTz(request.headers.get('x-tz')) })
     }
     // Writing help (src/assist.js): read from sent messages only, never from
     // anyone's live typing preview. Quietly nothing when it isn't available.
@@ -335,7 +342,8 @@ export class Hub {
           history,
           draft,
           digest: this.digestFor(user.id, roomId),
-          style: this.styleFor(user.id)
+          style: this.styleFor(user.id),
+          routine: routineText(summarizeRoutine(this.store.kvGet(routineKey(user.id))))
         }) })
       } catch (err) {
         console.warn('assist suggest', err.message)
@@ -351,13 +359,25 @@ export class Hub {
         ok: true,
         style: { words: style.words || [], endings: style.endings || [], messages: style.messages || 0, at: style.at || 0 },
         confidence: confidence(style),
-        digests: this.digestsOf(user.id)
+        digests: this.digestsOf(user.id),
+        routine: this.routineView(user.id)
       })
     }
     if (path === '/api/ai/memory' && method === 'DELETE') {
       this.store.kvDelete(styleKey(user.id))
       for (const d of this.digestsOf(user.id)) this.store.kvDelete(digestKey(user.id, d.room))
+      // The routine starts over; learning stays as it was set.
+      const off = Boolean(this.store.kvGet(routineKey(user.id))?.off)
+      this.store.kvSet(routineKey(user.id), off ? setLearning(null, false) : emptyRoutine())
+      this.routineSlot.delete(user.id)
       return json({ ok: true })
+    }
+    // Learning the routine and habits, on or off. Off forgets what was learned.
+    if (path === '/api/ai/memory/routine' && method === 'POST') {
+      if (typeof body.learn !== 'boolean') return json({ ok: false, error: '参数无效' }, 400)
+      this.store.kvSet(routineKey(user.id), setLearning(this.store.kvGet(routineKey(user.id)), body.learn))
+      this.routineSlot.delete(user.id)
+      return json({ ok: true, routine: this.routineView(user.id) })
     }
     // Smart panels (src/insights.js): what each recent one-to-one conversation
     // says about the other person, read for you alone, and the weather where
@@ -569,7 +589,7 @@ export class Hub {
   }
 
   // ---------------------------------------------------------------- message send + fan-out
-  async postMessage(body, user) {
+  async postMessage(body, user, { tz = null } = {}) {
     const roomId = body.room
     if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权发送' }, 403)
     const type = ['text', 'image', 'voice', 'video', 'file', 'drawing', 'sticker'].includes(body.type) ? body.type : 'text'
@@ -602,6 +622,9 @@ export class Hub {
       if (named.length) meta = { ...meta, mentions: named }
     }
     if (meta && !Object.keys(meta).length) meta = null
+    // How long the person took to answer: the message before theirs, if it was someone else's.
+    const before = this.store.lastMessage(roomId)
+    const answered = before && before.sender && before.sender !== user.id && before.type !== 'system' && before.state !== 'revoked' ? before.ts : null
     const msg = this.store.addMessage({
       room: roomId,
       sender: user.id,
@@ -625,6 +648,15 @@ export class Hub {
       const work = this.markKeys(msg)
       this.ctx.waitUntil?.(work)
     }
+    // Their routine and habits: when, what kind, to whom, how long, how soon.
+    this.learn(user.id, {
+      kind: type,
+      room: roomId,
+      text: type === 'text' ? msg.body : '',
+      emoji: type === 'sticker' ? msg.meta?.emoji || '' : '',
+      latency: answered ? msg.ts - answered : null,
+      tz
+    })
     // The writer's memory of their own words grows with what they sent.
     if (type === 'text') {
       const work = this.remember(user.id, roomId)
@@ -750,6 +782,45 @@ export class Hub {
     return recent[0]?.ts || 0
   }
 
+  // ---------------------------------------------------------------- routine and habits
+  /**
+   * Count a moment of this person's own use into their routine and habits
+   * (src/routine.js) — only where the memory can be seen and cleared (the
+   * writing help is there). Opening the app and reading are counted once a
+   * quarter hour, so the store is touched at most that often for them.
+   */
+  learn(userId, event = {}) {
+    if (!assistConfigured(this.env)) return
+    try {
+      const now = Date.now()
+      const passive = event.kind === 'open' || event.kind === 'read'
+      const tz = clampTz(event.tz) ?? this.routineTz.get(userId)
+      if (passive && tz !== undefined && this.routineSlot.get(userId) === localParts(now, tz ?? 0).slot) return
+      const stored = this.store.kvGet(routineKey(userId))
+      if (stored?.off) {
+        this.routineTz.set(userId, tz ?? null)
+        this.routineSlot.set(userId, localParts(now, tz ?? 0).slot)
+        return
+      }
+      const next = record(stored, event, now)
+      this.store.kvSet(routineKey(userId), next)
+      this.routineTz.set(userId, next.tz)
+      this.routineSlot.set(userId, next.slot)
+    } catch (err) {
+      console.warn('routine', err.message)
+    }
+  }
+
+  /** The routine as the memory sheet shows it, with each conversation named as this person sees it. */
+  routineView(userId) {
+    const summary = summarizeRoutine(this.store.kvGet(routineKey(userId)))
+    const rooms = new Map(this.store.listRoomsFor(userId).map(r => [r.id, r]))
+    const peers = summary.peers
+      .map(p => ({ band: p.band, name: rooms.get(p.room) ? (rooms.get(p.room).kind === 'dm' ? rooms.get(p.room).peer?.display : rooms.get(p.room).name) || '' : '' }))
+      .filter(p => p.name)
+    return { ...summary, peers }
+  }
+
   /** Keep a writer's memory in step with what they just sent. */
   async remember(userId, roomId) {
     try {
@@ -809,6 +880,8 @@ export class Hub {
     // A call still ringing for this user (they may have come from its
     // notification) rings again on the device that just connected.
     this.calls.onConnect(user.id)
+    // The app opened (or came back): a moment of their routine.
+    this.learn(user.id, { kind: 'open', tz: clampTz(new URL(request.url).searchParams.get('tz')) })
     if (!wasOnline) this.fanoutToPeers(user.id, { t: 'presence', uid: user.id, online: true })
   }
 
@@ -821,6 +894,7 @@ export class Hub {
     if (msg.t === 'ping') { ws.send('{"t":"pong"}'); return }
     if (msg.t === 'read' && msg.room && this.store.isMember(msg.room, uid)) {
       this.markRead(msg.room, uid, msg.ts || Date.now())
+      this.learn(uid, { kind: 'read' })
       return
     }
     if (msg.t === 'typing' && msg.room && this.store.isMember(msg.room, uid)) {

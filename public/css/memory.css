@@ -2,7 +2,16 @@
    reaches for, and what each conversation was about before it scrolled out
    of view. Plain words on paper, quiet about how much of it there is. */
 
-.memory-sheet { padding: 2px 0 4px; }
+.memory-sheet { padding: 2px 20px 4px; }
+/* Its cards read as the settings' groups: the same edge, face and hairline. */
+.memory-sheet :is(.routine-chart, .memory-rows, .memory-switch, .memory-digest) {
+  border-radius: var(--r-l);
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+/* Words outside a card line up with the words inside one. */
+.memory-sheet :is(.memory-head, .routine-line, .routine-note, .memory-switch-foot) { padding-inline: 14px; }
+.memory-sheet .group-foot { margin: 6px 14px 0; }
 
 .memory-loading {
   padding: 30px 0;
@@ -47,7 +56,7 @@
 .memory-digest {
   padding: 12px 14px;
   margin-bottom: 8px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-l);
   background: var(--fill-2);
 }
 .memory-digest-text {
@@ -60,3 +69,33 @@
 
 .memory-clear { margin-top: 26px; display: flex; justify-content: center; }
 .memory-clear .btn { min-width: 160px; }
+
+/* ---------------------------------------------------------------- routine and habits
+   When this person is usually up, the shape of their day hour by hour, and
+   how they use the app — plain lines and one quiet chart. */
+.routine-line { margin: 0 0 10px; font-size: var(--t-body); line-height: 1.5; color: var(--label); }
+.routine-note { margin: 8px 0 0; }
+.routine-chart { padding: 14px 14px 9px; }
+.routine-bars { display: grid; grid-template-columns: repeat(24, 1fr); align-items: end; gap: 2px; height: 64px; }
+.routine-bar {
+  height: max(3px, calc(var(--v, 0) * 100%));
+  border-radius: 2px;
+  background: var(--label-2);
+  opacity: .78;
+}
+/* The quiet hours read as rest; this hour is marked. */
+.routine-bar.quiet { background: var(--label-3); opacity: .45; }
+.routine-bar.now { background: var(--blue, var(--label)); opacity: 1; }
+.routine-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: var(--t-caption-2); color: var(--label-3); font-variant-numeric: tabular-nums; }
+
+/* Habits: a label and how it goes, one per line. */
+.memory-rows { padding: 2px 14px; }
+.memory-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 11px 0; font-size: var(--t-subhead); line-height: 1.5; }
+.memory-row + .memory-row { border-top: var(--hairline, 1px) solid var(--separator, var(--line)); }
+.memory-row-label { flex: none; color: var(--label-2); }
+.memory-row-value { min-width: 0; text-align: right; color: var(--label); overflow-wrap: anywhere; }
+.memory-emoji { font-size: 1.15em; letter-spacing: .12em; }
+
+/* Learning on or off. */
+.memory-switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 24px; min-height: 52px; padding: 8px 14px; font-size: var(--t-body); color: var(--label); }
+.memory-switch-foot { margin: 8px 0 0; line-height: 1.6; }
