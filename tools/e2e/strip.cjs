@@ -9,6 +9,8 @@ if(!['localhost','127.0.0.1','[::1]'].includes(new URL(BASE).hostname))throw new
 fs.mkdirSync(OUT,{recursive:true})
 async function post(ctx,url,options){const cookies=await ctx.cookies();return ctx.request.post(url,{...options,headers:{Origin:BASE,Cookie:cookies.map(c=>c.name+'='+c.value).join('; ')}})}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms))
+// The narrow column's width open flat (js/ui/columns.js).
+const narrow=w=>Math.min(Math.floor(w/2),Math.round(Math.min(380,Math.max(300,w*.36))))
 ;(async()=>{const browser=await chromium.launch();try{
 const opts={viewport:{width:466,height:678},locale:'zh-CN',serviceWorkers:'block',extraHTTPHeaders:{Origin:BASE},deviceScaleFactor:2}
 const ac=await browser.newContext(opts),stamp=Date.now().toString(36)
@@ -30,9 +32,10 @@ await p.locator('.pane-list .row').first().click();await settled('thread')
 let s=await state();assert.deepEqual(s.roles,['hidden','hidden','single','hidden']);assert.deepEqual(s.shown,['thread']);assert.ok(Math.abs(s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.width-466)<1)
 await sleep(300);await shot('24-strip-closed-chat')
 
-// Open: two adjacent columns of equal width; the list joins from its own side of the strip.
+// Open flat: two adjacent columns, the list narrow and the conversation wide (js/ui/columns.js); the list joins
+// from its own side of the strip.
 await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='leading');await unposed();await sleep(400)
-s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'thread');assert.ok(Math.abs(s.boxes.list.width-s.boxes.thread.width)<1&&Math.abs(s.boxes.list.right-s.boxes.thread.x)<1,'equal adjacent columns')
+s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'thread');assert.ok(Math.abs(s.boxes.list.width-narrow(890))<1&&Math.abs(s.boxes.list.right-s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.width-(890-narrow(890)))<1,'narrow list, wide conversation, adjacent '+JSON.stringify(s.boxes))
 assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info'],'trailing conversation: no Back')
 // The list's bar at its foot: the search field, then the filter and New Chat (folded, Back to the sidebar leads);
 // settings sits at the end of the list's heading.
@@ -115,8 +118,8 @@ await p.setViewportSize({width:890,height:626});await unposed();assert.equal(awa
 
 // The iPhone Duo matrix (iphone-duo-web skill, assets/devices.json): closed 466×678 / 678×466; open 951×669 and
 // 890×626 (the two candidate point grids) and their portrait 669×951 / 626×890; Split View 475×669 / 669×475.
-// Open landscape shows two equal columns with the gutter on the crease; everything else one column. Nothing
-// overflows, and every visible control is on screen at 44pt.
+// Open landscape (flat) shows the narrow list beside the wide conversation; everything else one column. Nothing
+// overflows, and every visible control is on screen at 44pt. (Half open, they meet the hinge: postures.cjs.)
 await p.click('.composer textarea')
 for(const [w,h] of [[466,678],[678,466],[951,669],[890,626],[669,951],[626,890],[475,669],[669,475]]){
  await p.setViewportSize({width:w,height:h});await unposed();await sleep(250)
@@ -124,7 +127,7 @@ for(const [w,h] of [[466,678],[678,466],[951,669],[890,626],[669,951],[626,890],
  const open=w>=700;assert.equal(m.layout,open?'split':'stack',`${w}×${h}`);assert.equal(m.boxes.length,open?2:1);assert.equal(m.overflow,false)
  // Controls sit at the foot of each column or in its heading, never down its side.
  for(const b of m.items)assert.ok(b.top<=140||b.bottom>=h-90,`control in a heading or the bar at the foot, ${w}×${h} `+JSON.stringify(b))
- if(open)assert.ok(Math.abs(m.boxes[0].right-w/2)<1.5&&Math.abs(m.boxes[1].left-w/2)<1.5,`gutter on the crease at ${w}`)
+ if(open)assert.ok(Math.abs(m.boxes[0].width-narrow(w))<1.5&&Math.abs(m.boxes[0].right-m.boxes[1].left)<1.5&&Math.abs(m.boxes[1].right-w)<1.5,`narrow list, wide conversation at ${w} `+JSON.stringify(m.boxes))
  for(const b of m.items)assert.ok(b.width>=44&&b.height>=44&&b.left>=-.5&&b.right<=w+.5&&b.top>=-.5&&b.bottom<=h+.5,`control on screen at 44pt, ${w}×${h} `+JSON.stringify(b))
 }
 // The transition, not just the states: drag the width 466 → 951 → 466 in 50px steps with the field focused. A fold
@@ -163,5 +166,5 @@ const g=await q.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingCl
 assert.ok(g.back.left>=15.5&&g.compose.right<=376-15.5&&g.compose.right>=376-24&&g.pill.width>=120&&g.row.right>=376-24,'the bar spans the page '+JSON.stringify(g))
 await q.screenshot({path:path.join(OUT,'29-outer-page.png')});await c.close()}
 
-assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheets centred on the open screen; the bar at the foot of every column (list: Back, filter, search, New Chat; conversation: Back, field, drawing and photos), inside the edge column inset and across a 376pt page; sheets clear of the edge column; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
+assert.deepEqual(errors,[]);console.log('PASS: closed one column / open flat a narrow list beside a wide conversation; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the narrow and wide columns; width drag never reads as keyboard; sheets centred on the open screen; the bar at the foot of every column (list: Back, filter, search, New Chat; conversation: Back, field, drawing and photos), inside the edge column inset and across a 376pt page; sheets clear of the edge column; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

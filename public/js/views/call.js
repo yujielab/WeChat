@@ -609,9 +609,10 @@ function sideBesideThread() {
   return (other && document.querySelector(`.pane[data-role="${other}"]`)?.dataset.col) || 'thread'
 }
 
-/** Unfolded, the column under a point x across the screen. */
+/** Unfolded, the column under a point x across the screen (the columns need not be equal: js/ui/columns.js). */
 function columnAt(x, width) {
-  const role = x < width / 2 ? 'leading' : 'trailing'
+  const lead = document.querySelector('.pane[data-role="leading"]')?.getBoundingClientRect()
+  const role = x < (lead ? lead.right : width / 2) ? 'leading' : 'trailing'
   return document.querySelector(`.pane[data-role="${role}"]`)?.dataset.col || sideBesideThread()
 }
 

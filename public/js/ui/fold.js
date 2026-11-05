@@ -73,3 +73,5 @@ function remeasure() {
 }
 window.addEventListener('resize', remeasure)
 onLayout(remeasure)
+// The divider moving (half open ↔ flat, js/ui/strip.js), frame by frame.
+document.addEventListener('columns', remeasure)

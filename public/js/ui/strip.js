@@ -4,11 +4,18 @@
 // (which can inherit a swipe's velocity), and the column at the window's
 // leading edge can be swiped back interactively, 1:1 under the finger.
 // Folding or unfolding keeps the focused column on screen.
+//
+// How wide the two columns are follows the posture (js/ui/columns.js): half
+// open they meet at the hinge; open flat the conversation is wide and the
+// column beside it narrow. Opening the rest of the way, or folding back to
+// half, glides the divider there on a spring, the hinge's gap closing or
+// opening with it.
 
 import { reducedMotion } from './dom.js'
 import { spring, velocityTracker, project } from './spring.js'
 import { cancelPress } from './press.js'
 import { isStandalone } from './viewport.js'
+import { openGeometry, mixGeometry, boxesAtPosition } from './columns.js'
 
 export const COLS = ['sidebar', 'list', 'thread', 'artifact']
 
@@ -39,6 +46,22 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   let start = 1
   let pos = 1
   let anim = null
+  // The posture the columns are drawn for, and while the divider glides, the
+  // one it is leaving (geo: start → { lead, gap }; t from 0 to 1).
+  let pose = { pose: 'closed', fold: { axis: 'none', start: 0, end: 0 } }
+  let glide = null
+  let width = 0
+  let left = 0
+  const target = s => openGeometry({ ...pose, fold: inShell(pose.fold), width, start: s })
+  const geo = s => (glide ? mixGeometry(glide.from(s), target(s), glide.t) : target(s))
+  // The hinge as the page reports it, from the shell's own edge.
+  const inShell = fold => (fold && fold.axis === 'vertical' ? { ...fold, start: fold.start - left, end: fold.end - left } : fold)
+  // Layout sizes, not drawn ones: the shell is scaled while a sheet is up.
+  function measureShell() {
+    width = shell.clientWidth || window.innerWidth
+    left = shell.offsetLeft + (shell.offsetParent?.getBoundingClientRect().left || 0)
+  }
+  const drawn = new Map()
 
   panes.forEach((pane, i) => { pane.dataset.col = COLS[i] })
 
@@ -59,18 +82,32 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   panes.forEach(pane => watch.observe(pane, { childList: true, subtree: true }))
   function carry() {
     stale = false
-    slide = (panes[start].getBoundingClientRect().width || shell.clientWidth) + gap()
+    slide = width || shell.clientWidth
     backs = panes.map(pane => [...pane.querySelectorAll('.bar-item[data-item="back"]')])
   }
 
   function render(p) {
     pos = p
+    if (!width) measureShell()
     if (stale && shell.dataset.anim !== undefined) carry()
     const lo = Math.floor(p + 1e-4)
     const hi = Math.ceil(p - 1e-4) + count - 1
+    const boxes = boxesAtPosition(p, { n: panes.length, width, count, geo })
+    // Where the two columns meet, for the hinge's shading (base.css).
+    if (count === 2 && boxes[lo + 1]) {
+      shell.style.setProperty('--divider-start', `${(boxes[lo].x + boxes[lo].w).toFixed(1)}px`)
+      shell.style.setProperty('--divider-end', `${boxes[lo + 1].x.toFixed(1)}px`)
+    }
     panes.forEach((pane, i) => {
       const off = i < lo || i > hi
-      pane.style.transform = `translate3d(calc(${(i - p).toFixed(4)} * (100% + var(--gap))), 0, 0)`
+      const { x, w } = boxes[i]
+      pane.style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`
+      // Widths change only when the divider moves: don't touch them otherwise.
+      const px = Math.round(w * 10) / 10
+      if (drawn.get(pane) !== px) {
+        drawn.set(pane, px)
+        pane.style.width = `${px}px`
+      }
       pane.classList.toggle('off', off)
       for (const el of backs[i] || []) {
         // Only for a column on its way into or out of view; one out of the window is left alone.
@@ -144,13 +181,83 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   /** Folding or unfolding: the same focus in a window of `n` columns, at once. */
   function setCount(n) {
     count = n
+    measureShell()
+    stopGlide()
     go(focus, { instant: true })
   }
 
+  // ---------------------------------------------------------- posture
+  let glideRun = null
+  function stopGlide() {
+    glideRun?.stop()
+    glideRun = null
+    glide = null
+    delete shell.dataset.glide
+  }
+  /**
+   * The posture changed ({ pose: closed | half | open, fold }). With two
+   * columns on screen, half ↔ open glides the divider on a spring (from
+   * wherever it is, if it was already moving); otherwise it is drawn there.
+   */
+  function setPose(next, { animate = true } = {}) {
+    if (next.pose === pose.pose && JSON.stringify(next.fold) === JSON.stringify(pose.fold)) return Promise.resolve(true)
+    measureShell()
+    // Where the divider stands now (mid-glide too), frozen before the
+    // posture changes under it.
+    const now = []
+    for (let s = 0; s < panes.length - 1; s++) now[s] = geo(s)
+    const split = p => p === 'half' || p === 'open'
+    const glides = animate && count === 2 && split(pose.pose) && split(next.pose) && !reducedMotion()
+    stopGlide()
+    pose = { pose: next.pose, fold: { ...next.fold } }
+    if (!glides) {
+      render(pos)
+      shell.dispatchEvent(new CustomEvent('columns', { bubbles: true }))
+      return Promise.resolve(true)
+    }
+    glide = { from: s => now[Math.min(s, now.length - 1)], t: 0 }
+    shell.dataset.glide = ''
+    // A slow, settled glide: the hinge opening the rest of the way is a big,
+    // physical change, and the eye should follow the divider to its place.
+    const run = spring({
+      from: 0, to: 1, damping: 0.88, response: 0.52, restDelta: 0.001,
+      onUpdate: t => {
+        if (!glide) return
+        glide.t = t
+        render(pos)
+        // Overlays that keep to a column follow it (js/ui/fold.js).
+        shell.dispatchEvent(new CustomEvent('columns', { bubbles: true, detail: { moving: true } }))
+      }
+    })
+    glideRun = run
+    return run.done.then(done => {
+      if (glideRun === run) {
+        glideRun = null
+        glide = null
+        delete shell.dataset.glide
+        render(pos)
+        shell.dispatchEvent(new CustomEvent('columns', { bubbles: true }))
+      }
+      return done
+    })
+  }
+
+  // The shell changing size (rotation, the posture morph's held width
+  // letting go) redraws the columns for it at once.
+  new ResizeObserver(() => {
+    const before = width
+    measureShell()
+    if (Math.abs(before - width) > 0.5) render(pos)
+  }).observe(shell)
+
   // ---------------------------------------------------------- interactive back
   let g = null
-  const step = () => (panes[start].getBoundingClientRect().width || shell.clientWidth) + gap()
-  const gap = () => parseFloat(getComputedStyle(shell).getPropertyValue('--gap')) || 0
+  // How far the leading column travels going back one window: the finger moves it 1:1.
+  const step = () => {
+    const a = boxesAtPosition(start, { n: panes.length, width, count, geo })
+    const b = boxesAtPosition(Math.max(0, start - 1), { n: panes.length, width, count, geo })
+    return Math.max(1, Math.abs(b[start].x - a[start].x)) || width
+  }
 
   shell.addEventListener('pointerdown', e => {
     // A gesture whose finger was never seen to lift (the page lost it) gives way.
@@ -248,6 +355,10 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
     go,
     touch,
     setCount,
+    setPose,
+    get pose() { return pose.pose },
+    /** The live boxes of the columns ({ x, w } from the shell's edge), for tests and overlays. */
+    boxes: () => boxesAtPosition(pos, { n: panes.length, width, count, geo }),
     get focus() { return focus },
     get start() { return start },
     get count() { return count },

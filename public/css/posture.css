@@ -1,0 +1,77 @@
+/* The Duo's postures (data-pose from js/ui/viewport.js): closed — the outer
+   display; half — partly open, a hinge to respect; open — the inner display
+   flat. The columns move with the posture in js/ui/strip.js (the divider
+   glides between the hinge and the conversation's own width); here, what
+   floats over them follows, and a screen standing half open like a laptop
+   is used as two: what is watched above the hinge, what is touched below.
+
+   data-pose-shift is set for the length of a change between half and open
+   (the screen keeps its size; only the hinge comes or goes), so these
+   transitions run then and never when an overlay simply opens. */
+
+/* ---------------------------------------------------------------- half ↔ open
+   An open sheet or toast glides from its column to the middle of the screen
+   (opening flat) or back to its side of the hinge (folding to half), with
+   the divider, on the same spring. */
+:root[data-pose-shift] .overlays[data-layout="split"] .sheet.on {
+  transition:
+    left 560ms var(--spring-smooth), width 560ms var(--spring-smooth),
+    transform var(--spring-bouncy-dur) var(--spring-bouncy), opacity 180ms ease-out, filter 240ms ease-out;
+}
+:root[data-pose-shift] .overlays[data-layout="split"] .toast { transition: left 560ms var(--spring-smooth), max-width 560ms var(--spring-smooth); }
+/* The heading settles into its new arrangement rather than jumping. */
+:root[data-pose-shift] .overlays[data-layout="split"] .sheet.on .sheet-head h2 { animation: pose-settle 420ms var(--ease-out) both; }
+@keyframes pose-settle { from { opacity: 0.35; } }
+
+/* ---------------------------------------------------------------- tabletop
+   Standing half open like a laptop (a horizontal hinge): a call shows their
+   picture on the upper half and lays its controls on the lower one, flat on
+   the table; a photo is looked at above the hinge with its controls below.
+   Nothing sits in the bend. */
+:root[data-fold="horizontal"] .call:not(.pip) .call-stage { bottom: calc(100% - var(--fold-start)); }
+:root[data-fold="horizontal"] .call:not(.pip) .call-poster { inset: calc(var(--safe-top) + 96px) 0 calc(100% - var(--fold-start)); }
+:root[data-fold="horizontal"] .call:not(.pip) :is(.call-controls, .call-incoming) {
+  top: var(--fold-end);
+  align-items: center;
+  align-content: center;
+  flex-wrap: wrap;
+  background: none;
+}
+:root[data-fold="horizontal"] .call:not(.pip) .call-stage::after {
+  /* The picture ends at the hinge with a soft edge, not a cut. */
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36px;
+  background: linear-gradient(to top, #000, transparent);
+  pointer-events: none;
+}
+/* The photo fills the upper half (views/viewer.js fits it to its stage);
+   Close and Share, the arrows and the strip of photos lie in the lower one,
+   under the hand that holds the base. */
+:root[data-fold="horizontal"] .viewer-stage { bottom: calc(100% - var(--fold-start)); }
+:root[data-fold="horizontal"]:not([data-bars="vertical"]) .viewer-bar.top { top: calc(var(--fold-end) + 18px); }
+:root[data-fold="horizontal"] .viewer-bar.viewer-gallery-navigation { bottom: auto; top: calc(var(--fold-end) + 84px); }
+:root[data-fold="horizontal"] .viewer-bar.bottom { bottom: auto; top: calc(var(--fold-end) + 150px); }
+:root[data-fold="horizontal"] .viewer-gallery-count { top: calc(var(--fold-end) + 30px); }
+
+/* Standing up or laying flat again (in or out of tabletop), the page morphs
+   (a view transition, js/ui/viewport.js): the picture and the messages rise
+   above the hinge, the controls and the field settle below it, each on its
+   own path, instead of cutting. */
+:root[data-pose-turn] .pane:not(.off) .thread:not([hidden]) .thread-scroll { view-transition-name: pose-messages; }
+:root[data-pose-turn] .pane:not(.off) .thread:not([hidden]) .composer { view-transition-name: pose-field; }
+:root[data-pose-turn] .call:not(.pip) .call-stage { view-transition-name: pose-call-picture; }
+:root[data-pose-turn] .call:not(.pip) .call-controls { view-transition-name: pose-call-controls; }
+:root[data-pose-turn] .call:not(.pip) .call-incoming { view-transition-name: pose-call-answer; }
+:root[data-pose-turn] .viewer .viewer-stage { view-transition-name: pose-photo; }
+:root[data-pose-turn] .viewer .viewer-bar.top { view-transition-name: pose-photo-bar; }
+:root[data-pose-turn] .viewer .viewer-bar.bottom { view-transition-name: pose-photo-strip; }
+:root[data-pose-turn]::view-transition-group(*) { animation-duration: 520ms; animation-timing-function: var(--spring-smooth); }
+:root[data-pose-turn]::view-transition-old(*),
+:root[data-pose-turn]::view-transition-new(*) { height: 100%; object-fit: cover; }
+
+:root[data-motion="reduce"][data-pose-shift] :is(.sheet, .toast) { transition: none !important; }
+:root[data-motion="reduce"][data-pose-shift] .sheet-head h2 { animation: none; }

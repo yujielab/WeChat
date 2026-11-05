@@ -121,6 +121,13 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     autocapitalize: 'off',
     spellcheck: false
   })
+  // A narrow column (the list beside the conversation, open flat) asks only
+  // for what fits, rather than a cut-off phrase.
+  new ResizeObserver(() => {
+    const size = parseFloat(getComputedStyle(input).fontSize) || 17
+    const placeholder = input.clientWidth >= size * 8.2 ? '搜索聊天、联系人' : '搜索'
+    if (input.placeholder !== placeholder) input.placeholder = placeholder
+  }).observe(input)
   const pill = h('label', { class: 'glass search-pill' }, icon('search'), input)
   const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': '取消搜索' }, icon('xmark'))
   const bottombar = h('nav', { class: 'list-bottombar dock', 'aria-label': '聊天列表操作' }, bars.bottom, pill, cancel)
