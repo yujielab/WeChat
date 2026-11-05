@@ -122,9 +122,11 @@
 .thread-scroll {
   top: calc(var(--safe-top) + var(--head-top) + var(--head-h));
   bottom: 0;
-  padding: 0 var(--content-right) 0 calc(var(--margin) + var(--safe-left) + 2px);
-  -webkit-mask-image: none;
-  mask-image: none;
+  /* Messages leaving at the top fade out over a few points instead of being cut by a hard edge;
+     the padding keeps the oldest one clear of the fade when scrolled all the way up. */
+  padding: 18px var(--content-right) 0 calc(var(--margin) + var(--safe-left) + 2px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
 }
 .thread .composer { padding-right: var(--content-right); gap: 8px; isolation: isolate; }
 .thread .composer::before {

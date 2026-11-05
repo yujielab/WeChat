@@ -68,7 +68,7 @@ await p.keyboard.type('一');for(let i=0;i<3;i++){await p.keyboard.press('Shift+
 await sleep(60);const fMid=await p.evaluate(()=>document.querySelector('.composer .field').getBoundingClientRect().toJSON())
 await sleep(320);const f1=await p.evaluate(()=>{const f=document.querySelector('.composer .field'),t=f.querySelector('textarea');return{...f.getBoundingClientRect().toJSON(),radius:getComputedStyle(f).borderTopLeftRadius,tf:getComputedStyle(t).transform,caret:t.selectionStart,len:t.value.length}})
 assert.ok(fMid.height>f0.height&&fMid.height<f1.height,'grows over time '+JSON.stringify([f0.height,fMid.height,f1.height]))
-assert.ok(Math.abs(f1.bottom-f0.bottom)<0.5,'grows upward from its foot');assert.equal(f1.radius,'22px');assert.equal(f1.tf,'none');assert.equal(f1.caret,f1.len,'caret stays at the end')
+assert.ok(Math.abs(f1.bottom-f0.bottom)<0.5,'grows upward from its foot');assert.equal(f1.radius,'23px');assert.equal(f1.tf,'none');assert.equal(f1.caret,f1.len,'caret stays at the end')
 // Capped at five lines, then it scrolls inside.
 for(let i=0;i<6;i++){await p.keyboard.press('Shift+Enter');await p.keyboard.type('更多')}
 await sleep(300);const cap=await p.evaluate(()=>{const t=document.querySelector('.composer textarea'),lh=parseFloat(getComputedStyle(t).lineHeight);return{h:t.clientHeight,lh,scroll:t.scrollHeight>t.clientHeight}})

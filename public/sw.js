@@ -40,6 +40,7 @@ const SHELL_FILES = [
   '/js/ui/format.js',
   '/js/ui/haptics.js',
   '/js/ui/viewport.js',
+  '/js/ui/steady.js',
   '/js/ui/press.js',
   '/js/ui/input-modality.js',
   '/js/ui/spring.js',

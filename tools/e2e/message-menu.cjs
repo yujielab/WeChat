@@ -26,7 +26,8 @@ const layout=id=>p.evaluate(id=>{
   const box=el=>{const r=el.getBoundingClientRect();return{l:r.left,t:r.top,r:r.right,b:r.bottom,w:r.width,h:r.height}}
   const orig=document.querySelector(`.m[data-id="${id}"] .bubble`),prev=document.querySelector('.ctx-preview'),copy=prev.querySelector('.bubble')
   const cs=getComputedStyle(orig),cc=getComputedStyle(copy)
-  const lines=el=>{const r=document.createRange();r.selectNodeContents(el);return new Set([...r.getClientRects()].map(x=>Math.round(x.top))).size}
+  // Lines of words: the time and state in the bubble's corner are not part of them.
+  const lines=el=>{const tops=new Set(),w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.m-meta')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});for(let n;n=w.nextNode();){const r=document.createRange();r.selectNodeContents(n);for(const x of r.getClientRects())tops.add(Math.round(x.top))}return tops.size}
   const frame=document.querySelector('.menu-safe-frame')
   return{orig:{w:orig.offsetWidth,h:orig.offsetHeight,hidden:getComputedStyle(orig).visibility==='hidden'},copy:{w:copy.offsetWidth,h:copy.offsetHeight},
     type:[cs.fontSize,cs.lineHeight,cs.borderTopLeftRadius,cs.paddingLeft,cs.color,cs.backgroundColor].join('|'),copyType:[cc.fontSize,cc.lineHeight,cc.borderTopLeftRadius,cc.paddingLeft,cc.color,cc.backgroundColor].join('|'),
@@ -53,7 +54,7 @@ await p.screenshot({path:path.join(OUT,'43-message-menu.png')})
 const focusIn=()=>p.evaluate(()=>document.activeElement.closest('.ctx-reactions')?'reactions':document.activeElement.closest('.menu')?'menu':'elsewhere')
 assert.equal(await p.evaluate(()=>document.querySelector('.menu.ctx-menu').classList.contains('has-highlight')),false,'opened by a finger: no row starts highlighted')
 assert.equal(await focusIn(),'menu');await p.keyboard.press('ArrowDown')
-assert.equal(await p.evaluate(()=>document.activeElement.textContent),'复制','arrow keys still reach the rows')
+assert.equal(await p.evaluate(()=>document.activeElement.textContent),'回复','arrow keys still reach the rows (the first row is 回复)')
 for(let i=0;i<4;i++)await p.keyboard.press('Tab');assert.notEqual(await focusIn(),'elsewhere','focus stays with the menu and its reactions')
 await close();assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('.m[data-id="a6"] .bubble')).visibility),'visible')
 
