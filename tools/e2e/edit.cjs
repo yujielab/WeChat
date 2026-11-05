@@ -31,7 +31,8 @@ const open=async p=>{await p.reload();await p.waitForSelector('.row');await p.lo
 await open(A);await open(B)
 const bubble=(p,text)=>p.locator(`.thread:not([hidden]) .m .bubble:has-text("${text}")`)
 const field=p=>p.locator('.thread:not([hidden]) .composer textarea')
-const texts=p=>p.evaluate(()=>[...document.querySelectorAll('.thread:not([hidden]) .msgs > .m:not(.ghost-row)')].map(n=>n.querySelector('.bubble')?.textContent.trim()+(n.querySelector('.m-edited')?' ·已编辑':'')))
+// A message's words, without the time and state in its corner.
+const texts=p=>p.evaluate(()=>[...document.querySelectorAll('.thread:not([hidden]) .msgs > .m:not(.ghost-row)')].map(n=>{const b=n.querySelector('.bubble').cloneNode(true);b.querySelectorAll('.m-meta').forEach(x=>x.remove());return b.textContent.trim()+(n.querySelector('.m-edited')?' ·已编辑':'')}))
 const menuItems=async(p,text)=>{await bubble(p,text).click({button:'right'});await p.locator('.menu.on').waitFor();const items=await p.locator('.menu.on .menu-item .label').allTextContents();return items}
 const closeMenu=async p=>{await p.keyboard.press('Escape');await sleep(300)}
 // The other side's live preview of what A types.

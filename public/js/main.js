@@ -1,6 +1,7 @@
 // App entry: account gate → realtime messenger.
 
 import { initViewport } from './ui/viewport.js'
+import { initSteady } from './ui/steady.js'
 import { initPress } from './ui/press.js'
 import { initInputModality } from './ui/input-modality.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
@@ -27,6 +28,7 @@ let shell = null
 let calls = null
 
 initViewport()
+initSteady()
 initPress()
 initInputModality()
 syncThemeColor()

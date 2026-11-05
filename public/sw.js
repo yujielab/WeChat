@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v50'
+const SHELL = 'shell-v51'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -39,6 +39,7 @@ const SHELL_FILES = [
   '/js/ui/format.js',
   '/js/ui/haptics.js',
   '/js/ui/viewport.js',
+  '/js/ui/steady.js',
   '/js/ui/press.js',
   '/js/ui/input-modality.js',
   '/js/ui/spring.js',

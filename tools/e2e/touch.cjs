@@ -27,7 +27,8 @@ await p.reload();await p.waitForSelector(`.row[data-id="${room}"]`)
 
 const cdp=await ctx.newCDPSession(p)
 const touch=(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'||type==='touchCancel'?[]:[{x,y,id:1}]})
-const swipeRight=async({end='touchEnd',to=360}={})=>{await touch('touchStart',60,320);for(let i=1;i<=12;i++){await touch('touchMove',60+i*(to-60)/12,320);await sleep(16)}await touch(end,to,320)}
+// A back swipe starts at the leading edge (within 40px; the first 24 belong to Safari's own back swipe).
+const swipeRight=async({end='touchEnd',to=360}={})=>{await touch('touchStart',30,320);for(let i=1;i<=12;i++){await touch('touchMove',30+i*(to-30)/12,320);await sleep(16)}await touch(end,to,320)}
 // Does a tap there reach the element that is drawn there?
 const reachable=sel=>p.evaluate(sel=>{const el=document.querySelector(sel);if(!el)return'missing';const r=el.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return Boolean(hit&&el.contains(hit))&&!el.closest('[inert]')},sel)
 const focusCol=()=>p.evaluate(()=>document.querySelector('.shell').dataset.focus)
