@@ -11,7 +11,14 @@
 //   view transitions, the conversation's title, tools and field travel to
 //   their new places while the list slides in (or out) from the left.
 // * Reports the folding region when the device is partially open, from the
-//   browser's viewport segments (data-fold, --fold-start / --fold-end).
+//   browser's viewport segments (data-fold, --fold-start / --fold-end), or,
+//   where the browser only says the device is folded (the Device Posture
+//   API), the middle of the screen.
+// * Names the posture (data-pose): "closed" — the outer display (or any
+//   phone); "half" — partly open, a hinge to respect (a book, or a laptop on
+//   its side); "open" — the inner display flat, two columns side by side or,
+//   turned upright, one. The columns
+//   (js/ui/strip.js), the overlays and their motion follow it.
 // * Decides where the controls go: where the system keeps a column of its own
 //   down the right edge (the Duo's status bar and Dynamic Island) they stand
 //   in it as a rail ("vertical", data-bars); everywhere else they are the bar
@@ -27,6 +34,8 @@ const SPLIT_MIN = 700
 const EDGE_COLUMN_MIN = 64
 const listeners = new Set()
 const barListeners = new Set()
+const poseListeners = new Set()
+let pose = null
 let layout = null
 let bars = null
 let fold = { axis: 'none', start: 0, end: 0 }
@@ -89,6 +98,33 @@ function measure() {
     }
   }
   lastWidth = window.innerWidth
+  measurePose()
+}
+
+// ---------------------------------------------------------------- pose
+let shiftTimer = 0
+function measurePose() {
+  // The inner display is open whether it shows two columns (landscape) or
+  // one (turned upright); only a screen narrower both ways is the closed one.
+  const inner = layout === 'split' || Math.min(window.innerWidth, window.innerHeight) >= INNER_MIN
+  const next = fold.axis !== 'none' ? 'half' : inner ? 'open' : 'closed'
+  const key = `${next}:${fold.axis}:${fold.start}:${fold.end}`
+  if (key === pose?.key) return
+  const prev = pose?.pose
+  pose = { pose: next, fold: { ...fold }, key }
+  root.dataset.pose = next
+  if (prev && prev !== 'closed' && next !== 'closed' && prev !== next) markShift(next)
+  for (const fn of poseListeners) fn({ pose: next, fold: { ...fold } }, prev)
+}
+// Between half and open the screen stays the same size and only the hinge
+// changes: overlays glide to their new places with the columns
+// (data-pose-shift, for the length of the glide). It is set before the hinge
+// is written, since measuring anything between the two would let the new
+// places land without their transitions.
+function markShift(next) {
+  root.dataset.poseShift = next
+  clearTimeout(shiftTimer)
+  shiftTimer = setTimeout(() => delete root.dataset.poseShift, 760)
 }
 
 let applied = null
@@ -114,6 +150,14 @@ const segments = {
   horizontal: matchMedia('(vertical-viewport-segments: 2)')
 }
 for (const query of Object.values(segments)) query.addEventListener?.('change', () => measure())
+// The device's own word on its posture: "folded" while partly open.
+const postureQuery = matchMedia('(device-posture: folded)')
+postureQuery.addEventListener?.('change', () => measure())
+navigator.devicePosture?.addEventListener?.('change', () => measure())
+let postureOverride = null
+const deviceFolded = () => (postureOverride ? postureOverride === 'folded' : navigator.devicePosture?.type === 'folded' || postureQuery.matches)
+// The outer display is never the folded one: a folded posture only counts on a screen this wide both ways.
+const INNER_MIN = 560
 
 // The system's status column at the screen's edge. In the page, it is a
 // safe area (CSS sees it). Beside the page (iOS 27.2 narrows the page
@@ -194,18 +238,46 @@ function measureFold() {
     const end = axis === 'vertical' ? probe.offsetLeft : probe.offsetTop
     if (end > start) next = { axis, start, end }
   }
-  if (next.axis === fold.axis && next.start === fold.start && next.end === fold.end) return
-  fold = next
-  if (fold.axis === 'none') {
-    delete root.dataset.fold
-    root.style.removeProperty('--fold-start')
-    root.style.removeProperty('--fold-end')
-  } else {
-    root.dataset.fold = fold.axis
-    root.style.setProperty('--fold-start', `${fold.start}px`)
-    root.style.setProperty('--fold-end', `${fold.end}px`)
+  if (next.axis === 'none' && deviceFolded() && Math.min(window.innerWidth, window.innerHeight) >= INNER_MIN) {
+    // Folded, without segments: the hinge runs down the middle of the
+    // longer side, with no gap of its own.
+    const axis = window.innerWidth >= window.innerHeight ? 'vertical' : 'horizontal'
+    const mid = Math.round((axis === 'vertical' ? window.innerWidth : window.innerHeight) / 2)
+    next = { axis, start: mid, end: mid }
   }
+  if (next.axis === fold.axis && next.start === fold.start && next.end === fold.end) return
+  // Standing the screen up like a laptop, or laying it flat again, with one
+  // column: what is watched moves above the hinge and what is touched below
+  // it, as a morph (css/posture.css) rather than a cut.
+  const turn = applied === 'stack' && (fold.axis === 'horizontal') !== (next.axis === 'horizontal') && canMorph()
+  const inner = applied === 'split' || Math.min(window.innerWidth, window.innerHeight) >= INNER_MIN
+  if (pose && pose.pose !== 'closed' && inner && (fold.axis === 'none') !== (next.axis === 'none')) markShift(next.axis === 'none' ? 'open' : 'half')
+  fold = next
+  const write = () => {
+    if (fold.axis === 'none') {
+      delete root.dataset.fold
+      root.style.removeProperty('--fold-start')
+      root.style.removeProperty('--fold-end')
+    } else {
+      root.dataset.fold = fold.axis
+      root.style.setProperty('--fold-start', `${fold.start}px`)
+      root.style.setProperty('--fold-end', `${fold.end}px`)
+    }
+  }
+  if (!turn) {
+    write()
+    return
+  }
+  root.dataset.poseTurn = ''
+  const t = document.startViewTransition(write)
+  t.ready.catch(() => {})
+  const late = setTimeout(() => t.skipTransition?.(), 1200)
+  t.finished.catch(() => {}).finally(() => {
+    clearTimeout(late)
+    delete root.dataset.poseTurn
+  })
 }
+const canMorph = () => Boolean(document.startViewTransition) && !reducedMotion() && document.visibilityState === 'visible' && !posture
 
 /** Pretend the device is partially folded (axis: 'vertical' | 'horizontal'), or clear it. */
 export function emulateFold(options = null) {
@@ -213,8 +285,24 @@ export function emulateFold(options = null) {
   measure()
 }
 
+/** Pretend the device reports a posture ('folded' | 'continuous'), as the Device Posture API would, or clear it. */
+export function emulatePosture(type = null) {
+  postureOverride = type === 'folded' || type === 'continuous' ? type : null
+  measure()
+}
+
 export function getFold() {
   return { ...fold }
+}
+
+/** closed | half | open, and the hinge. */
+export function getPose() {
+  return pose ? { pose: pose.pose, fold: { ...pose.fold } } : { pose: 'closed', fold: { ...fold } }
+}
+
+export function onPose(fn) {
+  poseListeners.add(fn)
+  return () => poseListeners.delete(fn)
 }
 
 function hasTextFocus() {
@@ -228,8 +316,10 @@ export function skipTransitions() {
 }
 
 export function initViewport() {
-  const asked = new URLSearchParams(location.search).get('fold')
+  const params = new URLSearchParams(location.search)
+  const asked = params.get('fold')
   if (asked === 'vertical' || asked === 'horizontal') foldOverride = { axis: asked }
+  if (params.get('posture') === 'folded') postureOverride = 'folded'
   measure()
   vv?.addEventListener('resize', measure)
   vv?.addEventListener('scroll', measure)

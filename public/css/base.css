@@ -138,7 +138,10 @@ img, a, svg { -webkit-user-drag: none; }
 }
 /* One strip of columns (js/ui/strip.js) — sidebar | list | conversation |
    details — slid along behind a window: one column folded, two adjacent
-   columns of equal width unfolded. Columns outside the window aren't drawn. */
+   columns unfolded. Columns outside the window aren't drawn. How wide each
+   is follows the posture (js/ui/columns.js) and is set on the column itself:
+   half open the two meet at the hinge; open flat the conversation is wide
+   and the column beside it narrow. */
 .pane.off { visibility: hidden; }
 .shell { --gap: 0px; }
 .shell[data-anim] .pane { will-change: transform; }
@@ -150,6 +153,42 @@ img, a, svg { -webkit-user-drag: none; }
    nothing sits in the bend (data-fold / --fold-start / --fold-end from
    js/ui/viewport.js). */
 .shell[data-layout="split"] { background: var(--paper); }
+/* Held half open like a book, the two columns fall away from the hinge: a
+   soft shade gathers either side of it, as in a book's gutter. It follows
+   the divider (--divider-start / --divider-end, set as the columns are
+   drawn) and fades as the screen opens flat, while the hinge's gap closes. */
+.shell[data-layout="split"]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  left: calc(var(--divider-start, 50%) - 26px);
+  width: calc(var(--divider-end, 50%) - var(--divider-start, 50%) + 52px);
+  background: linear-gradient(90deg, transparent, var(--gutter-shade) 26px, var(--gutter-shade) calc(100% - 26px), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 460ms var(--ease-out);
+}
+:root[data-pose="half"][data-fold="vertical"] .shell[data-layout="split"]::after { opacity: 1; }
+/* Standing like a laptop, the same shade runs across the hinge. */
+.shell[data-layout="stack"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  top: calc(var(--fold-start, 50%) - var(--vvt, 0px) - 26px);
+  height: calc(var(--fold-end, 50%) - var(--fold-start, 50%) + 52px);
+  background: linear-gradient(180deg, transparent, var(--gutter-shade) 26px, var(--gutter-shade) calc(100% - 26px), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 460ms var(--ease-out);
+}
+:root[data-pose="half"][data-fold="horizontal"]:not([data-kb="1"]) .shell[data-layout="stack"]::after { opacity: 1; }
+:root { --gutter-shade: rgb(0 0 0 / 0.05); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --gutter-shade: rgb(0 0 0 / 0.38); } }
+:root[data-theme="dark"] { --gutter-shade: rgb(0 0 0 / 0.38); }
 :root[data-fold="vertical"] .shell[data-layout="split"] { --gap: calc(var(--fold-end) - var(--fold-start)); }
 .shell[data-layout="split"] .pane { width: calc((100% - var(--gap)) / 2); }
 .pane[data-role="leading"] { --safe-right: 0px; border-right: var(--hairline) solid var(--line); }

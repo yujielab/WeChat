@@ -5,7 +5,7 @@
 // left. Folding or unfolding keeps the focused column on screen.
 
 import { createStrip, COLS } from '../ui/strip.js'
-import { getLayout, onLayout } from '../ui/viewport.js'
+import { getLayout, onLayout, getPose, onPose } from '../ui/viewport.js'
 import { state, chatInfo } from '../store.js'
 import { createSidebar } from './sidebar.js'
 import { createChatList } from './chatList.js'
@@ -424,8 +424,12 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
   }
 
   history.replaceState(entry(LIST), '')
+  strip.setPose(getPose(), { animate: false })
   applyLayout(getLayout())
   onLayout(layout => applyLayout(layout))
+  // Half open ↔ flat: the divider glides between the hinge and the
+  // conversation's own width (js/ui/columns.js).
+  onPose(next => strip.setPose(next))
 
   const deep = new URLSearchParams(location.search).get('chat')
   if (deep) {

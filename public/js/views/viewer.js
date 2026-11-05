@@ -52,8 +52,10 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   let tapTimer = 0
   const vt = velocityTracker()
 
-  let W = root.clientWidth
-  let H = root.clientHeight
+  // The photo fits its stage: the whole screen, or, standing half open like
+  // a laptop, the upper half above the hinge (css/posture.css).
+  let W = stage.clientWidth || root.clientWidth
+  let H = stage.clientHeight || root.clientHeight
   const nat = { w: thumb?.naturalWidth || w || 1, h: thumb?.naturalHeight || hh || 1 }
   if (w && hh) {
     nat.w = w
@@ -158,8 +160,8 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     thumbnailButtons[selected]?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }
   function fitMedia() {
-    W = root.clientWidth
-    H = root.clientHeight
+    W = stage.clientWidth || root.clientWidth
+    H = stage.clientHeight || root.clientHeight
     nat.w = w || media.naturalWidth || 1
     nat.h = hh || media.naturalHeight || 1
     fit = Math.min(W / nat.w, H / nat.h)
@@ -194,7 +196,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   next?.addEventListener('click', () => select(selected + 1))
   updateGallery()
   const onResize = () => {
-    if (!closing && (root.clientWidth !== W || root.clientHeight !== H)) {
+    if (!closing && ((stage.clientWidth || root.clientWidth) !== W || (stage.clientHeight || root.clientHeight) !== H)) {
       activeAnimation?.stop()
       clearTimeout(tapTimer)
       pointers.clear()
@@ -204,6 +206,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   }
   const resizeObserver = new ResizeObserver(onResize)
   resizeObserver.observe(root)
+  resizeObserver.observe(stage)
   if (kind === 'image') media.addEventListener('load', () => {
     if (!closing && (!w || !hh)) { activeAnimation?.stop(); fitMedia() }
   })
