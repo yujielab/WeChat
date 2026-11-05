@@ -69,8 +69,11 @@ const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_2 like Mac OS X) AppleWebKit/6
     assert.equal(wide.fade, '0px')
     assert.equal(wide.column, undefined)
     assert.ok(wide.field.right <= 376 && wide.action.right <= 376)
+    // The system's column down the right edge holds the rail (Back, the calls, the details); content stops at it.
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.bars), 'vertical', 'the system column holds the rail')
+    assert.equal(wide.controls.length, 4)
     for (const control of wide.controls) {
-      assert.ok(control.left >= 0 && control.right <= 376, 'heading and bar controls avoid the system column')
+      assert.ok(control.left >= 376 && control.right <= 466, 'the rail stands in the system column')
       assert.ok(control.width >= 44 && control.height >= 44, 'touch targets retain their size')
     }
     await page.locator('.thread [data-item="audio"]').click()
@@ -101,7 +104,7 @@ const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_2 like Mac OS X) AppleWebKit/6
     assert.equal(await page.evaluate(() => document.documentElement.dataset.wide), undefined)
     assert.match(await page.locator('meta[name="viewport"]').getAttribute('content'), /^width=device-width,/)
     assert.deepEqual(errors, [])
-    console.log('PASS: early wide app viewport; full-width backdrop without fade; sign-in and chat controls clear of side column; tappable calls; keyboard sizing/restoration; query opt-out; no page errors. Native Safari side-column painting still needs Duo.')
+    console.log('PASS: early wide app viewport; full-width backdrop without fade; sign-in and chat content clear of the side column, the rail standing in it; tappable calls; keyboard sizing/restoration; query opt-out; no page errors. Native Safari side-column painting still needs Duo.')
   } finally {
     await browser.close()
   }

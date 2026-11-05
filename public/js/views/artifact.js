@@ -4,7 +4,8 @@
 // to the conversation.
 
 import { h } from '../ui/dom.js'
-import { createBars } from '../ui/bars.js'
+import { createBars, railed } from '../ui/bars.js'
+import { onBars } from '../ui/viewport.js'
 import { renderRoomInfo, roomInfoTitle } from './sheets.js'
 import { createDrawing } from './draw.js'
 
@@ -32,7 +33,8 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
 
   // Details need no heading — the profile at their top says whose they are.
   // Close (Back, folded, where the details replace the conversation) leads
-  // the bar at their foot.
+  // the bar at their foot — or the rail, where the system keeps its column on
+  // the right edge (the Duo).
   function infoView(chat, body) {
     const bars = createBars({
       label: '详情操作',
@@ -40,24 +42,41 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
         { id: 'back', icon: 'chevron-left', title: '返回对话', primary: true, onSelect: () => onClose() },
         { id: 'close', icon: 'xmark', title: '关闭', primary: true, onSelect: () => onClose() }
       ],
-      arrange: () => ({ top: [], bottom: [[pane.dataset.layout === 'single' ? 'back' : 'close']] })
+      arrange: axis => {
+        const lead = [[pane.dataset.layout === 'single' ? 'back' : 'close']]
+        return axis === 'vertical' ? { top: lead, bottom: [] } : { top: [], bottom: lead }
+      }
     })
     const content = h('div', { class: 'art-content' })
     const bottombar = h('nav', { class: 'art-bottombar dock', 'aria-label': '详情操作' }, bars.bottom)
-    body.append(h('div', { class: 'scroll art-scroll' }, content), bottombar)
+    const rail = h('nav', { class: 'duo-rail art-rail', 'aria-label': '详情操作' })
+    body.append(h('div', { class: 'scroll art-scroll' }, content), bottombar, rail)
     renderRoomInfo(chat, { body: content, host: { el: pane, close: onClose }, loadContacts })
 
     let frame = 0
     const arrange = () => {
       cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => bars.layout({ bottom: bottombar.clientWidth }))
+      frame = requestAnimationFrame(() => {
+        const vertical = railed(pane)
+        body.dataset.bars = vertical ? 'vertical' : 'horizontal'
+        if (vertical) {
+          if (bars.top.parentElement !== rail) bars.move(() => rail.append(bars.top, bars.bottom))
+          bars.layout('vertical', rail.clientHeight)
+        } else {
+          if (bars.bottom.parentElement !== bottombar) bars.move(() => { bottombar.append(bars.bottom); bars.top.remove() })
+          bars.layout('horizontal', { bottom: bottombar.clientWidth })
+        }
+      })
     }
     const ro = new ResizeObserver(arrange)
     ro.observe(bottombar)
+    ro.observe(rail)
+    const off = onBars(arrange)
     return {
       relayout: arrange,
       destroy() {
         ro.disconnect()
+        off()
         cancelAnimationFrame(frame)
       }
     }

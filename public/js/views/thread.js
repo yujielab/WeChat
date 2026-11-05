@@ -20,7 +20,8 @@ import { openViewer } from './viewer.js'
 import { openMenu, openSheet, toast, confirmAction } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
 import { renderPhotoStack, openPhotoStack, stackSize } from './photo-stack.js'
-import { createBars } from '../ui/bars.js'
+import { createBars, railed } from '../ui/bars.js'
+import { onBars } from '../ui/viewport.js'
 import { backdropLayer, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
 import { chatBackdrop } from './backdrops.js'
 
@@ -183,7 +184,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // leads the bar at the foot of the conversation, before the field, and the
   // field's own button (photos and drawing, or Send) follows it. Beside the
   // list (unfolded) there is no Back: the list is right there. Details open
-  // in the next column, so their item shows whether it's open.
+  // in the next column, so their item shows whether it's open. Where the
+  // system keeps its column on the right edge (the Duo) they all stand in a
+  // rail there instead — Back, the calls, the details — and the heading and
+  // the field keep to the content.
   const unreadBadge = () => {
     const n = current ? unreadTotal(current) : 0
     return n ? (n > 99 ? '99+' : String(n)) : ''
@@ -196,13 +200,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       { id: 'video', icon: 'video', title: '视频通话', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
       { id: 'info', icon: 'info', title: '聊天信息', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
     ],
-    arrange: () => {
+    arrange: axis => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
       const back = pane.dataset.layout === 'trailing' ? [] : [['back']]
-      return { top: [...calls, ['info']], bottom: back }
+      return axis === 'vertical' ? { top: [...back, ...calls, ['info']], bottom: [] } : { top: [...calls, ['info']], bottom: back }
     }
   })
+  const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': '聊天操作' })
 
   const jumpBadge = h('span', { class: 'badge', hidden: true })
   const jump = h('button', { class: 'glass glass-btn jump', type: 'button', 'aria-label': '回到最新消息' }, icon('chevron-down'), jumpBadge)
@@ -395,24 +400,34 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       if (!reducedMotion()) offlineEffect = symbolEffect(offline.querySelector('.icon'), 'variable-color')
     }, 1000)
   }
-  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, composer.el, jump, downPill, mentionPill, offline)
-  nav.append(bars.top)
+  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, rail, composer.el, jump, downPill, mentionPill, offline)
   composer.el.classList.add('dock')
-  composer.dock(bars.bottom)
 
-  // The name keeps at least 150px of the heading; the field keeps at least
-  // 160px of the bar at the foot, and its 56pt button after it.
+  // Bars follow the window: the rail where the system's column is, else the
+  // heading and the foot. The name keeps at least 150px of the heading; the
+  // field keeps at least 160px of the bar at the foot, and its 56pt button
+  // after it.
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
     barsFrame = requestAnimationFrame(() => {
-      const cs = getComputedStyle(composer.el)
-      const inner = composer.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
-      bars.layout({ top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8 - 56 - 8) })
+      const vertical = railed(pane)
+      root.dataset.bars = vertical ? 'vertical' : 'horizontal'
+      if (vertical) {
+        if (bars.top.parentElement !== rail) bars.move(() => { composer.dock(null); rail.append(bars.top, bars.bottom) })
+        bars.layout('vertical', rail.clientHeight)
+      } else {
+        if (bars.top.parentElement !== nav) bars.move(() => { nav.append(bars.top); composer.dock(bars.bottom) })
+        const cs = getComputedStyle(composer.el)
+        const inner = composer.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+        bars.layout('horizontal', { top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8 - 56 - 8) })
+      }
     })
   }
+  new ResizeObserver(arrangeBars).observe(rail)
   new ResizeObserver(arrangeBars).observe(nav)
   new ResizeObserver(arrangeBars).observe(composer.el)
+  onBars(arrangeBars)
   bindImageDropTarget(root, { onFiles: files => composer.openImages(files), enabled: () => Boolean(current) })
   // No conversation open: the column is plain paper.
   const empty = h('div', { class: 'thread-empty' })
