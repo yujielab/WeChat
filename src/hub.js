@@ -31,6 +31,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,24}$/
 const NAME_MAX = 40
 const BIO_MAX = 120
 const GROUP_MAX = 500
+const RECENT_AVATARS = 8 // photos kept to go back to in the avatar editor
 const DIGEST_EVERY = 10 * 60 * 1000 // how often a conversation's digest is rebuilt (10 minutes)
 
 /** Free text from a client: a string on one line, at most `max` characters. */
@@ -189,9 +190,16 @@ export class Hub {
         if (cover === undefined) return json({ ok: false, error: '封面无效' }, 400)
         patch.cover = cover
       }
+      // The photo it replaces is kept among the recent ones, to go back to.
+      if (patch.avatar !== undefined && user.avatar && patch.avatar !== user.avatar) this.rememberAvatar(user.id, user.avatar)
       const updated = this.store.setProfile(user.id, patch)
       this.fanoutToPeers(user.id, { t: 'profile', user: this.store.pub(updated) })
       return json({ ok: true, me: this.store.pub(updated) })
+    }
+    // Photos this account used before (the avatar editor's 最近使用), newest first, not the one in use.
+    if (path === '/api/profile/avatars' && method === 'GET') {
+      const recent = (this.store.kvGet(`avatars:${user.id}`) || []).filter(u => u !== user.avatar)
+      return json({ ok: true, recent })
     }
     if (path === '/api/password' && method === 'POST') {
       if (!await verifyPassword(body.current, user.salt, user.hash)) return json({ ok: false, error: '当前密码不正确' }, 403)
@@ -819,6 +827,14 @@ export class Hub {
       .map(p => ({ band: p.band, name: rooms.get(p.room) ? (rooms.get(p.room).kind === 'dm' ? rooms.get(p.room).peer?.display : rooms.get(p.room).name) || '' : '' }))
       .filter(p => p.name)
     return { ...summary, peers }
+  }
+
+  /** Keep a replaced avatar among the recent ones: its own, newest first, a handful. */
+  rememberAvatar(userId, url) {
+    const own = `/api/media/avatar/${userId}/`
+    if (typeof url !== 'string' || !url.startsWith(own)) return
+    const list = [url, ...(this.store.kvGet(`avatars:${userId}`) || []).filter(u => u !== url)].slice(0, RECENT_AVATARS)
+    this.store.kvSet(`avatars:${userId}`, list)
   }
 
   /** Keep a writer's memory in step with what they just sent. */

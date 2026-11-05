@@ -10,6 +10,7 @@ import { hapticsAvailable } from '../ui/haptics.js'
 import { assistPrefs, setAssistPref } from './predict.js'
 import { insightsOn, setInsightsPref, insightsSection } from './insights.js'
 import { openMemorySheet } from './memory.js'
+import { openAvatarEditor } from './avatar-editor.js'
 import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
@@ -95,15 +96,6 @@ export function rememberOpen(id) {
   try { id ? localStorage.setItem('ui:open', id) : localStorage.removeItem('ui:open') } catch {}
 }
 
-async function uploadAvatar(file) {
-  const res = await fetch(`/api/media/upload?kind=avatar&name=avatar`, {
-    method: 'POST', credentials: 'same-origin', headers: { 'content-type': file.type || 'image/jpeg' }, body: file
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok || !data.ok) throw new Error(data.error || '上传失败')
-  return data.url
-}
-
 // ---------------------------------------------------------------- settings
 export function openSettings({ onLogout, origin }) {
   const prefs = getPrefs()
@@ -178,35 +170,21 @@ function editProfile(onEdited) {
   // photo over its lower edge.
   const cover = h('button', { class: 'cover-edit', type: 'button', 'aria-label': '更换封面' },
     backdropLayer(me?.cover), h('span', { class: 'cover-edit-label', 'aria-hidden': 'true' }, icon('photo'), '更换封面'))
-  cover.addEventListener('click', () => openBackdropPicker({
-    title: '封面', value: state.me?.cover || '', none: '无', kind: 'cover', look: 'cover',
-    save: async v => {
-      const r = await api.post('/api/profile', { cover: v })
-      setMe(r.me)
-      paintBackdrop(cover.firstChild, r.me.cover)
-      onEdited?.(r.me)
-    }
-  }))
   const av = h('button', { class: 'avatar-edit', type: 'button', 'aria-label': '更换头像' },
     avatar(me?.avatar, me?.display || '我', { size: 96 }), h('span', { class: 'avatar-edit-badge' }, icon('camera')))
-  const file = h('input', { type: 'file', accept: 'image/*', hidden: true })
+  // Both open the editor (views/avatar-editor.js), on their own tab; what it
+  // saves shows here at once.
+  const saved = next => {
+    av.firstChild.replaceWith(avatar(next.avatar, next.display, { size: 96 }))
+    paintBackdrop(cover.firstChild, next.cover)
+    onEdited?.(next)
+  }
+  av.addEventListener('click', () => openAvatarEditor({ tab: 'avatar', origin: av, onSaved: saved }))
+  cover.addEventListener('click', () => openAvatarEditor({ tab: 'cover', origin: cover, onSaved: saved }))
   const display = input({ value: me?.display || '', placeholder: '昵称', maxlength: 40 })
   const bio = input({ value: me?.bio || '', placeholder: '简介（可选）', maxlength: 120 })
   const save = h('button', { class: 'btn primary solid-press', type: 'button' }, '保存')
 
-  av.addEventListener('click', () => file.click())
-  file.addEventListener('change', async () => {
-    const f = file.files[0]
-    if (!f) return
-    try {
-      const url = await uploadAvatar(f)
-      const r = await api.post('/api/profile', { avatar: url })
-      setMe(r.me)
-      av.firstChild.replaceWith(avatar(r.me.avatar, r.me.display, { size: 96 }))
-      onEdited?.(r.me)
-      toast('头像已更新', { type: 'ok' })
-    } catch (err) { toast(err.message, { type: 'error' }) }
-  })
   save.addEventListener('click', async () => {
     save.disabled = true
     try {
@@ -220,7 +198,7 @@ function editProfile(onEdited) {
 
   const content = h('div', { class: 'form-sheet' },
     cover,
-    h('div', { class: 'avatar-edit-wrap over-cover' }, av, file),
+    h('div', { class: 'avatar-edit-wrap over-cover' }, av),
     h('label', { class: 'f-label' }, '昵称'), display,
     h('label', { class: 'f-label' }, '简介'), bio,
     h('div', { class: 'f-go' }, save))

@@ -1,0 +1,213 @@
+/* The avatar and cover editor (views/avatar-editor.js), after the system's:
+   Cancel and Done in round glass at the top corners with 头像 | 封面 between
+   them, the picture large in the middle, then where a new one comes from.
+   The sheet takes the photo's colour, quietened: the script sets a light
+   shade and a deep one (--av-tint-light, --av-tint-dark) and the theme picks,
+   so it still reads after a switch. Everything on it is a veil of the label
+   colour, so it reads on any tint. It is as wide as any sheet, so it covers
+   the one it was opened from. */
+
+.sheet.av-editor {
+  --veil: color-mix(in srgb, var(--label) 9%, transparent);
+  --veil-strong: color-mix(in srgb, var(--label) 15%, transparent);
+  --av-tint: var(--av-tint-light, var(--paper));
+  background: var(--av-tint);
+  transition: transform 280ms var(--ease-out), background-color 420ms ease-out;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sheet.av-editor { --av-tint: var(--av-tint-dark, var(--paper)); }
+}
+:root[data-theme="dark"] .sheet.av-editor { --av-tint: var(--av-tint-dark, var(--paper)); }
+
+/* The heading: Cancel, the two tabs, Done — the tabs centred whatever the layout. */
+.sheet.av-editor .sheet-head {
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  padding-top: 10px;
+}
+.sheet.av-editor .sheet-head .start { grid-column: 1; }
+.sheet.av-editor .sheet-head .end { grid-column: 3; }
+.sheet.av-editor .sheet-head :is(.av-cancel, .av-done) {
+  width: 48px;
+  height: 48px;
+  background: var(--veil);
+  box-shadow: inset 0 0 0 1px var(--veil);
+  color: var(--label);
+}
+.sheet.av-editor .sheet-head :is(.av-cancel, .av-done) .icon { width: 20px; height: 20px; }
+.sheet.av-editor .sheet-head .av-done { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+.sheet.av-editor .sheet-head .av-done:disabled { opacity: .5; }
+
+.av-seg {
+  grid-column: 2;
+  justify-self: center;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--veil);
+  box-shadow: inset 0 0 0 1px var(--veil);
+  min-width: 176px;
+}
+.av-seg-item {
+  position: relative;
+  z-index: 1;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: var(--t-subhead);
+  font-weight: var(--w-semibold);
+  color: var(--label-2);
+  transition: color 200ms ease-out;
+}
+.av-seg-item[aria-selected="true"] { color: var(--label); }
+.av-seg-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: var(--veil-strong);
+  transform: translateX(calc(var(--i, 0) * 100%));
+  transition: transform 320ms var(--spring-snappy, var(--ease-out));
+}
+
+.av-editor-body { padding: 0 22px 10px; }
+
+/* The picture, large; − takes it away. */
+.av-stage, .cv-stage { position: relative; display: grid; place-items: center; padding: 18px 0 6px; }
+.av-preview {
+  --d: min(232px, 56vw);
+  position: relative;
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--veil);
+  box-shadow: 0 22px 44px -24px rgb(0 0 0 / .45);
+  touch-action: pan-y;
+}
+.av-preview > .avatar { --size: var(--d); font-size: calc(var(--d) * .38); }
+.av-photo { position: absolute; max-width: none; user-select: none; -webkit-user-select: none; pointer-events: none; }
+/* Framing: the circle takes the finger, and says so with a ring. */
+.av-preview.framing { touch-action: none; cursor: grab; box-shadow: 0 0 0 3px var(--label), 0 22px 44px -24px rgb(0 0 0 / .45); }
+.av-preview.framing:active { cursor: grabbing; }
+.av-remove {
+  position: absolute;
+  top: calc(18px + var(--d, 232px) * .06);
+  left: calc(50% + var(--d, 232px) * .29);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px var(--line), 0 6px 16px -6px rgb(0 0 0 / .3);
+  color: var(--label);
+  font-size: 24px;
+  line-height: 1;
+}
+.av-stage { --d: min(232px, 56vw); }
+.av-remove[hidden] { display: none; }
+
+.av-under { display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 10px; }
+.av-custom {
+  min-width: 112px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: var(--veil-strong);
+  font-size: var(--t-subhead);
+  font-weight: var(--w-semibold);
+  color: var(--label);
+}
+.av-custom[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.av-custom[hidden] { display: none; }
+.av-zoom { width: min(260px, 80%); accent-color: var(--label); }
+.av-hint { margin: 0; font-size: var(--t-footnote); color: var(--label-2); }
+
+/* Where a new one comes from. */
+.av-section h3 { margin: 26px 2px 12px; font-size: var(--t-headline); font-weight: var(--w-bold); color: var(--label); }
+.av-pick { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left; border-radius: var(--r-l); }
+.av-pick-icon {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--veil-strong);
+  color: var(--label);
+}
+.av-pick-icon .icon { width: 30px; height: 30px; }
+.av-pick-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.av-pick-title { font-size: var(--t-body); font-weight: var(--w-semibold); color: var(--label); }
+.av-pick-sub { font-size: var(--t-footnote); line-height: 1.45; color: var(--label-2); }
+.av-pick.loading { opacity: .5; pointer-events: none; }
+.av-recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 12px; }
+.av-recent-item { aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: var(--veil); box-shadow: 0 8px 18px -12px rgb(0 0 0 / .4); }
+.av-recent-item img { width: 100%; height: 100%; object-fit: cover; }
+.av-section[hidden] { display: none; }
+
+/* The cover as your profile shows it: the band across the top, your photo
+   over its lower edge, your name beside it. */
+.cv-preview {
+  --face: 76px;
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding-bottom: 14px;
+  border-radius: var(--r-l);
+  overflow: hidden;
+  background: var(--veil);
+  box-shadow: 0 22px 44px -26px rgb(0 0 0 / .45);
+  display: grid;
+  grid-template-columns: calc(var(--face) + 16px) minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: end;
+}
+.cv-band { position: relative; grid-column: 1 / -1; aspect-ratio: 2.6; overflow: hidden; background: var(--veil); }
+.cv-band > .backdrop { position: absolute; inset: 0; }
+.cv-face {
+  position: relative;
+  grid-column: 1;
+  width: var(--face);
+  height: var(--face);
+  margin: calc(var(--face) * -.45) 0 0 16px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--veil);
+  box-shadow: 0 0 0 3px var(--av-tint);
+}
+.cv-face > .avatar { --size: var(--face); font-size: calc(var(--face) * .38); }
+.cv-face > .av-photo { left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+.cv-face-name {
+  grid-column: 2;
+  min-width: 0;
+  padding: 0 16px 6px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-headline);
+  font-weight: var(--w-semibold);
+  color: var(--label);
+}
+.cv-remove { top: 26px; left: auto; right: max(10px, calc(50% - 200px)); }
+.cv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.cv-tile { position: relative; aspect-ratio: 1.6; border-radius: var(--r-m); overflow: hidden; background: var(--veil); }
+.cv-tile > .backdrop { position: absolute; inset: 0; }
+.cv-tile[aria-checked="true"] { box-shadow: 0 0 0 3px var(--label); }
+.cv-name {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: var(--t-caption);
+  font-weight: var(--w-semibold);
+  color: var(--label);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--bg) 80%, transparent);
+}
+
+:root[data-motion="reduce"] .sheet.av-editor, :root[data-motion="reduce"] .av-seg-thumb { transition: none; }
