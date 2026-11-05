@@ -47,9 +47,10 @@ await p.click('.thread [data-item="info"]');await sleep(120)
 const mid=await state();assert.ok(mid.boxes.thread.x>1&&mid.boxes.thread.x<444,'the strip is mid-slide '+mid.boxes.thread.x);assert.ok(mid.shown.includes('list')&&mid.shown.includes('artifact'),'both outgoing and incoming columns drawn while sliding')
 await settled('artifact');await p.locator('.art-content .profile').waitFor();s=await state()
 assert.deepEqual(s.roles,['hidden','hidden','leading','trailing']);assert.ok(Math.abs(s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.right-s.boxes.artifact.x)<1)
-// The conversation leads now: Back returns to its bar; details is pressed.
+// The conversation leads now, with no Back of its own — the details' Close beside it does the same, so there is
+// one way out and it is in the column being left; details is pressed.
 const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread [data-item="info"]').getAttribute('aria-pressed')}))
-assert.deepEqual(lead,{items:['audio','video','info','back'],info:'true'})
+assert.deepEqual(lead,{items:['audio','video','info'],info:'true'})
 assert.equal(await p.locator('.art-body [data-item="close"]').isVisible(),true,'details close beside the conversation')
 await sleep(200);await shot('26-strip-open-chat-details')
 

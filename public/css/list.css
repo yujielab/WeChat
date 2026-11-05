@@ -105,7 +105,8 @@
 /* The bar at the foot: Back (and the filter, unfolded) lead, the search
    field takes the middle, New Chat ends it; Cancel replaces them all while
    searching. */
-.list-bottombar { position: absolute; z-index: var(--z-chrome); left: calc(var(--list-inset) + var(--safe-left)); right: calc(var(--list-inset) + var(--safe-right)); bottom: max(var(--safe-bottom), 16px); display: flex; align-items: center; gap: 8px; }
+/* The same edges as the conversation's bar and the details': Back and New Chat don't shift as the columns change. */
+.list-bottombar { position: absolute; z-index: var(--z-chrome); left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); bottom: max(var(--safe-bottom), 16px); display: flex; align-items: center; gap: 8px; }
 .list-bottombar .search-pill { order: 0; }
 .list-bottombar .search-cancel { order: 2; }
 :root[data-kb="1"] .list-bottombar { bottom: 8px; }
