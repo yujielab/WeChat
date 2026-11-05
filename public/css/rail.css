@@ -1,0 +1,143 @@
+/* The rail. Where the system keeps a column of its own down the right edge of
+   the screen — the iPhone Duo's status bar and Dynamic Island, on both
+   displays — the controls stand in it, and content runs up to it like
+   everywhere else (js/ui/viewport.js sets data-bars="vertical" there, and
+   js/ui/bars.js moves each column's items into its .duo-rail). Elsewhere
+   there is no rail: the controls are the bars at each column's foot
+   (duo-layout.css).
+
+   Where the column is part of the page (the early wide viewport, or the safe
+   area iOS reports; data-edge-column) the rail stands inside it, centred
+   under the status bar, and content needs no more room than it already
+   keeps. Where the system keeps the column outside the page
+   (data-edge-column="beside") the rail stands against the page's edge, and
+   content makes room for it (--rail-content). The leading column of a split
+   view has no column of its own and keeps its bar. */
+
+:root {
+  --rail-w: 52px;
+  --rail-inset: 10px;
+  --rail-gap: 12px;
+  /* Camera + status bar at the top of the column on the outer display;
+     status bar alone on the inner display (its camera hides when inactive). */
+  --rail-reserve-outer: 162px;
+  --rail-reserve-inner: 112px;
+}
+/* Computed per pane and per overlay, so a column on the leading side of the
+   fold, which has no inset of its own, keeps the rail inside it. */
+.pane, .overlays, .viewer, .draw, .call {
+  --rail-right: calc(var(--safe-right) + var(--rail-inset));
+  --rail-content: calc(var(--rail-right) + var(--rail-w) + var(--rail-gap));
+}
+/* The status column's centre is 50pt in from the edge (84pt wide, measured on
+   device folded and open); the rail is centred on it. */
+:root[data-edge-column] :is(.pane:not([data-role="leading"]), .overlays, .viewer:not([data-place="leading"]), .call:not([data-place="leading"]), .draw) {
+  --rail-right: max(4px, calc(var(--safe-right) - 34px - var(--rail-w) / 2));
+  --rail-content: max(calc(var(--safe-right) + var(--margin)), calc(var(--rail-right) + var(--rail-w) + var(--rail-gap)));
+}
+.pane { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
+.shell[data-layout="split"] .pane { --rail-reserve: var(--rail-reserve-inner); }
+/* Rotated, the outer display carries its camera at the foot of the column,
+   and the status bar steps away: Back moves to the very top. */
+:root[data-orientation="landscape"] .shell[data-layout="stack"] .pane { --rail-reserve: 12px; --rail-foot: 64px; }
+/* With the system's column kept outside the page the rail runs from the top
+   of the page to its foot: the camera and status bar are out there. */
+:root[data-edge-column="beside"][data-orientation] .shell[data-layout] .pane { --rail-reserve: 12px; --rail-foot: 14px; }
+
+/* ---------------------------------------------------------------- the column */
+.bar-section[data-axis="vertical"], .bar-section[data-axis="vertical"] .bar-group { flex-direction: column; }
+.duo-rail {
+  position: absolute;
+  z-index: calc(var(--z-chrome) + 1);
+  top: max(var(--safe-top), var(--rail-reserve));
+  bottom: max(var(--safe-bottom), var(--rail-foot));
+  right: var(--rail-right);
+  width: var(--rail-w);
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.duo-rail > * { pointer-events: auto; }
+:is(.thread, .pane-list, .pane-sidebar, .art-body)[data-bars="vertical"] > .duo-rail { display: flex; }
+:root[data-kb="1"] .duo-rail { bottom: 8px; }
+/* The receding app's controls step aside for a sheet's, so none show
+   half-covered in the edge column; they return as the sheet is dragged away. */
+.app .duo-rail { transition: opacity 260ms ease-out; }
+.app.sheeted .duo-rail { opacity: calc(1 - var(--sp-k, 1)); }
+.app.sheet-drag .duo-rail { transition: none; }
+/* The bars at the foot give way to it. */
+:is(.thread, .pane-list, .pane-sidebar, .art-body)[data-bars="vertical"] :is(.side-bottombar, .art-bottombar) { display: none; }
+
+/* ---------------------------------------------------------------- conversation */
+.thread[data-bars="vertical"] { --content-right: var(--rail-content); }
+
+/* ---------------------------------------------------------------- list */
+.pane-list[data-bars="vertical"] { --content-right: var(--rail-content); }
+/* The rows keep clear of the rail, and of the system's column. No bar above the list or at its foot here: the
+   large title leads the column, and Search is a button in the rail — the
+   field opens above the list while searching, and Cancel takes the head of
+   the rail until the search ends. */
+.pane-list[data-bars="vertical"] .list-scroll { padding-right: calc(var(--content-right) - 10px); padding-bottom: calc(var(--safe-bottom) + 28px); }
+.pane-list[data-bars="vertical"] .list-head { padding-right: calc(var(--safe-left) + 12px); }
+.pane-list[data-bars="vertical"] > .edge-bottom { display: none; }
+.pane-list[data-bars="vertical"] .list-bottombar { top: calc(var(--safe-top) + 12px); bottom: auto; right: var(--content-right); }
+.pane-list[data-bars="vertical"]:not(.search-open):not(.searching) .list-bottombar { visibility: hidden; }
+.pane-list[data-bars="vertical"].searching .list-topbar,
+.pane-list[data-bars="vertical"].search-open .list-topbar { visibility: hidden; }
+.pane-list[data-bars="vertical"] .search-cancel { display: none; }
+.pane-list[data-bars="vertical"] .search-results { padding-top: calc(var(--safe-top) + 76px); }
+
+/* ---------------------------------------------------------------- sidebar and details */
+.pane-sidebar[data-bars="vertical"] { --content-right: var(--rail-content); }
+.pane-sidebar[data-bars="vertical"] .side-scroll { padding-bottom: calc(max(var(--safe-bottom), 16px) + 24px); }
+.art-body[data-bars="vertical"] { --content-right: var(--rail-content); }
+.art-body[data-bars="vertical"] .art-scroll { padding-bottom: calc(max(var(--safe-bottom), 16px) + 20px); }
+
+/* ---------------------------------------------------------------- modal surfaces
+   Sheets, the photo viewer and calls keep their own controls where they are:
+   Close at the end of a sheet's heading, the viewer's at its top corners,
+   a call's along its foot, all clear of the column. Over the trailing column
+   of a split view a sheet centres on its content, clear of the rail. */
+.overlays { --rail-reserve: var(--rail-reserve-outer); --rail-foot: 14px; }
+.overlays[data-layout="split"] { --rail-reserve: var(--rail-reserve-inner); }
+:root[data-orientation="landscape"] .overlays[data-layout="stack"] { --rail-reserve: 12px; --rail-foot: 64px; }
+:root[data-edge-column="beside"][data-orientation] .overlays[data-layout] { --rail-reserve: 12px; --rail-foot: 14px; }
+:root[data-bars="vertical"] .overlays[data-layout="split"] [data-place="trailing"] {
+  --region-end: max(var(--safe-right), calc(var(--rail-right) + var(--rail-w)));
+}
+
+/* ---------------------------------------------------------------- drawing board
+   Its bar at the foot is the rail here: Close, then Send (a symbol: text
+   stays in horizontal bars), and Undo and Clear in a capsule at the foot of
+   the column; the sizes and colours stay with the paper, clear of it. */
+:root[data-bars="vertical"] .draw { --draw-column: var(--rail-content); }
+:root[data-bars="vertical"] .draw-dock {
+  position: absolute;
+  z-index: 2;
+  top: max(var(--safe-top), var(--rail-reserve));
+  bottom: max(var(--safe-bottom), var(--rail-foot));
+  right: var(--rail-right);
+  width: var(--rail-w);
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+:root[data-bars="vertical"] .draw-dock .draw-close { order: 0; width: 44px; height: 44px; }
+:root[data-bars="vertical"] .draw-dock .draw-close .icon { width: 20px; height: 20px; }
+:root[data-bars="vertical"] .draw-send { order: 1; width: 44px; height: 44px; margin-left: 0; padding: 0; border-radius: 50%; justify-content: center; }
+:root[data-bars="vertical"] .draw-send .icon { width: 19px; height: 19px; }
+:root[data-bars="vertical"] .draw-send-label { display: none; }
+:root[data-bars="vertical"] .draw-tools {
+  order: 2;
+  margin-top: auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 26px;
+}
+:root[data-bars="vertical"] .draw-head { padding-right: var(--draw-column); }
+:root[data-bars="vertical"] .draw-stage { margin-right: var(--draw-column); }
+:root[data-bars="vertical"] .draw-bar { padding-right: var(--draw-column); }

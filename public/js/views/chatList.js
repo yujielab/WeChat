@@ -12,7 +12,8 @@ import { state, on, sortedChats, getDraft, patchRoom, upsertRoom, listLast } fro
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
-import { createBars } from '../ui/bars.js'
+import { createBars, railed } from '../ui/bars.js'
+import { onBars } from '../ui/viewport.js'
 import { insightsOn } from './insights.js'
 
 export const FILTERS = {
@@ -83,15 +84,24 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // folded, Back to the sidebar leads; unfolded, the sidebar's scopes are
   // the filter menu instead. The search field takes the middle, New Chat
   // ends it. While searching, the field and Cancel have the bar to
-  // themselves.
+  // themselves. Where the system keeps its column on the right edge (the
+  // Duo) they stand in a rail there instead: Back at its head, search and New
+  // Chat at its foot; Search is a button, the field opens above the list, and
+  // Cancel takes the head of the rail until the search ends.
   const bars = createBars({
     label: '聊天列表操作',
     items: [
+      { id: 'cancel', icon: 'xmark', title: '取消搜索', primary: true, onSelect: () => exitSearch() },
       { id: 'back', icon: 'chevron-left', title: '边栏', primary: true, onSelect: () => onBack() },
       { id: 'filter', icon: 'filter', title: '筛选', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
+      { id: 'search', icon: 'search', title: '搜索', priority: 6, onSelect: () => openSearch() },
       { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
-    arrange: () => {
+    arrange: axis => {
+      if (axis === 'vertical') {
+        if (searching) return { top: [['cancel']], bottom: [] }
+        return { top: pane.dataset.layout === 'single' ? [['back']] : [], bottom: [['search'], ['compose']] }
+      }
       // While searching the bar keeps its items; they fold away (list.css)
       // so the field can grow over their room and give it back on Cancel.
       // Folded, the filter tabs show and Back leads to the sidebar;
@@ -114,10 +124,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   const pill = h('label', { class: 'glass search-pill' }, icon('search'), input)
   const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': '取消搜索' }, icon('xmark'))
   const bottombar = h('nav', { class: 'list-bottombar dock', 'aria-label': '聊天列表操作' }, bars.bottom, pill, cancel)
+  const rail = h('nav', { class: 'duo-rail list-rail', 'aria-label': '聊天列表操作' })
 
   const edgeTop = edge('top')
   const edgeBottom = edge('bottom', true)
-  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar)
+  pane.append(scroll, edgeTop, topbar, edgeBottom, bottombar, rail)
 
   function openFilterMenu(anchor) {
     openMenu(anchor, [
@@ -135,9 +146,21 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   let barsFrame = 0
   function arrangeBars() {
     cancelAnimationFrame(barsFrame)
-    barsFrame = requestAnimationFrame(() => bars.layout({ bottom: Math.max(0, bottombar.clientWidth - 120 - 8) }))
+    barsFrame = requestAnimationFrame(() => {
+      const vertical = railed(pane)
+      pane.dataset.bars = vertical ? 'vertical' : 'horizontal'
+      if (vertical) {
+        if (bars.top.parentElement !== rail) bars.move(() => rail.append(bars.top, bars.bottom))
+        bars.layout('vertical', rail.clientHeight)
+      } else {
+        if (bars.bottom.parentElement !== bottombar) bars.move(() => { bottombar.prepend(bars.bottom); bars.top.remove() })
+        bars.layout('horizontal', { bottom: Math.max(0, bottombar.clientWidth - 120 - 8) })
+      }
+    })
   }
   new ResizeObserver(arrangeBars).observe(bottombar)
+  new ResizeObserver(arrangeBars).observe(rail)
+  onBars(arrangeBars)
 
   function selectFilter(key) {
     if (!FILTERS[key]) return
@@ -753,8 +776,9 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   })
   cancel.addEventListener('click', exitSearch)
 
-  /** Search from elsewhere (the sidebar): the field at the foot of the list. */
+  /** Search from elsewhere (the sidebar), or from the rail: the field at the foot of the list (above it, beside the rail). */
   function openSearch() {
+    pane.classList.add('search-open')
     input.focus()
   }
 
@@ -763,7 +787,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     query = ''
     input.value = ''
     input.blur()
-    pane.classList.remove('searching')
+    pane.classList.remove('searching', 'search-open')
     bars.bottom.inert = false
     arrangeBars()
     head.hidden = filterTabs.hidden = rows.hidden = false

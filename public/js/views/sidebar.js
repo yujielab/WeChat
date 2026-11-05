@@ -6,7 +6,8 @@
 import { h, icon } from '../ui/dom.js'
 import { state, on, sortedChats } from '../store.js'
 import { avatar } from './avatar.js'
-import { createBars } from '../ui/bars.js'
+import { createBars, railed } from '../ui/bars.js'
+import { onBars } from '../ui/viewport.js'
 import { FILTERS } from './chatList.js'
 
 const SCOPE_ICONS = { all: 'bubble', unread: 'unread', people: 'person', groups: 'people' }
@@ -40,7 +41,8 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
     scopes)
   // Search and New Chat start something, so they stay in reach at the foot
   // of the sidebar when it has the screen to itself. Beside the list they
-  // are the list's own.
+  // are the list's own. Where the system keeps its column on the right edge
+  // (the Duo) they stand in a rail there.
   const bars = createBars({
     label: '边栏操作',
     items: [
@@ -50,14 +52,27 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
     arrange: () => (pane.dataset.layout === 'leading' ? { top: [], bottom: [] } : { top: [], bottom: [['search'], ['compose']] })
   })
   const bottombar = h('nav', { class: 'side-bottombar dock', 'aria-label': '边栏操作' }, bars.bottom)
-  pane.append(scroll, bottombar)
+  const rail = h('nav', { class: 'duo-rail side-rail', 'aria-label': '边栏操作' })
+  pane.append(scroll, bottombar, rail)
 
   let frame = 0
   function arrangeBars() {
     cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => bars.layout({ bottom: bottombar.clientWidth }))
+    frame = requestAnimationFrame(() => {
+      const vertical = railed(pane)
+      pane.dataset.bars = vertical ? 'vertical' : 'horizontal'
+      if (vertical) {
+        if (bars.top.parentElement !== rail) bars.move(() => rail.append(bars.top, bars.bottom))
+        bars.layout('vertical', rail.clientHeight)
+      } else {
+        if (bars.bottom.parentElement !== bottombar) bars.move(() => { bottombar.append(bars.bottom); bars.top.remove() })
+        bars.layout('horizontal', { bottom: bottombar.clientWidth })
+      }
+    })
   }
   new ResizeObserver(arrangeBars).observe(bottombar)
+  new ResizeObserver(arrangeBars).observe(rail)
+  onBars(arrangeBars)
 
   function render() {
     // Only unread conversations are worth a number.

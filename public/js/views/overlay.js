@@ -429,6 +429,20 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
       return
     }
     const anchorCenter = r.x + r.w / 2
+    // From a control in the rail down the right edge: beside it, level with
+    // it, growing out of its side, so the rail's other controls stay clear.
+    const beside = Math.min(r.x - 8, maxX) - mw
+    if (trigger?.closest('.duo-rail') && beside >= minX) {
+      let top = r.y + mh <= maxY ? r.y : r.y + r.h - mh
+      top = Math.max(minY, Math.min(top, maxY - mh))
+      menu.style.setProperty('--ox', `${mw}px`)
+      menu.style.setProperty('--oy', `${Math.min(Math.max(r.y + r.h / 2 - top, 0), mh)}px`)
+      menu.style.setProperty('--menu-lift', '0px')
+      menu.style.left = `${Math.round(beside)}px`
+      menu.style.top = `${Math.round(top)}px`
+      placeHighlight()
+      return
+    }
     // From a bar at the foot of a column, the menu grows upward out of it.
     const up = preferAbove || Boolean(trigger?.closest('.list-bottombar, .composer, .side-bottombar, .art-bottombar'))
     const below = r.y + r.h + 6

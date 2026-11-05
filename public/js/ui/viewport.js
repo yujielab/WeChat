@@ -12,14 +12,23 @@
 //   their new places while the list slides in (or out) from the left.
 // * Reports the folding region when the device is partially open, from the
 //   browser's viewport segments (data-fold, --fold-start / --fold-end).
+// * Decides where the controls go: where the system keeps a column of its own
+//   down the right edge (the Duo's status bar and Dynamic Island) they stand
+//   in it as a rail ("vertical", data-bars); everywhere else they are the bar
+//   at each column's foot ("horizontal").
 
 import { reducedMotion } from './dom.js'
 
 const root = document.documentElement
 const vv = window.visualViewport
 const SPLIT_MIN = 700
+// A right inset this wide is the system's column, which the rail can share
+// (the rail is 52pt; other iPhones' insets stay under 59pt even in landscape).
+const EDGE_COLUMN_MIN = 64
 const listeners = new Set()
+const barListeners = new Set()
 let layout = null
+let bars = null
 let fold = { axis: 'none', start: 0, end: 0 }
 let foldOverride = null
 let lastVVWidth = vv ? vv.width : window.innerWidth
@@ -44,6 +53,7 @@ function measure() {
   else delete root.dataset.kb
   measureFold()
   measureColumn()
+  measureBars()
   const next = window.innerWidth >= SPLIT_MIN ? 'split' : 'stack'
   if (next !== layout) {
     layout = next
@@ -123,6 +133,45 @@ function measureColumn() {
   else delete root.dataset.column
 }
 
+// Both displays keep a column of their own down the right edge for the
+// status bar and the Dynamic Island (84pt on device, open or closed). Where
+// the page runs under it — the early wide viewport, or the safe area iOS
+// reports — it is a wide right inset and the rail joins it
+// (data-edge-column). Where the system keeps it outside the page
+// (data-column="beside") the rail stands beside it. Without either there is
+// no column, and the bars stay at each column's foot.
+let insetProbe = null
+function insetRight() {
+  if (!insetProbe) {
+    insetProbe = document.createElement('div')
+    insetProbe.setAttribute('aria-hidden', 'true')
+    insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;height:0;width:var(--safe-right)'
+    document.body.append(insetProbe)
+    // The insets can settle after launch without any resize (iOS 27.2 hands a
+    // Home Screen app its safe area a moment later), so the probe itself is
+    // watched: when the right inset changes, everything is measured again.
+    new ResizeObserver(() => measure()).observe(insetProbe)
+  }
+  return insetProbe.offsetWidth
+}
+
+function measureBars() {
+  // The column stays with the hardware: on the outer display in landscape the
+  // camera is at its foot rather than its head (see duo-layout.css).
+  root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  const inPage = insetRight() >= EDGE_COLUMN_MIN
+  const beside = !inPage && root.dataset.column === 'beside'
+  if (inPage) root.dataset.edgeColumn = ''
+  else if (beside) root.dataset.edgeColumn = 'beside'
+  else delete root.dataset.edgeColumn
+  const next = inPage || beside ? 'vertical' : 'horizontal'
+  if (next !== bars) {
+    bars = next
+    root.dataset.bars = bars
+    for (const fn of barListeners) fn(bars)
+  }
+}
+
 function measureFold() {
   let next = { axis: 'none', start: 0, end: 0 }
   if (foldOverride) {
@@ -200,6 +249,16 @@ export function initViewport() {
       if (!hasTextFocus() && window.scrollY) window.scrollTo(0, 0)
     }, 80)
   })
+}
+
+/** 'vertical' where the system's column is on the right edge (a rail stands in it), else 'horizontal'. */
+export function getBars() {
+  return bars
+}
+
+export function onBars(fn) {
+  barListeners.add(fn)
+  return () => barListeners.delete(fn)
 }
 
 export function getLayout() {
