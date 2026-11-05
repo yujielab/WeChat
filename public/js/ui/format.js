@@ -1,6 +1,7 @@
-// Time, size and name formatting in the style of iOS (zh-CN).
+// Time, size and name formatting in the style of iOS (en).
 
-const WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+const WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const pad = n => String(n).padStart(2, '0')
 
 function startOfDay(d) {
@@ -11,7 +12,7 @@ function startOfDay(d) {
 
 const hm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 
-/** Chat list column: 14:05 · 昨天 · 星期二 · 10/12 · 2025/10/12 */
+/** Chat list column: 14:05 · Yesterday · Tuesday · 10/12 · 10/12/2025 */
 export function listTime(ts) {
   if (!ts) return ''
   const d = new Date(ts)
@@ -19,10 +20,10 @@ export function listTime(ts) {
   const day = startOfDay(ts)
   const diff = Math.round((today - day) / 86400000)
   if (diff <= 0) return hm(d)
-  if (diff === 1) return '昨天'
+  if (diff === 1) return 'Yesterday'
   if (diff < 7) return WEEK[d.getDay()]
   if (d.getFullYear() === new Date().getFullYear()) return `${d.getMonth() + 1}/${d.getDate()}`
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
 }
 
 /** Centered thread timestamp, split so the day can be bold: [day, time]. */
@@ -32,11 +33,11 @@ export function threadTime(ts) {
   const day = startOfDay(ts)
   const diff = Math.round((today - day) / 86400000)
   let label
-  if (diff <= 0) label = '今天'
-  else if (diff === 1) label = '昨天'
+  if (diff <= 0) label = 'Today'
+  else if (diff === 1) label = 'Yesterday'
   else if (diff < 7) label = WEEK[d.getDay()]
-  else if (d.getFullYear() === new Date().getFullYear()) label = `${d.getMonth() + 1}月${d.getDate()}日`
-  else label = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  else if (d.getFullYear() === new Date().getFullYear()) label = `${MONTHS[d.getMonth()]} ${d.getDate()}`
+  else label = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
   return [label, hm(d)]
 }
 
@@ -95,25 +96,25 @@ export function emojiOnly(text) {
 
 /**
  * What a call record says from this side of it. `mine`: this account placed
- * the call. The caller hears how it went (对方未接听, 已取消, 对方已拒绝,
- * 对方忙线); the person called learns of a call they missed (未接来电, in
+ * the call. The caller hears how it went (No answer, Cancelled, Declined,
+ * Busy); the person called learns of a call they missed (Missed call, in
  * red) — one that came while they were on another call, too.
  */
 export function callSummary(call = {}, mine) {
-  const media = call.media === 'video' ? '视频' : '语音'
+  const media = call.media === 'video' ? 'Video' : 'Voice'
   const result = call.result || (call.missed ? 'missed' : 'completed')
   let text
   let missed = false
-  if (result === 'completed') text = call.duration >= 1 ? `通话时长 ${duration(call.duration)}` : '通话已结束'
-  else if (result === 'failed') text = '连接失败'
-  else if (result === 'declined') text = mine ? '对方已拒绝' : '已拒绝'
-  else if (result === 'busy' && mine) text = '对方忙线'
-  else if (mine) text = result === 'cancelled' ? '已取消' : '对方未接听'
+  if (result === 'completed') text = call.duration >= 1 ? `Duration ${duration(call.duration)}` : 'Call ended'
+  else if (result === 'failed') text = 'Connection failed'
+  else if (result === 'declined') text = mine ? 'Declined' : 'You declined'
+  else if (result === 'busy' && mine) text = 'Busy'
+  else if (mine) text = result === 'cancelled' ? 'Cancelled' : 'No answer'
   else {
-    text = '未接来电'
+    text = 'Missed call'
     missed = true
   }
-  return { media, text, missed, label: `${media}通话，${text}` }
+  return { media, text, missed, label: `${media} call · ${text}` }
 }
 
 /**
@@ -125,12 +126,12 @@ export function callSummary(call = {}, mine) {
  */
 export function sendState(m, read = false, dm = true) {
   if (!m?.out) return null
-  if (m.status === 'failed') return { state: 'failed', label: '未发送' }
-  if (m.status === 'sending' || String(m.id).startsWith('local:')) return { state: 'sending', label: '发送中' }
+  if (m.status === 'failed') return { state: 'failed', label: 'Not sent' }
+  if (m.status === 'sending' || String(m.id).startsWith('local:')) return { state: 'sending', label: 'Sending' }
   // Group chats never show the read colour, whatever the server marks.
-  if (dm && (read || m.status === 'read')) return { state: 'read', label: '已读' }
-  if (m.status === 'delivered') return { state: 'delivered', label: '已送达' }
-  return { state: 'sent', label: '已发送' }
+  if (dm && (read || m.status === 'read')) return { state: 'read', label: 'Read' }
+  if (m.status === 'delivered') return { state: 'delivered', label: 'Delivered' }
+  return { state: 'sent', label: 'Sent' }
 }
 
 // For a folded group (photo stack, call run): the state that most needs

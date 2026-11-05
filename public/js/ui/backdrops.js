@@ -5,14 +5,14 @@
 // profile's cover), so each of their devices shows the same.
 
 export const PRESETS = [
-  { id: 'mist', label: '晨雾' },
-  { id: 'dawn', label: '朝霞' },
-  { id: 'mint', label: '薄荷' },
-  { id: 'sand', label: '沙丘' },
-  { id: 'ocean', label: '深海' },
-  { id: 'dusk', label: '暮色' },
-  { id: 'dots', label: '圆点' },
-  { id: 'night', label: '星夜' }
+  { id: 'mist', label: 'Mist' },
+  { id: 'dawn', label: 'Dawn' },
+  { id: 'mint', label: 'Mint' },
+  { id: 'sand', label: 'Dune' },
+  { id: 'ocean', label: 'Ocean' },
+  { id: 'dusk', label: 'Dusk' },
+  { id: 'dots', label: 'Dots' },
+  { id: 'night', label: 'Night' }
 ]
 const PHOTO = /^\/api\/media\/(bg|cover)\/[\w-]+\/[\w-]+$/
 
@@ -27,9 +27,9 @@ export function readBackdrop(value) {
 }
 
 /** The name of a backdrop, for a setting's value. */
-export function backdropLabel(value, none = '默认') {
+export function backdropLabel(value, none = 'Default') {
   const b = readBackdrop(value)
-  return b?.preset ? PRESETS.find(p => p.id === b.preset).label : b?.photo ? '照片' : none
+  return b?.preset ? PRESETS.find(p => p.id === b.preset).label : b?.photo ? 'Photo' : none
 }
 
 /**

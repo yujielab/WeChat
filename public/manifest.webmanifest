@@ -1,8 +1,8 @@
 {
   "name": "Cuven",
   "short_name": "Cuven",
-  "description": "即时聊天、语音与视频通话。",
-  "lang": "zh-CN",
+  "description": "Instant messaging, voice and video calls.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

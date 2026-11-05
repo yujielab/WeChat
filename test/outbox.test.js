@@ -87,7 +87,7 @@ test('a reload carries on with what was queued; stale or malformed entries are h
   const { log } = rig({ saved, clock })
   await tick(); await tick()
   assert.deepEqual(log.restored, ['old', 'x'])
-  assert.deepEqual(log.failed, [['old', '发送超时']])
+  assert.deepEqual(log.failed, [['old', 'Send timed out']])
   assert.deepEqual(log.landed, [['x', 's-x']])
 })
 
@@ -208,7 +208,7 @@ test('a reload where the file could not be kept fails that picture visibly; the 
   const { log, server } = picRig({ files: new Map(), saved })
   await settle()
   assert.deepEqual(log.restored, ['gone', 't'])
-  assert.deepEqual(log.failed, [['gone', '请重新选择这张图片']])
+  assert.deepEqual(log.failed, [['gone', 'Please choose this photo again']])
   assert.deepEqual(server.messages.map(m => m.localId), ['t'])
 })
 
@@ -309,7 +309,7 @@ test('a picture whose file was lost is kept as lost; choosing it again replaces 
   const saved = [{ ...pic('gone', { replyTo: 'm3' }), at: 1000 }]
   const first = picRig({ files, saved })
   await settle()
-  assert.deepEqual(first.log.failed, [['gone', '请重新选择这张图片']])
+  assert.deepEqual(first.log.failed, [['gone', 'Please choose this photo again']])
   assert.deepEqual(first.log.saved.map(e => [e.cid, e.failed, e.lost]), [['gone', true, true]])
   // After another reload it is still there, still lost.
   const second = picRig({ files, saved: first.log.saved, server: first.server })

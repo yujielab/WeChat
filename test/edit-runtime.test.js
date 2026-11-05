@@ -13,7 +13,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers'
 export class AI extends WorkerEntrypoint {
   async run(model, input) {
     const text = input.messages.map(m => m.content).join('\\n')
-    const said = text.match(/消息：「([\\s\\S]*?)」/)?.[1] || ''
+    const said = text.match(/Message: "([\\s\\S]*?)"/)?.[1] || ''
     return { response: JSON.stringify(said.match(/[明后]天[一二三四五六七八九十0-9]+点/g) || []) }
   }
 }
@@ -99,7 +99,7 @@ test('a sent message rewritten: in place for everyone, nothing new to read, its 
     for (let i = 2; i <= 5; i++) assert.equal((await request('/api/edit', { id: sent.id, text: `第${i}版` }, a.cookie)).data.msg.edited, i)
     const sixth = await request('/api/edit', { id: sent.id, text: '第6版' }, a.cookie)
     assert.equal(sixth.response.status, 400)
-    assert.match(sixth.data.error, /最多编辑 5 次/)
+    assert.match(sixth.data.error, /edited at most 5 times/)
     // Taken back: no more editing.
     const other = (await request('/api/messages', { room, type: 'text', text: '这条要撤回' }, a.cookie)).data.msg
     await request('/api/revoke', { id: other.id }, a.cookie)

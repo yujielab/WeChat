@@ -66,12 +66,12 @@ export function allowSuggestion(uid, now = Date.now()) {
 export async function suggest(env, { history, draft, digest = '', style = '', routine = '' }) {
   const said = history.filter(m => m.text).slice(-CONTEXT)
   if (!draft && (!said.length || said.at(-1).mine)) return ''
-  const lines = said.map(m => `${m.mine ? '我' : '对方'}：${m.text.slice(0, CONTEXT_CHARS)}`).join('\n')
+  const lines = said.map(m => `${m.mine ? 'Me' : 'Them'}: ${m.text.slice(0, CONTEXT_CHARS)}`).join('\n')
   const task = draft
-    ? `我正在输入：「${draft}」\n只输出接在后面的文字（不要重复已输入的部分，不超过15个字），让这句话自然地说完。不要解释，不要加引号。`
-    : '替我写一句简短自然的回复（不超过15个字）。只输出这句话，不要解释，不要加引号。'
+    ? `I'm typing: "${draft}"\nOutput only the text that comes next (do not repeat what I've already typed, no more than 15 characters) so the sentence finishes naturally. No explanation, no quotes.`
+    : 'Write a short, natural reply for me (no more than 15 characters). Output only the reply, no explanation, no quotes.'
   const raw = await ask(env, [
-    { role: 'system', content: '你是聊天输入法的联想功能：只输出要补上的文字，语气和我平时一样。' },
+    { role: 'system', content: 'You are a chat typing-suggestion feature: output only the text to add, in my usual tone.' },
     { role: 'user', content: contextText(lines, digest, style, routine) + `\n\n${task} /no_think` }
   ], 40)
   return cleanSuggestion(raw, draft)
@@ -85,16 +85,16 @@ export async function suggest(env, { history, draft, digest = '', style = '', ro
  * they colour the wording and the timing, never the content.
  */
 export function contextText(lines, digest = '', style = '', routine = '') {
-  const parts = [`聊天记录：\n${lines || '（无）'}`]
-  if (digest) parts.push(`这个聊天早前的内容：\n${digest}`)
-  if (style) parts.push(`我平时的用词和语气：\n${style}`)
-  if (routine) parts.push(`我的作息和习惯：\n${routine}`)
+  const parts = [`Conversation:\n${lines || '(none)'}`]
+  if (digest) parts.push(`Earlier in this chat:\n${digest}`)
+  if (style) parts.push(`How I usually write and my tone:\n${style}`)
+  if (routine) parts.push(`My routine and habits:\n${routine}`)
   return parts.join('\n\n')
 }
 
 export function cleanSuggestion(raw, draft = '') {
   let s = String(raw || '').split('\n').map(l => l.trim()).find(Boolean) || ''
-  s = s.replace(/^(我|回复|补全|输出)[:：]\s*/, '').replace(/^["'「『“]+|["'」』”]+$/g, '').trim()
+  s = s.replace(/^(me|reply|completion|output|我|回复|补全|输出)\s*[:：]?\s*/i, '').replace(/^["'「『“]+|["'」』”]+$/g, '').trim()
   // A model that repeats the draft: keep what comes after it.
   if (draft && s.startsWith(draft)) s = s.slice(draft.length)
   if (!s || s === draft) return ''
@@ -107,8 +107,8 @@ export function cleanSuggestion(raw, draft = '') {
 export async function keywords(env, text) {
   if ([...String(text || '').trim()].length < 6) return []
   const raw = await ask(env, [
-    { role: 'system', content: '你从聊天消息里挑出关键信息。' },
-    { role: 'user', content: `消息：「${text.slice(0, 600)}」\n挑出最多3个关键词或关键短语（时间、地点、人名、数字、要做的事），必须是消息原文中连续出现的片段，每个不超过12个字。只输出JSON数组，例如["明天下午3点","会议室"]；没有就输出[]。 /no_think` }
+    { role: 'system', content: 'You pick out the key information from a chat message.' },
+    { role: 'user', content: `Message: "${text.slice(0, 600)}"\nPick up to 3 keywords or key phrases (times, places, names, numbers, things to do). Each must be a contiguous fragment that appears verbatim in the message, no more than 12 characters each. Output only a JSON array, e.g. ["3pm tomorrow","meeting room"]; output [] if there are none. /no_think` }
   ], 80)
   let list = []
   try { list = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] ?? '[]') } catch {}

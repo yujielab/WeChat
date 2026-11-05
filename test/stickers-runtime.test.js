@@ -70,7 +70,7 @@ test('packs are chosen in the app from the table, per person, and a sticker load
     // Everyone starts with STICKER_SETS; the add list has every pack Telegram has.
     assert.deepEqual(names(await request('/api/stickers', undefined, a)), ['HandDrawnEmoji'])
     const list = (await request('/api/stickers/catalog', undefined, a)).data.packs
-    assert.deepEqual(list.map(p => [p.name, p.title, p.added]), [['HandDrawnEmoji', '手绘', true], ['UtyaDuck', '小黄鸭', false]])
+    assert.deepEqual(list.map(p => [p.name, p.title, p.added]), [['HandDrawnEmoji', 'Hand-drawn', true], ['UtyaDuck', 'Little Duck', false]])
 
     // Behind those answers, your packs' files and the add list's covers are
     // fetched ahead of time, before anyone asks for them.

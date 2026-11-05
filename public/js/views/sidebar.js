@@ -14,14 +14,14 @@ const SCOPE_ICONS = { all: 'bubble', unread: 'unread', people: 'person', groups:
 
 export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }) {
   pane.classList.add('pane-sidebar')
-  pane.setAttribute('aria-label', '边栏')
+  pane.setAttribute('aria-label', 'Sidebar')
 
   const meAvatar = h('span', { class: 'side-me-avatar' })
   const meName = h('span', { class: 'side-me-name' })
   const me = h('button', { class: 'side-me', type: 'button' }, meAvatar, meName, h('span', { class: 'chev' }, icon('chevron-right')))
   me.addEventListener('click', () => onSettings(me))
 
-  const scopes = h('ul', { class: 'side-scopes', 'aria-label': '聊天范围' })
+  const scopes = h('ul', { class: 'side-scopes', 'aria-label': 'Chats' })
   const rows = new Map()
   for (const [key, f] of Object.entries(FILTERS)) {
     const count = h('span', { class: 'side-count tabular' })
@@ -44,15 +44,15 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
   // are the list's own. Where the system keeps its column on the right edge
   // (the Duo) they stand in a rail there.
   const bars = createBars({
-    label: '边栏操作',
+    label: 'Sidebar actions',
     items: [
-      { id: 'search', icon: 'search', title: '搜索', priority: 6, onSelect: () => onSearch() },
-      { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
+      { id: 'search', icon: 'search', title: 'Search', priority: 6, onSelect: () => onSearch() },
+      { id: 'compose', icon: 'compose', title: 'New chat', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
     arrange: () => (pane.dataset.layout === 'leading' ? { top: [], bottom: [] } : { top: [], bottom: [['search'], ['compose']] })
   })
-  const bottombar = h('nav', { class: 'side-bottombar dock', 'aria-label': '边栏操作' }, bars.bottom)
-  const rail = h('nav', { class: 'duo-rail side-rail', 'aria-label': '边栏操作' })
+  const bottombar = h('nav', { class: 'side-bottombar dock', 'aria-label': 'Sidebar actions' }, bars.bottom)
+  const rail = h('nav', { class: 'duo-rail side-rail', 'aria-label': 'Sidebar actions' })
   pane.append(scroll, bottombar, rail)
 
   let frame = 0
@@ -85,7 +85,7 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
       button.classList.toggle('current', current)
       if (current) button.setAttribute('aria-current', 'true')
       else button.removeAttribute('aria-current')
-      button.setAttribute('aria-label', `${FILTERS[key].label}${n ? `，${n} 个` : ''}`)
+      button.setAttribute('aria-label', `${FILTERS[key].label}${n ? `, ${n}` : ''}`)
     }
   }
   on('chats', render)
@@ -95,8 +95,8 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
     render,
     setMe(user) {
       meAvatar.replaceChildren(avatar(user?.avatar, user?.display, { size: 52 }))
-      meName.textContent = user?.display || '我'
-      me.setAttribute('aria-label', `${user?.display || '我'}，设置`)
+      meName.textContent = user?.display || 'Me'
+      me.setAttribute('aria-label', `${user?.display || 'Me'}, settings`)
     },
     setLayout(layout) {
       pane.dataset.layout = layout

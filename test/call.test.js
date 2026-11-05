@@ -51,7 +51,7 @@ test('a callee with no app open is rung by notification, and the caller hears th
   t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'video' })
   await tick()
   assert.equal(t.pushes.length, 1)
-  assert.equal(t.pushes[0].body, '邀请你视频通话')
+  assert.equal(t.pushes[0].body, 'Video call invitation')
   assert.match(t.pushes[0].link, /^\/\?chat=.+&call=c1$/)
   assert.deepEqual(t.kinds(t.ids.a), ['notified'])
 })
@@ -100,8 +100,8 @@ test('the caller leaving ends it; a missed call tells those notified', async () 
   t.broker.signal(t.ids.a, { t: 'call', kind: 'cancel', room: t.room, callId: 'c1', media: 'audio', missed: true })
   await tick()
   assert.equal(t.broker.get(t.room), null)
-  assert.equal(t.pushes.at(-1).body, '未接语音通话')
-  assert.equal(t.store.lastMessage(t.room).body, '未接语音通话')
+  assert.equal(t.pushes.at(-1).body, 'Missed voice call')
+  assert.equal(t.store.lastMessage(t.room).body, 'Missed voice call')
 })
 
 test('a decline that timed out reaches the caller as missed', () => {
@@ -168,18 +168,18 @@ test('a refusal from the SFU keeps its status and public code, and says which si
   assert.equal(r.status, 400)
   assert.equal(r.data.code, 'invalid_params')
   assert.equal(r.data.reason, 'RTC_NEGOTIATION')
-  assert.equal(r.data.error, '通话连接没能建立，请重新拨打')
+  assert.equal(r.data.error, "Couldn't establish the call, please redial")
   assert.ok(!JSON.stringify(r.data).includes('sdp'), 'the service\'s own description stays on the server')
 })
 
 test('each kind of refusal gets its own reason and plain words', async () => {
   const cases = [
-    ['/rtc/sessions/new', { status: 401, json: { errorCode: 'unauthorized' } }, 401, 'RTC_AUTH', '通话服务配置有误，暂时无法通话'],
-    ['/rtc/sessions/new', { status: 404, json: {} }, 404, 'RTC_APP', '通话服务配置有误，暂时无法通话'],
-    ['/rtc/sessions/s1/renegotiate', { status: 404, json: {} }, 404, 'RTC_GONE', '这次通话已失效，请重新拨打'],
-    ['/rtc/sessions/new', { status: 429, json: {} }, 429, 'RTC_BUSY', '通话请求太频繁，请稍后再试'],
-    ['/rtc/sessions/s1/renegotiate', { status: 200, json: { errorCode: 'session_error', errorDescription: 'x' } }, 502, 'RTC_MEDIA', '对方的声音或画面还没准备好，请重新拨打'],
-    ['/rtc/sessions/new', { status: 500, json: {} }, 500, 'RTC_SERVICE', '通话服务暂时不可用，请稍后再试']
+    ['/rtc/sessions/new', { status: 401, json: { errorCode: 'unauthorized' } }, 401, 'RTC_AUTH', 'Call service is misconfigured, calls unavailable'],
+    ['/rtc/sessions/new', { status: 404, json: {} }, 404, 'RTC_APP', 'Call service is misconfigured, calls unavailable'],
+    ['/rtc/sessions/s1/renegotiate', { status: 404, json: {} }, 404, 'RTC_GONE', 'This call is no longer valid, please redial'],
+    ['/rtc/sessions/new', { status: 429, json: {} }, 429, 'RTC_BUSY', 'Too many call requests, try again later'],
+    ['/rtc/sessions/s1/renegotiate', { status: 200, json: { errorCode: 'session_error', errorDescription: 'x' } }, 502, 'RTC_MEDIA', "The other side's audio or video isn't ready, please redial"],
+    ['/rtc/sessions/new', { status: 500, json: {} }, 500, 'RTC_SERVICE', 'Call service is temporarily unavailable, try again later']
   ]
   for (const [path, answer, status, reason, error] of cases) {
     const r = await proxy(path, { method: path.endsWith('renegotiate') ? 'PUT' : 'POST', body: path.endsWith('renegotiate') ? { sessionDescription: { type: 'answer', sdp: 'v=0' } } : undefined, answer })
@@ -239,9 +239,9 @@ test('track batches the SFU would refuse never leave the server', async () => {
 })
 
 test('declarative push message format', () => {
-  const m = declarativeMessage({ title: '小禾', body: '你好', navigate: 'https://duo.example/?chat=r1', tag: 'r1', badge: 3 })
+  const m = declarativeMessage({ title: 'Ros', body: 'Hi', navigate: 'https://duo.example/?chat=r1', tag: 'r1', badge: 3 })
   assert.equal(m.web_push, 8030)
-  assert.deepEqual(m.notification, { title: '小禾', body: '你好', navigate: 'https://duo.example/?chat=r1', lang: 'zh-CN', dir: 'ltr', silent: false, tag: 'r1', app_badge: '3' })
+  assert.deepEqual(m.notification, { title: 'Ros', body: 'Hi', navigate: 'https://duo.example/?chat=r1', lang: 'en', dir: 'ltr', silent: false, tag: 'r1', app_badge: '3' })
   assert.equal('app_badge' in declarativeMessage({ title: 't', navigate: 'https://x.example/' }).notification, false)
 })
 

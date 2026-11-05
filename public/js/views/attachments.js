@@ -17,19 +17,19 @@ export function openAttachments({ files = [], onSend, onDismiss } = {}) {
   let depth = 0
   const fileInput = h('input', { class: 'attachment-file-input', type: 'file', accept: 'image/*', multiple: true, hidden: true })
   const canvas = h('canvas', { 'aria-hidden': 'true' })
-  const title = h('span', { class: 'attachment-drop-title' }, '添加图片')
-  const pick = h('button', { class: 'attachment-pick', type: 'button', 'aria-label': '选择图片' },
+  const title = h('span', { class: 'attachment-drop-title' }, 'Add photos')
+  const pick = h('button', { class: 'attachment-pick', type: 'button', 'aria-label': 'Choose photos' },
     h('span', { class: 'attachment-drop-icon', 'aria-hidden': 'true' }, icon('photo')), title)
-  const dropzone = h('div', { class: 'attachment-dropzone', 'aria-label': '图片选择区域' }, canvas, pick, fileInput)
+  const dropzone = h('div', { class: 'attachment-dropzone', 'aria-label': 'Photo picker' }, canvas, pick, fileInput)
   const error = h('p', { class: 'attachment-error', role: 'alert' })
-  const preview = h('div', { class: 'attachment-previews', role: 'list', 'aria-label': '待发送图片' })
+  const preview = h('div', { class: 'attachment-previews', role: 'list', 'aria-label': 'Photos to send' })
   // The count is for assistive technology; the send button already shows it.
   const count = h('span', { class: 'sr-only', 'aria-live': 'polite' })
-  const send = h('button', { class: 'btn primary solid-press attachment-send', type: 'button', disabled: true }, icon('arrow-up'), '发送图片')
+  const send = h('button', { class: 'btn primary solid-press attachment-send', type: 'button', disabled: true }, icon('arrow-up'), 'Send photos')
   const content = h('div', { class: 'attachment-content' }, dropzone, error, preview, h('div', { class: 'attachment-footer' }, count, send))
   let cleanupField = () => {}
   const ctl = openSheet({
-    title: '分享图片', content, label: '预览并发送图片', side: 'thread',
+    title: 'Share photos', content, label: 'Preview and send photos', side: 'thread',
     onClose() {
       cleanupField()
       // Closed without sending (Escape, a swipe down): the picks are handed
@@ -44,9 +44,9 @@ export function openAttachments({ files = [], onSend, onDismiss } = {}) {
 
   function update() {
     const n = selected.size
-    count.textContent = n ? `已选择 ${n} 张图片` : ''
+    count.textContent = n ? `${n} selected` : ''
     send.disabled = submitting || !n
-    send.replaceChildren(icon('arrow-up'), submitting ? '正在发送…' : n ? `发送 ${n} 张图片` : '发送图片')
+    send.replaceChildren(icon('arrow-up'), submitting ? 'Sending…' : n ? `Send ${n}` : 'Send photos')
     dropzone.classList.toggle('has-images', n > 0)
   }
 
@@ -61,15 +61,15 @@ export function openAttachments({ files = [], onSend, onDismiss } = {}) {
       if ([...selected.values()].some(item => item.key === key)) continue
       const id = ++serial
       const url = URL.createObjectURL(file)
-      const image = h('img', { src: url, alt: file.name || '所选图片', decoding: 'async' })
+      const image = h('img', { src: url, alt: file.name || 'Selected photo', decoding: 'async' })
       const visual = h('div', { class: 'attachment-preview-image' }, image)
       image.addEventListener('error', () => {
         image.hidden = true
-        visual.append(icon('photo'), h('span', {}, '原图'))
+        visual.append(icon('photo'), h('span', {}, 'Original'))
       }, { once: true })
-      const remove = h('button', { class: 'attachment-remove', type: 'button', 'aria-label': `移除 ${file.name || '图片'}` }, icon('xmark'))
+      const remove = h('button', { class: 'attachment-remove', type: 'button', 'aria-label': `Remove ${file.name || 'photo'}` }, icon('xmark'))
       const tile = h('div', { class: 'attachment-preview', role: 'listitem' }, visual,
-        h('div', { class: 'attachment-preview-meta' }, h('span', { title: file.name }, file.name || '图片'), h('span', {}, sizeText(file.size))), remove)
+        h('div', { class: 'attachment-preview-meta' }, h('span', { title: file.name }, file.name || 'Photo'), h('span', {}, sizeText(file.size))), remove)
       remove.addEventListener('click', () => {
         const index = [...preview.children].indexOf(tile)
         URL.revokeObjectURL(url)
@@ -83,14 +83,14 @@ export function openAttachments({ files = [], onSend, onDismiss } = {}) {
       preview.append(tile)
       added++
     }
-    if (rejected) error.textContent = `有 ${rejected} 个文件不是图片，已略过。`
-    if (added) announce(`已选择 ${selected.size} 张图片`)
+    if (rejected) error.textContent = `${rejected} file(s) were not images and were skipped.`
+    if (added) announce(`${selected.size} photos selected`)
     update()
   }
 
   function over(on) {
     dropzone.classList.toggle('is-over', on)
-    title.textContent = on ? '松开以添加' : '添加图片'
+    title.textContent = on ? 'Release to add' : 'Add photos'
   }
   pick.addEventListener('click', () => { if (!submitting) { fileInput.value = ''; fileInput.click() } })
   fileInput.addEventListener('change', () => addFiles(fileInput.files))
@@ -133,19 +133,19 @@ export function openAttachments({ files = [], onSend, onDismiss } = {}) {
     try {
       // The chat owns upload, retries and real failure feedback. Do not claim
       // that staging or a resolved callback means an upload has succeeded.
-      if (typeof onSend !== 'function') throw new Error('暂时无法发送，请重新打开聊天。')
+      if (typeof onSend !== 'function') throw new Error('Can\'t send right now, reopen the chat.')
       // Where each photo was seen, so its message can carry on from there.
       const from = [...selected.values()].map(item => (item.image.hidden ? null : item.image.getBoundingClientRect()))
       const delivery = onSend([...selected.values()].map(item => item.file), { from })
-      if (delivery === false) throw new Error('当前聊天已变化，请重新选择发送位置。')
+      if (delivery === false) throw new Error('The chat changed, choose where to send again.')
       sent = true
       await ctl.close()
-      Promise.resolve(delivery).catch(err => toast(err?.message || '图片发送失败，请在聊天中重试。', { type: 'error' }))
+      Promise.resolve(delivery).catch(err => toast(err?.message || 'Couldn\'t send photos, try again in the chat.', { type: 'error' }))
     } catch (err) {
       submitting = false
       pick.disabled = false
       for (const item of selected.values()) item.remove.disabled = false
-      error.textContent = err?.message || '暂时无法发送，请重试。'
+      error.textContent = err?.message || 'Can\'t send right now, try again.'
       update()
     }
   })
@@ -158,7 +158,7 @@ export function openAttachments({ files = [], onSend, onDismiss } = {}) {
 export function bindImageDropTarget(root, { onFiles, enabled = () => true } = {}) {
   let depth = 0
   const prompt = h('div', { class: 'chat-image-drop', 'aria-hidden': 'true' },
-    h('div', {}, h('span', { class: 'chat-image-drop-mark' }, icon('photo')), h('strong', {}, '松开以添加图片')))
+    h('div', {}, h('span', { class: 'chat-image-drop-mark' }, icon('photo')), h('strong', {}, 'Release to add photos')))
   root.append(prompt)
   const active = event => enabled() && hasFiles(event)
   const reset = () => { depth = 0; prompt.classList.remove('on') }

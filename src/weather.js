@@ -11,26 +11,26 @@ const cache = new Map()
 
 // WMO weather codes, as words and a symbol (day / night).
 const CODES = [
-  [[0], '晴', 'sun', 'moon'],
-  [[1], '大致晴朗', 'sun', 'moon'],
-  [[2], '局部多云', 'cloud', 'cloud'],
-  [[3], '阴', 'cloud', 'cloud'],
-  [[45, 48], '雾', 'cloud', 'cloud'],
-  [[51, 53, 55, 56, 57], '毛毛雨', 'cloud-rain', 'cloud-rain'],
-  [[61, 80], '小雨', 'cloud-rain', 'cloud-rain'],
-  [[63, 81], '中雨', 'cloud-rain', 'cloud-rain'],
-  [[65, 82], '大雨', 'cloud-rain', 'cloud-rain'],
-  [[66, 67], '冻雨', 'cloud-rain', 'cloud-rain'],
-  [[71, 85], '小雪', 'cloud-snow', 'cloud-snow'],
-  [[73, 75, 77, 86], '雪', 'cloud-snow', 'cloud-snow'],
-  [[95, 96, 99], '雷雨', 'cloud-bolt', 'cloud-bolt']
+  [[0], 'Clear', 'sun', 'moon'],
+  [[1], 'Mostly clear', 'sun', 'moon'],
+  [[2], 'Partly cloudy', 'cloud', 'cloud'],
+  [[3], 'Overcast', 'cloud', 'cloud'],
+  [[45, 48], 'Fog', 'cloud', 'cloud'],
+  [[51, 53, 55, 56, 57], 'Drizzle', 'cloud-rain', 'cloud-rain'],
+  [[61, 80], 'Light rain', 'cloud-rain', 'cloud-rain'],
+  [[63, 81], 'Rain', 'cloud-rain', 'cloud-rain'],
+  [[65, 82], 'Heavy rain', 'cloud-rain', 'cloud-rain'],
+  [[66, 67], 'Freezing rain', 'cloud-rain', 'cloud-rain'],
+  [[71, 85], 'Light snow', 'cloud-snow', 'cloud-snow'],
+  [[73, 75, 77, 86], 'Snow', 'cloud-snow', 'cloud-snow'],
+  [[95, 96, 99], 'Thunderstorm', 'cloud-bolt', 'cloud-bolt']
 ]
 
 export function describe(code, isDay = true) {
   const row = CODES.find(([codes]) => codes.includes(Number(code)))
   if (!row) return { text: '', symbol: isDay ? 'sun' : 'moon' }
   // A clear night reads as one.
-  const text = !isDay && row[0][0] <= 1 ? (row[0][0] === 0 ? '晴朗夜空' : '大致晴朗') : row[1]
+  const text = !isDay && row[0][0] <= 1 ? (row[0][0] === 0 ? 'Clear night' : 'Mostly clear') : row[1]
   return { text, symbol: isDay ? row[2] : row[3] }
 }
 

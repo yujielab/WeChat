@@ -1,7 +1,7 @@
 // Message composer: a field that grows with its lines and one button after
 // it. Empty, the button adds a photo, a sticker or a drawing: it opens into a
 // small panel grown out of the button itself, its + turning into ×. With text it
-// becomes Send in the same place. Enter sends (the keyboard shows 发送),
+// becomes Send in the same place. Enter sends (the keyboard shows Send),
 // except while a Chinese IME is composing; Shift+Enter inserts a newline.
 // Editing a sent message borrows the field (edit()): a strip in it says so,
 // and the button saves.
@@ -22,8 +22,8 @@ let panelIds = 0
 export function createComposer({ onSend, onImages, onHeight, onType, mentionable, tools = [] }) {
   const textarea = h('textarea', {
     rows: 1,
-    placeholder: '消息',
-    'aria-label': '消息',
+    placeholder: 'Message',
+    'aria-label': 'Message',
     enterkeyhint: 'send',
     autocomplete: 'off',
     spellcheck: true
@@ -56,13 +56,13 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   }))
   let chat = null
   const keptImages = new Map() // chat -> File[] picked but not sent
-  const panel = h('div', { class: 'composer-panel', id: panelId, role: 'menu', 'aria-label': '添加' }, panelBody)
-  // Names what the panel offers: 添加照片或手绘, 添加照片、表情或手绘.
+  const panel = h('div', { class: 'composer-panel', id: panelId, role: 'menu', 'aria-label': 'Add' }, panelBody)
+  // Names what the panel offers: Add photo or drawing, Add photo, sticker or drawing.
   const addLabel = () => {
     const names = tools.filter(t => !toolButtons.get(t.id).hidden).map(t => t.title)
     const waiting = keptImages.get(chat)?.length || 0
-    if (waiting) return `添加，已选 ${waiting} 张图片待发`
-    return '添加' + (names.length > 1 ? `${names.slice(0, -1).join('、')}或${names.at(-1)}` : names[0] || '')
+    if (waiting) return `Add, ${waiting} photos waiting`
+    return 'Add ' + (names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names[0] || '')
   }
   // Photos picked and dismissed in this conversation: a count on the plus.
   // The number is for the eye only; the button's name carries it for a reader.
@@ -142,7 +142,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     const names = v.includes('@') ? mentionTokens().map(t => t.text) : []
     const parts = []
     if (names.length) {
-      // Longest first, so "@小红豆" isn't taken as "@小红".
+      // Longest first, so "@Rosalind" isn't taken as "@Rosa".
       const re = new RegExp(names.sort((a, b) => b.length - a.length).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
       let at = 0
       for (const hit of v.matchAll(re)) {
@@ -182,7 +182,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     // Editing, it only ever saves (and can't save nothing).
     action.disabled = disabled
     action.type = hasText || editing ? 'submit' : 'button'
-    action.setAttribute('aria-label', editing ? '保存修改' : hasText ? '发送' : addLabel())
+    action.setAttribute('aria-label', editing ? 'Save changes' : hasText ? 'Send' : addLabel())
     showKept()
     if (hasText || editing) {
       action.removeAttribute('aria-haspopup')
@@ -318,10 +318,10 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   // is being edited (and ✕ to stop); the button turns into ✓. Whatever was
   // being written before comes back afterwards.
   const editQuote = h('span', { class: 'composer-edit-quote' })
-  const editCancel = h('button', { class: 'composer-edit-cancel', type: 'button', 'aria-label': '取消编辑' }, icon('xmark'))
+  const editCancel = h('button', { class: 'composer-edit-cancel', type: 'button', 'aria-label': 'Cancel editing' }, icon('xmark'))
   const editStrip = h('div', { class: 'composer-edit', role: 'status' },
     icon('compose', 'composer-edit-icon'),
-    h('span', { class: 'composer-edit-text' }, h('b', {}, '编辑消息'), editQuote),
+    h('span', { class: 'composer-edit-text' }, h('b', {}, 'Edit message'), editQuote),
     editCancel)
   editCancel.addEventListener('pointerdown', e => e.preventDefault())
   editCancel.addEventListener('click', () => {
@@ -348,7 +348,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       void editStrip.offsetWidth
       editStrip.classList.add('in')
     }
-    textarea.setAttribute('aria-label', '编辑消息')
+    textarea.setAttribute('aria-label', 'Edit message')
     textarea.value = text
     autosize()
     setHasText(textarea.value.trim().length > 0, true)
@@ -363,7 +363,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     editing = null
     editStrip.remove()
     form.classList.remove('editing')
-    textarea.setAttribute('aria-label', '消息')
+    textarea.setAttribute('aria-label', 'Message')
     textarea.value = draft
     autosize()
     setHasText(textarea.value.trim().length > 0, true)
@@ -400,7 +400,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     const found = people ? people.filter(p => !query.q || p.display.toLowerCase().includes(query.q) || (p.username || '').toLowerCase().includes(query.q)).slice(0, 8) : []
     if (!found.length) return closePicker()
     if (!picker) {
-      const el = h('div', { class: 'mention-picker', id: `${panelId}-mentions`, role: 'listbox', 'aria-label': '提到群成员' })
+      const el = h('div', { class: 'mention-picker', id: `${panelId}-mentions`, role: 'listbox', 'aria-label': 'Mention a member' })
       // Choosing keeps the keyboard up.
       el.addEventListener('pointerdown', e => e.preventDefault())
       picker = { el, items: [], active: 0 }
@@ -506,7 +506,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   // part of the draft: leaving the conversation and coming back keeps it.
   const replyName = h('b')
   const replyQuote = h('span')
-  const replyClose = h('button', { class: 'composer-reply-close', type: 'button', 'aria-label': '取消回复' }, icon('xmark'))
+  const replyClose = h('button', { class: 'composer-reply-close', type: 'button', 'aria-label': 'Cancel reply' }, icon('xmark'))
   const replyStrip = h('div', { class: 'composer-reply', role: 'status' },
     h('span', { class: 'composer-reply-text' }, replyName, replyQuote),
     replyClose)
@@ -517,7 +517,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   })
   const replyKey = c => `reply:${c}`
   function showReply(r) {
-    replyName.textContent = `回复 ${r.name}`
+    replyName.textContent = `Replying to ${r.name}`
     replyQuote.textContent = String(r.text || '').replace(/\s+/g, ' ')
     field.prepend(replyStrip)
     form.classList.add('replying')
@@ -588,7 +588,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       }
       form.classList.toggle('readonly', ro)
       textarea.disabled = ro
-      textarea.placeholder = ro ? '无法发送消息' : '消息'
+      textarea.placeholder = ro ? "Can't send messages" : 'Message'
       textarea.value = id ? getDraft(id) : ''
       predictor.reset()
       // A different conversation's draft takes its height at once.

@@ -1,8 +1,8 @@
 // Your photo and your cover, edited the way the system edits yours (Settings ›
-// your name › photo): Cancel and Done at the top corners with 头像 | 封面
+// your name › photo): Cancel and Done at the top corners with Avatar | Cover
 // between them; the picture large in the middle, with − to take it away and
-// 自定义 to move and zoom it in its circle; then where a new one comes from —
-// a photo, or one used before (最近使用) — and, for the cover, the app's own.
+// Adjust to move and zoom it in its circle; then where a new one comes from —
+// a photo, or one used before (Recent) — and, for the cover, the app's own.
 // The sheet takes its colour from the photo. Nothing is saved until Done.
 
 import { h, icon } from '../ui/dom.js'
@@ -19,7 +19,7 @@ async function upload(kind, blob) {
     method: 'POST', credentials: 'same-origin', headers: { 'content-type': blob.type || 'image/jpeg' }, body: blob
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok || !data.ok) throw new Error(data.error || '上传失败')
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Upload failed')
   return data.url
 }
 
@@ -45,55 +45,55 @@ function averageColour(img) {
  */
 export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
   const me = state.me || {}
-  const name = me.display || me.username || '我'
+  const name = me.display || me.username || 'Me'
   // The avatar as it stands in the editor: a picture (the one in use, one used
   // before, or a new photo) or none (the initials), and how it is framed.
   let photo = me.avatar ? { src: me.avatar, kind: 'current' } : null
   let frame = null      // { w, h, zoom, x, y } once the picture has loaded
   let framed = false    // moved or zoomed since it was chosen
-  let framing = false   // 自定义 is on: drag and pinch move and zoom it
+  let framing = false   // Adjust is on: drag and pinch move and zoom it
   let cover = me.cover || ''
   let busy = false
   let picked = null     // the object URL of a photo chosen here, let go on close
 
-  // ---------------------------------------------------------------- head: Cancel, 头像 | 封面, Done
-  const cancel = h('button', { class: 'glass glass-btn av-cancel', type: 'button', 'aria-label': '取消' }, icon('xmark'))
-  const done = h('button', { class: 'glass glass-btn av-done', type: 'button', 'aria-label': '完成' }, icon('check'))
-  const tabs = [['avatar', '头像'], ['cover', '封面']]
-  const seg = h('div', { class: 'av-seg', role: 'tablist', 'aria-label': '编辑' },
+  // ---------------------------------------------------------------- head: Cancel, Avatar | Cover, Done
+  const cancel = h('button', { class: 'glass glass-btn av-cancel', type: 'button', 'aria-label': 'Cancel' }, icon('xmark'))
+  const done = h('button', { class: 'glass glass-btn av-done', type: 'button', 'aria-label': 'Done' }, icon('check'))
+  const tabs = [['avatar', 'Avatar'], ['cover', 'Cover']]
+  const seg = h('div', { class: 'av-seg', role: 'tablist', 'aria-label': 'Edit' },
     h('span', { class: 'av-seg-thumb', 'aria-hidden': 'true' }),
     tabs.map(([id, label]) => h('button', { type: 'button', role: 'tab', class: 'av-seg-item', dataset: { tab: id } }, label)))
 
   // ---------------------------------------------------------------- avatar
-  const preview = h('div', { class: 'av-preview', role: 'img', 'aria-label': '头像预览' })
-  const remove = h('button', { class: 'av-remove', type: 'button', 'aria-label': '移除照片' }, h('span', { 'aria-hidden': 'true' }, '−'))
-  const custom = h('button', { class: 'av-custom', type: 'button' }, '自定义')
-  const zoom = h('input', { class: 'av-zoom', type: 'range', min: '1', max: String(MAX_ZOOM), step: '0.01', value: '1', 'aria-label': '缩放', hidden: true })
-  const hint = h('p', { class: 'av-hint', hidden: true }, '拖动移动，双指或滑块缩放。')
+  const preview = h('div', { class: 'av-preview', role: 'img', 'aria-label': 'Avatar preview' })
+  const remove = h('button', { class: 'av-remove', type: 'button', 'aria-label': 'Remove photo' }, h('span', { 'aria-hidden': 'true' }, '−'))
+  const custom = h('button', { class: 'av-custom', type: 'button' }, 'Adjust')
+  const zoom = h('input', { class: 'av-zoom', type: 'range', min: '1', max: String(MAX_ZOOM), step: '0.01', value: '1', 'aria-label': 'Zoom', hidden: true })
+  const hint = h('p', { class: 'av-hint', hidden: true }, 'Drag to move, pinch or use the slider to zoom.')
   const file = h('input', { type: 'file', accept: 'image/*', hidden: true })
   const pick = h('button', { class: 'av-pick', type: 'button' },
     h('span', { class: 'av-pick-icon', 'aria-hidden': 'true' }, icon('photo')),
-    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, '选取照片'), h('span', { class: 'av-pick-sub' }, '从相册选一张，再移动、缩放到合适的位置。')))
+    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, 'Choose photo'), h('span', { class: 'av-pick-sub' }, 'Pick one from your photos, then move and zoom it into place.')))
   const recentGrid = h('div', { class: 'av-recent', role: 'list' })
-  const recentSection = h('section', { class: 'av-section', hidden: true }, h('h3', {}, '最近使用'), recentGrid)
+  const recentSection = h('section', { class: 'av-section', hidden: true }, h('h3', {}, 'Recent'), recentGrid)
   const avatarPane = h('div', { class: 'av-pane', role: 'tabpanel', dataset: { pane: 'avatar' } },
     h('div', { class: 'av-stage' }, preview, remove),
     h('div', { class: 'av-under' }, custom, zoom, hint),
-    h('section', { class: 'av-section' }, h('h3', {}, '照片'), pick, file),
+    h('section', { class: 'av-section' }, h('h3', {}, 'Photo'), pick, file),
     recentSection)
 
   // ---------------------------------------------------------------- cover
   const coverBand = backdropLayer(cover)
   const face = h('span', { class: 'cv-face', 'aria-hidden': 'true' })
-  const coverPreview = h('div', { class: 'cv-preview', role: 'img', 'aria-label': '封面预览' },
+  const coverPreview = h('div', { class: 'cv-preview', role: 'img', 'aria-label': 'Cover preview' },
     h('div', { class: 'cv-band' }, coverBand), face, h('span', { class: 'cv-face-name' }, name))
-  const coverRemove = h('button', { class: 'av-remove cv-remove', type: 'button', 'aria-label': '移除封面' }, h('span', { 'aria-hidden': 'true' }, '−'))
+  const coverRemove = h('button', { class: 'av-remove cv-remove', type: 'button', 'aria-label': 'Remove cover' }, h('span', { 'aria-hidden': 'true' }, '−'))
   const coverFile = h('input', { type: 'file', accept: 'image/*', hidden: true })
   const coverPick = h('button', { class: 'av-pick', type: 'button' },
     h('span', { class: 'av-pick-icon', 'aria-hidden': 'true' }, icon('photo')),
-    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, '选取照片'), h('span', { class: 'av-pick-sub' }, '打开你的资料的人会在最上面看到它。')))
-  const presetGrid = h('div', { class: 'cv-grid', role: 'radiogroup', 'aria-label': '封面样式' })
-  const presetTiles = [['', '无'], ...PRESETS.map(p => [`preset:${p.id}`, p.label])].map(([value, label]) => {
+    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, 'Choose photo'), h('span', { class: 'av-pick-sub' }, 'People who open your profile see it at the top.')))
+  const presetGrid = h('div', { class: 'cv-grid', role: 'radiogroup', 'aria-label': 'Cover style' })
+  const presetTiles = [['', 'None'], ...PRESETS.map(p => [`preset:${p.id}`, p.label])].map(([value, label]) => {
     const b = h('button', { class: 'cv-tile', type: 'button', role: 'radio', 'aria-label': label }, backdropLayer(value), h('span', { class: 'cv-name' }, label))
     b._value = value
     b.addEventListener('click', () => setCover(value))
@@ -102,12 +102,12 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
   presetGrid.append(...presetTiles)
   const coverPane = h('div', { class: 'av-pane', role: 'tabpanel', dataset: { pane: 'cover' }, hidden: true },
     h('div', { class: 'cv-stage' }, coverPreview, coverRemove),
-    h('section', { class: 'av-section' }, h('h3', {}, '照片'), coverPick, coverFile),
-    h('section', { class: 'av-section' }, h('h3', {}, '样式'), presetGrid))
+    h('section', { class: 'av-section' }, h('h3', {}, 'Photo'), coverPick, coverFile),
+    h('section', { class: 'av-section' }, h('h3', {}, 'Style'), presetGrid))
 
   const content = h('div', { class: 'av-editor-body' }, avatarPane, coverPane)
   const sheet = openSheet({
-    label: '编辑头像和封面', content, tall: true, start: cancel, end: done, origin,
+    label: 'Edit avatar and cover', content, tall: true, start: cancel, end: done, origin,
     onClose: () => { if (picked) URL.revokeObjectURL(picked) }
   })
   sheet.el.classList.add('av-editor')
@@ -170,7 +170,7 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
         paintFace()
         return
       }
-      toast('这张图片打不开', { type: 'error' })
+      toast("This image can't be opened", { type: 'error' })
       photo = me.avatar ? { src: me.avatar, kind: 'current' } : null
       framed = false
       paintAvatar()
@@ -218,7 +218,7 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
     framing = Boolean(on && photo)
     preview.classList.toggle('framing', framing)
     zoom.hidden = hint.hidden = !framing
-    custom.textContent = framing ? '完成调整' : '自定义'
+    custom.textContent = framing ? 'Done adjusting' : 'Adjust'
     custom.setAttribute('aria-pressed', String(framing))
   }
   custom.addEventListener('click', () => setFraming(!framing))
@@ -290,7 +290,7 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
     const recent = (r?.recent || []).filter(u => typeof u === 'string')
     if (!recent.length || !sheet.el.isConnected) return
     recentGrid.replaceChildren(...recent.map(src => {
-      const b = h('button', { class: 'av-recent-item', type: 'button', role: 'listitem', 'aria-label': '用这张' }, h('img', { src, alt: '', draggable: false, loading: 'lazy' }))
+      const b = h('button', { class: 'av-recent-item', type: 'button', role: 'listitem', 'aria-label': 'Use this one' }, h('img', { src, alt: '', draggable: false, loading: 'lazy' }))
       b.addEventListener('click', () => { photo = { src, kind: 'url' }; framed = false; paintAvatar() })
       return b
     }))
@@ -316,7 +316,7 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
       const { file: prepared } = await prepareImage(f)
       setCover(await upload('cover', prepared))
     } catch (err) {
-      toast(err.message || '上传失败', { type: 'error' })
+      toast(err.message || 'Upload failed', { type: 'error' })
     } finally {
       busy = false
       coverPick.classList.remove('loading')
@@ -330,12 +330,12 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
     const c = document.createElement('canvas')
     c.width = c.height = OUTPUT
     c.getContext('2d').drawImage(img, sx, sy, size, size, 0, 0, OUTPUT, OUTPUT)
-    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('无法处理这张图片'))), 'image/jpeg', 0.9))
+    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('Could not process this image'))), 'image/jpeg', 0.9))
   }
   async function avatarValue() {
     if (!photo) return ''
     if (photo.kind !== 'file' && !framed) return photo.src
-    if (!img || !frame) throw new Error('图片还没有准备好')
+    if (!img || !frame) throw new Error('The image is not ready yet')
     return upload('avatar', await cut())
   }
   done.addEventListener('click', async () => {
@@ -351,11 +351,11 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
         const r = await api.post('/api/profile', patch)
         setMe(r.me)
         onSaved?.(r.me)
-        toast(patch.avatar !== undefined ? '头像已更新' : '封面已更新', { type: 'ok' })
+        toast(patch.avatar !== undefined ? 'Avatar updated' : 'Cover updated', { type: 'ok' })
       }
       sheet.close()
     } catch (err) {
-      toast(err.message || '保存失败', { type: 'error' })
+      toast(err.message || 'Save failed', { type: 'error' })
       busy = false
       done.disabled = false
     }

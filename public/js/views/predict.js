@@ -53,7 +53,7 @@ export function createPredictor({ textarea, field, chat }) {
   function draw() {
     const on = Boolean(shown) && document.activeElement === textarea && atEnd() && !composing
     layer.hidden = !on
-    hint.textContent = on ? `建议：${shown}。按 Tab 采用` : ''
+    hint.textContent = on ? `Suggestion: ${shown}. Press Tab to use` : ''
     // An empty field's suggestion stands where the placeholder would.
     textarea.classList.toggle('has-prediction', on && !textarea.value)
     if (!on) return

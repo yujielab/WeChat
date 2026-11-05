@@ -1,12 +1,19 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v58'
+const SHELL = 'shell-v59'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/css/fonts.css',
+  '/fonts/Clarinetta-Light.woff2',
+  '/fonts/Clarinetta-Regular.woff2',
+  '/fonts/Clarinetta-Medium.woff2',
+  '/fonts/Clarinetta-Bold.woff2',
+  '/fonts/Clarinetta-ExtraBold.woff2',
+  '/fonts/Clarinetta-Black.woff2',
   '/css/tokens.css',
   '/css/base.css',
   '/css/symbols.css',

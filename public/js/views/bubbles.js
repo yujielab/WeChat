@@ -42,7 +42,7 @@ export function renderBubble(m, ctx) {
     case 'video':
       return videoBubble(m, ctx)
     case 'file':
-      return card(m, { icon: 'doc', iconClass: 'file', title: m.name || '文件', desc: fileSize(m.size) })
+      return card(m, { icon: 'doc', iconClass: 'file', title: m.name || 'File', desc: fileSize(m.size) })
     case 'call':
       return callBubble(m)
     case 'sticker':
@@ -53,7 +53,7 @@ export function renderBubble(m, ctx) {
 }
 
 function textBubble(m) {
-  const text = m.text ?? '[消息]'
+  const text = m.text ?? '[Message]'
   if (emojiOnly(text)) {
     return h('div', { class: 'bubble jumbo', dataset: { kind: 'text' } }, h('span', { class: 'emoji-only' }, text))
   }
@@ -64,14 +64,14 @@ function textBubble(m) {
 }
 
 // What a reader hears for a message's text: each "@name" it mentions said
-// as 「提及 名字」 (「提及你」 for this account), the same as in the bubble.
+// as "Mentioned <name>" ("Mentioned you" for this account), the same as in the bubble.
 export function spokenMentions(text, m) {
   const ids = Array.isArray(m?.meta?.mentions) ? m.meta.mentions : []
   if (!text || !ids.length) return text
   const names = new Map()
   for (const id of ids) {
     const name = nameOf(id, m.chat)
-    if (name) names.set(`@${name}`, id === state.me?.id ? '提及你' : `提及 ${name}`)
+    if (name) names.set(`@${name}`, id === state.me?.id ? 'Mentioned you' : `Mentioned ${name}`)
   }
   if (!names.size) return text
   const re = new RegExp([...names.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
@@ -96,11 +96,11 @@ function markMentions(parts, m) {
     let last = 0
     for (const hit of part.matchAll(re)) {
       if (hit.index > last) out.push(part.slice(last, hit.index))
-      // A reader hears 「提及 某某」 (「提及你」 for me), not 「at 某某」.
+      // A reader hears "Mentioned <name>" ("Mentioned you" for me), not "at <name>".
       const mine = names.get(hit[0]) === state.me?.id
       out.push(h('span', { class: ['mention', mine && 'me'] },
         h('span', { 'aria-hidden': 'true' }, hit[0]),
-        h('span', { class: 'sr-only' }, mine ? '提及你' : `提及 ${hit[0].slice(1)}`)))
+        h('span', { class: 'sr-only' }, mine ? 'Mentioned you' : `Mentioned ${hit[0].slice(1)}`)))
       last = hit.index + hit[0].length
     }
     if (last < part.length) out.push(part.slice(last))
@@ -139,15 +139,15 @@ function imageBubble(m, ctx) {
   // Failed, and its picture didn't survive a reload: the cell says so, at its
   // usual size, and offers to choose it again (thread.js opens the picker).
   if (m.status === 'failed' && m.lost) {
-    el.append(h('div', { class: 'ph', role: 'group', 'aria-label': '图片已丢失' },
+    el.append(h('div', { class: 'ph', role: 'group', 'aria-label': 'Photo lost' },
       icon('photo'),
-      h('span', {}, '图片已丢失'),
-      h('button', { class: 'text-button', type: 'button', 'aria-label': '重新选择图片' }, '重新选择')))
+      h('span', {}, 'Photo lost'),
+      h('button', { class: 'text-button', type: 'button', 'aria-label': 'Choose photo again' }, 'Choose again')))
     return el
   }
   const src = m.url || (m.cid ? state.previews.get(m.cid) : '')
   const img = new Image()
-  img.alt = m.type === 'drawing' ? '手绘' : '图片'
+  img.alt = m.type === 'drawing' ? 'Drawing' : 'Photo'
   img.decoding = 'async'
   img.draggable = false
   img.width = W
@@ -175,7 +175,7 @@ function voiceBubble(m) {
     dataset: { kind: 'voice' },
     style: { '--vw': `${Math.min(240, 128 + secs * 4)}px` },
     role: 'button',
-    'aria-label': `语音 ${secs} 秒，点按播放`
+    'aria-label': `Voice ${secs}s, tap to play`
   },
   h('span', { class: 'voice-btn' }, icon('play')),
   h('span', { class: 'wave' }, bars),
@@ -189,7 +189,7 @@ function videoBubble(m, ctx) {
     dataset: { kind: 'video' },
     style: { '--w': `${W}px`, '--h': `${H}px` },
     role: 'button',
-    'aria-label': `视频${m.dur ? ` ${duration(m.dur)}` : ''}，点按播放`
+    'aria-label': `Video${m.dur ? ` ${duration(m.dur)}` : ''}, tap to play`
   }, h('div', { class: 'ph' }, icon('video')),
      h('span', { class: 'media-play glass glass-clear glass-btn' }, icon('play')))
   if (m.dur) el.append(h('span', { class: 'media-badge' }, duration(m.dur)))
@@ -199,7 +199,7 @@ function videoBubble(m, ctx) {
 // A sticker stands on its own, without a bubble behind it.
 function stickerBubble(m) {
   const st = m.meta || {}
-  if (!st.id) return textBubble({ ...m, text: st.emoji || '[表情]' })
+  if (!st.id) return textBubble({ ...m, text: st.emoji || '[Sticker]' })
   return h('div', { class: 'bubble sticker', dataset: { kind: 'sticker' } }, stickerEl({ id: st.id, kind: st.kind, emoji: st.emoji, set: st.set }, 'msg'))
 }
 
@@ -207,7 +207,7 @@ function stickerBubble(m) {
 function callBubble(m) {
   const s = callSummary(m.call || {}, callMine(m))
   return h('div', { class: ['bubble call-log', s.missed && 'missed'], dataset: { kind: 'call' }, 'aria-label': s.label },
-    icon(s.media === '视频' ? 'video' : 'phone'),
+    icon(s.media === 'Video' ? 'video' : 'phone'),
     h('span', { 'aria-hidden': 'true' }, s.text))
 }
 

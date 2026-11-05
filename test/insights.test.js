@@ -25,10 +25,10 @@ test('the model reads numbered lines of sent messages, photos by their descripti
   ]
   const { text, refs } = transcript(msgs, { me: 'me', tzOffset: TZ, photos: new Map([['c', 'a beach at sunset']]) })
   assert.deepEqual(refs.map(m => m.id), ['a', 'b', 'c', 'd'], 'nothing taken back')
-  assert.equal(text.split('\n')[0], '[1] 10-30 16:40 周五 对方：我在杭州 刚下飞机')
-  assert.match(text, /\[2\] .* 我：好的/)
-  assert.match(text, /\[3\] .* 对方：\[照片：a beach at sunset\]/)
-  assert.match(text, /\[4\] .* 对方：\[表情 😂\]/)
+  assert.equal(text.split('\n')[0], '[1] 10-30 16:40 Fri Them: 我在杭州 刚下飞机')
+  assert.match(text, /\[2\] .* Me: 好的/)
+  assert.match(text, /\[3\] .* Them: \[Photo: a beach at sunset\]/)
+  assert.match(text, /\[4\] .* Them: \[Sticker 😂\]/)
 })
 
 test('what the model says is checked: real values, sensible times, real messages', () => {
@@ -40,10 +40,10 @@ test('what the model says is checked: real values, sensible times, real messages
   const raw = '<think>…</think>好的：' + JSON.stringify({
     city: '杭州',
     upcoming: [{ what: '快递送到', at: '2026-10-31 18:00', ref: 1 }, { what: '去年的事', at: '2025-01-01 10:00', ref: 1 }, { what: '', at: '2026-10-31 18:00' }],
-    ride: { stage: '等车', plate: '浙A·12345', car: '白色比亚迪', pickup: '2026-10-30 17:50', dropoff: 'soon', to: '西湖', ref: 3 },
-    home: { state: '出门', at: '2026-10-30 17:30', ref: 3 },
+    ride: { stage: 'waiting', plate: '浙A·12345', car: '白色比亚迪', pickup: '2026-10-30 17:50', dropoff: 'soon', to: '西湖', ref: 3 },
+    home: { state: 'out', at: '2026-10-30 17:30', ref: 3 },
     meetup: { place: '星巴克（西湖店）', at: '2026-10-31 15:00', ref: 1 },
-    mood: { label: '疲惫', note: '说今天好累', ref: 3 },
+    mood: { label: 'tired', note: '说今天好累', ref: 3 },
     photos: [{ ref: 2, place: '海边', reading: '日落时分的沙滩' }, { ref: 1, place: '不是照片', reading: 'x' }, { ref: 9, place: '不存在' }],
     summary: '她到杭州了，约明天下午见面'.repeat(10),
     ongoing: [{ what: '经期', since: '2026-10-29', until: '', note: '前天说的', ref: 1 }, { what: '出差', since: '2026-10-01', until: '2026-10-20' }],
@@ -52,10 +52,10 @@ test('what the model says is checked: real values, sensible times, real messages
   const r = readInsight(raw, { now: NOW, tzOffset: TZ, refs })
   assert.equal(r.city, '杭州')
   assert.deepEqual(r.upcoming, [{ what: '快递送到', at: at('2026-10-31 18:00'), ref: 'm1' }], 'past and empty ones dropped')
-  assert.deepEqual(r.ride, { stage: '等车', plate: '浙A·12345', car: '白色比亚迪', pickup: at('2026-10-30 17:50'), dropoff: null, to: '西湖', ref: 'm3' })
-  assert.deepEqual(r.home, { state: '出门', at: at('2026-10-30 17:30'), ref: 'm3' })
+  assert.deepEqual(r.ride, { stage: 'waiting', plate: '浙A·12345', car: '白色比亚迪', pickup: at('2026-10-30 17:50'), dropoff: null, to: '西湖', ref: 'm3' })
+  assert.deepEqual(r.home, { state: 'out', at: at('2026-10-30 17:30'), ref: 'm3' })
   assert.deepEqual(r.meetup, { place: '星巴克（西湖店）', at: at('2026-10-31 15:00'), ref: 'm1' })
-  assert.deepEqual(r.mood, { label: '疲惫', note: '说今天好累', ref: 'm3' })
+  assert.deepEqual(r.mood, { label: 'tired', note: '说今天好累', ref: 'm3' })
   assert.deepEqual(r.photos, [{ ref: 'm2', url: '/api/media/image/r/p2', at: NOW - 500e3, place: '海边', reading: '日落时分的沙滩' }], 'only real photos')
   assert.equal([...r.summary].length, 80)
   assert.deepEqual(r.ongoing.map(e => e.what), ['经期'], 'what has ended goes')
@@ -97,17 +97,17 @@ test('a conversation is read in one call; an empty one costs nothing', async () 
   const env = { AI: { async run(model, input) { calls.push(input); return { response: '{"city":"上海","summary":"在聊周末"}' } } } }
   const r = await analyze(env, { messages: [{ id: 'a', sender: 'p', ts: NOW - 1000, type: 'text', body: '我在上海' }], me: 'me', tzOffset: TZ, now: NOW })
   assert.equal(r.city, '上海'); assert.equal(r.summary, '在聊周末')
-  assert.match(calls[0].messages[1].content, /现在是 2026-10-30 17:40 周五/)
+  assert.match(calls[0].messages[1].content, /It is now 2026-10-30 17:40 Fri/)
   assert.equal(calls.length, 1)
   await analyze(env, { messages: [{ id: 'z', sender: 'p', ts: NOW - 30 * 24 * 3600e3, type: 'text', body: '很久以前' }], me: 'me', tzOffset: TZ, now: NOW })
   assert.equal(calls.length, 1, 'nothing this week: no call')
 })
 
 test('weather: words and symbols, the next sunrise or sunset there, kept a while', async () => {
-  assert.deepEqual(describe(0, true), { text: '晴', symbol: 'sun' })
-  assert.deepEqual(describe(0, false), { text: '晴朗夜空', symbol: 'moon' })
-  assert.deepEqual(describe(63, true), { text: '中雨', symbol: 'cloud-rain' })
-  assert.deepEqual(describe(95, false), { text: '雷雨', symbol: 'cloud-bolt' })
+  assert.deepEqual(describe(0, true), { text: 'Clear', symbol: 'sun' })
+  assert.deepEqual(describe(0, false), { text: 'Clear night', symbol: 'moon' })
+  assert.deepEqual(describe(63, true), { text: 'Rain', symbol: 'cloud-rain' })
+  assert.deepEqual(describe(95, false), { text: 'Thunderstorm', symbol: 'cloud-bolt' })
   const asked = []
   const fetcher = async url => {
     asked.push(String(url))
@@ -118,7 +118,7 @@ test('weather: words and symbols, the next sunrise or sunset there, kept a while
   assert.deepEqual(place, { lat: 30.29, lon: 120.16, name: '杭州' })
   const early = Date.UTC(2026, 9, 30, 6, 0) // 14:00 there
   const w = await weatherAt(place, { fetcher, now: early })
-  assert.deepEqual(w, { temp: 24, unit: 'c', text: '晴', symbol: 'sun', isDay: true, high: 25, low: 15, next: { kind: 'sunset', time: '17:28' } })
+  assert.deepEqual(w, { temp: 24, unit: 'c', text: 'Clear', symbol: 'sun', isDay: true, high: 25, low: 15, next: { kind: 'sunset', time: '17:28' } })
   const before = asked.length
   await weatherAt(place, { fetcher, now: early + 60e3 })
   assert.equal(asked.length, before, 'kept for half an hour')

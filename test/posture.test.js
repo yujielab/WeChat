@@ -1,6 +1,7 @@
 // Where the hinge is, from what the browser reports (public/js/ui/posture.js):
 // the viewport's segments first, the device's posture only where there are
-// none, and a hinge with no gap is still a hinge.
+// none, and a hinge with no gap is believed only when the Device Posture API
+// confirms the device is folded.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFold, poseOf, INNER_MIN } from '../public/js/ui/posture.js'
@@ -9,14 +10,18 @@ const W = 951, H = 669
 const whole = [{ x: 0, y: 0, width: W, height: H }]
 const book = (start, end) => [{ x: 0, y: 0, width: start, height: H }, { x: end, y: 0, width: W - end, height: H }]
 
-test('two segments that touch (a continuous folding screen) are half open — they were taken for no hinge', () => {
-  assert.deepEqual(readFold({ segments: book(476, 476), posture: null, width: W, height: H }), { axis: 'vertical', start: 476, end: 476, source: 'segments' })
+test('two touching segments (a continuous folding screen) with no posture to go by are flat, not a hinge', () => {
+  // Segments alone cannot tell a flat gapless screen from a bent one, so a
+  // zero-gap hinge is not believed without the Device Posture API: a device
+  // that reports only segments must not be pinned half open while it is open.
+  assert.equal(readFold({ segments: book(476, 476), posture: null, width: W, height: H }).axis, 'none')
+  // A real gap between the segments is a hinge whatever the posture says.
   assert.deepEqual(readFold({ segments: book(462, 490), posture: null, width: W, height: H }), { axis: 'vertical', start: 462, end: 490, source: 'segments' })
 })
 
-test('two touching segments on a device that says it lies flat: open; a hinge with a gap is half open regardless', () => {
+test('two touching segments: a hinge only where the device says it is folded; a real gap is a hinge regardless', () => {
   assert.equal(readFold({ segments: book(476, 476), posture: 'continuous', width: W, height: H }).axis, 'none')
-  assert.equal(readFold({ segments: book(476, 476), posture: 'folded', width: W, height: H }).axis, 'vertical')
+  assert.deepEqual(readFold({ segments: book(476, 476), posture: 'folded', width: W, height: H }), { axis: 'vertical', start: 476, end: 476, source: 'segments' })
   assert.equal(readFold({ segments: book(462, 490), posture: 'continuous', width: W, height: H }).axis, 'vertical', 'two screens with a real gap')
 })
 

@@ -75,7 +75,7 @@ test('how a person ends a message is kept, without the punctuation', () => {
 test('the style reads as a few lines for the model', () => {
   const style = styleOf(msgs('好的，我准备材料。', '那我们明天见。', '我准备一下材料。', '明天见！'))
   const text = styleText(style)
-  assert.match(text, /我常用的词/)
+  assert.match(text, /Words I often use/)
   assert.ok(text.length < 300, 'a hint, not a document')
   assert.equal(styleText({ messages: 0 }), '')
 })
@@ -140,7 +140,7 @@ test('the digest prompt asks for points, not guesses', () => {
   const p = digestPrompt('我：明天开会\n对方：好的')
   const said = p.map(m => m.content).join('\n')
   assert.match(said, /我：明天开会/)
-  assert.match(said, /不要推测/)
+  assert.match(said, /Do not speculate/)
 })
 
 test("the digest's answer is short lines, cleaned", () => {

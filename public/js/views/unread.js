@@ -1,4 +1,4 @@
-// "↓ N 条新消息" counts what is still to be read: of the new messages, those
+// "↓ N new messages" counts what is still to be read: of the new messages, those
 // whose top is still below the line where the conversation ends (the top of
 // the composer). One that has come above it has been on screen and stays
 // counted out, even if scrolled back down past it.

@@ -62,10 +62,10 @@ export function createBars({ label, items, arrange }) {
   }
 
   const more = h('button', {
-    class: 'glass glass-btn bar-item bar-more', type: 'button', title: '更多', 'aria-label': '更多', 'aria-haspopup': 'menu', hidden: true
+    class: 'glass glass-btn bar-item bar-more', type: 'button', title: 'More', 'aria-label': 'More', 'aria-haspopup': 'menu', hidden: true
   }, icon('ellipsis'))
-  const top = h('div', { class: 'bar-section bar-top', role: 'group', 'aria-label': `${label}（上）` })
-  const bottom = h('div', { class: 'bar-section bar-bottom', role: 'group', 'aria-label': `${label}（下）` })
+  const top = h('div', { class: 'bar-section bar-top', role: 'group', 'aria-label': `${label} (top)` })
+  const bottom = h('div', { class: 'bar-section bar-bottom', role: 'group', 'aria-label': `${label} (bottom)` })
   let axis = 'horizontal'
   let hidden = new Set()
   let menu = null

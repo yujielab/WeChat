@@ -4,15 +4,15 @@ import { sendState } from '../public/js/ui/format.js'
 
 test('bubble corner state: clock for every queued message, ticks, read only when read, failed', () => {
   assert.equal(sendState({ out: false, status: 'sent', id: 'x' }), null)
-  assert.deepEqual(sendState({ out: true, status: 'sending', id: 'local:1' }), { state: 'sending', label: '发送中' })
+  assert.deepEqual(sendState({ out: true, status: 'sending', id: 'local:1' }), { state: 'sending', label: 'Sending' })
   // Queued offline: each one is still local:, so each shows the clock.
   for (const id of ['local:a', 'local:b', 'local:c']) assert.equal(sendState({ out: true, id, status: 'sending' }).state, 'sending')
   assert.equal(sendState({ out: true, id: 'local:z' }, true).state, 'sending', 'a peer read mark never ticks a message not yet sent')
-  assert.deepEqual(sendState({ out: true, status: 'sent', id: 'm1' }), { state: 'sent', label: '已发送' })
-  assert.deepEqual(sendState({ out: true, status: 'delivered', id: 'm1' }), { state: 'delivered', label: '已送达' })
-  assert.deepEqual(sendState({ out: true, status: 'sent', id: 'm1' }, true), { state: 'read', label: '已读' })
+  assert.deepEqual(sendState({ out: true, status: 'sent', id: 'm1' }), { state: 'sent', label: 'Sent' })
+  assert.deepEqual(sendState({ out: true, status: 'delivered', id: 'm1' }), { state: 'delivered', label: 'Delivered' })
+  assert.deepEqual(sendState({ out: true, status: 'sent', id: 'm1' }, true), { state: 'read', label: 'Read' })
   assert.equal(sendState({ out: true, status: 'read', id: 'm1' }).state, 'read')
-  assert.deepEqual(sendState({ out: true, status: 'failed', id: 'local:f' }, true), { state: 'failed', label: '未发送' })
+  assert.deepEqual(sendState({ out: true, status: 'failed', id: 'local:f' }, true), { state: 'failed', label: 'Not sent' })
 })
 
 test('a folded group shows its weakest state, and a failure wins', async () => {

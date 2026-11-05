@@ -32,7 +32,7 @@ async function request(method, path, body, { signal } = {}) {
     res = await fetch(path, init)
   } catch (err) {
     if (err?.name === 'AbortError') throw err
-    throw new ApiError('网络连接不可用', 0)
+    throw new ApiError('Network connection unavailable', 0)
   }
   let data = null
   try {
@@ -41,7 +41,7 @@ async function request(method, path, body, { signal } = {}) {
     // Non-JSON response; handled below.
   }
   if (res.status === 401 && path.startsWith('/api/')) for (const fn of listeners) fn('unauthorized')
-  if (!res.ok || data?.ok === false) throw new ApiError(data?.error || `请求失败（${res.status}）`, res.status, data)
+  if (!res.ok || data?.ok === false) throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data)
   return data
 }
 
@@ -116,7 +116,7 @@ export function connectSocket({ onMessage, onOpen, onClose }) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') wake()
   })
-  // 断网时主动关掉 socket，走现有的重连 → hello 流程，在线状态才会刷新回来。
+  // When the network drops, close the socket so the existing reconnect → hello flow refreshes presence.
   window.addEventListener('offline', () => ws?.close())
   window.addEventListener('online', wake)
   window.addEventListener('pageshow', wake)

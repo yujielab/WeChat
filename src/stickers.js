@@ -33,20 +33,20 @@ export const STICKER_KINDS = ['static', 'video', 'animated']
  * Titles are ours: Telegram's often carry a channel's handle.
  */
 export const PRESETS = [
-  { name: 'HandDrawnEmoji', title: '手绘' },
-  { name: 'GameEmoji', title: '游戏' },
-  { name: 'ParisOlympicEmoji', title: '巴黎奥运' },
-  { name: 'UtyaDuck', title: '小黄鸭' },
-  { name: 'HotCherry', title: '樱桃' },
-  { name: 'AnimatedEmojies', title: '动态 Emoji' },
-  { name: 'LadyCat', title: '猫小姐' },
-  { name: 'MottyEmojiAnim', title: 'Motty 猫' },
-  { name: 'SiameseCatLive', title: '暹罗猫' },
-  { name: 'LINE_Mochi_Mochi_Peach_Cat', title: '蜜桃猫' },
-  { name: 'CAT_CAT_CAT111', title: 'ㄎㄧㄤ貓' },
+  { name: 'HandDrawnEmoji', title: 'Hand-drawn' },
+  { name: 'GameEmoji', title: 'Games' },
+  { name: 'ParisOlympicEmoji', title: 'Paris Olympics' },
+  { name: 'UtyaDuck', title: 'Little Duck' },
+  { name: 'HotCherry', title: 'Hot Cherry' },
+  { name: 'AnimatedEmojies', title: 'Animated Emoji' },
+  { name: 'LadyCat', title: 'Lady Cat' },
+  { name: 'MottyEmojiAnim', title: 'Motty Cat' },
+  { name: 'SiameseCatLive', title: 'Siamese Cat' },
+  { name: 'LINE_Mochi_Mochi_Peach_Cat', title: 'Peach Cat' },
+  { name: 'CAT_CAT_CAT111', title: 'Kiang Cat' },
   { name: 'Pusheen_3', title: 'Pusheen' },
-  { name: 'utya_vk', title: '小鸭 Утя' },
-  { name: 'AngryDuck', title: '生气的鸭子' }
+  { name: 'utya_vk', title: 'Utya Duck' },
+  { name: 'AngryDuck', title: 'Angry Duck' }
 ]
 
 // Telegram's names don't care about case.

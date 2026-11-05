@@ -22,7 +22,7 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
       ? createDrawing(body, { onSend: (blob, size) => onSend(blob, size), onClose })
       : infoView(chat, body)
     current = { kind, chat, view, body }
-    pane.setAttribute('aria-label', kind === 'draw' ? '画板' : roomInfoTitle(chat))
+    pane.setAttribute('aria-label', kind === 'draw' ? 'Drawing board' : roomInfoTitle(chat))
   }
 
   function clear() {
@@ -37,10 +37,10 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
   // the right edge (the Duo).
   function infoView(chat, body) {
     const bars = createBars({
-      label: '详情操作',
+      label: 'Details actions',
       items: [
-        { id: 'back', icon: 'chevron-left', title: '返回对话', primary: true, onSelect: () => onClose() },
-        { id: 'close', icon: 'xmark', title: '关闭', primary: true, onSelect: () => onClose() }
+        { id: 'back', icon: 'chevron-left', title: 'Back to conversation', primary: true, onSelect: () => onClose() },
+        { id: 'close', icon: 'xmark', title: 'Close', primary: true, onSelect: () => onClose() }
       ],
       arrange: axis => {
         const lead = [[pane.dataset.layout === 'single' ? 'back' : 'close']]
@@ -48,8 +48,8 @@ export function createArtifact(pane, { onClose, onSend, loadContacts }) {
       }
     })
     const content = h('div', { class: 'art-content' })
-    const bottombar = h('nav', { class: 'art-bottombar dock', 'aria-label': '详情操作' }, bars.bottom)
-    const rail = h('nav', { class: 'duo-rail art-rail', 'aria-label': '详情操作' })
+    const bottombar = h('nav', { class: 'art-bottombar dock', 'aria-label': 'Details actions' }, bars.bottom)
+    const rail = h('nav', { class: 'duo-rail art-rail', 'aria-label': 'Details actions' })
     body.append(h('div', { class: 'scroll art-scroll' }, content), bottombar, rail)
     renderRoomInfo(chat, { body: content, host: { el: pane, close: onClose }, loadContacts })
 
