@@ -1,11 +1,14 @@
-/* Unfolded, overlays stay inside the column they were opened from (see
-   js/ui/fold.js): the hinge never runs through a dialog, a photo or a call.
-   The other half stays visible, dimmed, so the relationship between the two
-   columns is never lost. */
+/* Unfolded and flat, sheets and toasts are centred on the whole screen, over
+   both columns, as the system's own are. Half folded (data-fold: a book or
+   a laptop), they stay inside the column they were opened from (see
+   js/ui/fold.js) so the bend never runs through one; photos, the drawing
+   board and calls always keep to their column. The other half stays
+   visible, dimmed, so the relationship between the two columns is never
+   lost. */
 /* Over the trailing column they centre on its content, clear of the
    screen's own edge column. */
 .overlays[data-layout="split"] [data-place="trailing"] { --region-end: var(--safe-right); }
-.overlays[data-layout="split"] .sheet[data-region] {
+:root[data-fold] .overlays[data-layout="split"] .sheet[data-region] {
   left: calc(var(--region-left) + (var(--region-width) - var(--region-end, 0px)) / 2);
   width: min(500px, calc(var(--region-width) - var(--region-end, 0px) - 36px));
 }
@@ -13,7 +16,7 @@
   left: max(calc(var(--safe-left) + 10px), calc(var(--region-left) + 10px));
   right: max(calc(var(--safe-right) + 10px), calc(100% - var(--region-left) - var(--region-width) + 10px));
 }
-.overlays[data-layout="split"] .toast[data-region] {
+:root[data-fold] .overlays[data-layout="split"] .toast[data-region] {
   left: calc(var(--region-left) + (var(--region-width) - var(--region-end, 0px)) / 2);
   max-width: calc(var(--region-width) - var(--region-end, 0px) - 32px);
 }

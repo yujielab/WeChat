@@ -132,18 +132,20 @@ for(const [w,h] of [[466,678],[678,466],[951,669],[890,626],[669,951],[626,890],
 const widths=[];for(let w=466;w<=951;w+=50)widths.push(w);widths.push(951);for(let w=951;w>=466;w-=50)widths.push(w);widths.push(466)
 for(const w of widths){await p.setViewportSize({width:w,height:669});await sleep(40);assert.equal(await p.evaluate(()=>document.documentElement.dataset.kb),undefined,'a width change is never the keyboard at '+w)}
 await unposed();await sleep(200);assert.deepEqual((await state()).roles,['hidden','hidden','single','hidden']);assert.equal(await p.evaluate(()=>document.activeElement?.matches('.composer textarea')),true)
-// A sheet opened beside the list stays in its half across the same drag: its middle never lands on the crease.
+// A sheet opened from the list sits in the middle of the whole screen across the same drag: unfolded and flat
+// there is no crease to keep off (half folded it keeps to one side: duo-layout.cjs).
 await p.setViewportSize({width:951,height:669});await unposed();await p.click('.pane-list [data-item="compose"]');await p.locator('.sheet.on').waitFor()
-for(const w of [951,901,851,800,751,700]){await p.setViewportSize({width:w,height:669});await sleep(120);const b=await p.locator('.sheet').boundingBox();assert.ok(b.x+b.width<=w/2+1||b.x>=w/2-1,`sheet clear of the crease at ${w} `+JSON.stringify(b))}
+for(const w of [951,901,851,800,751,700]){await p.setViewportSize({width:w,height:669});await sleep(120);const b=await p.locator('.sheet').boundingBox();assert.ok(Math.abs(b.x+b.width/2-w/2)<=1.5,`sheet centred at ${w} `+JSON.stringify(b))}
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 
-// With the system's edge column (84pt down the right, open or closed): unfolded, a sheet over the conversation
-// centres on its content, clear of the column; folded, it spans the app's side with even margins.
+// With the system's edge column (84pt down the right, open or closed): unfolded, a sheet opened from the
+// conversation centres on the screen beside the column, clear of it; folded, it spans the app's side with even
+// margins.
 await p.setViewportSize({width:951,height:669});await unposed();await p.evaluate(()=>document.documentElement.style.setProperty('--safe-right','84px'));await sleep(300)
 await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="photo"]');await p.locator('.attachment-sheet.on').waitFor();await sleep(500)
 let b=await p.locator('.sheet').boundingBox(),pane=await p.locator('.pane[data-col="thread"]').boundingBox()
-assert.ok(b.x>=pane.x+17&&b.x+b.width<=951-84-17,'unfolded sheet clear of the column '+JSON.stringify(b))
-assert.ok(Math.abs(b.x+b.width/2-(pane.x+(pane.width-84)/2))<2,'unfolded sheet centred on the content '+JSON.stringify({b,pane}))
+assert.ok(b.x>=17&&b.x+b.width<=951-84-17,'unfolded sheet clear of the column '+JSON.stringify(b))
+assert.ok(Math.abs(b.x+b.width/2-(951-84)/2)<2,'unfolded sheet centred beside the column '+JSON.stringify(b))
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 await p.setViewportSize({width:466,height:678});await unposed();await sleep(300);await settled('thread')
 // Every bar at the foot stays inside the inset too.
@@ -161,5 +163,5 @@ const g=await q.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingCl
 assert.ok(g.back.left>=15.5&&g.compose.right<=376-15.5&&g.compose.right>=376-24&&g.pill.width>=120&&g.row.right>=376-24,'the bar spans the page '+JSON.stringify(g))
 await q.screenshot({path:path.join(OUT,'29-outer-page.png')});await c.close()}
 
-assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheet stays off the crease; the bar at the foot of every column (list: Back, filter, search, New Chat; conversation: Back, field, drawing and photos), inside the edge column inset and across a 376pt page; sheets clear of the edge column; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
+assert.deepEqual(errors,[]);console.log('PASS: closed one column / open two equal columns; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the gutter on the crease; width drag never reads as keyboard; sheets centred on the open screen; the bar at the foot of every column (list: Back, filter, search, New Chat; conversation: Back, field, drawing and photos), inside the edge column inset and across a 376pt page; sheets clear of the edge column; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1})

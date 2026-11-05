@@ -177,18 +177,19 @@
 :root[data-motion="reduce"] .bar-item { transition: none; }
 
 /* ---------------------------------------------------------------- sheets
-   Folded, and over the trailing column unfolded, a sheet's title leads and
-   Close ends its heading; over the leading column the heading is centred. */
+   Folded, and over the trailing column of a half-folded screen, a sheet's
+   title leads and Close ends its heading; centred on the open screen (or
+   over the leading column) the heading is centred too. */
 .overlays[data-layout="stack"] .sheet-head,
-.overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head {
+:root[data-fold] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head {
   grid-template-columns: minmax(0, 1fr) 44px;
   padding-top: 10px;
 }
 .overlays[data-layout="stack"] .sheet-head h2,
-.overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head h2 {
+:root[data-fold] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head h2 {
   grid-column: 1;
   text-align: left;
   font-size: var(--t-title-2);
 }
 .overlays[data-layout="stack"] .sheet-head .end,
-.overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head .end { grid-column: 2; }
+:root[data-fold] .overlays[data-layout="split"] .sheet[data-place="trailing"] .sheet-head .end { grid-column: 2; }
