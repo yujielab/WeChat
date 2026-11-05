@@ -313,7 +313,7 @@ Cuven，再用 Safari 重新添加一次（登录状态会在添加时从 Safari
 ### Duo 外屏竖屏全宽（iOS 27.2）
 
 采用工程验证页的 B 方案：同步 `/js/viewport-boot.js` 在所有样式之前，将外屏竖屏的 viewport 设置为
-`width=466, height=device-height, initial-scale=1, minimum-scale=1, viewport-fit=cover`。
+`width=466, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover`。
 背景可以延伸到右侧系统控件下面；文字、发送、通话和弹层沿用独立的安全区避让，背景不再在侧栏边淡出。
 仅在 iOS Safari 或主屏幕独立模式、粗指针、外屏尺寸约 466 × 678 的竖屏窗口启用。
 横屏、展开后的内屏、窄窗口、其他设备或无法确认屏幕尺寸时恢复原有 `device-width`；不自动刷新页面，不清空草稿。
@@ -326,6 +326,22 @@ Safari 外屏竖屏的 B 方案已由用户真机确认；接入后的聊天、�
 
 机制参考：[Splay](https://github.com/aztechead/splay)。这里使用独立编写、仅针对本应用的早期视口设置；
 未引入扩展的任意网页改写或系统控件坐标。
+
+### 禁止缩放，页面不会被拉变形
+
+布局是按一个屏幕、一个比例排好的，所以把会拉伸或挪动页面的操作都挡在外面（`public/js/ui/steady.js`、`css/base.css`、视口 meta）：
+
+- 缩放：视口固定为 1 倍（`minimum-scale=1, maximum-scale=1, user-scalable=no`），每个元素只接受平移（`touch-action: pan-x pan-y`，
+  双指捏合和双击放大都不行）；iOS 会无视 `user-scalable`，所以另外取消 Safari 的 `gesturestart / gesturechange / gestureend`；
+  桌面的 Ctrl/⌘ + 滚轮（含触控板捏合）和 Ctrl/⌘ 加 `+` `-` `0` 同样取消。万一页面还是被放大了，会重设一次视口把它拉回 1 倍。
+  照片查看器里的双指放大和双击放大照旧（它们只放大照片，自己声明了 `touch-action: none`）。
+- 拖放：文件或链接拖到页面上不会跳走（文字仍可拖进输入框）；页面里的链接、图片拖不出去。
+- 滚偏：应用、外壳、栏这些本不该滚动的容器，被焦点或 `scrollIntoView` 之类滚偏了会立刻归位；页面本身滚偏也归位（键盘弹起时是系统有意为之，交给 `ui/viewport.js`）。
+- 系统字号：跟随系统的动态字体，但最大不超过 21px（iOS 的“特大”，默认是 17px）；再大，栏、按钮和列表行就排不下了。
+  从设置回到应用时重新读取。常量是 `steady.js` 里的 `DYNAMIC_TYPE_MAX`。
+- 消息顶部：滚出去的消息在顶部渐隐，不再被一条硬边切开。
+
+网页挡不住的：Safari 地址栏“aA”菜单里的页面缩放（会改变布局宽度）和系统的显示缩放。检查：`tools/e2e/steady.cjs`（真实触摸捏合 / 双击、滚轮、快捷键、拖放、滚偏、查看器放大）和 `test/steady.test.js`。
 
 ### 配置项
 
@@ -433,7 +449,7 @@ src/            index.js（瘦代理）· hub.js（Durable Object）· store.js�
                 call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
-    ui/         视口与折叠、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感
+    ui/         视口与折叠、防缩放防变形（steady）、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
                 overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· predict（输入预测）· avatar
                 backdrops（背景选择）· insights（智能通知）

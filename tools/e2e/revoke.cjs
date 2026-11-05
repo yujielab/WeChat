@@ -25,7 +25,7 @@ const A=await account(`ra_${uniq}`,'小明'),B=await account(`rb_${uniq}`,'小�
 const room=(await api(A,'/api/dm',{username:`rb_${uniq}`})).room.id
 for(const text of ['第一条','要撤回的这条','第三条'])await api(A,'/api/messages',{room,type:'text',text})
 // What a conversation shows: its bubbles' texts and its notes, in order.
-const shown=p=>p.evaluate(()=>[...document.querySelectorAll('.thread:not([hidden]) .msgs > .m, .thread:not([hidden]) .msgs > .sys')].map(n=>n.classList.contains('sys')?`[${n.textContent}]`:n.querySelector('.bubble')?.textContent.trim()||'(空气泡)'))
+const shown=p=>p.evaluate(()=>{const words=b=>{if(!b)return'';const c=b.cloneNode(true);c.querySelectorAll('.m-meta').forEach(x=>x.remove());return c.textContent.trim()};return[...document.querySelectorAll('.thread:not([hidden]) .msgs > .m, .thread:not([hidden]) .msgs > .sys')].map(n=>n.classList.contains('sys')?`[${n.textContent}]`:words(n.querySelector('.bubble'))||'(空气泡)')})
 const open=async p=>{await p.locator('.row').first().click();await p.waitForSelector('.thread:not([hidden]) .msgs .m');await sleep(400)}
 await A.reload();await A.waitForSelector('.row');await open(A)
 await B.reload();await B.waitForSelector('.row');await open(B)

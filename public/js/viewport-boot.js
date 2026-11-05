@@ -7,7 +7,7 @@
   var viewport = document.querySelector('meta[name="viewport"]')
   if (!viewport) return
   var original = viewport.content
-  var wide = 'width=466, height=device-height, initial-scale=1, minimum-scale=1, viewport-fit=cover'
+  var wide = 'width=466, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
   var ua = navigator.userAgent || ''
   var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   var standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches
