@@ -4,7 +4,7 @@
 import { h, icon } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
 import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appearance.js'
-import { isStandalone } from '../ui/viewport.js'
+import { isStandalone, getPostureReadings } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
 import { assistPrefs, setAssistPref } from './predict.js'
@@ -31,6 +31,34 @@ function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) 
   if (onClick) el.addEventListener('click', onClick)
   return el
 }
+/**
+ * 屏幕姿态: what the screen is taken to be (合上 / 半开 / 展开) and what the
+ * device reports that from — the viewport's segments, its posture, or
+ * neither — kept current while it shows, so folding the screen with
+ * Settings open shows whether the browser tells the page. Only where the
+ * browser reports anything.
+ */
+const POSES = { closed: '合上', half: '半开', open: '展开' }
+const SOURCES = { segments: '视口分段', posture: '设备姿态', emulated: '模拟', none: '屏幕宽度' }
+function postureCell() {
+  const first = getPostureReadings()
+  if (first.segments === null && first.posture === null && first.source !== 'emulated') return null
+  const value = h('span', { class: 'value' })
+  const sub = h('span', { class: 'sub' })
+  const el = cell('屏幕姿态', value)
+  el.querySelector('.grow').append(sub)
+  const paint = () => {
+    const r = getPostureReadings()
+    const seg = r.segments === null ? '不支持' : r.segments.length < 2 ? '1 段' : `2 段，铰链 ${r.fold.axis === 'none' ? '—' : `${r.fold.start}–${r.fold.end}`}`
+    const pos = r.posture === null ? '不支持' : r.posture === 'folded' ? '折起' : '平展'
+    value.textContent = `${POSES[r.pose] || r.pose} · ${SOURCES[r.source] || r.source}`
+    sub.textContent = `视口分段：${seg}　设备姿态：${pos}`
+  }
+  paint()
+  const timer = setInterval(() => (el.isConnected ? paint() : clearInterval(timer)), 300)
+  return el
+}
+
 function toggle(checked, onChange, label) {
   const sw = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(Boolean(checked)), 'aria-label': label })
   sw.addEventListener('click', async () => {
@@ -135,7 +163,8 @@ export function openSettings({ onLogout, origin }) {
       cell('减少动态效果', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), '减少动态效果')),
       // Only offered where the device can play it (iPhone), so it never
       // claims to be on when nothing would happen.
-      hapticsAvailable ? cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈')) : null
+      hapticsAvailable ? cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈')) : null,
+      postureCell()
     ),
     // Backdrops, the same on each of your devices (each conversation can
     // also have its own, in its details).

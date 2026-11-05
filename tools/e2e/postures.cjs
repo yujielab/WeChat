@@ -152,6 +152,45 @@ assert.deepEqual(await held(),draft,'the draft survives closing too')
   await q.evaluate(()=>document.querySelector('.call .call-btn.hang')?.click());await ctx.close()
 }
 
+// 11. What a real browser does: it changes its segments or its posture without a word to the page (no event, the
+// viewport keeps its size). The page still follows, within a moment. With segments, two that touch (a continuous
+// folding screen, no gap) are half open — they were taken for no hinge, which left the Duo stuck open with the
+// Viewport Segments API on; and with segments to go by, the posture doesn't decide. Without them, the posture does.
+{
+  const cookies=await A.context().cookies()
+  const silent=async(init,label)=>{
+    const ctx=await browser.newContext({viewport:INNER,locale:'zh-CN',serviceWorkers:'block',deviceScaleFactor:1,isMobile:true,hasTouch:true})
+    await ctx.addCookies(cookies);await ctx.addInitScript(init)
+    const q=await ctx.newPage();q.on('pageerror',e=>errors.push(`[${label}] `+e.message));await q.goto(BASE);await q.waitForSelector('.shell');await sleep(600)
+    return q
+  }
+  const state=q=>q.evaluate(()=>{const r=p=>document.querySelector(`.pane[data-col="${p}"]`)?.getBoundingClientRect();return{pose:document.documentElement.dataset.pose,list:Math.round(r('list').width),thread:Math.round(r('thread').width)}})
+  const waitPose=async(q,want)=>{for(let i=0;i<20;i++){if((await state(q)).pose===want)return true;await sleep(50)}return false}
+  // The Viewport Segments API, reporting through window.viewport.segments only, quietly.
+  const withSegments=()=>{window.__seg=[{x:0,y:0,width:innerWidth,height:innerHeight}];Object.defineProperty(window,'viewport',{configurable:true,value:{get segments(){return window.__seg}}});Object.defineProperty(navigator,'devicePosture',{configurable:true,value:{type:'folded',addEventListener(){}}})}
+  let q=await silent(withSegments,'segments')
+  assert.equal((await state(q)).pose,'open','one segment: open, though the posture says folded')
+  await q.evaluate(()=>{window.__seg=[{x:0,y:0,width:476,height:innerHeight},{x:476,y:0,width:innerWidth-476,height:innerHeight}]})
+  const t0=Date.now();assert.ok(await waitPose(q,'half'),'two touching segments, no event: half open '+JSON.stringify(await state(q)));const took=Date.now()-t0
+  assert.ok(took<700,'within a moment: '+took+'ms');await sleep(800)
+  let st=await state(q);assert.ok(st.pose==='half'&&st.list===476&&Math.abs(st.list+st.thread-INNER.width)<=1,'the columns meet at the hinge '+JSON.stringify(st))
+  assert.match(await q.evaluate(async()=>{const{openSettings}=await import('/js/views/sheets.js');openSettings({onLogout(){},origin:null});await new Promise(r=>setTimeout(r,500));return[...document.querySelectorAll('.sheet .cell')].find(c=>c.textContent.includes('屏幕姿态'))?.textContent||''}),/^(?=.*半开 · 视口分段)(?=.*2 段，铰链 476–476)(?=.*设备姿态：折起)/,'Settings says what the device reports')
+  await q.screenshot({path:path.join(OUT,'8-posture-readings.png')})
+  await q.keyboard.press('Escape');await sleep(400)
+  await q.evaluate(()=>{window.__seg=[{x:0,y:0,width:innerWidth,height:innerHeight}]})
+  assert.ok(await waitPose(q,'open'),'and back to one segment: open');await sleep(800)
+  assert.deepEqual(await state(q),{pose:'open',list:342,thread:609})
+  await q.context().close()
+  // No segments API at all (the flag off): the posture decides, also when it changes without an event.
+  const postureOnly=()=>{window.__pos='continuous';Object.defineProperty(window,'viewport',{configurable:true,value:undefined});const mm=window.matchMedia.bind(window);window.matchMedia=query=>/viewport-segments/.test(query)?{matches:false,media:query,addEventListener(){},removeEventListener(){}}:mm(query);Object.defineProperty(navigator,'devicePosture',{configurable:true,value:{get type(){return window.__pos},addEventListener(){}}})}
+  q=await silent(postureOnly,'posture')
+  assert.equal((await state(q)).pose,'open')
+  await q.evaluate(()=>{window.__pos='folded'});assert.ok(await waitPose(q,'half'),'folded, no event: half open');await sleep(800)
+  st=await state(q);assert.ok(st.pose==='half'&&st.list===476&&Math.abs(st.list+st.thread-INNER.width)<=1,'down the middle '+JSON.stringify(st))
+  await q.evaluate(()=>{window.__pos='continuous'});assert.ok(await waitPose(q,'open'),'continuous again: open, not stuck half')
+  await q.context().close()
+}
+
 assert.deepEqual(errors,[],'no page errors')
-console.log('PASS: open flat — list 342 | conversation 609, no shade; half open — the divider glides on a spring to the hinge (462 | 28 | 461) with the gap opening and a shade gathering, and back; a device that only says "folded" — the middle; the message being read, the draft, the caret and focus kept through it all; open flat the details come in narrow while the conversation keeps its 609 (no message reflows); a sheet on its side when half open glides to the middle when opened flat; reduced motion — no glide; upright — one column, open; stood like a laptop — a morph to messages above and the field below the hinge, shaded, a photo above it with Close below; a call stood up — their picture above, the controls below; closed — one column')
+console.log('PASS: open flat — list 342 | conversation 609, no shade; half open — the divider glides on a spring to the hinge (462 | 28 | 461) with the gap opening and a shade gathering, and back; a device that only says "folded" — the middle; the message being read, the draft, the caret and focus kept through it all; open flat the details come in narrow while the conversation keeps its 609 (no message reflows); a sheet on its side when half open glides to the middle when opened flat; reduced motion — no glide; upright — one column, open; stood like a laptop — a morph to messages above and the field below the hinge, shaded, a photo above it with Close below; a call stood up — their picture above, the controls below; closed — one column; segments or a posture changing without an event are followed within a moment, two touching segments are half open, one segment is open whatever the posture says, and without segments the posture decides both ways; Settings shows what the device reports')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)})

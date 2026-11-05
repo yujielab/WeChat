@@ -25,6 +25,7 @@
 //   at each column's foot ("horizontal").
 
 import { reducedMotion } from './dom.js'
+import { readFold, poseOf, INNER_MIN } from './posture.js'
 
 const root = document.documentElement
 const vv = window.visualViewport
@@ -38,7 +39,7 @@ const poseListeners = new Set()
 let pose = null
 let layout = null
 let bars = null
-let fold = { axis: 'none', start: 0, end: 0 }
+let fold = { axis: 'none', start: 0, end: 0, source: 'none' }
 let foldOverride = null
 let lastVVWidth = vv ? vv.width : window.innerWidth
 
@@ -106,8 +107,7 @@ let shiftTimer = 0
 function measurePose() {
   // The inner display is open whether it shows two columns (landscape) or
   // one (turned upright); only a screen narrower both ways is the closed one.
-  const inner = layout === 'split' || Math.min(window.innerWidth, window.innerHeight) >= INNER_MIN
-  const next = fold.axis !== 'none' ? 'half' : inner ? 'open' : 'closed'
+  const next = poseOf(fold, { split: layout === 'split', width: window.innerWidth, height: window.innerHeight })
   const key = `${next}:${fold.axis}:${fold.start}:${fold.end}`
   if (key === pose?.key) return
   const prev = pose?.pose
@@ -142,22 +142,79 @@ function settle() {
 
 // ---------------------------------------------------------------- fold
 // The folding region exists only while the device is partially open. The
-// browser exposes it as two viewport segments; a probe resolves their env()
-// edges to pixels. emulateFold() stands in for hardware when testing.
+// browser reports it as viewport segments — through window.viewport.segments,
+// or the segment media queries with their env() edges, which a probe resolves
+// to pixels — or only says the device is folded (the Device Posture API).
+// What they mean is decided in js/ui/posture.js. emulateFold(),
+// emulatePosture() and emulateSegments() stand in for hardware when testing.
 let probe = null
 const segments = {
   vertical: matchMedia('(horizontal-viewport-segments: 2)'),
   horizontal: matchMedia('(vertical-viewport-segments: 2)')
 }
-for (const query of Object.values(segments)) query.addEventListener?.('change', () => measure())
-// The device's own word on its posture: "folded" while partly open.
-const postureQuery = matchMedia('(device-posture: folded)')
-postureQuery.addEventListener?.('change', () => measure())
+// Recognised at all: a browser with the API matches one of these.
+const segmentsKnown = [matchMedia('(horizontal-viewport-segments: 1)'), matchMedia('(vertical-viewport-segments: 1)')]
+for (const query of [...Object.values(segments), ...segmentsKnown]) query.addEventListener?.('change', () => measure())
+const postureQueries = { folded: matchMedia('(device-posture: folded)'), continuous: matchMedia('(device-posture: continuous)') }
+for (const query of Object.values(postureQueries)) query.addEventListener?.('change', () => measure())
 navigator.devicePosture?.addEventListener?.('change', () => measure())
 let postureOverride = null
-const deviceFolded = () => (postureOverride ? postureOverride === 'folded' : navigator.devicePosture?.type === 'folded' || postureQuery.matches)
-// The outer display is never the folded one: a folded posture only counts on a screen this wide both ways.
-const INNER_MIN = 560
+let segmentsOverride
+const fullScreen = () => [{ x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }]
+
+/** The viewport's segments as rectangles (one when there is no hinge), or null where the browser has no such API. */
+function readSegments() {
+  if (segmentsOverride !== undefined) return segmentsOverride
+  const api = window.viewport && 'segments' in window.viewport ? window.viewport.segments : undefined
+  if (api !== undefined) return api && api.length ? Array.from(api, r => ({ x: r.x, y: r.y, width: r.width, height: r.height })) : fullScreen()
+  const axis = segments.vertical.matches ? 'vertical' : segments.horizontal.matches ? 'horizontal' : null
+  if (!axis) return segmentsKnown.some(q => q.matches) ? fullScreen() : null
+  if (!probe) {
+    probe = document.createElement('div')
+    probe.setAttribute('aria-hidden', 'true')
+    probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;width:0;height:0'
+    document.body.append(probe)
+  }
+  probe.style.width = axis === 'vertical' ? 'env(viewport-segment-right 0 0, 0px)' : '0'
+  probe.style.height = axis === 'horizontal' ? 'env(viewport-segment-bottom 0 0, 0px)' : '0'
+  probe.style.left = axis === 'vertical' ? 'env(viewport-segment-left 1 0, 0px)' : '0'
+  probe.style.top = axis === 'horizontal' ? 'env(viewport-segment-top 0 1, 0px)' : '0'
+  const start = axis === 'vertical' ? probe.offsetWidth : probe.offsetHeight
+  const end = axis === 'vertical' ? probe.offsetLeft : probe.offsetTop
+  const W = window.innerWidth, H = window.innerHeight
+  return axis === 'vertical'
+    ? [{ x: 0, y: 0, width: start, height: H }, { x: end, y: 0, width: W - end, height: H }]
+    : [{ x: 0, y: 0, width: W, height: start }, { x: 0, y: end, width: W, height: H - end }]
+}
+
+/** 'folded' | 'continuous' as the device says, or null where it says nothing. */
+function readPosture() {
+  if (postureOverride) return postureOverride
+  const type = navigator.devicePosture?.type
+  if (type === 'folded' || type === 'continuous') return type
+  return postureQueries.folded.matches ? 'folded' : postureQueries.continuous.matches ? 'continuous' : null
+}
+
+// Not every browser says when the posture changes (no event for the segments
+// or the posture, and the viewport keeps its size): without a look of its
+// own the page would stay in whichever posture it opened in. So while it is
+// shown it looks five times a second at what is cheap to read, and measures
+// again when that changed.
+function postureSignature() {
+  const api = window.viewport && 'segments' in window.viewport ? window.viewport.segments : undefined
+  const rects = api ? Array.from(api, r => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`).join(';') : String(api)
+  return [rects, segments.vertical.matches, segments.horizontal.matches, navigator.devicePosture?.type, postureQueries.folded.matches, window.innerWidth, window.innerHeight].join('|')
+}
+let lastSignature = ''
+function watchPosture() {
+  setInterval(() => {
+    if (document.hidden) return
+    const now = postureSignature()
+    if (now === lastSignature) return
+    lastSignature = now
+    measure()
+  }, 200)
+}
 
 // The system's status column at the screen's edge. In the page, it is a
 // safe area (CSS sees it). Beside the page (iOS 27.2 narrows the page
@@ -224,34 +281,15 @@ function measureBars() {
 }
 
 function measureFold() {
-  let next = { axis: 'none', start: 0, end: 0 }
+  let next
   if (foldOverride) {
     const length = foldOverride.axis === 'vertical' ? window.innerWidth : window.innerHeight
     const size = foldOverride.size ?? 24
-    next = { axis: foldOverride.axis, start: Math.round((length - size) / 2), end: Math.round((length + size) / 2) }
-  } else if (segments.vertical.matches || segments.horizontal.matches) {
-    const axis = segments.vertical.matches ? 'vertical' : 'horizontal'
-    if (!probe) {
-      probe = document.createElement('div')
-      probe.setAttribute('aria-hidden', 'true')
-      probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;width:0;height:0'
-      document.body.append(probe)
-    }
-    probe.style.width = axis === 'vertical' ? 'env(viewport-segment-right 0 0, 0px)' : '0'
-    probe.style.height = axis === 'horizontal' ? 'env(viewport-segment-bottom 0 0, 0px)' : '0'
-    probe.style.left = axis === 'vertical' ? 'env(viewport-segment-left 1 0, 0px)' : '0'
-    probe.style.top = axis === 'horizontal' ? 'env(viewport-segment-top 0 1, 0px)' : '0'
-    const start = axis === 'vertical' ? probe.offsetWidth : probe.offsetHeight
-    const end = axis === 'vertical' ? probe.offsetLeft : probe.offsetTop
-    if (end > start) next = { axis, start, end }
+    next = { axis: foldOverride.axis, start: Math.round((length - size) / 2), end: Math.round((length + size) / 2), source: 'emulated' }
+  } else {
+    next = readFold({ segments: readSegments(), posture: readPosture(), width: window.innerWidth, height: window.innerHeight })
   }
-  if (next.axis === 'none' && deviceFolded() && Math.min(window.innerWidth, window.innerHeight) >= INNER_MIN) {
-    // Folded, without segments: the hinge runs down the middle of the
-    // longer side, with no gap of its own.
-    const axis = window.innerWidth >= window.innerHeight ? 'vertical' : 'horizontal'
-    const mid = Math.round((axis === 'vertical' ? window.innerWidth : window.innerHeight) / 2)
-    next = { axis, start: mid, end: mid }
-  }
+  fold.source = next.source
   if (next.axis === fold.axis && next.start === fold.start && next.end === fold.end) return
   // Standing the screen up like a laptop, or laying it flat again, with one
   // column: what is watched moves above the hinge and what is touched below
@@ -292,10 +330,25 @@ export function emulateFold(options = null) {
   measure()
 }
 
-/** Pretend the device reports a posture ('folded' | 'continuous'), as the Device Posture API would, or clear it. */
+/**
+ * Pretend the device reports only a posture ('folded' | 'continuous'), as the
+ * Device Posture API would, with no segments to go by; or clear it.
+ */
 export function emulatePosture(type = null) {
   postureOverride = type === 'folded' || type === 'continuous' ? type : null
+  segmentsOverride = postureOverride ? null : undefined
   measure()
+}
+
+/** Pretend the browser reports these segments (rectangles; 'none' for no such API), or clear it. */
+export function emulateSegments(rects) {
+  segmentsOverride = rects === undefined || rects === null ? undefined : rects === 'none' ? null : rects
+  measure()
+}
+
+/** What the browser reports and what was made of it, for the settings' 屏幕姿态. */
+export function getPostureReadings() {
+  return { segments: readSegments(), posture: readPosture(), source: fold.source, pose: pose?.pose || 'closed', fold: { ...fold } }
 }
 
 export function getFold() {
@@ -326,8 +379,13 @@ export function initViewport() {
   const params = new URLSearchParams(location.search)
   const asked = params.get('fold')
   if (asked === 'vertical' || asked === 'horizontal') foldOverride = { axis: asked }
-  if (params.get('posture') === 'folded') postureOverride = 'folded'
+  if (params.get('posture') === 'folded') {
+    postureOverride = 'folded'
+    segmentsOverride = null
+  }
   measure()
+  lastSignature = postureSignature()
+  watchPosture()
   vv?.addEventListener('resize', measure)
   vv?.addEventListener('scroll', measure)
   window.addEventListener('resize', measure)

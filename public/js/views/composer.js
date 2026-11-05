@@ -554,9 +554,11 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   // The border box: the keyboard changes only the bar's bottom padding.
   new ResizeObserver(() => onHeight?.(form.offsetHeight)).observe(form, { box: 'border-box' })
   // A new width rewraps the text; a new height changes how many lines fit.
+  // The twin is measured against the field as it is now; one measured while
+  // a fold or unfold was still under way is measured again.
   let lastWidth = 0
   new ResizeObserver(() => {
-    if (textarea.clientWidth === lastWidth) return
+    if (textarea.clientWidth === lastWidth && twin.style.width === `${lastWidth}px`) return
     lastWidth = textarea.clientWidth
     autosize()
   }).observe(field)

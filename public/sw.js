@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v57'
+const SHELL = 'shell-v58'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -81,6 +81,7 @@ const SHELL_FILES = [
   '/js/views/avatar-editor.js',
   '/js/ui/framing.js',
   '/js/ui/columns.js',
+  '/js/ui/posture.js',
   '/js/views/backdrops.js',
   '/icons/icon.svg'
 ]
