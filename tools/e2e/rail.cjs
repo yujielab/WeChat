@@ -50,6 +50,12 @@ assert.equal(await D.evaluate(()=>document.documentElement.dataset.wide),'outer'
 let r=await rail(D,'.pane-list > .duo-rail');assert.ok(r,'the list has a rail')
 assert.deepEqual(ids(r),['back','search','compose'])
 for(const i of r.items){assert.ok(i.x>=376&&i.x+i.w<=466,'in the system column '+i.id+' '+JSON.stringify(i));assert.ok(i.w>=44&&i.h>=44,'44pt '+i.id)}
+// Centred under the status bar's clock, 49pt in from the edge as measured on device — whatever inset the outer
+// display reports (~91pt; the rail stood 9pt left of the clock when it was taken from the inset).
+const inset=await D.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--wide-inset-right'))
+for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,`under the clock ${i.id} at ${i.x+i.w/2} (inset ${inset})`)
+await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-right','91px'));await sleep(200)
+for(const i of (await rail(D,'.pane-list > .duo-rail')).items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,'still under the clock with a 91pt inset '+JSON.stringify(i))
 assert.ok(r.items[0].y>=162-.5,'below the camera and status bar')
 assert.ok(r.items[0].y+r.items[0].h<r.items[1].y&&r.items[1].y<r.items[2].y,'Back above, search and New Chat below')
 assert.equal(await D.locator('.pane-list .list-bottombar .bar-item').count(),0,'nothing in the bar at the foot')
@@ -117,6 +123,7 @@ await open(U)
 assert.equal(await rail(U,'.pane-list > .duo-rail'),null,'the leading list keeps its bar')
 assert.ok(await U.locator('.pane-list .list-bottombar .bar-item').count()>=1)
 r=await rail(U,'.thread:not([hidden]) > .duo-rail');assert.ok(r);assert.deepEqual(ids(r),['audio','video','info'],'no Back beside the list')
+for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(890-49))<=1,'open, under the clock too '+JSON.stringify(i))
 for(const i of r.items)assert.ok(i.x>=890-84-.5,'in the system column '+i.id)
 await U.screenshot({path:path.join(OUT,'83-rail-unfolded.png')})
 await U.locator('.thread:not([hidden]) .duo-rail [data-item="info"]').tap();await sleep(900)
