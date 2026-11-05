@@ -16,8 +16,12 @@ export function onApiEvent(fn) {
   return () => listeners.delete(fn)
 }
 
+// The device's offset from UTC, so what the server learns of your routine is
+// placed in your own day (src/routine.js).
+const tzHeader = () => ({ 'x-tz': String(new Date().getTimezoneOffset()) })
+
 async function request(method, path, body, { signal } = {}) {
-  const init = { method, credentials: 'same-origin', headers: {}, signal }
+  const init = { method, credentials: 'same-origin', headers: tzHeader(), signal }
   if (body instanceof FormData) init.body = body
   else if (body !== undefined) {
     init.headers['content-type'] = 'application/json'
@@ -63,7 +67,7 @@ export function connectSocket({ onMessage, onOpen, onClose }) {
   const open = () => {
     clearTimeout(timer)
     if (stopped) return
-    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws`
+    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws?tz=${new Date().getTimezoneOffset()}`
     try {
       ws = new WebSocket(url)
     } catch {

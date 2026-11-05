@@ -63,7 +63,7 @@ export function allowSuggestion(uid, now = Date.now()) {
  * digest: what this conversation was about before it scrolled out of the
  * window. style: how this person writes, kept across conversations.
  */
-export async function suggest(env, { history, draft, digest = '', style = '' }) {
+export async function suggest(env, { history, draft, digest = '', style = '', routine = '' }) {
   const said = history.filter(m => m.text).slice(-CONTEXT)
   if (!draft && (!said.length || said.at(-1).mine)) return ''
   const lines = said.map(m => `${m.mine ? '我' : '对方'}：${m.text.slice(0, CONTEXT_CHARS)}`).join('\n')
@@ -72,21 +72,23 @@ export async function suggest(env, { history, draft, digest = '', style = '' }) 
     : '替我写一句简短自然的回复（不超过15个字）。只输出这句话，不要解释，不要加引号。'
   const raw = await ask(env, [
     { role: 'system', content: '你是聊天输入法的联想功能：只输出要补上的文字，语气和我平时一样。' },
-    { role: 'user', content: contextText(lines, digest, style) + `\n\n${task} /no_think` }
+    { role: 'user', content: contextText(lines, digest, style, routine) + `\n\n${task} /no_think` }
   ], 40)
   return cleanSuggestion(raw, draft)
 }
 
 /**
- * The three layers, in the order the model should weigh them: this
+ * The layers, in the order the model should weigh them: this
  * conversation's own words first, then what this conversation was about
- * before, then how this person writes. The style is the last and the
- * weakest — it colours the wording, never the content.
+ * before, then how this person writes, then their day and habits (what time
+ * it is for them, how they usually answer). The last two are the weakest —
+ * they colour the wording and the timing, never the content.
  */
-export function contextText(lines, digest = '', style = '') {
+export function contextText(lines, digest = '', style = '', routine = '') {
   const parts = [`聊天记录：\n${lines || '（无）'}`]
   if (digest) parts.push(`这个聊天早前的内容：\n${digest}`)
   if (style) parts.push(`我平时的用词和语气：\n${style}`)
+  if (routine) parts.push(`我的作息和习惯：\n${routine}`)
   return parts.join('\n\n')
 }
 

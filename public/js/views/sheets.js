@@ -163,7 +163,7 @@ export function openSettings({ onLogout, origin }) {
     state.assist ? group(
       cell('记忆', chev(), { icon: 'sparkles', onClick: () => openMemorySheet(origin) })
     ) : null,
-    state.assist ? foot('输入联想会记住你的用词习惯，只来自你自己发过的消息，随时可以清除。') : null,
+    state.assist ? foot('输入联想会记住你的用词、作息和聊天习惯，只来自你自己的使用，随时可以查看、关闭或清除。') : null,
     groupTitle('通知'),
     pushSlot,
     h('div', { style: { height: '20px' } }),
