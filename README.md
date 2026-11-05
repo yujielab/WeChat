@@ -62,7 +62,10 @@ drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）�
     对话不论旁边是列表还是详情都保持同一宽度，打开详情时对话只是平移过去，一行字都不重新排。弹层在屏幕正中。
   - 半开 ↔ 放平：分界线沿弹簧滑到新位置（约半秒，不回弹过头），铰链的间隙同时合上或张开，阴影淡出或淡入；
     打开着的表单从所在那一栏滑到屏幕中间（或滑回去），正在读的那条消息、草稿、光标和焦点都不动。减少动态时直接到位。
-  - 只报告“折起”而没有视口分段的设备，以屏幕正中为铰链。
+  - 怎么判断：浏览器有视口分段（`window.viewport.segments`，或分段媒体查询与 `env()`）时以它为准——两段就是半开，
+    两段紧挨着没有缝（连续折叠屏）也算；一段就是展开，不管设备姿态怎么说。没有视口分段时才看设备姿态（Device Posture），
+    “折起”时以屏幕正中为铰链。有的浏览器姿态变了不发任何事件、视口大小也不变，所以页面显示时每 200ms 看一眼这些值，变了就重新判断，
+    不会停在打开时的那个姿态。设置 › 显示与交互 › 屏幕姿态 实时显示判断结果和设备报告的原始值（视口分段几段、铰链位置、设备姿态）。
 - **分栏浏览**：两栏的底部栏在同一条基线上；部分折叠时内容与弹层都不跨越折叠区。
 - **弹层**：内屏展开放平时，设置、各种表单与弹窗都在整块屏幕的正中——是屏幕本身的正中，不是右缘系统列以外那部分的正中——
   跨两栏、不压到系统列，提示条也居中；
@@ -470,7 +473,7 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   另检查右侧 84pt 系统列（表单居中在它旁边）与 376pt 页面下的底部栏。
 - 折叠模拟：在地址后加 `?fold=vertical`（书本）或 `?fold=horizontal`（笔记本），或在控制台调用
   `(await import('/js/ui/viewport.js')).emulateFold({ axis: 'vertical' })`；只模拟“设备说折起了”（没有视口分段）用
-  `?posture=folded` 或 `emulatePosture('folded')`。
+  `?posture=folded` 或 `emulatePosture('folded')`；模拟视口分段用 `emulateSegments([矩形, 矩形])`（`'none'` 表示没有这个 API）。
 - 姿态回归：`node tools/e2e/postures.cjs` 验证展开放平时列表 342 | 对话 609、没有阴影；半开时分界线逐帧滑到铰链（经过中间位置，几百毫秒内到达，不甩过头）、
   两栏正好以铰链为界、出现阴影，再放平滑回来；只说“折起”的设备以正中为铰链；整个过程正在读的消息、草稿、光标和焦点不变；
   放平时打开详情，对话一直是 609 宽、没有一条消息变形；半开时在一侧的表单放平时滑到正中；减少动态时直接到位；
@@ -511,7 +514,7 @@ src/            index.js（瘦代理）· hub.js（Durable Object）· store.js�
                 call.js（Realtime 信令/代理）· push/
 public/         index.html · manifest · sw.js · css/ · icons/
   js/           main.js · api.js · store.js
-    ui/         视口、折叠与姿态、分栏比例（columns）、防缩放防变形（steady）、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感、头像取景（framing）
+    ui/         视口、折叠与姿态（posture）、分栏比例（columns）、防缩放防变形（steady）、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感、头像取景（framing）
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
                 overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· predict（输入预测）· avatar
                 backdrops（背景选择）· avatar-editor（头像与封面）· insights（智能通知）

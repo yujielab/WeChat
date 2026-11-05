@@ -478,12 +478,17 @@
 .field textarea { position: relative; z-index: 1; }
 .field-mentions { position: absolute; z-index: 0; overflow: hidden; pointer-events: none; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; color: transparent; }
 .field-mentions .mention { padding: 0; margin: 0; font-weight: inherit; white-space: inherit; color: transparent; box-shadow: 0 0 0 2px var(--blue-ring); border-radius: 4px; }
+/* The twin measures the text at the field's width; it is placed inside the
+   field and never wider than it, so a measurement taken mid-fold can't
+   widen the conversation. */
+.field { position: relative; }
 .field-twin {
   position: absolute;
   visibility: hidden;
   pointer-events: none;
   left: 0;
   top: 0;
+  max-width: 100%;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: normal;
