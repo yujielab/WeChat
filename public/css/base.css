@@ -9,6 +9,12 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Panning only. Pinching and double-tapping to zoom would stretch the layout, so no element takes
+   them (js/ui/steady.js refuses the rest). One that does a gesture of its own — the photo viewer,
+   the drawing board, a call — says touch-action: none itself, which wins over this. It is set on
+   every element because a scroller ends the chain a rule on html alone would travel along. */
+* { touch-action: pan-x pan-y; }
+
 html {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
     "Noto Sans CJK SC", system-ui, sans-serif;
@@ -58,7 +64,7 @@ button:disabled { cursor: default; }
 input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 a { color: inherit; text-decoration: none; touch-action: manipulation; }
 img, svg, video, canvas { display: block; }
-img { -webkit-user-drag: none; }
+img, a, svg { -webkit-user-drag: none; }
 
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
