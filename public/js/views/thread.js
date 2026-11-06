@@ -194,7 +194,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // Once: holding a message is where reacting, replying and editing are (ui/guides.js).
   function tipHold() {
     if (!msgs.querySelector('.m.in')) return
-    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply, copy or forward it — and to edit or unsend your own.' })
+    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply or copy it — and to edit or unsend your own.' })
   }
   function hideGhost() {
     clearTimeout(ghostTimer)
