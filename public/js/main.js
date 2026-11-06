@@ -260,6 +260,10 @@ function handle(msg) {
     case 'contacts-dirty':
       loadContacts(true).catch(() => {})
       break
+    case 'note':
+      // A friend's note (views/people.js), or yours from another device.
+      window.dispatchEvent(new CustomEvent('note-changed', { detail: msg.user }))
+      break
     case 'call':
       calls?.onSignal(msg)
       break

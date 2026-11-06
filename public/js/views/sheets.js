@@ -305,7 +305,9 @@ export function openNewChat({ loadContacts, onOpen }) {
 
   const content = h('div', {},
     h('div', { class: 'sheet-search' }, h('label', { class: 'glass search-pill' }, icon('search'), search)),
-    group(cell('New group', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } })),
+    group(
+      cell('New group', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } }),
+      cell('Invite friends', chev(), { icon: 'person-plus', onClick: async () => (await import('./people.js')).inviteFriends() })),
     groupTitle('Contacts'),
     list,
     results
@@ -313,7 +315,10 @@ export function openNewChat({ loadContacts, onOpen }) {
   const sheet = openSheet({ title: 'New chat', content, tall: true, side: 'list' })
 
   loadContacts().then(cs => {
-    list.replaceChildren(cs.length ? group(...cs.map(c => contactCell(c, () => openDM(c.id)))) : foot('No contacts'))
+    // Your contacts first; those who asked, or whom you asked, after them, saying so.
+    const order = { accepted: 0, pending_in: 1, pending_out: 2 }
+    const sorted = [...cs].sort((a, b) => (order[a.state] ?? 3) - (order[b.state] ?? 3) || (a.display || '').localeCompare(b.display || ''))
+    list.replaceChildren(sorted.length ? group(...sorted.map(c => contactCell(c, () => openDM(c.id), c.state))) : foot('No contacts yet. Find people by their username above.'))
   })
 
   let seq = 0

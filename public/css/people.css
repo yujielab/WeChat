@@ -1,0 +1,204 @@
+/* People in the Messages list (js/views/people.js), after the Instagram inbox,
+   in the list's own paper and ink: notes along the top — a thought bubble over
+   each photo, yours first; Requests at the end of the filters; under the
+   chats, Suggested ("Tap to chat") and People you may know (Add, ×, See all)
+   with a card to invite friends. */
+
+/* ---------------------------------------------------------------- notes */
+.notes {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 2px calc(var(--list-inset) - 8px + var(--safe-right)) 4px calc(var(--list-inset) - 8px + var(--safe-left));
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: calc(var(--list-inset) - 8px);
+  scrollbar-width: none;
+}
+.notes::-webkit-scrollbar { display: none; }
+.notes > li { flex: none; scroll-snap-align: start; }
+.note {
+  position: relative;
+  width: 100px;
+  padding: 50px 4px 4px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  border-radius: var(--r-m);
+  -webkit-tap-highlight-color: transparent;
+}
+.note:active .note-face { transform: scale(.94); }
+.note:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.note-face { position: relative; width: 60px; height: 60px; transition: transform 200ms var(--spring-snappy, var(--ease-out)); }
+.note-face .avatar { --size: 60px; font-size: 22px; }
+.note-plus {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-ink);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.note-plus .icon { width: 12px; height: 12px; }
+.note-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); font-size: var(--t-caption); }
+.note-mine .note-name { color: var(--label-3); }
+/* The thought bubble: up to two lines, its foot over the photo's top edge,
+   with a tail of two dots trailing down towards it. */
+.note-bubble {
+  position: absolute;
+  z-index: 1;
+  top: 56px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  width: max-content;
+  max-width: 96px;
+  min-width: 48px;
+  padding: 7px 10px;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 1px var(--line), 0 6px 16px -10px rgb(0 0 0 / .35);
+  color: var(--label);
+  font-size: var(--t-caption);
+  line-height: 1.25;
+  text-align: center;
+}
+.note-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.note-bubble.empty { color: var(--label-3); }
+.note-tail, .note-tail::after { position: absolute; border-radius: 50%; background: var(--bg-elevated); box-shadow: 0 0 0 1px var(--line); pointer-events: none; }
+.note-tail { top: calc(100% + 2px); left: 26%; width: 9px; height: 9px; }
+.note-tail::after { content: ""; top: 10px; left: -5px; width: 5px; height: 5px; }
+
+/* Writing yours, or reading a friend's: large, over the photo. */
+.note-editor { display: grid; justify-items: center; padding: 8px 20px 18px; text-align: center; }
+.note-preview { position: relative; display: grid; justify-items: center; padding-top: 70px; }
+.note-preview > .avatar { --size: 96px; font-size: 36px; }
+.note-bubble.big {
+  top: 0;
+  transform: translateX(-50%);
+  max-width: min(300px, 80vw);
+  min-width: 160px;
+  padding: 12px 18px;
+  border-radius: 22px;
+  font-size: var(--t-body);
+}
+.note-bubble.big .note-text { -webkit-line-clamp: 3; }
+.note-bubble.big .note-tail { left: 30%; width: 12px; height: 12px; }
+.note-bubble.big .note-tail::after { top: 13px; left: -7px; width: 7px; height: 7px; }
+.note-input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: var(--label); font: inherit; text-align: center; }
+.note-input::placeholder { color: var(--label-3); }
+.note-count { margin-top: 12px; color: var(--label-3); font-size: var(--t-caption); }
+.note-hint { margin: 6px 0 0; max-width: 300px; color: var(--label-2); font-size: var(--t-footnote); line-height: 1.45; }
+.note-remove { margin-top: 18px; height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; color: var(--red); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+.note-remove .icon { width: 18px; height: 18px; }
+.note-remove:active { background: var(--fill-2); }
+.note-who { margin: 14px 0 0; color: var(--label-2); font-size: var(--t-subhead); }
+.note-who b { color: var(--label); font-weight: var(--w-semibold); }
+.note-reply { margin-top: 18px; width: 100%; display: flex; gap: 8px; }
+.note-reply .input { flex: 1; min-width: 0; height: 44px; border-radius: 999px; }
+.note-reply-send { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--on-ink); }
+.note-reply-send:disabled { opacity: .35; }
+.note-reply-send .icon { width: 18px; height: 18px; }
+.sheet.note-sheet .note-share { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+.sheet.note-sheet .note-share:disabled { opacity: .35; }
+
+/* ---------------------------------------------------------------- the filters, and Requests */
+.list-section { display: flex; align-items: center; gap: 8px; }
+.list-section > .list-filters { flex: 0 1 auto; min-width: 0; margin-right: 0; }
+.list-requests {
+  flex: none;
+  margin-left: auto;
+  margin-right: calc(var(--list-inset) - 10px + var(--safe-right));
+  height: 44px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  color: var(--label-2);
+  font-size: var(--t-subhead);
+  font-weight: var(--w-semibold);
+  white-space: nowrap;
+}
+.list-requests.waiting { color: var(--label); }
+.list-requests:active { background: var(--fill-2); }
+.list-requests:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.requests-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--red); color: #fff; font-size: var(--t-caption-2); font-weight: var(--w-bold); }
+.requests-count[hidden] { display: none; }
+/* Unfolded, the filters are a menu: Requests keeps to the end of the heading's row. */
+.pane-list[data-layout="leading"] .list-section, .pane-list[data-layout="trailing"] .list-section { min-height: 44px; margin: 4px 0 6px; }
+
+/* ---------------------------------------------------------------- no chats yet */
+.list-empty.starting { padding: 10px calc(var(--list-inset) + var(--safe-right)) 6px calc(var(--list-inset) + var(--safe-left)); text-align: left; }
+.list-start { margin: 0; color: var(--label-2); font-size: var(--t-subhead); line-height: 1.5; }
+.list-start-link { color: var(--blue-text); font-weight: var(--w-semibold); padding: 4px 0; }
+.list-start-link:active { opacity: .6; }
+
+/* ---------------------------------------------------------------- suggested, people you may know */
+.people { padding: 8px 0 0; }
+.people[hidden] { display: none; }
+.people-section { margin-top: 14px; }
+.people-section[hidden] { display: none; }
+.people-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: calc(var(--list-inset) - 12px + var(--safe-right)); }
+.people-title { margin: 0; padding: 6px calc(var(--list-inset) + var(--safe-right)) 6px calc(var(--list-inset) + var(--safe-left)); color: var(--label); font-size: var(--t-headline); font-weight: var(--w-bold); letter-spacing: -0.01em; }
+.people-head .people-title { padding-right: 0; }
+.people-all { height: 44px; padding: 0 12px; border-radius: 999px; color: var(--blue-text); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+.people-all[hidden] { display: none; }
+.people-all:active { background: var(--fill-2); }
+.people-list { list-style: none; margin: 0; padding: 0 10px; }
+.people-list > li { overflow: hidden; transition: height 220ms var(--ease-out), opacity 180ms ease-out; }
+.people-list > li.leaving { opacity: 0; }
+.person-row { display: flex; align-items: center; gap: 8px; min-height: 72px; padding: 0 4px 0 12px; border-radius: var(--r-m); }
+.person-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; padding: 10px 0; text-align: left; border-radius: var(--r-m); }
+button.person-main:active { opacity: .7; }
+.person-main .avatar { --size: 52px; flex: none; }
+.person-text { min-width: 0; display: grid; gap: 1px; }
+.person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); font-size: var(--t-body); font-weight: var(--w-semibold); }
+.person-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); font-size: var(--t-subhead); }
+.invite-card .person-sub { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.35; }
+.person-action {
+  flex: none;
+  min-width: 84px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--fill-2);
+  color: var(--label);
+  font-size: var(--t-footnote);
+  font-weight: var(--w-semibold);
+}
+.person-action { position: relative; }
+.person-action::before { content: ""; position: absolute; inset: -4px 0; }
+.person-action.solid { background: var(--ink); color: var(--on-ink); }
+.person-action:active { opacity: .8; }
+.person-action:disabled { opacity: 1; background: var(--fill-2); color: var(--label-2); }
+.person-dismiss { flex: none; width: 36px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--label-2); }
+.person-dismiss .icon { width: 16px; height: 16px; }
+.person-dismiss:active { color: var(--label); }
+.invite-card { gap: 14px; padding-top: 6px; padding-bottom: 6px; }
+.invite-card .person-text { flex: 1; padding: 10px 0; }
+.invite-icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: var(--fill-2); color: var(--label); }
+.invite-icon .icon { width: 24px; height: 24px; }
+
+/* The Requests sheet and See all. */
+.people-sheet { padding: 0 6px 12px; }
+.people-sheet .people-title { padding-left: 16px; padding-right: 16px; margin-top: 6px; color: var(--label-2); font-size: var(--t-footnote); font-weight: var(--w-semibold); text-transform: uppercase; letter-spacing: var(--track-eyebrow, .04em); }
+.people-sheet .people-list { padding: 0; }
+.people-empty { display: grid; justify-items: center; gap: 6px; padding: 48px 28px; text-align: center; color: var(--label-2); font-size: var(--t-subhead); line-height: 1.45; }
+.people-empty .icon { width: 34px; height: 34px; color: var(--label-3); margin-bottom: 6px; }
+.people-empty b { color: var(--label); font-size: var(--t-headline); }
+
+:root[data-motion="reduce"] :is(.note-face, .people-list > li) { transition: none; }
+
+/* The note sheet's heading: Cancel, the title in the middle, Share. */
+.sheet.note-sheet .sheet-head { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+.sheet.note-sheet .sheet-head .start { grid-column: 1; }
+.sheet.note-sheet .sheet-head h2 { grid-column: 2; text-align: center; font-size: var(--t-headline); }
+.sheet.note-sheet .sheet-head .end { grid-column: 3; }
+.list-empty.starting .list-start { margin: 0; max-width: none; line-height: 1.5; white-space: normal; }
