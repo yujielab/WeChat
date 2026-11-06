@@ -214,7 +214,10 @@
 }
 .call.wide .call-tile { width: 150px; height: 104px; }
 .call.has-local .call-tile { display: block; }
-.call-tile video { width: 100%; height: 100%; object-fit: cover; }
+/* The tile is a button: Safari doesn't resolve a percentage height for what
+   is inside a button, so a video sized by 100% shrank to its own small size
+   in the middle of the tile. Placed against the tile instead, it fills it. */
+.call-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .call-tile:active { cursor: grabbing; }
 .call-tile:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 /* Your camera off: the tile stays, with the camera struck through. */

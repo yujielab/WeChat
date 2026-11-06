@@ -148,8 +148,9 @@
 .av-pick-sub { font-size: var(--t-footnote); line-height: 1.45; color: var(--label-2); }
 .av-pick.loading { opacity: .5; pointer-events: none; }
 .av-recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 12px; }
-.av-recent-item { aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: var(--veil); box-shadow: 0 8px 18px -12px rgb(0 0 0 / .4); }
-.av-recent-item img { width: 100%; height: 100%; object-fit: cover; }
+.av-recent-item { position: relative; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: var(--veil); box-shadow: 0 8px 18px -12px rgb(0 0 0 / .4); }
+/* Placed against the button: Safari doesn't resolve a percentage height inside one. */
+.av-recent-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .av-section[hidden] { display: none; }
 
 /* The cover as your profile shows it: the band across the top, your photo
