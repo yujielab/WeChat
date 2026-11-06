@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v66'
+const SHELL = 'shell-v67'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -107,6 +107,8 @@ const SHELL_FILES = [
   '/js/ui/liquid-glass/index.js',
   '/js/ui/liquid-glass/renderer.js',
   '/js/ui/liquid-glass/shaders.js',
+  '/js/ui/liquid-glass/tilt.js',
+  '/js/ui/liquid-glass/tilt-math.js',
   '/icons/icon.svg'
 ]
 

@@ -232,10 +232,14 @@ export class MultiPassRenderer {
     this.gl.viewport(0, 0, width, height)
   }
   setUniforms(u) { Object.assign(this.globalUniforms, u) }
-  render(passUniforms) {
+  /** `only`: names of the passes to run; the others keep their last output
+   *  (an off-screen pass's framebuffer holds it), e.g. when only the final
+   *  pass's lighting changed. */
+  render(passUniforms, only = null) {
     const gl = this.gl
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
     for (const pass of this.order) {
+      if (only && !only.includes(pass.config.name)) continue
       const uniforms = { ...this.globalUniforms, ...(passUniforms?.[pass.config.name] || null) }
       if (pass.config.inputs) {
         for (const [uniformName, fromPass] of Object.entries(pass.config.inputs)) {

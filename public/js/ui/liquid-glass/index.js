@@ -10,6 +10,7 @@
 import { MultiPassRenderer, gaussianKernel, textureFromSource, updateTexture } from './renderer.js'
 import * as S from './shaders.js'
 import { reducedMotion, storage } from '../dom.js'
+import { subscribeTilt } from './tilt.js'
 
 // The demo's canvas is its whole window, and its pixel-based controls are
 // tuned against that; ours covers only a bar of buttons, so the shader takes
@@ -350,6 +351,7 @@ export function attachLiquidGlass(host, shapeEls, { maxShapes = S.MAX_SHAPES } =
   let lastKey = ''
   let raf = 0
   let destroyed = false
+  let drawn = false // a full frame is in the framebuffers
 
   function paintTexture(hostBox, sx, sy) {
     bgCtx.setTransform(1, 0, 0, 1, 0, 0)
@@ -407,6 +409,7 @@ export function attachLiquidGlass(host, shapeEls, { maxShapes = S.MAX_SHAPES } =
     if (nW !== W || nH !== H) {
       W = nW; H = nH
       renderer.resize(W, H)
+      drawn = false
       bgCanvas.width = W; bgCanvas.height = H
     }
     // the clip covers the host's border box; the canvas, the margin past it
@@ -449,17 +452,27 @@ export function attachLiquidGlass(host, shapeEls, { maxShapes = S.MAX_SHAPES } =
       u_blurRadius: PARAMS.blurRadius, u_blurWeights: blurWeights,
       u_shapeCount: count, u_shapeBox: box, u_shapeR: rad
     })
-    renderer.render({
-      bgPass: { u_bgTexture: bgTex },
-      mainPass: {
-        u_tint: PARAMS.tint,
-        u_refThickness: PARAMS.refThickness, u_refDistance: PARAMS.refDistance, u_refFactor: PARAMS.refFactor, u_refDispersion: PARAMS.refDispersion,
-        u_refFresnelRange: PARAMS.refFresnelRange, u_refFresnelHardness: PARAMS.refFresnelHardness, u_refFresnelFactor: PARAMS.refFresnelFactor,
-        u_glareRange: PARAMS.glareRange, u_glareHardness: PARAMS.glareHardness, u_glareConvergence: PARAMS.glareConvergence,
-        u_glareOppositeFactor: PARAMS.glareOppositeFactor, u_glareFactor: PARAMS.glareFactor, u_glareAngle: PARAMS.glareAngle, u_blurEdge: PARAMS.blurEdge
-      }
-    })
+    renderer.render({ bgPass: { u_bgTexture: bgTex }, mainPass: glass() })
+    drawn = true
   }
+  const glass = () => ({
+    u_tint: PARAMS.tint,
+    u_refThickness: PARAMS.refThickness, u_refDistance: PARAMS.refDistance, u_refFactor: PARAMS.refFactor, u_refDispersion: PARAMS.refDispersion,
+    u_refFresnelRange: PARAMS.refFresnelRange, u_refFresnelHardness: PARAMS.refFresnelHardness, u_refFresnelFactor: PARAMS.refFresnelFactor,
+    u_glareRange: PARAMS.glareRange, u_glareHardness: PARAMS.glareHardness, u_glareConvergence: PARAMS.glareConvergence,
+    u_glareOppositeFactor: PARAMS.glareOppositeFactor, u_glareFactor: PARAMS.glareFactor,
+    // the edge light follows the phone's tilt (tilt.js), a few degrees round the rim
+    u_glareAngle: PARAMS.glareAngle + tiltOffset,
+    u_blurEdge: PARAMS.blurEdge
+  })
+  // Only the light moved: the backdrop and its blur are as they were, so just
+  // the glass pass runs again.
+  function drawLight() {
+    if (destroyed || !drawn || !count) return
+    renderer.render({ mainPass: glass() }, ['mainPass'])
+  }
+  let tiltOffset = 0
+  const untilt = subscribeTilt(rad => { tiltOffset = rad; drawLight() })
 
   function update() {
     if (destroyed) return
@@ -524,6 +537,7 @@ export function attachLiquidGlass(host, shapeEls, { maxShapes = S.MAX_SHAPES } =
       so.disconnect()
       co.disconnect()
       mo.disconnect()
+      untilt()
       bdEl?.removeEventListener('transitionend', invalidate)
       scheme.removeEventListener?.('change', invalidate)
       window.removeEventListener('resize', onWin)
