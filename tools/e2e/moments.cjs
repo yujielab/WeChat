@@ -117,7 +117,9 @@ await A.locator('.thread:not([hidden]) [data-item="back"]').click();await sleep(
 await A.locator('.list-moments').click();await A.locator('.moments-home .mo-item').first().waitFor();await sleep(400)
 await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(400)
 assert.equal(await A.locator('.me-who-label').textContent(),'Everyone can see and comment')
-await A.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can see it")').click();await sleep(200)
+await A.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can see it")').click()
+// The choice is made once the menu has gone (views/overlay.js), so wait for it rather than a fixed time.
+await A.waitForFunction(()=>document.querySelector('.me-who-label')?.textContent.startsWith('Friends can see'))
 assert.equal(await A.locator('.me-who-label').textContent(),'Friends can see · Everyone can comment')
 await A.locator('.me-text').fill('Weekend roundup: mountains and a sunset')
 await A.locator('.me-dock input[type=file]:not([capture])').setInputFiles([{name:'a.png',mimeType:'image/png',buffer:await draw(A,[1200,900],['#2b5876','#4e4376'])},{name:'b.png',mimeType:'image/png',buffer:await draw(A,[900,1200],['#ee9ca7','#ffdde1'])}])

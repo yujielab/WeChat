@@ -58,7 +58,8 @@ await A.keyboard.press('Escape');await A.locator('.viewer').waitFor({state:'deta
 assert.equal(await A.locator('.memories-page').count(),1,'still on Memories')
 
 // 4. Oldest first; one withdrawn is gone next time.
-await A.locator('.memories-page .mem-more').click();await A.locator('.menu .menu-item:has-text("Oldest first")').click();await sleep(300)
+await A.locator('.memories-page .mem-more').click();await A.locator('.menu .menu-item:has-text("Oldest first")').click()
+await A.waitForFunction(()=>document.querySelectorAll('.memories-page .mem-recap').length===0)
 assert.equal(await A.locator('.memories-page .mem-tile').first().getAttribute('class'),'mem-tile is-photo')
 assert.equal(await A.locator('.memories-page .mem-recap').count(),0,'no recap out of order')
 await api(A,'/api/revoke',{id:p1.id,room})

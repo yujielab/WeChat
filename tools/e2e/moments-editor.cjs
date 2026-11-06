@@ -74,7 +74,8 @@ await A.locator('.me-small-sheet .me-alt-done').click();await sleep(400)
 assert.equal(await ed.locator('.me-tags .me-row-label').textContent(),'With Coisini')
 
 // 6. Who can see and comment: everyone sees it, only friends comment.
-await ed.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can comment")').click();await sleep(300)
+await ed.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can comment")').click()
+await A.waitForFunction(()=>document.querySelector('.moments-editor .me-who-label')?.textContent.endsWith('Friends can comment'))
 assert.equal(await ed.locator('.me-who-label').textContent(),'Everyone can see · Friends can comment')
 await A.screenshot({path:path.join(OUT,'4-ready.png')})
 
