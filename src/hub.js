@@ -2,7 +2,7 @@
 // contacts, rooms, messages and presence, runs the realtime WebSocket fan-out,
 // and (in call.js) brokers Cloudflare Realtime sessions for voice/video.
 
-import { Store, REACTIONS, editProblem } from './store.js'
+import { Store, REACTIONS, editProblem, NOTE_MAX } from './store.js'
 import {
   hashPassword, verifyPassword, mintToken, readToken,
   cookieHeader, clearCookieHeader, readCookie, b64url
@@ -298,6 +298,27 @@ export class Hub {
     if (path === '/api/contacts/remove' && method === 'POST') {
       this.store.removeContact(user.id, body.user)
       return json({ ok: true })
+    }
+
+    // --- people: who to chat with, who to add; a suggestion set aside
+    if (path === '/api/people' && method === 'GET') {
+      return json({ ok: true, ...this.store.peopleFor(user.id) })
+    }
+    if (path === '/api/people/dismiss' && method === 'POST') {
+      if (typeof body.user !== 'string' || body.user === user.id || !this.store.getUser(body.user)) return json({ ok: false, error: 'User not found' }, 404)
+      this.store.dismissPerson(user.id, body.user)
+      return json({ ok: true })
+    }
+
+    // --- notes: a line for friends, above your photo in their Messages list, for a day
+    if (path === '/api/notes' && method === 'GET') {
+      return json({ ok: true, mine: this.store.noteOf(user.id), notes: this.store.notesFor(user.id) })
+    }
+    if (path === '/api/note' && (method === 'POST' || method === 'DELETE')) {
+      const text = method === 'POST' ? cleanText(String(body.text ?? '').replace(/\s+/g, ' '), NOTE_MAX) : ''
+      const note = text ? this.store.setNote(user.id, text) : (this.store.clearNote(user.id), null)
+      for (const uid of [user.id, ...this.store.friendsOf(user.id)]) this.sendToUser(uid, { t: 'note', user: user.id })
+      return json({ ok: true, mine: note })
     }
 
     // --- rooms: open/create

@@ -11,6 +11,9 @@ export const REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏']
 /** A text message can be rewritten by its sender for this long after sending, this many times (as in Messages). */
 export const EDIT_WINDOW = 15 * 60 * 1000
 export const EDIT_MAX = 5
+/** A note lasts a day, and says this much at most. */
+export const NOTE_TTL = 24 * 60 * 60 * 1000
+export const NOTE_MAX = 60
 /** Why `uid` can't rewrite message `m` as `text` now ('' when they can). */
 export function editProblem(m, uid, text, at = now()) {
   if (!m || m.sender !== uid || m.type !== 'text' || m.state === 'revoked') return "Can't edit this message"
@@ -133,6 +136,13 @@ export class Store {
       ts INTEGER NOT NULL
     )`)
     s(`CREATE INDEX IF NOT EXISTS idx_moment_comments ON moment_comments (moment, ts)`)
+    // A note: a line someone shares for their friends, above their photo in
+    // the Messages list, for a day.
+    s(`CREATE TABLE IF NOT EXISTS notes (
+      user TEXT PRIMARY KEY,
+      text TEXT NOT NULL,
+      created INTEGER NOT NULL
+    )`)
   }
 
   /** Add a column to a table made before it existed (once: then it's there). */
@@ -244,6 +254,86 @@ export class Store {
       ? this.exec(`SELECT c.peer, c.state, c.created FROM contacts c WHERE c.owner=? AND c.state=?`, owner, state)
       : this.exec(`SELECT c.peer, c.state, c.created FROM contacts c WHERE c.owner=?`, owner)
     return rows.map(r => ({ ...this.pub(this.getUser(r.peer)), state: r.state, since: r.created })).filter(r => r.id)
+  }
+
+  // ---------------------------------------------------------------- notes
+  /** Someone's note while it lasts (a day), or null. */
+  noteOf(uid, at = now()) {
+    const r = this.exec(`SELECT text, created FROM notes WHERE user=? AND created > ?`, uid, at - NOTE_TTL)[0]
+    return r ? { text: r.text, created: r.created, expires: r.created + NOTE_TTL } : null
+  }
+  setNote(uid, text) {
+    this.exec(`INSERT INTO notes (user, text, created) VALUES (?,?,?) ON CONFLICT(user) DO UPDATE SET text=excluded.text, created=excluded.created`, uid, text, now())
+    return this.noteOf(uid)
+  }
+  clearNote(uid) {
+    this.exec(`DELETE FROM notes WHERE user=?`, uid)
+  }
+  /** Friends' notes that last still, newest first. */
+  notesFor(viewer, at = now()) {
+    const friends = [...this.friendsOf(viewer)]
+    if (!friends.length) return []
+    return this.exec(
+      `SELECT user, text, created FROM notes WHERE user IN (${friends.map(() => '?').join(',')}) AND created > ? ORDER BY created DESC`,
+      ...friends, at - NOTE_TTL
+    ).map(r => ({ user: this.pub(this.getUser(r.user)), text: r.text, created: r.created, expires: r.created + NOTE_TTL })).filter(n => n.user)
+  }
+
+  // ---------------------------------------------------------------- people
+  /**
+   * People `viewer` might want: `suggested`, to chat with (contacts with no
+   * chat yet); `discover`, to add (friends of their friends, most in common
+   * first, then people sharing moments for everyone, then those who joined
+   * lately). Never themselves, anyone either of them blocked, anyone they
+   * dismissed, and nobody twice.
+   */
+  peopleFor(viewer, { limit = 30 } = {}) {
+    const friends = this.friendsOf(viewer)
+    const blocked = this.blockedWith(viewer)
+    const dismissed = new Set(this.kvGet(`dismissed:${viewer}`, []))
+    const contacts = new Map(this.exec(`SELECT peer, state FROM contacts WHERE owner=?`, viewer).map(r => [r.peer, r.state]))
+    const chatting = new Set(this.exec(
+      `SELECT m2.user AS u FROM room_members m1
+       JOIN rooms r ON r.id = m1.room AND r.kind = 'dm'
+       JOIN room_members m2 ON m2.room = m1.room AND m2.user <> m1.user
+       WHERE m1.user = ? AND m1.hidden = 0`, viewer).map(r => r.u))
+    const taken = new Set([viewer, ...blocked])
+    const out = (u, extra) => ({ ...this.pub(u), ...extra })
+
+    const suggested = []
+    for (const [peer, state] of contacts) {
+      if (state !== 'accepted' || chatting.has(peer) || taken.has(peer) || dismissed.has(peer)) continue
+      const u = this.getUser(peer)
+      if (!u) continue
+      taken.add(peer)
+      suggested.push(out(u, { reason: 'Tap to chat' }))
+      if (suggested.length >= 6) break
+    }
+
+    // Anyone you already know, or have asked, isn't someone to discover.
+    for (const id of [...friends, ...contacts.keys(), ...chatting, ...dismissed]) taken.add(id)
+    const discover = []
+    const add = (id, reason, mutual = 0) => {
+      if (taken.has(id) || discover.length >= limit) return
+      const u = this.getUser(id)
+      if (!u) return
+      taken.add(id)
+      discover.push(out(u, { reason, mutual }))
+    }
+    const mutual = new Map()
+    for (const f of [...friends].slice(0, 60)) {
+      for (const ff of this.friendsOf(f)) if (!taken.has(ff)) mutual.set(ff, (mutual.get(ff) || 0) + 1)
+    }
+    for (const [id, n] of [...mutual].sort((a, b) => b[1] - a[1])) add(id, n === 1 ? '1 mutual friend' : `${n} mutual friends`, n)
+    for (const r of this.exec(`SELECT user, MAX(created) AS t FROM moments WHERE audience='everyone' GROUP BY user ORDER BY t DESC LIMIT 40`)) add(r.user, 'Shares moments')
+    for (const r of this.exec(`SELECT id FROM users ORDER BY created DESC LIMIT 60`)) add(r.id, 'New on Cuven')
+    return { suggested, discover }
+  }
+  /** `viewer` doesn't want `peer` suggested again (the last 300 kept). */
+  dismissPerson(viewer, peer) {
+    const list = this.kvGet(`dismissed:${viewer}`, []).filter(id => id !== peer)
+    list.push(peer)
+    this.kvSet(`dismissed:${viewer}`, list.slice(-300))
   }
 
   // ---------------------------------------------------------------- moments

@@ -320,6 +320,24 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
 本地开发：`npm run dev` / `npm run dev:e2e` 带 `--local`，不连 Workers AI（AI 关闭，其余照常）；想在本地试 AI 用 `npm run dev:ai`
 （需要先 `npx wrangler login`）。
 
+### 消息列表：便签、请求和可能认识的人
+
+参照 Instagram 私信页补充消息列表，样式沿用现有的纸面与墨色（`js/views/people.js`、`css/people.css`；服务器在 `src/hub.js` / `src/store.js`）。
+
+- **便签**：标题下面一排。第一个是自己（照片上一个思考气泡“Share a thought…”和 +，名字“Your note”），点开写一句话
+  （一行，最多 60 字，有字数），朋友在消息列表里看到它浮在你的头像上方 24 小时；写过之后可以改或删除。后面是朋友们还在有效期内的便签，
+  最新的在前；点开大字显示，下面一行回复，发出后进入你和对方的聊天（“Replied to your note “…””）。便签只给朋友看，改动实时推送。
+- **Requests**：筛选标签（All / Unread / Direct / Groups）的右端，有人想加你时带红色数字。点开是请求页：想加你的人（Accept 或 ×），
+  你发出的请求（Cancel）。以前收到的好友请求没有地方处理，现在有了。展开时筛选变成菜单，Requests 留在那一行的右端。
+- **还没有聊天**：一行“Chats show up here once you send or receive a message.”和蓝色的“Start”（新建聊天），下面就是推荐的人。
+- **Suggested**：聊天下面，你的联系人里还没有聊天的人，“Tap to chat”，点一下开始聊天，之后从这里消失。
+- **People you may know**：朋友的朋友（写着有几个共同朋友，多的在前），然后是在发公开动态的人，再然后是新加入的人；
+  不会出现自己、朋友、联系人、已发或已收请求的人、拉黑的人和你划掉的人。每行“Add”（发好友请求，变成灰色的“Requested”，本次留在原处）
+  和 ×（不再推荐，服务器记住）；点名字看对方的动态主页；超过 5 个时“See all”。最前面一张“Invite friends”卡片（系统分享 / 复制链接），可以划掉。
+- 只在 All 下显示推荐；搜索时便签、筛选行和推荐都收起，取消后回来。新建聊天里也加了“Invite friends”，联系人按已加 / 想加你 / 已请求排序并注明。
+- 路由：`GET /api/notes`、`POST /api/note`（空文字即删除）、`DELETE /api/note`、`GET /api/people`、`POST /api/people/dismiss`；
+  WebSocket 事件 `note`。
+
 ### 动态（Moments，朋友圈）
 
 分享最多 9 张照片或 1 段视频，配上文字，给所有人看或只给朋友看（`js/views/moments.js`、`css/moments.css`；服务器在 `src/hub.js` / `src/store.js`）。
@@ -474,6 +492,12 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   采用前绝不出现在实时预览里、关闭或无 AI 时不请求、关键词加亮与开关、对方实时预览不加亮且关键词到达时不被清掉。
 - 记忆回归：`node tools/e2e/memory.cjs` 验证设置里有进入记忆的入口、记忆里记着的词与每个聊天的早前内容都看得见、
   清除前先确认、清除后真的没有了。
+- 消息列表回归：`node tools/e2e/inbox.cjs` 用六个真实账号验证：没有聊天时那一行和 Start（新建聊天里有 Invite friends）；便签排（自己在前、
+  朋友的便签文字、点开后回复进入聊天、自己写的便签实时出现在朋友那里而陌生人看不到）；Requests 的数字、Accept 后数字消失、对方成为联系人；
+  Suggested 点开聊天后从列表消失；可能认识的人（共同朋友在前、不出现自己 / 朋友 / 联系人 / 请求中的人；Add 变成 Requested 且对方收到请求；
+  × 后服务器也不再推荐；邀请卡片可划掉；See all）；搜索时全部收起、取消后回来；其他筛选下不显示推荐；展开深色。
+  `test/people-runtime.test.js` 在真实 Worker 上验证便签（一行、60 字、24 小时、只给朋友、删除）和推荐（联系人里没聊过的、朋友的朋友按共同朋友数、
+  发公开动态的、新加入的；不推荐已知、已请求和划掉的人）。
 - 动态回归：`node tools/e2e/moments.cjs` 用三个真实账号（自己、聊过天的朋友、没聊过的人）验证：朋友发了新动态时入口带红点、看过即消失；
   首页（标题和三个圆钮、头像排：自己在前、有新动态的带圆环、没聊过的带小标；卡片铺满宽度、按图片比例、最新的在前；
   没聊过的人只给朋友看的动态不出现）；视频进屏幕后静音播放、喇叭开关声音；三张照片一张张滑、“2/3”和圆点、长文字有“more”；

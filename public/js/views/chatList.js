@@ -1,6 +1,7 @@
-// Conversation list: a large-title heading, pinned avatars, rows with swipe
-// actions, filters and live search (names, remarks and pinyin), with its
-// bars arranged for the display (see ui/bars.js).
+// Conversation list: a large-title heading, friends' notes, filters with
+// Requests at their end, pinned avatars, rows with swipe actions, people to
+// chat with or add under them (views/people.js), and live search (names,
+// remarks and pinyin), with its bars arranged for the display (see ui/bars.js).
 
 import { h, icon, clear, reducedMotion, edge, stagger } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
@@ -15,6 +16,7 @@ import { openMenu, toast } from './overlay.js'
 import { createBars, railed } from '../ui/bars.js'
 import { onBars } from '../ui/viewport.js'
 import { insightsOn } from './insights.js'
+import { createNotes, createRequestsLink, createPeople } from './people.js'
 
 export const FILTERS = {
   all: { label: 'All', test: () => true },
@@ -83,7 +85,14 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // Unfolded, one shared capsule marks the open conversation and glides
   // between rows (and along with a row as it reorders) instead of jumping.
   const capsule = h('span', { class: 'row-highlight', 'aria-hidden': 'true' })
-  const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, capsule, empty, results)
+  // After the Instagram inbox (views/people.js): notes along the top; the
+  // filters with Requests at their end; under the chats, who to start one
+  // with and people you may know.
+  const notes = createNotes({ onOpen: id => onOpen(id) })
+  const requests = createRequestsLink()
+  const section = h('div', { class: 'list-section' }, filterTabs, requests)
+  const people = createPeople({ onOpen: id => onOpen(id) })
+  const scroll = h('div', { class: 'scroll list-scroll' }, head, notes.el, section, filterNote, pinLabel, pinned, rows, capsule, empty, people.el, results)
 
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, 'Messages')
   const topbar = h('div', { class: 'list-topbar' }, inlineTitle, h('div', { class: 'spacer' }))
@@ -431,6 +440,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     const list = showPins ? all.filter(c => !c.pinned) : all
 
     filterNote.hidden = true
+    // Who to chat with and who you may know, under all the chats only.
+    people.el.hidden = state.filter !== 'all'
 
     // Pinned grid
     pinned.hidden = pins.length === 0
@@ -505,8 +516,14 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     shownArt = emptyArt
     empty.hidden = !noChats
     empty.classList.toggle('skeleton', noChats && loading)
+    empty.classList.toggle('starting', noChats && !loading && state.filter === 'all')
     if (noChats && loading) {
       if (!empty.querySelector('.sk-row')) empty.replaceChildren(skeleton())
+    } else if (noChats && state.filter === 'all') {
+      // No chats yet: a line, with Start, and the people under it to begin with.
+      const start = h('button', { class: 'list-start-link', type: 'button' }, 'Start')
+      start.addEventListener('click', () => onCompose())
+      empty.replaceChildren(h('p', { class: 'list-start' }, 'Chats show up here once you send or receive a message. ', start))
     } else if (noChats) {
       const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? 'New chat' : 'Show all')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
@@ -775,7 +792,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     listScroll = scroll.scrollTop
     pane.classList.add('searching')
     bars.bottom.inert = true
-    head.hidden = filterTabs.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
+    head.hidden = notes.el.hidden = section.hidden = people.el.hidden = pinLabel.hidden = pinned.hidden = rows.hidden = empty.hidden = filterNote.hidden = true
     results.hidden = false
     placeHighlight()
     arrangeBars()
@@ -805,7 +822,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     pane.classList.remove('searching', 'search-open')
     bars.bottom.inert = false
     arrangeBars()
-    head.hidden = filterTabs.hidden = rows.hidden = false
+    head.hidden = notes.el.hidden = section.hidden = rows.hidden = false
     results.hidden = true
     clear(results)
     render()
