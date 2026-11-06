@@ -1043,3 +1043,49 @@ message-menu、avatar-editor、backdrops、memory、routine、call-avatar、wide
 
 **检查**：`test/moments-runtime.test.js`（真实 Worker：上传类型、发布的各种限制、朋友 / 陌生人、按看的人过滤的赞和评论、取消赞、媒体权限与 206、
 删评论和删动态的权限、删动态时媒体一起删、好友请求不算朋友）；`tools/e2e/moments.cjs`（见 README）。
+
+### 首页信息流与所有人可见（参照 Instagram 首页）
+
+依据用户要求：“更新主页设计允许查看别人的朋友圈并建立聊天，参考 UI”。参考图是 Instagram 首页（外屏 466×678）：
+大号字标和两个按钮、一排带圆环的头像（第一个是“你的快拍”带 +）、每条帖子顶部头像 + 粗体名字 + 副标题 + “关注”胶囊 + ⋯、
+铺满宽度的图片、心 / 气泡 / 转发 / 发送和数字、名字 + 文字、时间。只借鉴布局和交互，字标、颜色、文案都是 Cuven 自己的。
+
+**可见范围**（看别人的朋友圈的前提）：
+- 每条动态新增 `audience`：`everyone`（默认）或 `friends`。旧动态的列默认值是 `friends`，上线前发的不会突然公开。
+- 首页 = 自己 + 朋友的全部 + 所有人可见的（`feedFor`），去掉双方任一方拉黑的人；主页对非朋友只给所有人可见的（`momentsOf(…, publicOnly)`），
+  计数也只数这些；单条动态、点赞、评论都按 `canSeeMoment` 判断。
+- 所有人可见的动态的照片 / 视频，任何人都能加载（`isPublicMomentMedia`：作者的、`audience='everyone'` 的动态里有这个地址）。
+  这里用 `instr()` 而不是 `LIKE`：Durable Object 的 SQLite 拒绝这么长的 LIKE 模式（“LIKE or GLOB pattern too complex”）。
+- 所有人可见的动态显示全部赞和评论；只给朋友看的仍按看的人过滤（微信那样）。
+- **朋友的定义收紧了**：一对一聊天要双方都发过消息才算（以前建了聊天就算）。否则陌生人点一下 Message 就能看到只给朋友的动态。
+- 每条动态带 `user.friend`，前端据此显示“Suggested for you”、Message 胶囊和头像排上的小标。
+
+**首页**（`openHome`）：
+- 标题栏吸顶：左边 28pt 特粗“Moments”，右边三个 44pt 圆钮（+ 发动态、自己的头像进主页、× 关闭）；一滚动就变成毛玻璃并加一条分隔线。
+- 头像排：64pt 头像外 74pt 圆环；有新动态的是多色圆锥渐变环（蓝 → 靛 → 紫 → 粉 → 橙），排在前面；看过对方主页后环消失；
+  没聊过的人右下角黑底“加人”小标，自己是蓝底 +。每项 84pt 宽，“Your moment”放得下；横向吸附时左右留出 14pt（`scroll-padding-inline`），
+  第一项不再贴边。
+- 卡片：36pt 头像 + 粗体名字 + 副标题（@账号，或“Suggested for you”）作为一个按钮进主页；非朋友有“Message”胶囊（10pt 圆角、浅填充，
+  和图片之外的按钮区分开），点了开聊天并关掉所有 Moments 页面；⋯ 菜单。
+- 媒体铺满宽度：比例取第一张，夹在 4:5 到 1.91:1，最高 72vh；多张是横向吸附的轨道（`scroll-snap-stop: always`，一次一张），
+  右上“n/N”滑动时出现、停 1.4s 后淡出，圆点在按钮行右端（放中间会在按钮多时和纸飞机重叠）。
+- 视频：`IntersectionObserver` 在露出 60% 时静音循环播放、离开就停；右下 32pt 喇叭按钮，所有视频共用一个声音开关；
+  减少动态效果时不自动播放；页面关闭时全部暂停并取消观察。
+- 双击点赞：单击等 300ms 确认不是双击再打开大图；双击时中间 96pt 白心放大回弹后淡出（减少动态时只淡入淡出），只会点赞不会取消。
+- 按钮行：心 / 气泡 / 纸飞机 25pt，数字跟在旁边；赞变红并弹一下。纸飞机用系统分享（没有时复制文字）。
+- 文字两行截断，真的放不下时才出现“more”（挂上页面后量 `scrollHeight`）；纯文字动态用标题 3 字号，最多 8 行。
+- 评论只显示最后两条，更多时“View all N comments”；“Add a comment…”一直在，有字时才出现发送钮；时间写成“3 hours ago”，只给朋友看的加“· Friends”。
+- 卡片的赞和评论数原地更新，不重绘整张卡：轮播的位置、正在播的视频、输入框里的字都不受影响。
+
+**页面之间同步**：所有打开着的 Moments 页面在一个集合里，一处的点赞、评论、删除、新发布同时更新其他页面（主页叠在首页上时也一致）；
+socket 的 `moment-changed` 只取一次数据再分发。
+
+**主页**：标签页统一为 Posts / Media（首页已经是信息流，不再有 Moments 标签）；Posts 用和首页相同的卡片；别人主页的 Message 改为黑色实心；
+计数行写“Friends”或“You've not talked yet”。
+
+**编辑器**：文字下面“Who can see it”分段（沿用设置里的 `.seg` 墨色胶囊），默认 Everyone，下面一行说明：
+“Anyone on Cuven can see it and message you.” / “Only your contacts and the people you've talked with.”
+
+**检查**：`test/moments-runtime.test.js` 改为：朋友看到全部、陌生人只看到所有人可见的、单条动态和媒体同理、只开聊天且对方没回不算朋友、
+所有人可见的动态显示陌生人的赞和评论、陌生人不能赞看不到的动态。`tools/e2e/moments.cjs` 改为三个账号（见 README）；
+开发服务器的数据会累积，之前几轮的公开动态也会出现在首页，所以断言只看这一轮账号的头像和卡片（按 `data-user`）。

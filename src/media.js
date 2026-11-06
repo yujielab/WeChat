@@ -79,12 +79,12 @@ async function upload(request, url, user, hub) {
 async function download(key, user, hub, request) {
   // Room-scoped media requires membership; avatars and covers are visible to
   // any account, a backdrop only to whoever chose it, a moment's photos and
-  // videos to whoever may see that person's moments.
+  // videos to the author's friends, and to anyone when the moment is for everyone.
   const [kind, scope] = key.split('/')
   if (!kind || !scope) return j({ ok: false, error: 'not found' }, 404)
   const allowed = PUBLIC.has(kind)
     || (kind === 'bg' ? scope === user.id
-      : kind === 'moment' ? hub.store.canSeeMoments(scope, user.id)
+      : kind === 'moment' ? hub.store.canSeeMoments(scope, user.id) || (!hub.store.blockedWith(user.id).has(scope) && hub.store.isPublicMomentMedia(scope, `/api/media/${key}`))
         : hub.store.isMember(scope, user.id))
   if (!allowed) return j({ ok: false, error: 'No access' }, 403)
   // A video is played a range at a time (Safari asks for byte ranges, and
