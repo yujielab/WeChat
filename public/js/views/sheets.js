@@ -3,7 +3,8 @@
 
 import { h, icon, storage } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
-import { getPrefs, setTheme, setGlass, setGlassTint, setMotion, setHaptics, setGlow } from '../ui/appearance.js'
+import { getPrefs, setTheme, setGlass, setGlassTint, setGlassEngine, setMotion, setHaptics, setGlow } from '../ui/appearance.js'
+import { liquidGlassSupported } from '../ui/liquid-glass/index.js'
 import { isStandalone, getPostureReadings } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
@@ -172,6 +173,11 @@ export function openSettings({ onLogout, origin }) {
         { label: 'Dawn', value: 'dawn' },
         { label: 'Aurora', value: 'aurora' }
       ], prefs.glow, setGlow, 'Composer glow')),
+      // Real-time refraction (the liquid-glass shader) on the conversation's
+      // buttons, where the GPU can run it. Off falls back to the CSS glass.
+      liquidGlassSupported()
+        ? cell('Real-time glass', toggle(prefs.glassEngine !== 'css', on => setGlassEngine(on ? 'webgl' : 'css'), 'Real-time glass'))
+        : null,
       cell('Reduce transparency', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), 'Reduce transparency')),
       cell('Reduce motion', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), 'Reduce motion')),
       // Only offered where the device can play it (iPhone), so it never

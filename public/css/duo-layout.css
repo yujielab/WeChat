@@ -14,7 +14,7 @@
   gap: 2px;
   padding: 4px;
   border-radius: var(--r-xl);
-  background: var(--surface);
+  background: transparent;
   box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
 }
 .bar-item {
@@ -23,7 +23,7 @@
   height: 44px;
   min-width: 44px;
   border-radius: 50%;
-  background: var(--surface);
+  background: transparent;
   box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -45,6 +45,16 @@
 .bar-item:not(.prominent):not(.active):active { background: var(--field); }
 @media (hover: hover) and (pointer: fine) {
   .bar-item:not(.prominent):not(.active):hover { background: var(--field); }
+}
+/* Buttons have no fill of their own; where transparency is reduced or
+   contrast raised they keep a solid surface (bar items, which are .glass,
+   already get one from glass.css; the capsule needs its own). */
+:root[data-glass="solid"] .bar-group.capsule { background: var(--surface); }
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-glass="glass"]) .bar-group.capsule { background: var(--surface); }
+}
+@media (prefers-contrast: more) {
+  .bar-item:not(.active), .bar-group.capsule { background: var(--surface); }
 }
 .bar-badge {
   position: absolute;

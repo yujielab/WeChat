@@ -95,3 +95,57 @@
   :root:not([data-motion="full"]) .glass-pill.is-pressed { border-radius: calc(var(--hit) / 2); }
 }
 :root[data-motion="reduce"] :is(.lg-group, .lg-item, [data-morph]) { transition: none; }
+
+/* ---------------------------------------------------------------- no fill
+   A glass button has no fill of its own: no tint, no sheen — only what is
+   behind it, its blur and its edge light. Only the variables are cleared, so
+   the solid / reduced-transparency / high-contrast fallbacks in glass.css
+   (which set the background directly) still apply, and .glass-clear keeps
+   its dimming over photos and video. */
+.glass-btn {
+  --glass-tint: transparent;
+  --glass-sheen-top: transparent;
+  --glass-sheen-mid: transparent;
+}
+
+/* ---------------------------------------------------------------- WebGL engine
+   js/ui/liquid-glass draws the buttons of the composer row, the conversation's
+   heading and the rail as a refracting-glass canvas (the liquid-glass-studio
+   shader) behind their content. While it's attached the host carries
+   data-lg-gl, and those controls' own material is stripped so only the shader
+   shows. A button filled with ink to show its state (Send, Save, an item
+   that's on) keeps that fill and isn't a glass shape. */
+.lg-gl-clip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  overflow: hidden;
+  overflow: clip;
+  pointer-events: none !important;
+}
+.lg-gl {
+  position: absolute;
+  display: block;
+  pointer-events: none !important;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+[data-lg-gl] .field,
+[data-lg-gl] .composer-mic,
+.composer[data-lg-gl]:not(.has-text):not(.editing) .composer-action,
+[data-lg-gl] .bar-item:not(.active),
+[data-lg-gl] .bar-group.capsule {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-lg-gl] :is(.field, .composer-mic:not(.is-recording), .composer-action, .bar-item)::before { display: none !important; }
+/* The shader can't draw focus or dictation, so the field keeps those rings. */
+.composer[data-lg-gl].is-focused .field {
+  box-shadow: 0 0 0 1px var(--label-3), 0 0 0 4px var(--focus-ring) !important;
+}
+.composer[data-lg-gl].is-dictating .field {
+  box-shadow: 0 0 0 1px var(--focus-ring), 0 0 0 4px color-mix(in srgb, var(--focus-ring) 60%, transparent) !important;
+}

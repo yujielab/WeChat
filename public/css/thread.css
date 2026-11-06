@@ -926,13 +926,18 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 @media (hover: hover) and (pointer: fine) { .mention-picker-item:hover { background: var(--fill-4); } }
 
 /* Jump pills ("↓ 新消息", "@ 1"): 36pt glass capsule with a 44pt target, beside the existing jump button. */
-.jump-pill { position: absolute; z-index: var(--z-chrome); left: 50%; bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; font-size: var(--t-subhead); font-weight: var(--w-semibold); color: var(--label); background: var(--glass-tint-strong); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow); animation: pill-in var(--spring-snappy-dur) var(--spring-snappy) backwards; }
+.jump-pill { position: absolute; z-index: var(--z-chrome); left: 50%; bottom: calc(var(--composer-h, 56px) + var(--safe-bottom) + 12px); height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; font-size: var(--t-subhead); font-weight: var(--w-semibold); color: var(--label); background: transparent; -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow); animation: pill-in var(--spring-snappy-dur) var(--spring-snappy) backwards; }
 .jump-pill::after { content: ""; position: absolute; inset: -4px 0; }
 .jump-pill .icon { width: 15px; height: 15px; }
 .jump-pill.up { bottom: auto; top: calc(var(--head-h, 60px) + var(--safe-top) + 10px); }
 .jump-pill.mention-jump { color: var(--blue-text); }
 .jump-pill-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; font-size: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--badge-text); background: var(--badge-bg); }
 :root[data-kb="1"] .jump-pill:not(.up) { bottom: calc(var(--composer-h, 56px) + 12px); }
+/* A button has no fill of its own (just its blur); where transparency is
+   reduced or contrast raised it keeps the tinted one. */
+:root[data-glass="solid"] .jump-pill { background: var(--glass-tint-strong); }
+@media (prefers-reduced-transparency: reduce) { :root:not([data-glass="glass"]) .jump-pill { background: var(--glass-tint-strong); } }
+@media (prefers-contrast: more) { .jump-pill { background: var(--glass-tint-strong); } }
 
 /* Where a jump lands: the bubble breathes once (alias of the existing .flash). */
 .m.is-flash .bubble { animation: flash 900ms ease-out; }
