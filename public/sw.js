@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v68'
+const SHELL = 'shell-v69'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -112,7 +112,10 @@ const SHELL_FILES = [
   '/js/ui/liquid-glass/shaders.js',
   '/js/ui/liquid-glass/tilt.js',
   '/js/ui/liquid-glass/tilt-math.js',
-  '/icons/icon.svg'
+  '/favicon.ico',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png'
 ]
 
 self.addEventListener('install', event => {
