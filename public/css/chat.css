@@ -97,7 +97,7 @@
   margin-bottom: 6px;
   align-self: flex-end;
   box-shadow: none;
-  background: var(--fill-2);
+  background: transparent;
 }
 .thread .composer.has-text .composer-action { background: var(--ink); color: var(--on-ink); box-shadow: 0 6px 14px -8px rgb(0 0 0 / .5); }
 .thread .composer .composer-action .icon { width: 20px; height: 20px; }

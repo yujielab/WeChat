@@ -16,6 +16,7 @@ import { avatar } from './avatar.js'
 import { renderBubble, hasTail, mediaSize, callMine, bubbleMeta, fillMeta, spokenMentions } from './bubbles.js'
 import { openStickers, mountStickers } from './stickers.js'
 import { createComposer, prepareImage } from './composer.js'
+import { glassSurface, barShapes } from '../ui/liquid-glass/surface.js'
 import { openViewer } from './viewer.js'
 import { openMenu, openSheet, toast, confirmAction } from './overlay.js'
 import { bindImageDropTarget } from './attachments.js'
@@ -424,8 +425,16 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         const inner = composer.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
         bars.layout('horizontal', { top: Math.max(0, nav.clientWidth - 150), bottom: Math.max(0, inner - 160 - 8 - 56 - 8) })
       }
+      // The bar buttons moved or changed: their glass follows.
+      navGlass.sync()
+      railGlass.sync()
+      composer.refreshGlass()
     })
   }
+  // The heading's and the rail's buttons are drawn as Liquid Glass too
+  // (ui/liquid-glass), over the same backdrop.
+  const navGlass = glassSurface(nav, () => barShapes(nav))
+  const railGlass = glassSurface(rail, () => barShapes(rail))
   new ResizeObserver(arrangeBars).observe(rail)
   new ResizeObserver(arrangeBars).observe(nav)
   new ResizeObserver(arrangeBars).observe(composer.el)

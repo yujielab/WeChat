@@ -17,6 +17,7 @@ import { toast } from './overlay.js'
 import { api } from '../api.js'
 import { createVoiceBeam } from '../ui/voice-beam.js'
 import { createMicrophone, microphoneSupported, bytesToBase64 } from '../ui/microphone.js'
+import { glassSurface, barShapes } from '../ui/liquid-glass/surface.js'
 
 // The field shows up to five lines, fewer when the window is short, then
 // scrolls inside.
@@ -109,7 +110,9 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   // The mic shows when it can work and the field is idle; it stays through a
   // recording and its transcription so it can be the stop button.
   function updateMic() {
+    const was = mic.hidden
     mic.hidden = !(dictating || transcribing || (voiceAvailable() && !hasText && !editing && !readonly))
+    if (mic.hidden !== was) refreshGlass()
   }
   function insertSpeech(text) {
     const t = String(text || '').trim()
@@ -174,6 +177,23 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     if (!readonly) textarea.focus({ preventScroll: true })
   }
   mic.addEventListener('click', () => { if (dictating) stopDictation(); else if (!transcribing) startDictation() })
+
+  // ------------------------------------------------- real-time Liquid Glass
+  // The liquid-glass shader engine (ui/liquid-glass) draws the field, the mic,
+  // the + button and the bar buttons docked in this row as refracting glass
+  // over the chat backdrop. Only where the engine is on and the GPU can run
+  // it; otherwise the CSS glass stays. The Send/Save button (filled ink) isn't
+  // a glass shape.
+  function glassShapes() {
+    const els = [field]
+    if (!mic.hidden) els.push(mic)
+    if (!hasText && !editing && !readonly) els.push(action)
+    if (docked) els.push(...barShapes(docked))
+    return els
+  }
+  const glass = glassSurface(form, glassShapes, { enabled: () => Boolean(chat) })
+  function refreshGlass() { glass.refresh() }
+  function syncGlass() { glass.sync() }
 
   function openImages(files = []) {
     if (readonly || !chat) return false
@@ -275,6 +295,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       action.setAttribute('aria-expanded', String(open))
     }
     updateMic()
+    refreshGlass()
   }
 
   // The panel grows out of the button and shrinks back into it. Toggling
@@ -681,6 +702,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       autosize()
       showKept()
       updateMic()
+      syncGlass()
       requestAnimationFrame(() => field.classList.remove('no-grow'))
     },
     /** Members just arrived (or changed): names already in the text light up. */
@@ -723,7 +745,10 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       if (docked?.parentElement === form && !section) docked.remove()
       docked = section
       if (section) form.prepend(section)
+      refreshGlass()
     },
+    /** The bar buttons in this row changed (layout, More): redraw their glass. */
+    refreshGlass,
     focus() {
       textarea.focus({ preventScroll: true })
     },
