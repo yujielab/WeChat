@@ -1,0 +1,118 @@
+/* The conversation, after the reference (loaded after thread.css,
+   duo-layout.css and backdrops.css, whose rules it refines):
+   - the heading: their photo large in the middle with their name on a white
+     pill over its foot (and how they are, after a dot); the calls at the
+     start of the row, the details at its end;
+   - bubbles rounder; yours in ink with light text; each run of messages
+     ends in a small curved tail at its foot, by their photo or at your side;
+   - the field a white pill with Send inside its end;
+   - motion: what you send rises from the field and settles with a little
+     spring; what arrives slides in from their side. */
+
+/* ---------------------------------------------------------------- the heading */
+.thread { --head-h: 92px; --r-bubble: 22px; }
+.thread-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+.thread-nav > .bar-section { display: contents; }
+.thread-nav .bar-group:has([data-item="audio"], [data-item="video"]) { grid-column: 1; grid-row: 1; justify-self: start; }
+.thread-nav .bar-group:has([data-item="info"]) { grid-column: 3; grid-row: 1; justify-self: end; }
+.thread-nav .thread-title {
+  grid-column: 2;
+  grid-row: 1;
+  flex: none;
+  width: auto;
+  max-width: min(260px, 54vw);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  height: auto;
+  padding: 0;
+  overflow: visible;
+  border-radius: 28px;
+}
+.thread-title .thread-person .avatar { --size: 58px !important; width: 58px; height: 58px; font-size: 22px; box-shadow: 0 0 0 3px var(--bg-elevated), 0 10px 24px -14px rgb(0 0 0 / .45); }
+.thread-title.is-online .thread-person::after { width: 12px; height: 12px; right: 1px; bottom: 3px; box-shadow: 0 0 0 2.5px var(--bg-elevated); }
+.thread-title .t {
+  position: relative;
+  z-index: 1;
+  margin-top: -10px;
+  max-width: 100%;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 12px 6px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 1px var(--line), 0 6px 16px -10px rgb(0 0 0 / .35);
+}
+.thread-title .name { font-size: var(--t-subhead); font-weight: var(--w-bold); line-height: 1.2; }
+.thread-title .sub { margin-top: 0; font-size: var(--t-caption-2); color: var(--label-2); }
+.thread-title .sub:not(:empty)::before { content: "·"; margin-right: 5px; }
+.thread-title:active .thread-person { transform: scale(.96); }
+.thread-title .thread-person { transition: transform 200ms var(--spring-snappy, var(--ease-out)); }
+/* In the rail, the row is the heading alone: in the middle. */
+.thread[data-bars="vertical"] .thread-nav { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+
+/* ---------------------------------------------------------------- bubbles */
+.thread { --bubble-out: var(--ink); --bubble-out-text: var(--on-ink); --link-out: var(--on-ink); }
+.thread .m.out .bubble > .m-meta { color: color-mix(in srgb, var(--on-ink) 62%, transparent); }
+.thread .m.out .bubble > .m-meta.read .icon { color: color-mix(in srgb, var(--blue) 70%, var(--on-ink)); }
+.thread .m.out .bubble .quote { background: color-mix(in srgb, var(--on-ink) 12%, transparent); color: inherit; }
+/* No notch at a run's head: a tail at its foot instead. */
+.thread .m.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-top-left-radius: var(--r-bubble); border-top-right-radius: var(--r-bubble); }
+.thread .m.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { content: none; }
+.thread .m.in.last .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-bottom-left-radius: 6px; }
+.thread .m.out.last .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-bottom-right-radius: 6px; }
+.thread .m.last .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after {
+  content: "";
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  width: 12px;
+  height: 16px;
+  border-radius: 0;
+  background: inherit;
+  background-image: none;
+}
+.thread .m.in.last .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { left: -7px; right: auto; clip-path: path('M12 0 C12 8 7.5 14 0 16 L12 16 Z'); }
+.thread .m.out.last .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { right: -7px; left: auto; clip-path: path('M0 0 C0 8 4.5 14 12 16 L0 16 Z'); }
+
+/* ---------------------------------------------------------------- the field: Send inside its end */
+.thread .composer .field { padding-right: 58px; }
+.thread .composer .composer-mic { order: 3; }
+.thread .composer .composer-action {
+  width: 44px;
+  height: 44px;
+  margin-left: -60px;
+  margin-right: 16px;
+  margin-bottom: 6px;
+  align-self: flex-end;
+  box-shadow: none;
+  background: var(--fill-2);
+}
+.thread .composer.has-text .composer-action { background: var(--ink); color: var(--on-ink); box-shadow: 0 6px 14px -8px rgb(0 0 0 / .5); }
+.thread .composer .composer-action .icon { width: 20px; height: 20px; }
+
+/* ---------------------------------------------------------------- motion */
+@keyframes chat-send {
+  0% { opacity: 0; transform: translateY(26px) scale(.9); }
+  55% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes chat-arrive {
+  0% { opacity: 0; transform: translateX(-12px) scale(.95); }
+  100% { opacity: 1; transform: none; }
+}
+.thread .m.out.enter { animation: chat-send 460ms var(--spring-bouncy, cubic-bezier(.2, 1.3, .4, 1)) backwards; transform-origin: 100% 100%; }
+.thread .m.in.enter { animation: chat-arrive 340ms var(--ease-out) backwards; transform-origin: 0 100%; }
+:root[data-motion="reduce"] .thread .m.enter { animation: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="full"]) .thread .m.enter { animation: none; } }

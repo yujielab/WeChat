@@ -48,6 +48,7 @@ const open=async p=>{await p.locator('.row .row-inner').first().click();await p.
 // 1. The Duo, full screen: the list's rail, and its rows stop at the column.
 assert.equal(await D.evaluate(()=>document.documentElement.dataset.wide),'outer');assert.equal(await axis(D),'vertical')
 let r=await rail(D,'.pane-list > .duo-rail');assert.ok(r,'the list has a rail')
+// The pages' capsule takes the column's foot (ui/pages.js, tools/e2e/pages.cjs): Back, Search and New Chat head the rail.
 assert.deepEqual(ids(r),['back','search','compose'])
 for(const i of r.items){assert.ok(i.x>=376&&i.x+i.w<=466,'in the system column '+i.id+' '+JSON.stringify(i));assert.ok(i.w>=44&&i.h>=44,'44pt '+i.id)}
 // Centred under the status bar's clock, 49pt in from the edge as measured on device — whatever inset the outer
@@ -57,7 +58,10 @@ for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,`under the cloc
 await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-right','91px'));await sleep(200)
 for(const i of (await rail(D,'.pane-list > .duo-rail')).items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,'still under the clock with a 91pt inset '+JSON.stringify(i))
 assert.ok(r.items[0].y>=162-.5,'below the camera and status bar')
-assert.ok(r.items[0].y+r.items[0].h<r.items[1].y&&r.items[1].y<r.items[2].y,'Back above, search and New Chat below')
+assert.ok(r.items[0].y+r.items[0].h<r.items[1].y&&r.items[1].y<r.items[2].y,'Back above, then Search and New Chat')
+// …and the pages' capsule below them, at the column's foot, clear of them.
+const pagesTop=await D.evaluate(()=>document.querySelector('.page-rail').getBoundingClientRect().top)
+assert.ok(r.items[2].y+r.items[2].h<pagesTop,'the pages below '+pagesTop)
 assert.equal(await D.locator('.pane-list .list-bottombar .bar-item').count(),0,'nothing in the bar at the foot')
 const rowsRight=await D.evaluate(()=>Math.max(...[...document.querySelectorAll('.pane-list .row-inner')].map(e=>e.getBoundingClientRect().right)))
 assert.ok(rowsRight<=376+.5,'rows stop at the column: '+rowsRight)

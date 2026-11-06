@@ -127,7 +127,7 @@ export function openMomentEditor({ origin, onPosted } = {}) {
   const sheet = openSheet({
     label: 'New moment', content, tall: true, origin,
     // Leaving with something written asks first.
-    guard: async () => !hasContent() || confirmAction(cancel, { title: 'Discard this moment?', confirm: 'Discard', destructive: true }),
+    guard: async () => !hasContent() || confirmAction(cancel, { title: 'Discard this moment?', message: 'What you wrote and the photos you picked won’t be kept.', confirm: 'Discard', destructive: true }),
     onClose: () => { for (const u of urls) URL.revokeObjectURL(u) }
   })
   sheet.el.classList.add('moments-editor')
@@ -287,7 +287,7 @@ export function openMomentEditor({ origin, onPosted } = {}) {
 
   // ------------------------------------------------------------ cancel, post
   cancel.addEventListener('click', async () => {
-    if (hasContent() && !(await confirmAction(cancel, { title: 'Discard this moment?', confirm: 'Discard', destructive: true }))) return
+    if (hasContent() && !(await confirmAction(cancel, { title: 'Discard this moment?', message: 'What you wrote and the photos you picked won’t be kept.', confirm: 'Discard', destructive: true }))) return
     sheet.close()
   })
   let posting = false

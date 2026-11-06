@@ -1412,7 +1412,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // stays after a reload (store.js keeps the ids deleted here).
   async function deleteLocal(m, anchor) {
     const ok = await confirmAction(anchor?.isConnected ? anchor : nodes.get(m.id)?.querySelector('.bubble') || scroller, {
-      title: 'Delete from this device only? They can still see this message',
+      title: 'Delete from this device?',
+      message: 'They can still see this message.',
       confirm: 'Delete'
     })
     if (!ok) return

@@ -144,7 +144,7 @@ await A.locator('.moments-profile .mo-tab[data-tab="media"]').click();await A.lo
 assert.equal(await A.locator('.mo-card').count(),1);assert.equal(await A.locator('.mo-card .mo-count').textContent(),'2')
 await A.locator('.moments-profile .mo-tab[data-tab="posts"]').click();await sleep(600)
 await A.locator(`.moments-profile .mo-item[data-id="${open.id}"] .mo-dots`).click();await A.locator('.menu .menu-item:has-text("Delete")').click();await sleep(250)
-await A.locator('.menu .menu-item:has-text("Delete")').click();await sleep(600)
+await A.locator('.prompt .prompt-btn.main:has-text("Delete")').click();await sleep(600)
 assert.equal(await A.locator(`.mo-item[data-id="${open.id}"]`).count(),0,'gone, here and on the home under it')
 assert.equal(await A.locator('.moments-profile .mo-counts').textContent(),'1 Post1 Friend')
 await A.locator('.moments-profile .mo-close').click();await A.locator('.moments-profile').waitFor({state:'detached'})

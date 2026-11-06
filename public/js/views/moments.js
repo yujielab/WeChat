@@ -85,13 +85,16 @@ async function startChat(user) {
   } catch (err) { toast(err.message, { type: 'error' }) }
 }
 
-/** userId: whose page (none: the home feed). tab: 'posts' | 'media'. back: opened from another page. */
-export function openMoments({ userId, tab, origin, back = false } = {}) {
-  return userId ? openProfile({ userId, tab, origin, back }) : openHome({ origin })
+/**
+ * userId: whose page (none: the home feed). tab: 'posts' | 'media'. back: opened from another page.
+ * page, swap: shown as one of the app's pages from the rail (ui/pages.js), in place of another.
+ */
+export function openMoments({ userId, tab, origin, back = false, page = false, swap = false } = {}) {
+  return userId ? openProfile({ userId, tab, origin, back, page, swap }) : openHome({ origin, page, swap })
 }
 
 // ---------------------------------------------------------------- the home
-function openHome({ origin } = {}) {
+function openHome({ origin, page: asPage = false, swap = false } = {}) {
   const lastLook = seen()
   const looked = new Set() // people whose page you've opened since
   let items = []
@@ -110,7 +113,7 @@ function openHome({ origin } = {}) {
   const more = h('div', { class: 'mo-more', 'aria-hidden': 'true' })
   const content = h('div', { class: 'mo-home' }, head, people, fresher, panel, more)
 
-  const sheet = openSheet({ label: 'Moments', content, tall: true, origin, onClose: () => { pages.delete(page); quiet(sheet.el) } })
+  const sheet = openSheet({ label: 'Moments', content, tall: true, origin, page: asPage, swap, onClose: () => { pages.delete(page); quiet(sheet.el) } })
   sheet.el.classList.add('moments-page', 'moments-home')
   const list = cards(panel, { owner: null, empty: emptyEl })
   close.addEventListener('click', () => sheet.close())
@@ -197,7 +200,7 @@ function personEl({ user, label, badge, ring, aria, onClick }) {
 }
 
 // ---------------------------------------------------------------- someone's page
-function openProfile({ userId, tab, origin, back }) {
+function openProfile({ userId, tab, origin, back, page: asPage = false, swap = false }) {
   const self = userId === state.me?.id
   let current = tab === 'media' ? 'media' : 'posts'
   let profile = null
@@ -226,7 +229,7 @@ function openProfile({ userId, tab, origin, back }) {
     h('div', { class: 'mo-id' }, face, name, handle, bio, joined, counts, h('div', { class: 'mo-actions' }, share, second)),
     tabBar, fresher, panel, more)
 
-  const sheet = openSheet({ label: self ? 'Your moments' : 'Profile', content, tall: true, origin, onClose: () => { pages.delete(page); quiet(sheet.el) } })
+  const sheet = openSheet({ label: self ? 'Your moments' : 'Profile', content, tall: true, origin, page: asPage, swap, onClose: () => { pages.delete(page); quiet(sheet.el) } })
   sheet.el.classList.add('moments-page', 'moments-profile')
   const list = cards(panel, { owner: userId, empty: () => emptyEl(profile) })
   // A round glass button over the cover, staying put as the page scrolls.
@@ -534,7 +537,7 @@ function card(moment, { owner }) {
       li.setAttribute('role', 'button')
       li.setAttribute('aria-label', `${nameOf(c.user)}: ${c.text}. Delete`)
       const del = async () => {
-        if (!(await confirmAction(li, { title: 'Delete this comment?', confirm: 'Delete', destructive: true }))) return
+        if (!(await confirmAction(li, { title: 'Delete this comment?', message: 'It goes for everyone who can see it.', confirm: 'Delete', destructive: true }))) return
         try { everywhere('apply', (await api.del(`/api/moments/${m.id}/comments/${c.id}`)).moment) } catch (err) { toast(err.message, { type: 'error' }) }
       }
       li.addEventListener('click', del)
@@ -552,7 +555,7 @@ function card(moment, { owner }) {
     try { everywhere('apply', (await api.post(`/api/moments/${m.id}/like`, { on })).moment) } catch (err) { everywhere('apply', before); toast(err.message, { type: 'error' }) }
   }
   async function remove() {
-    if (!(await confirmAction(dots, { title: 'Delete this moment and its comments?', confirm: 'Delete', destructive: true }))) return
+    if (!(await confirmAction(dots, { title: 'Delete this moment?', message: 'Its photos, likes and comments go with it.', confirm: 'Delete', destructive: true }))) return
     try {
       await api.del(`/api/moments/${m.id}`)
       everywhere('drop', m.id)

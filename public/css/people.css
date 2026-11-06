@@ -148,7 +148,7 @@
 .people-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: calc(var(--list-inset) - 12px + var(--safe-right)); }
 .people-title { margin: 0; padding: 6px calc(var(--list-inset) + var(--safe-right)) 6px calc(var(--list-inset) + var(--safe-left)); color: var(--label); font-size: var(--t-headline); font-weight: var(--w-bold); letter-spacing: -0.01em; }
 .people-head .people-title { padding-right: 0; }
-.people-all { height: 44px; padding: 0 12px; border-radius: 999px; color: var(--blue-text); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+.people-all { flex: none; white-space: nowrap; height: 44px; padding: 0 12px; border-radius: 999px; color: var(--blue-text); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
 .people-all[hidden] { display: none; }
 .people-all:active { background: var(--fill-2); }
 .people-list { list-style: none; margin: 0; padding: 0 10px; }

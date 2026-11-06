@@ -79,10 +79,12 @@ assert.equal(await ed.locator('.me-who-label').textContent(),'Everyone can see Â
 await A.screenshot({path:path.join(OUT,'4-ready.png')})
 
 // 7. Leaving asks first: Escape, then Cancel; both kept.
-await A.keyboard.press('Escape');await A.locator('.menu .menu-item:has-text("Discard")').waitFor()
-await A.locator('.menu .menu-item:has-text("Cancel")').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Escape asked; kept')
-await ed.locator('.me-cancel').click();await A.locator('.menu .menu-item:has-text("Discard")').waitFor()
-await A.locator('.menu .menu-item:has-text("Cancel")').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Cancel asked; kept')
+await A.keyboard.press('Escape');await A.locator('.prompt .prompt-btn.main:has-text("Discard")').waitFor()
+assert.equal(await A.locator('.prompt .prompt-title').textContent(),'Discard this moment?');await sleep(500)
+await A.screenshot({path:path.join(OUT,'4b-discard.png')})
+await A.locator('.prompt .prompt-cancel').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Escape asked; kept')
+await ed.locator('.me-cancel').click();await A.locator('.prompt .prompt-btn.main:has-text("Discard")').waitFor()
+await A.locator('.prompt .prompt-cancel').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Cancel asked; kept')
 
 // 8. Post: it leads the feed â€” with its description, Coisini, and comments for friends.
 await ed.locator('.me-post').click();await A.locator('.moments-editor').waitFor({state:'detached'});await sleep(800)

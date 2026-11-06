@@ -1,0 +1,104 @@
+/* Memories (js/views/memories.js), after the reference: a heading with a
+   chevron, the title in the middle and "…"; a grey search capsule; tabs with
+   a line under the chosen one; the latest month's recap as a large rounded
+   card with its name over the picture; then each month's name and a tight
+   grid of squares edge to edge. */
+
+.overlays[data-layout="split"] .sheet.memories-page { --sheet-w: min(620px, calc(100% - var(--safe-left) - var(--safe-right) - 64px)); }
+.sheet.memories-page .sheet-head { display: none; }
+.sheet.memories-page .sheet-body { padding: 0 0 calc(max(var(--safe-bottom), 12px) + 24px); }
+.sheet.memories-page .grabber { position: absolute; z-index: 5; top: 0; left: 0; right: 0; }
+.mem-page { position: relative; }
+
+.mem-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  min-height: 62px;
+  padding: 12px 14px 6px;
+  transition: background-color 220ms ease-out, box-shadow 220ms ease-out;
+}
+.sheet.memories-page.mem-scrolled .mem-head {
+  background: color-mix(in srgb, var(--paper, var(--bg)) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 1px 0 var(--separator);
+}
+.mem-title { margin: 0; text-align: center; font-size: var(--t-headline); font-weight: var(--w-bold); }
+.mem-close, .mem-more { width: 44px; height: 44px; }
+.mem-close .icon, .mem-more .icon { width: 20px; height: 20px; }
+
+.mem-search { display: flex; align-items: center; gap: 8px; height: 44px; margin: 4px 16px 6px; padding: 0 14px; border-radius: 999px; background: var(--fill-2); color: var(--label-2); }
+.mem-search .icon { flex: none; width: 18px; height: 18px; }
+.mem-search-input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--label); font: inherit; font-size: var(--t-body); }
+.mem-search-input::placeholder { color: var(--label-3); }
+
+.mem-tabs { position: relative; display: flex; gap: 4px; margin: 6px 0 0; padding: 0 12px; box-shadow: inset 0 -1px 0 var(--separator); overflow-x: auto; scrollbar-width: none; }
+.mem-tabs::-webkit-scrollbar { display: none; }
+.mem-tab { flex: 1; min-width: max-content; height: 46px; padding: 0 12px; color: var(--label-2); font-size: var(--t-subhead); font-weight: var(--w-semibold); white-space: nowrap; }
+.mem-tab[aria-selected="true"] { color: var(--label); font-weight: var(--w-bold); }
+.mem-tab-line { position: absolute; left: 0; bottom: 0; height: 3px; border-radius: 3px; background: var(--label); transition: transform 320ms var(--spring-snappy, var(--ease-out)), width 320ms var(--spring-snappy, var(--ease-out)); }
+
+/* The recap: the latest month's best picture, large, its name over it. */
+.mem-recap {
+  position: relative;
+  display: block;
+  width: calc(100% - 28px);
+  margin: 14px 14px 4px;
+  aspect-ratio: 16 / 11;
+  max-height: 46vh;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--fill-2);
+  text-align: left;
+  box-shadow: 0 16px 34px -22px rgb(0 0 0 / .55);
+  transition: transform 200ms var(--spring-snappy, var(--ease-out));
+}
+.mem-recap:active { transform: scale(.98); }
+.mem-recap > :is(img, video) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mem-recap::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgb(0 0 0 / .42), transparent 46%); pointer-events: none; }
+.mem-recap-text { position: absolute; z-index: 1; top: 16px; left: 18px; right: 60px; display: grid; gap: 2px; color: #fff; text-shadow: 0 1px 10px rgb(0 0 0 / .35); }
+.mem-recap-text b { font-size: var(--t-title-3); font-weight: var(--w-bold); }
+.mem-recap-text span { font-size: var(--t-footnote); opacity: .9; }
+.mem-recap-play { position: absolute; z-index: 1; right: 14px; bottom: 14px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: rgb(255 255 255 / .88); color: #000; }
+.mem-recap-play .icon { width: 18px; height: 18px; margin-left: 2px; }
+
+.mem-month { margin-top: 14px; }
+.mem-month-name { display: flex; align-items: baseline; gap: 8px; margin: 0; padding: 6px 16px 8px; font-size: var(--t-subhead); font-weight: var(--w-bold); }
+.mem-month-count { color: var(--label-3); font-size: var(--t-caption); font-weight: var(--w-semibold); }
+.mem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+@container (max-width: 380px) { .mem-grid { grid-template-columns: repeat(3, 1fr); } }
+.sheet.memories-page .sheet-body { container-type: inline-size; }
+.mem-tile {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--fill-2);
+  animation: mem-in 360ms var(--ease-out) var(--d, 0ms) both;
+}
+@keyframes mem-in { from { opacity: 0; transform: scale(.96); } }
+.mem-tile > :is(img, video) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mem-tile.is-drawing > img { object-fit: contain; background: #fff; }
+.mem-tile:active > :is(img, video) { opacity: .8; }
+.mem-tile:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; }
+.mem-dur { position: absolute; left: 6px; bottom: 6px; display: inline-flex; align-items: center; color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); text-shadow: 0 1px 4px rgb(0 0 0 / .6); }
+.mem-dur .icon { width: 14px; height: 14px; }
+.mem-badge { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: rgb(0 0 0 / .5); color: #fff; }
+.mem-badge .icon { width: 12px; height: 12px; }
+
+.mem-empty { display: grid; justify-items: center; gap: 6px; padding: 56px 28px; text-align: center; color: var(--label-2); font-size: var(--t-subhead); line-height: 1.45; }
+.mem-empty .icon { width: 34px; height: 34px; color: var(--label-3); margin-bottom: 6px; }
+.mem-empty b { color: var(--label); font-size: var(--t-headline); }
+.mem-skeleton i { display: block; background: var(--fill-2); animation: mem-shimmer 1.2s ease-in-out infinite alternate; }
+.mem-skeleton .r { height: 220px; margin: 14px; border-radius: 22px; }
+.mem-skeleton .m { width: 30%; height: 14px; margin: 18px 16px 10px; border-radius: 7px; }
+.mem-skeleton .mem-grid i { aspect-ratio: 1; }
+@keyframes mem-shimmer { to { opacity: .5; } }
+.mem-foot { height: 8px; }
+
+:root[data-motion="reduce"] :is(.mem-tile, .mem-skeleton i) { animation: none; }
+:root[data-motion="reduce"] :is(.mem-tab-line, .mem-recap) { transition: none; }

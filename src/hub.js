@@ -322,6 +322,35 @@ export class Hub {
       return json({ ok: true })
     }
 
+    // --- memories: the photos, videos and drawings shared in your chats, newest first, a page at a time
+    if (path === '/api/memories' && method === 'GET') {
+      const before = Number(url.searchParams.get('before')) || undefined
+      const limit = Math.max(1, Math.min(120, Number(url.searchParams.get('limit')) || 60))
+      const rows = this.store.memoriesFor(user.id, { before, limit, type: url.searchParams.get('type') || undefined })
+      const rooms = new Map()
+      const roomName = id => {
+        if (!rooms.has(id)) {
+          const r = this.roomFor(id, user.id)
+          rooms.set(id, r ? { name: r.name || '', avatar: r.avatar || '', kind: r.kind } : { name: '', avatar: '', kind: 'dm' })
+        }
+        return rooms.get(id)
+      }
+      const people = new Map()
+      const who = id => {
+        if (!people.has(id)) people.set(id, this.store.pub(this.store.getUser(id)) || { id, display: 'Deleted account', username: '' })
+        return people.get(id)
+      }
+      return json({
+        ok: true,
+        memories: rows.map(m => ({
+          id: m.id, room: m.room, chat: roomName(m.room), from: who(m.sender), mine: m.sender === user.id, ts: m.ts,
+          type: m.type === 'image' ? 'photo' : m.type, url: m.meta.url, w: m.meta.w || 0, h: m.meta.h || 0, dur: m.meta.dur || 0
+        })),
+        // A page with nothing in it is the end.
+        more: rows.length > 0
+      })
+    }
+
     // --- notes: a line for friends, above your photo in their Messages list, for a day
     if (path === '/api/notes' && method === 'GET') {
       return json({ ok: true, mine: this.store.noteOf(user.id), notes: this.store.notesFor(user.id) })

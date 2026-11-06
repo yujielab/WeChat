@@ -18,6 +18,9 @@
     (nav.hardwareConcurrency && nav.hardwareConcurrency <= 2)
   if (glass === 'solid' || (lowEnd && !read('ui:glass'))) root.setAttribute('data-glass', 'solid')
   if (read('ui:glass-tint') === 'clear') root.setAttribute('data-glass-tint', 'clear')
+  // The light behind the message field (Settings › Composer glow): on, as Ocean, unless turned off.
+  var glow = read('ui:glow') || 'ocean'
+  if (glow !== 'off') root.setAttribute('data-glow', glow)
   var motion = read('ui:motion')
   if (motion === 'reduce' || motion === 'full') root.setAttribute('data-motion', motion)
 })()
