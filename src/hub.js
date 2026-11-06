@@ -41,6 +41,31 @@ export function cleanText(value, max) {
   const flat = String(value).replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').trim()
   return Array.from(flat).slice(0, max).join('').trim()
 }
+/** Free text that may run over several lines (a moment's words): no control characters but line breaks, at most two blank lines in a row. */
+export function cleanLines(value, max) {
+  if (typeof value !== 'string') return ''
+  const flat = value.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+  return Array.from(flat).slice(0, max).join('').trim()
+}
+const MOMENT_TEXT_MAX = 2000
+const MOMENT_PHOTOS_MAX = 9
+const COMMENT_MAX = 300
+/** A moment's pictures, as sent: only this account's own uploads; up to nine photos, or one video. Undefined when they won't do. */
+export function momentMedia(list, uid) {
+  if (list === undefined || list === null) return []
+  if (!Array.isArray(list) || list.length > MOMENT_PHOTOS_MAX) return undefined
+  const own = `/api/media/moment/${uid}/`
+  const out = []
+  for (const item of list) {
+    const m = asObject(item)
+    if (typeof m.url !== 'string' || !m.url.startsWith(own) || !/^[\w-]+$/.test(m.url.slice(own.length))) return undefined
+    if (m.type !== 'image' && m.type !== 'video') return undefined
+    const size = v => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.min(20000, Math.round(Number(v))) : 0)
+    out.push({ url: m.url, type: m.type, w: size(m.w), h: size(m.h) })
+  }
+  if (out.some(m => m.type === 'video') && out.length > 1) return undefined
+  return out
+}
 /** A request body is a plain object, whatever was sent. */
 const asObject = value => (value && typeof value === 'object' && !Array.isArray(value) ? value : {})
 const LOCKOUT_FAILS = 6
@@ -201,6 +226,11 @@ export class Hub {
     if (path === '/api/profile/avatars' && method === 'GET') {
       const recent = (this.store.kvGet(`avatars:${user.id}`) || []).filter(u => u !== user.avatar)
       return json({ ok: true, recent })
+    }
+    // --- moments: photos or a video and a few words, for friends to see (js/views/moments.js)
+    if (seg[1] === 'moments') {
+      const res = await this.moments(seg, method, body, url, user)
+      if (res) return res
     }
     if (path === '/api/password' && method === 'POST') {
       if (!await verifyPassword(body.current, user.salt, user.hash)) return json({ ok: false, error: 'Current password is incorrect' }, 403)
@@ -845,6 +875,119 @@ export class Hub {
       .map(p => ({ band: p.band, name: rooms.get(p.room) ? (rooms.get(p.room).kind === 'dm' ? rooms.get(p.room).peer?.display : rooms.get(p.room).name) || '' : '' }))
       .filter(p => p.name)
     return { ...summary, peers }
+  }
+
+  // ---------------------------------------------------------------- moments
+  /** The moments routes: the feed, someone's own, one; post, delete; like and comment. Null when none matches. */
+  async moments(seg, method, body, url, user) {
+    const store = this.store
+    const before = Number(url.searchParams.get('before')) || undefined
+    // A page of 20 at most (0: just the profile).
+    const limit = url.searchParams.has('limit') ? Math.max(0, Math.min(20, Number(url.searchParams.get('limit')) || 0)) : 20
+    // GET /api/moments — the feed: yours and your friends', newest first.
+    if (!seg[2] && method === 'GET') {
+      const users = new Set([user.id, ...store.friendsOf(user.id)])
+      return json({ ok: true, moments: limit ? this.momentsView(store.momentsBy(users, { before, limit }), user.id) : [] })
+    }
+    // GET /api/moments/user/:id — someone's profile and their moments, where you may see them.
+    if (seg[2] === 'user' && seg[3] && method === 'GET') {
+      const author = store.getUser(seg[3])
+      if (!author) return json({ ok: false, error: 'No such user' }, 404)
+      const visible = store.canSeeMoments(author.id, user.id)
+      return json({
+        ok: true,
+        user: { ...store.pub(author), joined: author.created },
+        visible,
+        count: visible ? store.countMoments(author.id) : 0,
+        friends: author.id === user.id ? store.friendsOf(author.id).size : undefined,
+        moments: visible && limit ? this.momentsView(store.momentsBy([author.id], { before, limit }), user.id) : []
+      })
+    }
+    // POST /api/moments — share one.
+    if (!seg[2] && method === 'POST') {
+      const text = cleanLines(body.text, MOMENT_TEXT_MAX)
+      const media = momentMedia(body.media, user.id)
+      if (media === undefined) return json({ ok: false, error: 'Up to 9 photos, or 1 video, of your own' }, 400)
+      if (!text && !media.length) return json({ ok: false, error: 'Write something or add a photo' }, 400)
+      const moment = store.addMoment({ user: user.id, text, media })
+      // Your friends' feeds have something new; your other devices too.
+      for (const uid of [user.id, ...store.friendsOf(user.id)]) this.sendToUser(uid, { t: 'moment', id: moment.id, user: user.id })
+      return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
+    }
+    const moment = seg[2] && seg[2] !== 'user' ? store.getMoment(seg[2]) : null
+    if (seg[2] && seg[2] !== 'user' && (!moment || !store.canSeeMoments(moment.user, user.id))) return json({ ok: false, error: 'This moment is gone' }, 404)
+    if (!moment) return null
+    const changed = () => {
+      for (const uid of [moment.user, ...store.friendsOf(moment.user)]) this.sendToUser(uid, { t: 'moment-changed', id: moment.id })
+    }
+    // GET /api/moments/:id
+    if (!seg[3] && method === 'GET') return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
+    // DELETE /api/moments/:id — your own; its pictures go with it.
+    if (!seg[3] && method === 'DELETE') {
+      if (moment.user !== user.id) return json({ ok: false, error: "Can't delete someone else's moment" }, 403)
+      store.deleteMoment(moment.id)
+      const keys = moment.media.map(m => m.url.replace(/^\/api\/media\//, '')).filter(k => k.startsWith(`moment/${user.id}/`))
+      if (keys.length) await this.env.MEDIA?.delete(keys).catch(() => {})
+      for (const uid of [user.id, ...store.friendsOf(user.id)]) this.sendToUser(uid, { t: 'moment-deleted', id: moment.id })
+      return json({ ok: true })
+    }
+    // POST /api/moments/:id/like { on }
+    if (seg[3] === 'like' && method === 'POST') {
+      store.likeMoment(moment.id, user.id, body.on !== false)
+      changed()
+      return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
+    }
+    // POST /api/moments/:id/comments { text }
+    if (seg[3] === 'comments' && !seg[4] && method === 'POST') {
+      const text = cleanText(body.text, COMMENT_MAX)
+      if (!text) return json({ ok: false, error: 'Write a comment' }, 400)
+      store.addMomentComment({ moment: moment.id, user: user.id, text })
+      changed()
+      return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
+    }
+    // DELETE /api/moments/:id/comments/:cid — your comment, or any on your moment.
+    if (seg[3] === 'comments' && seg[4] && method === 'DELETE') {
+      const c = store.getMomentComment(seg[4])
+      if (!c || c.moment !== moment.id) return json({ ok: false, error: 'This comment is gone' }, 404)
+      if (c.user !== user.id && moment.user !== user.id) return json({ ok: false, error: "Can't delete someone else's comment" }, 403)
+      store.deleteMomentComment(c.id)
+      changed()
+      return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
+    }
+    return null
+  }
+
+  /**
+   * Moments as `viewer` sees them. As in WeChat, the likes and comments shown
+   * are only those of the viewer's own friends (and the author's and their
+   * own): a friend of the author never sees what strangers to them said.
+   */
+  momentsView(rows, viewer) {
+    const store = this.store
+    const ids = rows.map(r => r.id)
+    const likes = store.momentLikes(ids)
+    const comments = store.momentComments(ids)
+    const friends = store.friendsOf(viewer)
+    const people = new Map()
+    const person = id => {
+      if (!people.has(id)) {
+        const u = store.getUser(id)
+        people.set(id, u ? { id: u.id, username: u.username, display: u.display, avatar: u.avatar } : { id, username: '', display: 'Deleted account', avatar: '' })
+      }
+      return people.get(id)
+    }
+    const seen = (uid, author) => uid === viewer || uid === author || friends.has(uid)
+    return rows.map(m => ({
+      id: m.id,
+      user: store.pub(store.getUser(m.user)) || person(m.user),
+      text: m.text,
+      media: m.media,
+      created: m.created,
+      mine: m.user === viewer,
+      liked: likes.some(l => l.moment === m.id && l.user === viewer),
+      likes: likes.filter(l => l.moment === m.id && seen(l.user, m.user)).map(l => person(l.user)),
+      comments: comments.filter(c => c.moment === m.id && seen(c.user, m.user)).map(c => ({ id: c.id, user: person(c.user), text: c.text, created: c.ts, mine: c.user === viewer }))
+    }))
   }
 
   /** Keep a replaced avatar among the recent ones: its own, newest first, a handful. */

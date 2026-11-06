@@ -202,6 +202,11 @@ export function openSettings({ onLogout, origin }) {
   openSheet({ title: 'Settings', content, tall: true, origin })
 }
 
+/** Edit profile, from elsewhere (the Moments page's Edit profile). */
+export function openEditProfile(onEdited) {
+  return editProfile(onEdited)
+}
+
 function editProfile(onEdited) {
   const me = state.me
   // The cover across the top (anyone who opens your profile sees it), your
@@ -415,7 +420,12 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
     })
   )
 
-  const blocks = [header, flags]
+  // Their moments: what they share with friends (views/moments.js).
+  const momentsCell = !isGroup && c.peer?.id ? group(cell('Moments', chev(), {
+    icon: 'photo',
+    onClick: async () => (await import('./moments.js')).openMoments({ userId: c.peer.id })
+  })) : null
+  const blocks = [header, momentsCell, flags].filter(Boolean)
   // What this conversation says about them (views/insights.js).
   if (!isGroup && insightsOn()) blocks.splice(1, 0, insightsSection(roomId))
 

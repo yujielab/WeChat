@@ -32,7 +32,7 @@
 .side-me .chev .icon { width: 14px; height: 14px; }
 
 .side-scopes { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.side-scope {
+.side-scope, .side-link {
   width: 100%;
   min-height: 48px;
   display: flex;
@@ -45,8 +45,8 @@
   font-size: var(--t-body);
   transition: background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out;
 }
-.side-scope:active { background: var(--fill-4); }
-.side-scope:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
+.side-scope:active, .side-link:active { background: var(--fill-4); }
+.side-scope:focus-visible, .side-link:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; }
 /* The current scope is marked, not shouted: a quiet fill and a heavier
    label, so the conversations stay the strongest thing on screen. */
 .side-scope.current { background: var(--fill-3); color: var(--label); font-weight: var(--w-semibold); }
@@ -56,7 +56,7 @@
 .side-scope-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-count { flex: none; min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center; border-radius: 999px; background: var(--badge-bg); color: var(--badge-text); font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; }
 @media (hover: hover) and (pointer: fine) {
-  .side-scope:not(.current):hover { background: var(--fill-4); }
+  .side-scope:not(.current):hover, .side-link:hover { background: var(--fill-4); }
 }
 
 /* ---------------------------------------------------------------- details */

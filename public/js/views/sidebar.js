@@ -34,11 +34,18 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
     scopes.append(h('li', {}, button))
   }
 
+  // Moments (views/moments.js), with a dot while friends have shared something new.
+  const momentsDot = h('span', { class: 'moments-dot', 'aria-hidden': 'true' })
+  const moments = h('button', { class: 'side-link side-moments', type: 'button' },
+    h('span', { class: 'side-scope-icon' }, icon('photo')), h('span', { class: 'side-scope-label' }, 'Moments'), momentsDot)
+  moments.addEventListener('click', async () => (await import('./moments.js')).openMoments({ origin: moments }))
+  window.addEventListener('moments-new', e => moments.classList.toggle('fresh', Boolean(e.detail)))
   const title = h('h1', { class: 'large-title side-title' }, 'Cuven')
   const scroll = h('div', { class: 'scroll side-scroll' },
     h('header', { class: 'side-head' }, title),
     me,
-    scopes)
+    scopes,
+    h('ul', { class: 'side-scopes side-more', 'aria-label': 'Discover' }, h('li', {}, moments)))
   // Search and New Chat start something, so they stay in reach at the foot
   // of the sidebar when it has the screen to itself. Beside the list they
   // are the list's own. Where the system keeps its column on the right edge

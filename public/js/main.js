@@ -174,6 +174,10 @@ function mountShell() {
   })
   shell.setMe(state.me)
   startPerfProbe()
+  // A chat opened from elsewhere (a profile's Message, views/moments.js).
+  window.addEventListener('open-chat', e => { if (e.detail) shell?.openChat(e.detail) })
+  // Whether friends have shared something since the last look, once the app has settled.
+  setTimeout(() => import('./views/moments.js').then(m => m.checkNewMoments()).catch(() => {}), 2500)
 }
 
 // ---------------------------------------------------------------- realtime events
@@ -258,6 +262,12 @@ function handle(msg) {
       break
     case 'call':
       calls?.onSignal(msg)
+      break
+    case 'moment':
+    case 'moment-changed':
+    case 'moment-deleted':
+      // What friends share (views/moments.js): a dot for something new, and open pages kept current.
+      import('./views/moments.js').then(m => m.onMomentEvent(msg)).catch(() => {})
       break
   }
 }

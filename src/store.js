@@ -4,6 +4,7 @@
 // against node:sqlite.
 
 const now = () => Date.now()
+const parseList = v => { try { const a = JSON.parse(v); return Array.isArray(a) ? a : [] } catch { return [] } }
 export const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 20)
 /** The tapbacks a message can carry; one per person, replaced when they pick another. */
 export const REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏']
@@ -104,6 +105,30 @@ export class Store {
     // that already landed instead of making a copy, even after the hub restarts.
     this.#column('messages', 'local_key', `TEXT NOT NULL DEFAULT ''`)
     s(`CREATE INDEX IF NOT EXISTS idx_msg_local ON messages (room, sender, local_key)`)
+    // Moments: what someone shares with their friends — photos or a video and
+    // a few words — with the likes and comments it gathers.
+    s(`CREATE TABLE IF NOT EXISTS moments (
+      id TEXT PRIMARY KEY,
+      user TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
+      media TEXT NOT NULL DEFAULT '[]', -- JSON [{ url, type: image | video, w, h }]
+      created INTEGER NOT NULL
+    )`)
+    s(`CREATE INDEX IF NOT EXISTS idx_moments_user ON moments (user, created)`)
+    s(`CREATE TABLE IF NOT EXISTS moment_likes (
+      moment TEXT NOT NULL,
+      user TEXT NOT NULL,
+      ts INTEGER NOT NULL,
+      PRIMARY KEY (moment, user)
+    )`)
+    s(`CREATE TABLE IF NOT EXISTS moment_comments (
+      id TEXT PRIMARY KEY,
+      moment TEXT NOT NULL,
+      user TEXT NOT NULL,
+      text TEXT NOT NULL,
+      ts INTEGER NOT NULL
+    )`)
+    s(`CREATE INDEX IF NOT EXISTS idx_moment_comments ON moment_comments (moment, ts)`)
   }
 
   /** Add a column to a table made before it existed (once: then it's there). */
@@ -215,6 +240,76 @@ export class Store {
       ? this.exec(`SELECT c.peer, c.state, c.created FROM contacts c WHERE c.owner=? AND c.state=?`, owner, state)
       : this.exec(`SELECT c.peer, c.state, c.created FROM contacts c WHERE c.owner=?`, owner)
     return rows.map(r => ({ ...this.pub(this.getUser(r.peer)), state: r.state, since: r.created })).filter(r => r.id)
+  }
+
+  // ---------------------------------------------------------------- moments
+  /**
+   * Who sees someone's moments besides them: their accepted contacts and the
+   * people they talk to one to one, less anyone either of them has blocked.
+   */
+  friendsOf(uid) {
+    const out = new Set()
+    for (const r of this.exec(
+      `SELECT DISTINCT m2.user AS u FROM room_members m1
+       JOIN rooms r ON r.id = m1.room AND r.kind = 'dm'
+       JOIN room_members m2 ON m2.room = m1.room AND m2.user <> m1.user
+       WHERE m1.user = ?`, uid)) out.add(r.u)
+    for (const r of this.exec(`SELECT peer FROM contacts WHERE owner=? AND state='accepted'`, uid)) out.add(r.peer)
+    for (const r of this.exec(`SELECT peer FROM contacts WHERE owner=? AND state='blocked'`, uid)) out.delete(r.peer)
+    for (const r of this.exec(`SELECT owner FROM contacts WHERE peer=? AND state='blocked'`, uid)) out.delete(r.owner)
+    return out
+  }
+  canSeeMoments(author, viewer) {
+    return author === viewer || this.friendsOf(author).has(viewer)
+  }
+  addMoment({ user, text = '', media = [] }) {
+    const id = rid()
+    this.exec(`INSERT INTO moments (id, user, text, media, created) VALUES (?,?,?,?,?)`, id, user, text, JSON.stringify(media), now())
+    return this.getMoment(id)
+  }
+  getMoment(id) {
+    const r = this.exec(`SELECT * FROM moments WHERE id=?`, id)[0]
+    return r ? { ...r, media: parseList(r.media) } : null
+  }
+  deleteMoment(id) {
+    this.exec(`DELETE FROM moment_likes WHERE moment=?`, id)
+    this.exec(`DELETE FROM moment_comments WHERE moment=?`, id)
+    this.exec(`DELETE FROM moments WHERE id=?`, id)
+  }
+  /** The moments of these people, newest first, older than `before`. */
+  momentsBy(users, { before = Number.MAX_SAFE_INTEGER, limit = 20 } = {}) {
+    const ids = [...users]
+    if (!ids.length) return []
+    return this.exec(
+      `SELECT * FROM moments WHERE user IN (${ids.map(() => '?').join(',')}) AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
+      ...ids, before, limit
+    ).map(r => ({ ...r, media: parseList(r.media) }))
+  }
+  countMoments(user) {
+    return this.exec(`SELECT COUNT(*) AS n FROM moments WHERE user=?`, user)[0]?.n || 0
+  }
+  likeMoment(moment, user, on) {
+    if (on) this.exec(`INSERT OR IGNORE INTO moment_likes (moment, user, ts) VALUES (?,?,?)`, moment, user, now())
+    else this.exec(`DELETE FROM moment_likes WHERE moment=? AND user=?`, moment, user)
+  }
+  momentLikes(ids) {
+    if (!ids.length) return []
+    return this.exec(`SELECT moment, user, ts FROM moment_likes WHERE moment IN (${ids.map(() => '?').join(',')}) ORDER BY ts`, ...ids)
+  }
+  addMomentComment({ moment, user, text }) {
+    const id = rid()
+    this.exec(`INSERT INTO moment_comments (id, moment, user, text, ts) VALUES (?,?,?,?,?)`, id, moment, user, text, now())
+    return this.exec(`SELECT * FROM moment_comments WHERE id=?`, id)[0]
+  }
+  getMomentComment(id) {
+    return this.exec(`SELECT * FROM moment_comments WHERE id=?`, id)[0] || null
+  }
+  deleteMomentComment(id) {
+    this.exec(`DELETE FROM moment_comments WHERE id=?`, id)
+  }
+  momentComments(ids) {
+    if (!ids.length) return []
+    return this.exec(`SELECT * FROM moment_comments WHERE moment IN (${ids.map(() => '?').join(',')}) ORDER BY ts`, ...ids)
   }
 
   // ---------------------------------------------------------------- rooms
