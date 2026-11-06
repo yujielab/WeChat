@@ -26,9 +26,8 @@
 .composer-mic {
   order: 2;
   flex: none;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 4px;
+  width: 56px;
+  height: 56px;
   color: var(--label);
 }
 .composer-mic .icon { width: 22px; height: 22px; }

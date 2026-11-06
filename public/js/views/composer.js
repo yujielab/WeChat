@@ -78,7 +78,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     if (!hasText && !editing) action.setAttribute('aria-label', addLabel())
   }
   const action = h('button', {
-    class: 'composer-action',
+    class: 'composer-action glass glass-btn',
     type: 'button',
     'aria-label': addLabel(),
     'aria-haspopup': 'menu',

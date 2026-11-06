@@ -36,7 +36,10 @@
 .bar-group.capsule .bar-item { background: transparent; box-shadow: none; }
 .bar-group.capsule .bar-item.active { background: var(--ink); color: var(--on-ink); }
 .bar-item .icon { width: 20px; height: 20px; }
-.bar-item.prominent, .bar-item.active { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+/* Liquid glass everywhere: the prominent (compose) button keeps the glass
+   material like the rest; only a toggled-on button fills with ink to show its
+   state. */
+.bar-item.active { background: var(--ink); color: var(--on-ink); box-shadow: none; }
 .bar-item:disabled { opacity: .4; }
 .bar-item:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
 .bar-item:not(.prominent):not(.active):active { background: var(--field); }
