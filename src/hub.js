@@ -884,23 +884,26 @@ export class Hub {
     const before = Number(url.searchParams.get('before')) || undefined
     // A page of 20 at most (0: just the profile).
     const limit = url.searchParams.has('limit') ? Math.max(0, Math.min(20, Number(url.searchParams.get('limit')) || 0)) : 20
-    // GET /api/moments — the feed: yours and your friends', newest first.
+    // GET /api/moments — the home feed: yours, your friends', and everyone's moments for everyone, newest first.
     if (!seg[2] && method === 'GET') {
-      const users = new Set([user.id, ...store.friendsOf(user.id)])
-      return json({ ok: true, moments: limit ? this.momentsView(store.momentsBy(users, { before, limit }), user.id) : [] })
+      return json({ ok: true, moments: limit ? this.momentsView(store.feedFor(user.id, { before, limit }), user.id) : [] })
     }
-    // GET /api/moments/user/:id — someone's profile and their moments, where you may see them.
+    // GET /api/moments/user/:id — someone's profile and the moments you may see: all of a friend's (and your
+    // own), only the ones for everyone of anyone else, none where either of you blocked the other.
     if (seg[2] === 'user' && seg[3] && method === 'GET') {
       const author = store.getUser(seg[3])
       if (!author) return json({ ok: false, error: 'No such user' }, 404)
-      const visible = store.canSeeMoments(author.id, user.id)
+      const friend = store.canSeeMoments(author.id, user.id)
+      const blocked = author.id !== user.id && store.blockedWith(user.id).has(author.id)
+      const publicOnly = !friend
       return json({
         ok: true,
         user: { ...store.pub(author), joined: author.created },
-        visible,
-        count: visible ? store.countMoments(author.id) : 0,
+        friend: friend && author.id !== user.id,
+        visible: friend,
+        count: blocked ? 0 : store.countMoments(author.id, publicOnly),
         friends: author.id === user.id ? store.friendsOf(author.id).size : undefined,
-        moments: visible && limit ? this.momentsView(store.momentsBy([author.id], { before, limit }), user.id) : []
+        moments: blocked || !limit ? [] : this.momentsView(store.momentsOf(author.id, { publicOnly, before, limit }), user.id)
       })
     }
     // POST /api/moments — share one.
@@ -909,13 +912,13 @@ export class Hub {
       const media = momentMedia(body.media, user.id)
       if (media === undefined) return json({ ok: false, error: 'Up to 9 photos, or 1 video, of your own' }, 400)
       if (!text && !media.length) return json({ ok: false, error: 'Write something or add a photo' }, 400)
-      const moment = store.addMoment({ user: user.id, text, media })
+      const moment = store.addMoment({ user: user.id, text, media, audience: body.audience === 'friends' ? 'friends' : 'everyone' })
       // Your friends' feeds have something new; your other devices too.
       for (const uid of [user.id, ...store.friendsOf(user.id)]) this.sendToUser(uid, { t: 'moment', id: moment.id, user: user.id })
       return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
     }
     const moment = seg[2] && seg[2] !== 'user' ? store.getMoment(seg[2]) : null
-    if (seg[2] && seg[2] !== 'user' && (!moment || !store.canSeeMoments(moment.user, user.id))) return json({ ok: false, error: 'This moment is gone' }, 404)
+    if (seg[2] && seg[2] !== 'user' && !store.canSeeMoment(moment, user.id)) return json({ ok: false, error: 'This moment is gone' }, 404)
     if (!moment) return null
     const changed = () => {
       for (const uid of [moment.user, ...store.friendsOf(moment.user)]) this.sendToUser(uid, { t: 'moment-changed', id: moment.id })
@@ -958,9 +961,10 @@ export class Hub {
   }
 
   /**
-   * Moments as `viewer` sees them. As in WeChat, the likes and comments shown
-   * are only those of the viewer's own friends (and the author's and their
-   * own): a friend of the author never sees what strangers to them said.
+   * Moments as `viewer` sees them. On a moment for friends, as in WeChat,
+   * the likes and comments shown are only those of the viewer's own friends
+   * (and the author's and their own): a friend of the author never sees what
+   * strangers to them said. A moment for everyone shows them all.
    */
   momentsView(rows, viewer) {
     const store = this.store
@@ -976,17 +980,19 @@ export class Hub {
       }
       return people.get(id)
     }
-    const seen = (uid, author) => uid === viewer || uid === author || friends.has(uid)
+    const blocked = store.blockedWith(viewer)
+    const seen = (uid, m) => !blocked.has(uid) && (m.audience === 'everyone' || uid === viewer || uid === m.user || friends.has(uid))
     return rows.map(m => ({
       id: m.id,
-      user: store.pub(store.getUser(m.user)) || person(m.user),
+      user: { ...(store.pub(store.getUser(m.user)) || person(m.user)), friend: friends.has(m.user) },
       text: m.text,
       media: m.media,
       created: m.created,
+      audience: m.audience === 'friends' ? 'friends' : 'everyone',
       mine: m.user === viewer,
       liked: likes.some(l => l.moment === m.id && l.user === viewer),
-      likes: likes.filter(l => l.moment === m.id && seen(l.user, m.user)).map(l => person(l.user)),
-      comments: comments.filter(c => c.moment === m.id && seen(c.user, m.user)).map(c => ({ id: c.id, user: person(c.user), text: c.text, created: c.ts, mine: c.user === viewer }))
+      likes: likes.filter(l => l.moment === m.id && seen(l.user, m)).map(l => person(l.user)),
+      comments: comments.filter(c => c.moment === m.id && seen(c.user, m)).map(c => ({ id: c.id, user: person(c.user), text: c.text, created: c.ts, mine: c.user === viewer }))
     }))
   }
 

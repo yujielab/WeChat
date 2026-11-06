@@ -115,6 +115,10 @@ export class Store {
       created INTEGER NOT NULL
     )`)
     s(`CREATE INDEX IF NOT EXISTS idx_moments_user ON moments (user, created)`)
+    // Who a moment is for: everyone (anyone signed in can find it in their
+    // feed and on the author's page) or friends only. Those shared before
+    // the choice existed were for friends.
+    this.#column('moments', 'audience', `TEXT NOT NULL DEFAULT 'friends'`)
     s(`CREATE TABLE IF NOT EXISTS moment_likes (
       moment TEXT NOT NULL,
       user TEXT NOT NULL,
@@ -246,6 +250,9 @@ export class Store {
   /**
    * Who sees someone's moments besides them: their accepted contacts and the
    * people they talk to one to one, less anyone either of them has blocked.
+   * A one-to-one chat counts once both of them have written in it: anyone
+   * may start one, and opening a chat with a stranger mustn't show them
+   * what was shared only for friends.
    */
   friendsOf(uid) {
     const out = new Set()
@@ -253,19 +260,63 @@ export class Store {
       `SELECT DISTINCT m2.user AS u FROM room_members m1
        JOIN rooms r ON r.id = m1.room AND r.kind = 'dm'
        JOIN room_members m2 ON m2.room = m1.room AND m2.user <> m1.user
-       WHERE m1.user = ?`, uid)) out.add(r.u)
+       WHERE m1.user = ?
+         AND EXISTS (SELECT 1 FROM messages x WHERE x.room = m1.room AND x.sender = m1.user AND x.type <> 'system')
+         AND EXISTS (SELECT 1 FROM messages y WHERE y.room = m1.room AND y.sender = m2.user AND y.type <> 'system')`, uid)) out.add(r.u)
     for (const r of this.exec(`SELECT peer FROM contacts WHERE owner=? AND state='accepted'`, uid)) out.add(r.peer)
     for (const r of this.exec(`SELECT peer FROM contacts WHERE owner=? AND state='blocked'`, uid)) out.delete(r.peer)
     for (const r of this.exec(`SELECT owner FROM contacts WHERE peer=? AND state='blocked'`, uid)) out.delete(r.owner)
     return out
   }
+  /** Whether `viewer` sees everything `author` shares, friends-only included. */
   canSeeMoments(author, viewer) {
     return author === viewer || this.friendsOf(author).has(viewer)
   }
-  addMoment({ user, text = '', media = [] }) {
+  /** Everyone either of them has blocked, or who blocked them. */
+  blockedWith(uid) {
+    const out = new Set()
+    for (const r of this.exec(`SELECT peer FROM contacts WHERE owner=? AND state='blocked'`, uid)) out.add(r.peer)
+    for (const r of this.exec(`SELECT owner FROM contacts WHERE peer=? AND state='blocked'`, uid)) out.add(r.owner)
+    return out
+  }
+  /** Whether `viewer` may see this one moment: theirs, a friend's, or one for everyone (unless either blocked the other). */
+  canSeeMoment(m, viewer) {
+    if (!m) return false
+    if (m.user === viewer) return true
+    if (this.blockedWith(viewer).has(m.user)) return false
+    return m.audience === 'everyone' || this.friendsOf(m.user).has(viewer)
+  }
+  /** Whether a picture of `author`'s is in one of their moments for everyone. */
+  isPublicMomentMedia(author, url) {
+    // instr, not LIKE: the Durable Object's SQLite refuses LIKE patterns this long.
+    return this.exec(`SELECT 1 AS ok FROM moments WHERE user=? AND audience='everyone' AND instr(media, ?) > 0 LIMIT 1`, author, JSON.stringify(url)).length > 0
+  }
+  addMoment({ user, text = '', media = [], audience = 'everyone' }) {
     const id = rid()
-    this.exec(`INSERT INTO moments (id, user, text, media, created) VALUES (?,?,?,?,?)`, id, user, text, JSON.stringify(media), now())
+    this.exec(`INSERT INTO moments (id, user, text, media, created, audience) VALUES (?,?,?,?,?,?)`, id, user, text, JSON.stringify(media), now(), audience === 'friends' ? 'friends' : 'everyone')
     return this.getMoment(id)
+  }
+  /**
+   * The home feed for `viewer`: their own and their friends' moments, and
+   * everyone's moments for everyone, newest first — never anyone either
+   * of them has blocked.
+   */
+  feedFor(viewer, { before = Number.MAX_SAFE_INTEGER, limit = 20 } = {}) {
+    const mine = [viewer, ...this.friendsOf(viewer)]
+    const blocked = [...this.blockedWith(viewer)]
+    return this.exec(
+      `SELECT * FROM moments WHERE (user IN (${mine.map(() => '?').join(',')}) OR audience = 'everyone')
+       ${blocked.length ? `AND user NOT IN (${blocked.map(() => '?').join(',')})` : ''}
+       AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
+      ...mine, ...blocked, before, limit
+    ).map(r => ({ ...r, media: parseList(r.media) }))
+  }
+  /** One person's moments, newest first; only those for everyone when `publicOnly`. */
+  momentsOf(author, { publicOnly = false, before = Number.MAX_SAFE_INTEGER, limit = 20 } = {}) {
+    return this.exec(
+      `SELECT * FROM moments WHERE user=? ${publicOnly ? `AND audience='everyone'` : ''} AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
+      author, before, limit
+    ).map(r => ({ ...r, media: parseList(r.media) }))
   }
   getMoment(id) {
     const r = this.exec(`SELECT * FROM moments WHERE id=?`, id)[0]
@@ -285,8 +336,8 @@ export class Store {
       ...ids, before, limit
     ).map(r => ({ ...r, media: parseList(r.media) }))
   }
-  countMoments(user) {
-    return this.exec(`SELECT COUNT(*) AS n FROM moments WHERE user=?`, user)[0]?.n || 0
+  countMoments(user, publicOnly = false) {
+    return this.exec(`SELECT COUNT(*) AS n FROM moments WHERE user=? ${publicOnly ? `AND audience='everyone'` : ''}`, user)[0]?.n || 0
   }
   likeMoment(moment, user, on) {
     if (on) this.exec(`INSERT OR IGNORE INTO moment_likes (moment, user, ts) VALUES (?,?,?)`, moment, user, now())
