@@ -202,7 +202,9 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   }
 
   const onKey = e => {
-    if (topmost() !== ctl || e.defaultPrevented) return
+    // A photo opened from the sheet (the Moments page's pictures) is above
+    // it and takes the keys: Escape closes the photo, not the sheet under it.
+    if (topmost() !== ctl || e.defaultPrevented || root.querySelector(':scope > .viewer')) return
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopImmediatePropagation()

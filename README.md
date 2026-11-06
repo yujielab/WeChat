@@ -320,6 +320,26 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
 本地开发：`npm run dev` / `npm run dev:e2e` 带 `--local`，不连 Workers AI（AI 关闭，其余照常）；想在本地试 AI 用 `npm run dev:ai`
 （需要先 `npx wrangler login`）。
 
+### 动态（Moments，朋友圈）
+
+和朋友分享最多 9 张照片或 1 段视频，配上文字（`js/views/moments.js`、`css/moments.css`；服务器在 `src/hub.js` / `src/store.js`）。
+
+- **谁能看到**：自己和朋友——一对一聊过天的人和通讯录里已接受的联系人，双方任一方拉黑的除外。不是朋友打开你的主页只看到资料，
+  看不到动态；照片和视频（上传类型 `moment`）也只有朋友能加载。点赞和评论像微信一样：每个人只看到自己朋友的赞和评论。
+- **入口**：消息列表标题旁的照片按钮、边栏的“Moments”（朋友有新动态时带红点，看过即消失）、聊天详情里的“Moments”（看对方的主页）。
+- **页面**：按个人主页排版——封面铺到顶、左上一个玻璃圆钮、头像压在封面下沿、粗体名字和 @账号、加入时间、动态数和朋友数、
+  “Share profile / Edit profile”（看别人时是“Message”）两个胶囊按钮，下面是图标标签页（选中的那个带文字和下划线）：
+  自己的主页有朋友圈（自己和朋友的动态）、我的动态、图片墙；别人的主页有动态和图片墙。封面滚走后顶部出现带名字的毛玻璃栏，标签页吸在它下面。
+- **一条动态**：头像、名字、@账号 · 时间、文字、照片（1 张按原比例，2 / 4 张两列，3 / 5–9 张三列；视频带播放钮），
+  下面是评论和点赞（点赞即时变红并弹一下），有赞或评论时显示在灰底框里；自己的动态可以删（先确认，照片一起删），自己的评论或自己动态下的评论可以删。
+- **图片墙**：两列、各卡片按图片自己的比例排成瀑布流，卡片是第一张图、两行文字、头像名字和赞数；多图的标出张数，点开看大图。
+- **发动态**：右下角的圆按钮打开编辑器：文字和从相册选的照片 / 视频（照片先缩到 2048px），预览可以删掉单张；按发送时逐张上传再发布，
+  发出后排在最前面，朋友那边实时收到（打开着的页面顶部出现“New moments”）。
+- 视频按区间读取（`Range` → 206），Safari 才能播放。
+- 路由：`GET /api/moments`（朋友圈，`before` 翻页）、`GET /api/moments/user/:id`（主页与其动态）、`POST /api/moments`、
+  `GET|DELETE /api/moments/:id`、`POST /api/moments/:id/like`、`POST /api/moments/:id/comments`、`DELETE /api/moments/:id/comments/:cid`；
+  WebSocket 事件 `moment` / `moment-changed` / `moment-deleted`。
+
 ### 头像与封面
 
 编辑资料里点头像或封面，打开同一个编辑器（`js/views/avatar-editor.js`，照系统“设置 › 你的名字 › 照片”的样子）：
@@ -443,6 +463,11 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   采用前绝不出现在实时预览里、关闭或无 AI 时不请求、关键词加亮与开关、对方实时预览不加亮且关键词到达时不被清掉。
 - 记忆回归：`node tools/e2e/memory.cjs` 验证设置里有进入记忆的入口、记忆里记着的词与每个聊天的早前内容都看得见、
   清除前先确认、清除后真的没有了。
+- 动态回归：`node tools/e2e/moments.cjs` 用两个真实账号验证：朋友发了新动态时入口带红点、看过即消失；主页排版（封面铺到顶、头像压在封面下沿、
+  名字 / 账号 / 加入时间 / 计数、两个胶囊按钮、选中的标签带文字）；点赞和评论即时显示且保存在服务器；用相册里的两张照片发一条动态，排在最前、朋友能看到；
+  我的动态；图片墙和张数、点开看大图（Esc 只关大图）；删除先确认；页面打开时朋友发动态出现“New moments”；从聊天详情打开朋友的主页、“Message”回到聊天；
+  深色；展开时在屏幕正中；封面滚走后顶栏出现。`test/moments-runtime.test.js` 在真实 Worker 上验证谁能看到、上传类型、9 张 / 1 段视频的限制、
+  每个人看到的赞和评论、媒体权限与区间读取、删除。
 - 头像编辑回归：`node tools/e2e/avatar-editor.cjs` 用真实账号验证：展开放平时设置在整块屏幕正中、半折时在折痕一侧；
   编辑器盖住下面的表单、分段在中间、取照片的颜色；“−”回到首字；选新照片立即进入调整，拖动不会露出空隙、
   缩放 2 倍画面宽 2 倍，“完成”上传的是 512×512 的那一块并立即显示在资料上；“最近使用”里是换下来的那张，点它换回；
@@ -517,7 +542,7 @@ public/         index.html · manifest · sw.js · css/ · icons/
     ui/         视口、折叠与姿态（posture）、分栏比例（columns）、防缩放防变形（steady）、栏带（strip）、工具栏、符号与符号动效、弹簧、按压、外观、格式、触感、头像取景（framing）
     views/      auth · sidebar · chatList · thread · artifact（详情栏）· bubbles · composer
                 overlay · sheets · shell · viewer · call（通话）· draw（画板）· stickers（表情）· predict（输入预测）· avatar
-                backdrops（背景选择）· avatar-editor（头像与封面）· insights（智能通知）
+                backdrops（背景选择）· avatar-editor（头像与封面）· moments（动态）· insights（智能通知）
     vendor/     lottie-web 5.13.0 light（MIT，原样）
 tools/          gen-vapid.mjs · gen-springs.mjs · gen-symbols.py · e2e/（walkthrough · design-details · duo-layout · safe-layout · strip · motion · continuity · stickers …）
 test/           store · auth · webpush · call · stickers（表情管线）· prefs（背景）· *-runtime（Miniflare 上跑整个 Worker）

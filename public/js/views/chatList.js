@@ -47,7 +47,15 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   insights.addEventListener('click', () => onInsights?.(insights))
   const showInsights = () => { insights.hidden = !insightsOn() }
   window.addEventListener('insights-pref', showInsights)
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, insights, me))
+  // Moments (views/moments.js): what friends share, with a dot while there's something new.
+  const moments = h('button', { class: 'list-moments', type: 'button', 'aria-label': 'Moments' }, icon('photo'), h('span', { class: 'moments-dot', 'aria-hidden': 'true' }))
+  moments.addEventListener('click', async () => (await import('./moments.js')).openMoments({ origin: moments }))
+  const paintMomentsDot = e => {
+    moments.classList.toggle('fresh', Boolean(e?.detail))
+    moments.setAttribute('aria-label', e?.detail ? 'Moments, new from friends' : 'Moments')
+  }
+  window.addEventListener('moments-new', paintMomentsDot)
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, insights, me))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': 'Filter chats' }, filterThumb)
   const filterButtons = new Map()
