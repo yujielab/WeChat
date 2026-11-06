@@ -24,9 +24,10 @@
 .draw-title { font-size: var(--t-headline); font-weight: var(--w-semibold); }
 /* The bar at the foot, 56pt tall like every other. */
 .draw-dock { display: flex; align-items: center; gap: 8px; }
-.draw-dock .draw-close { width: 56px; height: 56px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.draw-dock .draw-close { width: 56px; height: 56px; background: transparent; box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .draw-dock .draw-close::before, .draw-dock .draw-close::after { display: none; }
 .draw-dock .draw-close .icon { width: 22px; height: 22px; }
+@media (prefers-contrast: more) { .draw-dock .draw-close { background: var(--surface); } }
 .draw-send {
   margin-left: auto;
   height: 56px;

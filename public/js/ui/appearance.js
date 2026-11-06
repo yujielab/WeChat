@@ -12,6 +12,7 @@ export function getPrefs() {
     glass: storage('ui:glass') || 'auto', // auto | solid
     glassAuto: storage('ui:glass-auto') === 'solid',
     glassTint: storage('ui:glass-tint') || 'tinted', // tinted | clear (Liquid Glass)
+    glassEngine: storage('ui:glass-engine') || 'webgl', // webgl | css (real-time refraction vs CSS glass)
     motion: storage('ui:motion') || 'system', // system | reduce
     glow: storage('ui:glow') || 'ocean', // off | ocean | dawn | aurora
     haptics: storage('ui:haptics') !== 'off'
@@ -21,6 +22,12 @@ export function getPrefs() {
 function applyAttr(name, value) {
   if (value) root.setAttribute(name, value)
   else root.removeAttribute(name)
+}
+
+// A glass-related preference changed: surfaces that render the WebGL Liquid
+// Glass (the composer) listen for this to rebuild or fall back to CSS.
+function emitGlass() {
+  try { window.dispatchEvent(new CustomEvent('cuven:glass')) } catch {}
 }
 
 export function setTheme(theme) {
@@ -36,6 +43,15 @@ export function setGlass(mode) {
   storage('ui:glass', mode === 'auto' ? null : mode)
   if (mode === 'auto') storage('ui:glass-auto', null)
   applyAttr('data-glass', mode === 'solid' ? 'solid' : null)
+  emitGlass()
+}
+
+// Real-time Liquid Glass: "webgl" (default, where supported) refracts the
+// backdrop through the shader engine; "css" keeps the classic CSS material.
+export function setGlassEngine(mode) {
+  storage('ui:glass-engine', mode === 'webgl' ? null : 'css')
+  applyAttr('data-glass-engine', mode === 'css' ? 'css' : null)
+  emitGlass()
 }
 
 // Liquid Glass tint: "clear" is more see-through, "tinted" (default) keeps the
@@ -44,6 +60,7 @@ export function setGlass(mode) {
 export function setGlassTint(mode) {
   storage('ui:glass-tint', mode === 'tinted' ? null : mode)
   applyAttr('data-glass-tint', mode === 'clear' ? 'clear' : null)
+  emitGlass()
 }
 
 export function setMotion(mode) {

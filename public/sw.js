@@ -103,6 +103,10 @@ const SHELL_FILES = [
   '/js/views/people.js',
   '/js/views/memories.js',
   '/js/views/backdrops.js',
+  '/js/ui/liquid-glass/surface.js',
+  '/js/ui/liquid-glass/index.js',
+  '/js/ui/liquid-glass/renderer.js',
+  '/js/ui/liquid-glass/shaders.js',
   '/icons/icon.svg'
 ]
 
