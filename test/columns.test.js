@@ -32,6 +32,27 @@ test('open flat, the conversation keeps its width whichever column is beside it'
   assert.deepEqual(boxesAt(0, { n: N, width: W, count: 2, geo: flat }).slice(0, 2), [{ x: 0, w: 342 }, { x: 342, w: 609 }])
 })
 
+test('open flat with the system\'s column inside the page, the details carry it and the conversation keeps its room', () => {
+  // The inner display: 951 wide, the status bar's column (84) at the right edge.
+  const edge = s => openGeometry({ pose: 'open', width: W, fold: { axis: 'none' }, start: s, end: 84 })
+  assert.deepEqual(edge(1), { lead: 342, gap: 0 }, 'the list leads as before')
+  assert.deepEqual(edge(2), { lead: 525, gap: 0 })
+  const withList = boxesAt(1, { n: N, width: W, count: 2, geo: edge })
+  const withDetails = boxesAt(2, { n: N, width: W, count: 2, geo: edge })
+  // Beside the list the conversation trails and carries the column (609 = 525 + 84); leading, it is 525.
+  assert.deepEqual(withList[2], { x: 342, w: 609 })
+  assert.deepEqual(withDetails[2], { x: 0, w: 525 })
+  // The details: as wide as the list, plus the column they carry.
+  assert.deepEqual(withDetails[3], { x: 525, w: 426 })
+  // Sliding between them, nothing overlaps or parts.
+  for (const p of [1, 1.3, 1.5, 1.9, 2]) {
+    const b = boxesAtPosition(p, { n: N, width: W, count: 2, geo: edge })
+    for (let i = 0; i + 1 < N; i++) near(b[i].x + b[i].w, b[i + 1].x, `columns ${i}|${i + 1} meet at ${p}`)
+  }
+  // A screen too narrow to spare it keeps the list's width for both.
+  assert.deepEqual(openGeometry({ pose: 'open', width: 600, fold: { axis: 'none' }, start: 2, end: 84 }), { lead: 300, gap: 0 })
+})
+
 test('half open, the two columns meet the hinge exactly, whatever is in them', () => {
   for (const s of [0, 1, 2]) assert.deepEqual(half(s), { lead: 462, gap: 28 })
   const b = boxesAt(1, { n: N, width: W, count: 2, geo: half })

@@ -78,8 +78,9 @@
 .page-badge[hidden] { display: none; }
 .page-badge.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 7px; right: 7px; }
 
-/* The columns' own rail keeps above it. */
-:root[data-pages] :is(.pane-list, .pane-sidebar) > .duo-rail { bottom: calc(max(var(--safe-bottom), 14px) + var(--pages-h) + 12px); }
+/* The columns' own rail keeps above it: the list's and the sidebar's, and on
+   the open screen a conversation's or its details' beside the list. */
+:root[data-pages]:not([data-kb="1"]) :is(.thread, .pane-list, .pane-sidebar, .art-body) > .duo-rail { bottom: calc(max(var(--safe-bottom), 14px) + var(--pages-h) + 12px); }
 /* Over a page, the app's rails step aside entirely: the edge column is the pages'. */
 :root[data-page-over] .app .duo-rail { opacity: 0; visibility: hidden; transition: opacity 160ms ease-out, visibility 0s 160ms; }
 /* A page's sheet keeps clear of the capsule where it would reach under it. */

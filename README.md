@@ -343,8 +343,9 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
 - **页面切换栏**（`js/ui/pages.js`、`css/pages.css`）：iPhone Duo 右边系统栏的底部一个胶囊：Chats、Moments、Memories、You、Requests、Menu。
   当前页由一个浅色圆底标出，切换时圆底滑过去。Chats 和 Menu 是列表和边栏两栏；Moments、Memories、You（自己的主页）、Requests 是整页，
   从一页换到另一页时新页在原地淡入、旧页淡出（同一层遮罩，不是一页落下一页升起），任何时候只有一页。胶囊在页面之上一直够得到；
-  在页面上再打开别的东西（主页、编辑器）时它让开；进入对话时对话有自己的竖排按钮，它也让开。列表自己的竖排按钮（Back、搜索、新建）
-  留在胶囊上方。Requests 有数字，Moments 有新动态时有红点。普通手机（没有系统栏）不显示。
+  在页面上再打开别的东西（主页、编辑器）时它让开；折叠时进入对话，对话有自己的竖排按钮，它也让开。展开（两栏）时它一直在，
+  旁边是对话或详情也一样（画板除外，它的工具在那一列底部）。在详情旁点 Chats 会把列表带回来。各列自己的竖排按钮都留在胶囊上方。
+  展开时右缘的系统栏算在右边那一栏里：详情栏 = 列表宽度 + 系统栏宽度（342 + 84），所以内容不会被挤压。Requests 有数字，Moments 有新动态时有红点。普通手机（没有系统栏）不显示。
 - **弹窗**（`openPrompt` / `confirmAction`，`css/overlays.css`）：所有“确定要……吗”改成卡片：背景整体模糊，粗体问题在卡片上方，
   卡片里一行说明、整宽的墨色主按钮（删除类为红色）和下面的 Cancel；从发起的位置轻微长出来。
 - **输入框弥散光**（设置 › Display › Composer glow：Off / Ocean / Dawn / Aurora，默认 Ocean）：对话底部输入框后面一团柔和的光，

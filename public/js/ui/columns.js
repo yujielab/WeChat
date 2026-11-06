@@ -8,8 +8,13 @@
 //           proportions of what they hold. The conversation, the thing being
 //           read, is wide; the column that leads to it (sidebar, list) or
 //           tells more about it (details) is narrow. The conversation keeps
-//           the same width whichever column is beside it, so moving between
-//           the list and the details slides it over without reflowing it.
+//           the same room for what it shows whichever column is beside it, so
+//           moving between the list and the details slides it over without
+//           reflowing it. Where the system's own column stands inside the
+//           page at the right edge (end: its width), the trailing column
+//           carries it: the details, trailing, are as wide as the list plus
+//           that column, and the conversation, trailing beside the list, is
+//           that much wider than when it leads.
 
 export const NARROW = { share: 0.36, min: 300, max: 380 }
 const THREAD = 2
@@ -23,9 +28,10 @@ export function narrowWidth(width) {
 /**
  * The open window starting at column `start`: how wide its leading column is
  * and the gap before the trailing one. fold: { axis, start, end } in the
- * shell's own pixels (axis 'none' when there is no hinge).
+ * shell's own pixels (axis 'none' when there is no hinge). end: the width of
+ * the system's column inside the page at the right edge (0 without one).
  */
-export function openGeometry({ pose, width, fold, start }) {
+export function openGeometry({ pose, width, fold, start, end = 0 }) {
   if (!(width > 0)) return { lead: 0, gap: 0 }
   if (pose === 'half') {
     // On the hinge: the screen's segments, or its middle when the device
@@ -34,7 +40,8 @@ export function openGeometry({ pose, width, fold, start }) {
     return { lead: width / 2, gap: 0 }
   }
   const narrow = narrowWidth(width)
-  return { lead: start < THREAD ? narrow : width - narrow, gap: 0 }
+  const edge = Math.max(0, Math.min(end || 0, width - 2 * narrow))
+  return { lead: start < THREAD ? narrow : width - narrow - edge, gap: 0 }
 }
 
 /** Between two geometries: t = 0 is a, 1 is b (a spring may run a little past either). */

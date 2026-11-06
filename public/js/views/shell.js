@@ -77,7 +77,8 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
         // A column out of view keeps the arrangement it was last seen in.
         if (pane.dataset.role !== 'hidden') views[panes.indexOf(pane)].setLayout(pane.dataset.role)
       }
-      // The pages' rail (ui/pages.js) belongs to whichever column has the edge: the list's or the sidebar's.
+      // The pages' rail (ui/pages.js) belongs to whichever column has the edge: the list's or the sidebar's —
+      // and on the open screen to the edge whatever is beside it.
       pages?.setColumn(edgeColumn())
     },
     onSwipeBack: ({ from, velocity }) => (from === ARTIFACT ? leaveArtifact({ velocity, swiped: true }) : from === THREAD ? leaveThread({ velocity, swiped: true }) : back(from, { velocity })),
@@ -85,8 +86,16 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
   })
 
   // ------------------------------------------------------------ pages
-  // The column with the system's edge column beside it: alone, or the trailing one of two.
+  // The column with the system's edge column beside it: alone, or the trailing one of two. Folded, a
+  // conversation or its details have the edge to themselves (null). Open, two columns share the screen and
+  // the pages stay at the foot of the edge whatever trails — Chats while the list or a conversation is up,
+  // Menu beside the sidebar — except for the drawing board, whose tools stand there.
   const edgeColumn = () => {
+    const shown = i => panes[i].dataset.role !== 'hidden'
+    if (panes.some(p => p.dataset.role === 'leading')) {
+      if (shown(ARTIFACT) && artifact.current?.kind === 'draw') return null
+      return shown(LIST) ? 'chats' : shown(SIDEBAR) ? 'menu' : 'chats'
+    }
     const i = panes.findIndex(p => p.dataset.role === 'single' || p.dataset.role === 'trailing')
     return i === SIDEBAR ? 'menu' : i === LIST ? 'chats' : null
   }
@@ -94,9 +103,13 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
     goColumn: id => {
       if (id === 'menu') { if (strip.focus !== SIDEBAR) back(Math.min(strip.focus, LIST)) }
       else if (strip.focus === SIDEBAR) forward(LIST)
+      // Open beside a conversation's details: Chats brings the list back beside it.
+      else if (strip.shows(ARTIFACT)) leaveArtifact()
     }
   })
   pages.setColumn(edgeColumn())
+  // What the details column holds changes without a column changing role (the details ↔ the drawing board).
+  function refreshPages() { pages?.setColumn(edgeColumn()) }
 
   // ------------------------------------------------------------ navigation
   // History mirrors the strip: entries pushed going forward to a
@@ -302,7 +315,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
     }
     // Forward again (or the same column for another conversation).
     if (s.chat && chatInfo(s.chat) && s.chat !== thread.current) openChat(s.chat, { focus: false })
-    if (col === ARTIFACT && s.art?.chat === thread.current) artifact.show(s.art.kind, s.art.chat)
+    if (col === ARTIFACT && s.art?.chat === thread.current) { artifact.show(s.art.kind, s.art.chat); refreshPages() }
     if (col > strip.focus) {
       pushed.push(col)
       go(col, { instant })
@@ -322,7 +335,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
    */
   function settled({ navigated = true } = {}) {
     strip.heal()
-    if (strip.focus < ARTIFACT && !strip.shows(ARTIFACT)) artifact.clear()
+    if (strip.focus < ARTIFACT && !strip.shows(ARTIFACT)) { artifact.clear(); refreshPages() }
     if (navigated && strip.count === 1 && strip.focus < THREAD && thread.current) {
       thread.close()
       state.open = null
@@ -374,11 +387,13 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
         if (!ok) return
         closeAllOverlays()
         artifact.show(kind, chat)
+        refreshPages()
         return forward(ARTIFACT).then(r => { focusBoard(kind); return r })
       })
     }
     closeAllOverlays()
     artifact.show(kind, chat)
+    refreshPages()
     return forward(ARTIFACT).then(r => { focusBoard(kind); return r })
   }
   // The board takes focus once it's on screen, unfolded too, where the + that
