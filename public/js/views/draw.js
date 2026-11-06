@@ -8,17 +8,17 @@ import { symbolEffect } from '../ui/symbols.js'
 import { haptic } from '../ui/haptics.js'
 
 const COLORS = [
-  { c: '#18181b', name: '黑色' }, { c: '#ff3b30', name: '红色' }, { c: '#ff9500', name: '橙色' },
-  { c: '#ffcc00', name: '黄色' }, { c: '#34c759', name: '绿色' }, { c: '#007aff', name: '蓝色' },
-  { c: '#5856d6', name: '紫色' }, { c: '#ff2d92', name: '粉色' }, { c: '#ffffff', name: '白色' }
+  { c: '#18181b', name: 'Black' }, { c: '#ff3b30', name: 'Red' }, { c: '#ff9500', name: 'Orange' },
+  { c: '#ffcc00', name: 'Yellow' }, { c: '#34c759', name: 'Green' }, { c: '#007aff', name: 'Blue' },
+  { c: '#5856d6', name: 'Purple' }, { c: '#ff2d92', name: 'Pink' }, { c: '#ffffff', name: 'White' }
 ]
 const SIZES = [3, 6, 12, 22]
-const SIZE_NAMES = ['细', '中', '粗', '特粗']
+const SIZE_NAMES = ['Thin', 'Medium', 'Thick', 'Extra thick']
 
 /** Build the board into `host`; onClose() when Close or Send is chosen. Returns { el, destroy }. */
 export function createDrawing(host, { onSend, onClose }) {
   // Focusable (not in the tab order) so a kept drawing can have the focus back.
-  const canvas = h('canvas', { class: 'draw-canvas', tabindex: '-1', role: 'img', 'aria-label': '画布' })
+  const canvas = h('canvas', { class: 'draw-canvas', tabindex: '-1', role: 'img', 'aria-label': 'Canvas' })
   const stage = h('div', { class: 'draw-stage' }, canvas)
 
   const swatches = COLORS.map(({ c, name }) => {
@@ -32,19 +32,19 @@ export function createDrawing(host, { onSend, onClose }) {
     return b
   })
 
-  const undoBtn = toolBtn('undo', '撤销', () => undo())
-  const clearBtn = toolBtn('trash', '清空', () => clearAll())
-  const closeBtn = h('button', { class: 'glass glass-btn draw-close', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
-  const sendBtn = h('button', { class: 'draw-send solid-press', type: 'button', title: '发送', 'aria-label': '发送', disabled: true }, icon('arrow-up'), h('span', { class: 'draw-send-label', 'aria-hidden': 'true' }, '发送'))
+  const undoBtn = toolBtn('undo', 'Undo', () => undo())
+  const clearBtn = toolBtn('trash', 'Clear', () => clearAll())
+  const closeBtn = h('button', { class: 'glass glass-btn draw-close', type: 'button', 'aria-label': 'Close' }, icon('xmark'))
+  const sendBtn = h('button', { class: 'draw-send solid-press', type: 'button', title: 'Send', 'aria-label': 'Send', disabled: true }, icon('arrow-up'), h('span', { class: 'draw-send-label', 'aria-hidden': 'true' }, 'Send'))
 
-  const palette = h('div', { class: 'draw-palette glass glass-thick', role: 'group', 'aria-label': '画笔颜色' }, ...swatches)
-  const sizes = h('div', { class: 'draw-sizes glass glass-thick', role: 'group', 'aria-label': '画笔粗细' }, ...sizeBtns)
+  const palette = h('div', { class: 'draw-palette glass glass-thick', role: 'group', 'aria-label': 'Brush color' }, ...swatches)
+  const sizes = h('div', { class: 'draw-sizes glass glass-thick', role: 'group', 'aria-label': 'Brush size' }, ...sizeBtns)
   // Like every column, the board ends in one bar: Close leads, Undo and
   // Clear share a capsule, Send ends it.
   const tools = h('div', { class: 'draw-tools' }, undoBtn, clearBtn)
   const dock = h('div', { class: 'draw-dock' }, closeBtn, tools, sendBtn)
-  const head = h('div', { class: 'draw-head' }, h('div', { class: 'draw-title' }, '画板'))
-  const root = h('div', { class: 'draw on', role: 'region', 'aria-label': '画板' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, dock))
+  const head = h('div', { class: 'draw-head' }, h('div', { class: 'draw-title' }, 'Drawing board'))
+  const root = h('div', { class: 'draw on', role: 'region', 'aria-label': 'Drawing board' }, head, stage, h('div', { class: 'draw-bar' }, sizes, palette, dock))
   host.append(root)
 
   // ---- canvas setup (HiDPI, white paper)
@@ -113,7 +113,7 @@ export function createDrawing(host, { onSend, onClose }) {
   canvas.addEventListener('pointerleave', endStroke)
 
   // Each step back remembers whether there was ink on the board then, so
-  // undoing a 清空 brings back 发送 and the question before closing.
+  // undoing a Clear brings back Send and the question before closing.
   function setDirty(on) { dirty = on; sendBtn.disabled = !on }
   function markDirty() { if (!dirty) setDirty(true) }
   function snapshot() {

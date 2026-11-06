@@ -16,8 +16,8 @@
 * { touch-action: pan-x pan-y; }
 
 html {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
-    "Noto Sans CJK SC", system-ui, sans-serif;
+  font-family: "Clarinetta", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans CJK SC", system-ui, sans-serif;
   font-size: 106.25%; /* 17px, the iOS body size */
   line-height: 1.3;
   -webkit-text-size-adjust: 100%;

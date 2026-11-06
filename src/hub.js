@@ -92,14 +92,14 @@ export class Hub {
       if (path.startsWith('/auth/')) return await this.auth(request, url)
       if (request.headers.get('upgrade') === 'websocket') return this.socket(request)
       const user = await this.authed(request)
-      if (!user) return json({ ok: false, error: '未登录' }, 401)
+      if (!user) return json({ ok: false, error: 'Not signed in' }, 401)
       if (path.startsWith('/api/media/')) return await handleMedia(request, url, user, this)
       if (path === '/api/stickers' || path.startsWith('/api/stickers/')) return await this.stickers(request, url, user)
       if (path.startsWith('/api/')) return await this.api(request, url, user)
       if (path.startsWith('/rtc/')) return await this.calls.http(request, url, user)
       return json({ ok: false, error: 'not found' }, 404)
     } catch (err) {
-      return json({ ok: false, error: err.message || '服务器错误' }, err.status || 500)
+      return json({ ok: false, error: err.message || 'Server error' }, err.status || 500)
     }
   }
 
@@ -128,12 +128,12 @@ export class Hub {
 
   async register({ username, password, display, code }, ip) {
     if (this.env.SIGNUP_CODE && code !== this.env.SIGNUP_CODE) {
-      return json({ ok: false, error: '邀请码不正确' }, 403)
+      return json({ ok: false, error: 'Invalid invite code' }, 403)
     }
     username = String(username || '').trim()
-    if (!USERNAME_RE.test(username)) return json({ ok: false, error: '用户名需为 3–24 位字母、数字或 _ . -' }, 400)
-    if (typeof password !== 'string' || password.length < 6) return json({ ok: false, error: '密码至少 6 位' }, 400)
-    if (this.store.getUserByUsername(username)) return json({ ok: false, error: '用户名已被占用' }, 409)
+    if (!USERNAME_RE.test(username)) return json({ ok: false, error: 'Username must be 3–24 letters, digits, or _ . -' }, 400)
+    if (typeof password !== 'string' || password.length < 6) return json({ ok: false, error: 'Password must be at least 6 characters' }, 400)
+    if (this.store.getUserByUsername(username)) return json({ ok: false, error: 'Username is already taken' }, 409)
     const { salt, hash } = await hashPassword(password)
     const user = this.store.createUser({ username, display: cleanText(display, NAME_MAX) || username, salt, hash })
     return this.grant(user)
@@ -143,14 +143,14 @@ export class Hub {
     const lock = this.fails.get(ip)
     if (lock && lock.until > Date.now()) {
       const retry = Math.ceil((lock.until - Date.now()) / 1000)
-      return json({ ok: false, error: `尝试次数过多，请 ${Math.ceil(retry / 60)} 分钟后再试` }, 429, { 'retry-after': String(retry) })
+      return json({ ok: false, error: `Too many attempts, try again in ${Math.ceil(retry / 60)} minutes` }, 429, { 'retry-after': String(retry) })
     }
     const user = this.store.getUserByUsername(String(username || ''))
     const ok = user && await verifyPassword(password, user.salt, user.hash)
     if (!ok) {
       const n = (lock?.n || 0) + 1
       this.fails.set(ip, { n, until: n >= LOCKOUT_FAILS ? Date.now() + LOCKOUT_MS : 0 })
-      return json({ ok: false, error: '用户名或密码不正确' }, 401)
+      return json({ ok: false, error: 'Incorrect username or password' }, 401)
     }
     this.fails.delete(ip)
     return this.grant(user)
@@ -182,12 +182,12 @@ export class Hub {
       if (body.avatar !== undefined) {
         const own = `/api/media/avatar/${user.id}/`
         const valid = body.avatar === '' || (typeof body.avatar === 'string' && body.avatar.startsWith(own) && /^[\w-]+$/.test(body.avatar.slice(own.length)))
-        if (!valid) return json({ ok: false, error: '头像无效' }, 400)
+        if (!valid) return json({ ok: false, error: 'Invalid avatar' }, 400)
         patch.avatar = body.avatar
       }
       if (body.cover !== undefined) {
         const cover = backdrop(body.cover, 'cover', user.id)
-        if (cover === undefined) return json({ ok: false, error: '封面无效' }, 400)
+        if (cover === undefined) return json({ ok: false, error: 'Invalid cover' }, 400)
         patch.cover = cover
       }
       // The photo it replaces is kept among the recent ones, to go back to.
@@ -196,14 +196,14 @@ export class Hub {
       this.fanoutToPeers(user.id, { t: 'profile', user: this.store.pub(updated) })
       return json({ ok: true, me: this.store.pub(updated) })
     }
-    // Photos this account used before (the avatar editor's 最近使用), newest first, not the one in use.
+    // Photos this account used before (the avatar editor's Recent), newest first, not the one in use.
     if (path === '/api/profile/avatars' && method === 'GET') {
       const recent = (this.store.kvGet(`avatars:${user.id}`) || []).filter(u => u !== user.avatar)
       return json({ ok: true, recent })
     }
     if (path === '/api/password' && method === 'POST') {
-      if (!await verifyPassword(body.current, user.salt, user.hash)) return json({ ok: false, error: '当前密码不正确' }, 403)
-      if (typeof body.next !== 'string' || body.next.length < 6) return json({ ok: false, error: '新密码至少 6 位' }, 400)
+      if (!await verifyPassword(body.current, user.salt, user.hash)) return json({ ok: false, error: 'Current password is incorrect' }, 403)
+      if (typeof body.next !== 'string' || body.next.length < 6) return json({ ok: false, error: 'New password must be at least 6 characters' }, 400)
       const { salt, hash } = await hashPassword(body.next)
       this.store.setPassword(user.id, salt, hash)
       return this.grant(this.store.getUser(user.id))
@@ -249,7 +249,7 @@ export class Hub {
     }
     if (path === '/api/contacts/add' && method === 'POST') {
       const peer = this.store.getUser(body.user) || this.store.getUserByUsername(body.username || '')
-      if (!peer || peer.id === user.id) return json({ ok: false, error: '找不到该用户' }, 404)
+      if (!peer || peer.id === user.id) return json({ ok: false, error: 'User not found' }, 404)
       // Reciprocal request auto-accepts.
       if (this.store.contactState(user.id, peer.id) === 'pending_in') {
         this.store.acceptContact(user.id, peer.id)
@@ -260,7 +260,7 @@ export class Hub {
       return json({ ok: true, state: this.store.contactState(user.id, peer.id), peer: this.store.pub(peer) })
     }
     if (path === '/api/contacts/accept' && method === 'POST') {
-      if (!this.store.acceptContact(user.id, body.user)) return json({ ok: false, error: '没有待处理的请求' }, 400)
+      if (!this.store.acceptContact(user.id, body.user)) return json({ ok: false, error: 'No pending request' }, 400)
       this.sendToUser(body.user, { t: 'contacts-dirty' })
       return json({ ok: true, peer: this.store.pub(this.store.getUser(body.user)) })
     }
@@ -272,7 +272,7 @@ export class Hub {
     // --- rooms: open/create
     if (path === '/api/dm' && method === 'POST') {
       const peer = this.store.getUser(body.user) || this.store.getUserByUsername(body.username || '')
-      if (!peer || peer.id === user.id) return json({ ok: false, error: '找不到该用户' }, 404)
+      if (!peer || peer.id === user.id) return json({ ok: false, error: 'User not found' }, 404)
       const roomId = this.store.getOrCreateDM(user.id, peer.id)
       this.sendToUser(peer.id, { t: 'rooms-dirty' })
       return json({ ok: true, room: this.roomFor(roomId, user.id) })
@@ -281,14 +281,14 @@ export class Hub {
       const members = (Array.isArray(body.members) ? body.members : []).slice(0, GROUP_MAX).filter(id => typeof id === 'string' && this.store.getUser(id))
       const roomId = this.store.createGroup({ name: cleanText(body.name, NAME_MAX), creator: user.id, members })
       for (const m of members) this.sendToUser(m, { t: 'rooms-dirty' })
-      this.systemMessage(roomId, `${user.display} 创建了群聊`)
+      this.systemMessage(roomId, `${user.display} created the group`)
       return json({ ok: true, room: this.roomFor(roomId, user.id) })
     }
 
     // --- a specific room: /api/room/:id[/members|/flags|/leave|/invite]
     if (seg[1] === 'room' && seg[2]) {
       const roomId = seg[2]
-      if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权访问' }, 403)
+      if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: 'No access' }, 403)
       const action = seg[3]
       if (!action && method === 'GET') {
         return json({ ok: true, room: this.roomFor(roomId, user.id), members: this.store.roomMemberRows(roomId).map(m => ({ ...m, online: this.isOnline(m.id) })) })
@@ -306,7 +306,7 @@ export class Hub {
       }
       if (action === 'invite' && method === 'POST') {
         const room = this.store.getRoom(roomId)
-        if (room.kind !== 'group') return json({ ok: false, error: '只能邀请进群聊' }, 400)
+        if (room.kind !== 'group') return json({ ok: false, error: 'Can only invite to a group' }, 400)
         const added = []
         for (const id of (Array.isArray(body.members) ? body.members : []).slice(0, GROUP_MAX)) {
           if (this.store.getUser(id) && !this.store.isMember(roomId, id)) {
@@ -315,12 +315,12 @@ export class Hub {
             added.push(this.store.getUser(id).display)
           }
         }
-        if (added.length) this.systemMessage(roomId, `${user.display} 邀请 ${added.join('、')} 加入群聊`)
+        if (added.length) this.systemMessage(roomId, `${user.display} added ${added.join(', ')} to the group`)
         return json({ ok: true })
       }
       if (action === 'leave' && method === 'POST') {
         this.store.removeMember(roomId, user.id)
-        this.systemMessage(roomId, `${user.display} 退出了群聊`)
+        this.systemMessage(roomId, `${user.display} left the group`)
         return json({ ok: true })
       }
     }
@@ -328,7 +328,7 @@ export class Hub {
     // --- messages
     if (path === '/api/messages' && method === 'GET') {
       const roomId = url.searchParams.get('room')
-      if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权访问' }, 403)
+      if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: 'No access' }, 403)
       const before = Number(url.searchParams.get('before')) || undefined
       const after = Number(url.searchParams.get('after')) || undefined
       const limit = Math.min(100, Number(url.searchParams.get('limit')) || 30)
@@ -382,7 +382,7 @@ export class Hub {
     }
     // Learning the routine and habits, on or off. Off forgets what was learned.
     if (path === '/api/ai/memory/routine' && method === 'POST') {
-      if (typeof body.learn !== 'boolean') return json({ ok: false, error: '参数无效' }, 400)
+      if (typeof body.learn !== 'boolean') return json({ ok: false, error: 'Invalid parameter' }, 400)
       this.store.kvSet(routineKey(user.id), setLearning(this.store.kvGet(routineKey(user.id)), body.learn))
       this.routineSlot.delete(user.id)
       return json({ ok: true, routine: this.routineView(user.id) })
@@ -408,10 +408,10 @@ export class Hub {
       return json({ ok: true, enabled: true, rooms: list, weather })
     }
     if (path === '/api/insights/refresh' && method === 'POST') {
-      if (!assistConfigured(this.env)) return json({ ok: false, error: '智能通知不可用' }, 400)
+      if (!assistConfigured(this.env)) return json({ ok: false, error: 'Insights are unavailable' }, 400)
       const roomId = String(body.room || '')
       const room = this.store.isMember(roomId, user.id) ? this.roomFor(roomId, user.id) : null
-      if (!room || room.kind !== 'dm' || !room.peer) return json({ ok: false, error: '无法读取这个聊天' }, 400)
+      if (!room || room.kind !== 'dm' || !room.peer) return json({ ok: false, error: "Can't read this chat" }, 400)
       if (!allowRefresh(user.id, roomId)) return json({ ok: true, ...this.insightOf(user.id, room), limited: true })
       const tz = Math.max(-840, Math.min(840, Math.round(Number(body.tz) || 0)))
       const now = Date.now()
@@ -443,10 +443,10 @@ export class Hub {
     }
     if (path === '/api/react' && method === 'POST') {
       const target = this.store.getMessage(String(body.id || ''))
-      if (!target || !this.store.isMember(target.room, user.id)) return json({ ok: false, error: '找不到这条消息' }, 404)
-      if (target.type === 'system' || target.state === 'revoked') return json({ ok: false, error: '这条消息无法回应' }, 400)
+      if (!target || !this.store.isMember(target.room, user.id)) return json({ ok: false, error: 'Message not found' }, 404)
+      if (target.type === 'system' || target.state === 'revoked') return json({ ok: false, error: "Can't react to this message" }, 400)
       const emoji = body.emoji ? String(body.emoji) : ''
-      if (emoji && !REACTIONS.includes(emoji)) return json({ ok: false, error: '不支持这个回应' }, 400)
+      if (emoji && !REACTIONS.includes(emoji)) return json({ ok: false, error: 'Unsupported reaction' }, 400)
       const msg = this.store.setReaction(target.id, user.id, emoji)
       // A separate event: a reaction must not reorder the list or count as unread.
       this.fanoutToRoom(msg.room, { t: 'react', msg })
@@ -471,14 +471,14 @@ export class Hub {
     }
     if (path === '/api/revoke' && method === 'POST') {
       const m = this.store.revokeMessage(body.id, user.id)
-      if (!m) return json({ ok: false, error: '无法撤回' }, 400)
+      if (!m) return json({ ok: false, error: "Can't unsend" }, 400)
       this.fanoutToRoom(m.room, { t: 'msg', msg: m })
       return json({ ok: true, msg: m })
     }
 
     // --- push
     if (path === '/api/push/subscribe' && method === 'POST') {
-      if (!body.sub?.endpoint) return json({ ok: false, error: '无效订阅' }, 400)
+      if (!body.sub?.endpoint) return json({ ok: false, error: 'Invalid subscription' }, 400)
       // The origin goes with it: a notification's link must be absolute.
       const id = this.store.addSub(user.id, { endpoint: body.sub.endpoint, keys: body.sub.keys, origin: url.origin })
       return json({ ok: true, id })
@@ -526,11 +526,11 @@ export class Hub {
       let body = {}
       try { body = asObject(await request.json()) } catch {}
       const name = allowedName(this.env, body.add || body.remove)
-      if (!name) return json({ ok: false, error: '没有这个表情包' }, 400)
+      if (!name) return json({ ok: false, error: 'No such sticker pack' }, 400)
       let mine = this.myStickers(user).filter(n => !sameSet(n, name))
       if (body.add) {
-        if (mine.length >= MAX_CHOSEN) return json({ ok: false, error: `最多 ${MAX_CHOSEN} 个表情包` }, 400)
-        if (!(await readSet(this.env, bucket, name))?.stickers?.length) return json({ ok: false, error: '暂时取不到这个表情包' }, 502)
+        if (mine.length >= MAX_CHOSEN) return json({ ok: false, error: `At most ${MAX_CHOSEN} sticker packs` }, 400)
+        if (!(await readSet(this.env, bucket, name))?.stickers?.length) return json({ ok: false, error: "Can't load this sticker pack right now" }, 502)
         // The newest pack comes first, where the panel opens.
         mine = [name, ...mine]
       }
@@ -551,7 +551,7 @@ export class Hub {
       })
     } catch (err) {
       console.warn('sticker file', id, err.message)
-      return json({ ok: false, error: '暂时取不到这个表情' }, 502)
+      return json({ ok: false, error: "Can't load this sticker right now" }, 502)
     }
     if (!obj) return json({ ok: false, error: 'not found' }, 404)
     const part = contentRange(obj)
@@ -599,14 +599,14 @@ export class Hub {
   // ---------------------------------------------------------------- message send + fan-out
   async postMessage(body, user, { tz = null } = {}) {
     const roomId = body.room
-    if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: '无权发送' }, 403)
+    if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: 'Not allowed to send' }, 403)
     const type = ['text', 'image', 'voice', 'video', 'file', 'drawing', 'sticker'].includes(body.type) ? body.type : 'text'
-    if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: '不能发送空消息' }, 400)
+    if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: "Can't send an empty message" }, 400)
     // A sticker is only a reference to one of the packs: its id, kind, emoji
     // and pack (so whoever receives it can load it).
     if (type === 'sticker') {
       const m = asObject(body.meta)
-      if (!STICKER_ID.test(String(m.id || '')) || !STICKER_KINDS.includes(m.kind)) return json({ ok: false, error: '表情无效' }, 400)
+      if (!STICKER_ID.test(String(m.id || '')) || !STICKER_KINDS.includes(m.kind)) return json({ ok: false, error: 'Invalid sticker' }, 400)
       body.meta = { id: m.id, kind: m.kind, emoji: cleanText(m.emoji, 16), ...(SET_NAME.test(String(m.set || '')) && { set: m.set }) }
     }
     // A reply names a message in the same conversation; anything else is
@@ -620,7 +620,7 @@ export class Hub {
     const landed = this.store.findLocal(roomId, user.id, localKey)
     if (landed) return json({ ok: true, msg: landed, localId: body.localId, repeat: true })
     // Group @: the members a text names, kept with it (meta.mentions) so the
-    // list can say 有人@我 and the push reaches them even when muted.
+    // list can say Mentioned you and the push reaches them even when muted.
     // Only the server's own reading counts, never a list a client put in meta.
     let meta = body.meta && typeof body.meta === 'object' ? { ...body.meta } : null
     if (meta) delete meta.mentions
@@ -771,7 +771,7 @@ export class Hub {
     // Only what is older than the window the suggestion already sees.
     const older = this.store.listTexts(roomId, { limit: 120, before: this.digestBoundary(roomId) })
     if (older.length < 8) return
-    const lines = older.slice(-60).map(m => `${m.sender === userId ? '我' : '对方'}：${m.text.slice(0, 200)}`).join('\n')
+    const lines = older.slice(-60).map(m => `${m.sender === userId ? 'Me' : 'Them'}: ${m.text.slice(0, 200)}`).join('\n')
     try {
       const raw = await ask(this.env, digestPrompt(lines), 300, { timeout: 15000 })
       const text = readDigestAnswer(raw)
@@ -1048,7 +1048,7 @@ export class Hub {
 
   async pushToOffline(roomId, sender, msg) {
     const room = this.store.getRoom(roomId)
-    const title = room.kind === 'dm' ? sender.display : (room.name || '群聊')
+    const title = room.kind === 'dm' ? sender.display : (room.name || 'Group')
     const preview = room.kind === 'dm' ? this.preview(msg) : `${sender.display}: ${this.preview(msg)}`
     const named = this.store.mentions(msg)
     for (const uid of this.store.roomMembers(roomId)) {
@@ -1057,7 +1057,7 @@ export class Hub {
       const mentioned = named.includes(uid)
       if (this.store.membership(roomId, uid)?.muted && !mentioned) continue
       await this.pushTo(uid, {
-        title: mentioned ? `${sender.display} 在${title}中提到了你` : title, body: preview, tag: roomId, badge: this.store.unreadTotal(uid),
+        title: mentioned ? `${sender.display} mentioned you in ${title}` : title, body: preview, tag: roomId, badge: this.store.unreadTotal(uid),
         link: `/?chat=${encodeURIComponent(roomId)}`
       }, { topic: roomId })
     }
@@ -1065,6 +1065,6 @@ export class Hub {
 
   preview(msg) {
     if (msg.type === 'text') return msg.body.slice(0, 120)
-    return { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', call: '[通话]', sticker: `[表情]${msg.meta?.emoji ? ` ${msg.meta.emoji}` : ''}`, system: msg.body }[msg.type] || '[消息]'
+    return { image: '[Photo]', drawing: '[Drawing]', voice: '[Voice]', video: '[Video]', file: '[File]', call: '[Call]', sticker: `[Sticker]${msg.meta?.emoji ? ` ${msg.meta.emoji}` : ''}`, system: msg.body }[msg.type] || '[Message]'
   }
 }

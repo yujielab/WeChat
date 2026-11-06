@@ -17,10 +17,10 @@ import { onBars } from '../ui/viewport.js'
 import { insightsOn } from './insights.js'
 
 export const FILTERS = {
-  all: { label: '全部', test: () => true },
-  unread: { label: '未读', test: c => c.unread > 0 },
-  people: { label: '私聊', test: c => !c.room },
-  groups: { label: '群聊', test: c => c.room }
+  all: { label: 'All', test: () => true },
+  unread: { label: 'Unread', test: c => c.unread > 0 },
+  people: { label: 'Direct', test: c => !c.room },
+  groups: { label: 'Groups', test: c => c.room }
 }
 
 export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSettings, onInsights, loadContacts }) {
@@ -37,19 +37,19 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
 
   // ------------------------------------------------------------ skeleton
   const status = h('span', { class: 'conn-status', role: 'status', hidden: true })
-  const title = h('h1', { class: 'large-title' }, '消息')
+  const title = h('h1', { class: 'large-title' }, 'Messages')
   // Unfolded, the window keeps to the list and the conversation, so who you
   // are (and settings) sits at the end of the list's heading.
-  const me = h('button', { class: 'list-me', type: 'button', 'aria-label': '设置' })
+  const me = h('button', { class: 'list-me', type: 'button', 'aria-label': 'Settings' })
   me.addEventListener('click', () => onSettings?.(me))
   // Smart notifications (views/insights.js), where the server can read for them.
-  const insights = h('button', { class: 'list-insights', type: 'button', 'aria-label': '智能通知', hidden: true }, icon('sparkles'))
+  const insights = h('button', { class: 'list-insights', type: 'button', 'aria-label': 'Insights', hidden: true }, icon('sparkles'))
   insights.addEventListener('click', () => onInsights?.(insights))
   const showInsights = () => { insights.hidden = !insightsOn() }
   window.addEventListener('insights-pref', showInsights)
   const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, insights, me))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
-  const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': '筛选聊天' }, filterThumb)
+  const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': 'Filter chats' }, filterThumb)
   const filterButtons = new Map()
   Object.entries(FILTERS).forEach(([key, f]) => {
     const button = h('button', { class: 'filter-tab', type: 'button', 'aria-pressed': key === state.filter ? 'true' : 'false', dataset: { filter: key } }, f.label)
@@ -67,17 +67,17 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     filterTabs.append(button)
   })
   const filterNote = h('div', { class: 'filter-note', hidden: true })
-  const pinned = h('div', { class: 'pinned', role: 'list', 'aria-label': '置顶聊天', hidden: true })
-  const rows = h('ul', { class: 'rows', 'aria-label': '聊天' })
+  const pinned = h('div', { class: 'pinned', role: 'list', 'aria-label': 'Pinned chats', hidden: true })
+  const rows = h('ul', { class: 'rows', 'aria-label': 'Chats' })
   const empty = h('div', { class: 'list-empty', hidden: true })
   const results = h('div', { class: 'search-results', hidden: true })
-  const pinLabel = h('div', { class: 'pinned-label', hidden: true }, icon('pin'), '置顶')
+  const pinLabel = h('div', { class: 'pinned-label', hidden: true }, icon('pin'), 'Pinned')
   // Unfolded, one shared capsule marks the open conversation and glides
   // between rows (and along with a row as it reorders) instead of jumping.
   const capsule = h('span', { class: 'row-highlight', 'aria-hidden': 'true' })
   const scroll = h('div', { class: 'scroll list-scroll' }, head, filterTabs, filterNote, pinLabel, pinned, rows, capsule, empty, results)
 
-  const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, '消息')
+  const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, 'Messages')
   const topbar = h('div', { class: 'list-topbar' }, inlineTitle, h('div', { class: 'spacer' }))
 
   // One bar of capsules at the foot of the list, in reach of the thumb:
@@ -89,13 +89,13 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // Chat at its foot; Search is a button, the field opens above the list, and
   // Cancel takes the head of the rail until the search ends.
   const bars = createBars({
-    label: '聊天列表操作',
+    label: 'Chat list actions',
     items: [
-      { id: 'cancel', icon: 'xmark', title: '取消搜索', primary: true, onSelect: () => exitSearch() },
-      { id: 'back', icon: 'chevron-left', title: '边栏', primary: true, onSelect: () => onBack() },
-      { id: 'filter', icon: 'filter', title: '筛选', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
-      { id: 'search', icon: 'search', title: '搜索', priority: 6, onSelect: () => openSearch() },
-      { id: 'compose', icon: 'compose', title: '新聊天', priority: 9, prominent: true, onSelect: () => onCompose() }
+      { id: 'cancel', icon: 'xmark', title: 'Cancel search', primary: true, onSelect: () => exitSearch() },
+      { id: 'back', icon: 'chevron-left', title: 'Sidebar', primary: true, onSelect: () => onBack() },
+      { id: 'filter', icon: 'filter', title: 'Filter', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
+      { id: 'search', icon: 'search', title: 'Search', priority: 6, onSelect: () => openSearch() },
+      { id: 'compose', icon: 'compose', title: 'New chat', priority: 9, prominent: true, onSelect: () => onCompose() }
     ],
     arrange: axis => {
       if (axis === 'vertical') {
@@ -113,8 +113,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
 
   const input = h('input', {
     type: 'search',
-    placeholder: '搜索聊天、联系人',
-    'aria-label': '搜索聊天和联系人',
+    placeholder: 'Search chats and contacts',
+    'aria-label': 'Search chats and contacts',
     enterkeyhint: 'search',
     autocomplete: 'off',
     autocorrect: 'off',
@@ -125,13 +125,13 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // for what fits, rather than a cut-off phrase.
   new ResizeObserver(() => {
     const size = parseFloat(getComputedStyle(input).fontSize) || 17
-    const placeholder = input.clientWidth >= size * 8.2 ? '搜索聊天、联系人' : '搜索'
+    const placeholder = input.clientWidth >= size * 8.2 ? 'Search chats and contacts' : 'Search'
     if (input.placeholder !== placeholder) input.placeholder = placeholder
   }).observe(input)
   const pill = h('label', { class: 'glass search-pill' }, icon('search'), input)
-  const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': '取消搜索' }, icon('xmark'))
-  const bottombar = h('nav', { class: 'list-bottombar dock', 'aria-label': '聊天列表操作' }, bars.bottom, pill, cancel)
-  const rail = h('nav', { class: 'duo-rail list-rail', 'aria-label': '聊天列表操作' })
+  const cancel = h('button', { class: 'glass glass-btn search-cancel', type: 'button', 'aria-label': 'Cancel search' }, icon('xmark'))
+  const bottombar = h('nav', { class: 'list-bottombar dock', 'aria-label': 'Chat list actions' }, bars.bottom, pill, cancel)
+  const rail = h('nav', { class: 'duo-rail list-rail', 'aria-label': 'Chat list actions' })
 
   const edgeTop = edge('top')
   const edgeBottom = edge('bottom', true)
@@ -146,7 +146,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
           selectFilter(key)
         }
       }))
-    ], { title: '筛选' })
+    ], { title: 'Filter' })
   }
 
   // The search field keeps at least 120px of the bar, and one more gap beside it.
@@ -193,8 +193,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     // Unfolded, the filter lives in the menu: its button and the inline title
     // carry the active choice instead of a row of tabs.
     const active = FILTERS[state.filter] && state.filter !== 'all' ? FILTERS[state.filter].label : ''
-    bars.set('filter', { title: active ? `筛选：${active}` : '筛选', state: { active: Boolean(active) } })
-    inlineTitle.textContent = `${statusText ? `消息（${statusText}）` : '消息'}${active ? ` · ${active}` : ''}`
+    bars.set('filter', { title: active ? `Filter: ${active}` : 'Filter', state: { active: Boolean(active) } })
+    inlineTitle.textContent = `${statusText ? `Messages (${statusText})` : 'Messages'}${active ? ` · ${active}` : ''}`
   }
   new ResizeObserver(positionFilterThumb).observe(filterTabs)
 
@@ -222,21 +222,21 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
 
   function preview(c) {
     const draft = state.open === c.id ? '' : getDraft(c.id)
-    if (draft) return [h('span', { class: 'draft' }, '[草稿] '), draft.replace(/\s+/g, ' ')]
+    if (draft) return [h('span', { class: 'draft' }, '[Draft] '), draft.replace(/\s+/g, ' ')]
     const last = listLast(c)
-    if (!last) return [c.room ? `${c.count || ''}${c.count ? ' 位成员' : ''}` : '']
+    if (!last) return [c.room ? `${c.count || ''}${c.count ? ' members' : ''}` : '']
     // Someone @-mentioned me in a group I haven't read yet.
-    if (c.mention && c.unread) return [h('span', { class: 'draft' }, '[有人@我] '), last.text || '']
-    if (last.status === 'failed') return [h('span', { class: 'failed' }, '[未发送] '), last.text]
-    if (last.status === 'sending') return ['发送中… ', last.text]
+    if (c.mention && c.unread) return [h('span', { class: 'draft' }, '[Mentioned you] '), last.text || '']
+    if (last.status === 'failed') return [h('span', { class: 'failed' }, '[Not sent] '), last.text]
+    if (last.status === 'sending') return ['Sending… ', last.text]
     return [last.text || '']
   }
 
   function label(c) {
     const parts = [c.name]
-    if (c.kind === 'dm' && c.online) parts.push('在线')
-    if (c.unread) parts.push(`${c.unread} 条未读`)
-    if (c.mention && c.unread) parts.push('有人@我')
+    if (c.kind === 'dm' && c.online) parts.push('Online')
+    if (c.unread) parts.push(`${c.unread} unread`)
+    if (c.mention && c.unread) parts.push('Mentioned you')
     const last = listLast(c)
     if (last?.text) parts.push(last.text)
     if (c.ts) parts.push(listTime(c.ts))
@@ -259,7 +259,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       h('div', { class: 'row-main' },
         h('div', { class: 'row-top' }, r.name, r.flag, h('span', { class: 'grow' }), r.time, h('span', { class: 'row-chevron' }, icon('chevron-right'))),
         h('div', { class: 'row-bottom' }, r.preview, r.unread)))
-    r.hideBtn = h('button', { class: 'row-action', type: 'button', tabindex: '-1' }, h('span', { class: 'row-action-label' }, icon('trash'), '删除'))
+    r.hideBtn = h('button', { class: 'row-action', type: 'button', tabindex: '-1' }, h('span', { class: 'row-action-label' }, icon('trash'), 'Delete'))
     r.actions = h('div', { class: 'row-actions' }, r.hideBtn)
     const li = h('li', { class: 'row', dataset: { id: c.id } }, r.actions, r.inner)
     li._r = r
@@ -402,11 +402,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     el.classList.add('menu-open')
     openMenu(at, [
       [
-        { label: c.unread ? '标为已读' : '标为未读', icon: c.unread ? 'check' : 'unread', onSelect: () => actRead(id) },
-        { label: c.pinned ? '取消置顶' : '置顶', icon: c.pinned ? 'pin-slash' : 'pin', onSelect: () => actPin(id) },
-        { label: c.muted ? '取消免打扰' : '消息免打扰', icon: c.muted ? 'bell' : 'bell-slash', onSelect: () => actMute(id) }
+        { label: c.unread ? 'Mark as read' : 'Mark as unread', icon: c.unread ? 'check' : 'unread', onSelect: () => actRead(id) },
+        { label: c.pinned ? 'Unpin' : 'Pin', icon: c.pinned ? 'pin-slash' : 'pin', onSelect: () => actPin(id) },
+        { label: c.muted ? 'Unmute' : 'Mute', icon: c.muted ? 'bell' : 'bell-slash', onSelect: () => actMute(id) }
       ],
-      [{ label: '删除聊天', icon: 'trash', destructive: true, onSelect: () => actHide(id) }]
+      [{ label: 'Delete chat', icon: 'trash', destructive: true, onSelect: () => actHide(id) }]
     ], { title: c.name, focusFirst: !touch, onClose: () => el.classList.remove('menu-open') })
   }
 
@@ -500,9 +500,9 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     if (noChats && loading) {
       if (!empty.querySelector('.sk-row')) empty.replaceChildren(skeleton())
     } else if (noChats) {
-      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? '新聊天' : '显示全部')
+      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? 'New chat' : 'Show all')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
-      const emptyTitle = state.filter === 'all' ? '没有聊天' : state.filter === 'unread' ? '没有未读消息' : `没有${filter.label}`
+      const emptyTitle = state.filter === 'all' ? 'No chats' : state.filter === 'unread' ? 'No unread messages' : `No ${filter.label}`
       empty.replaceChildren(h('div', { class: 'empty-art', 'aria-hidden': 'true' }, icon('bubble')), h('h2', {}, emptyTitle), action)
       // Its symbol draws on when it comes into view, not on every refresh.
       if (newArt) symbolEffect(empty.querySelector('.empty-art .icon'), 'draw-on')
@@ -836,7 +836,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     if (!q) {
       const recent = rooms.slice(0, 10)
       if (recent.length) {
-        results.append(h('div', { class: 'section-title' }, '最近'))
+        results.append(h('div', { class: 'section-title' }, 'Recent'))
         for (const c of recent) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: listLast(c)?.text, onClick: () => onOpen(c.id) }))
       }
       return
@@ -845,11 +845,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     const roomHits = rooms.filter(c => c.name.toLowerCase().includes(lc) || listLast(c)?.text?.toLowerCase().includes(lc)).slice(0, 20)
     const contactHits = state.contacts.filter(c => c.display?.toLowerCase().includes(lc) || c.username?.toLowerCase().includes(lc))
     if (roomHits.length) {
-      results.append(h('div', { class: 'section-title' }, '会话'))
+      results.append(h('div', { class: 'section-title' }, 'Chats'))
       for (const c of roomHits) results.append(resultRow({ name: c.name, avatar: c.avatar, room: c.kind === 'group', sub: listLast(c)?.text, onClick: () => onOpen(c.id) }))
     }
     if (contactHits.length) {
-      results.append(h('div', { class: 'section-title' }, '联系人'))
+      results.append(h('div', { class: 'section-title' }, 'Contacts'))
       for (const c of contactHits) results.append(resultRow({ name: c.display, avatar: c.avatar, room: false, sub: '@' + c.username, onClick: () => openDM(c) }))
     }
     const seq = ++searchSeq
@@ -859,11 +859,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       const known = new Set([...contactHits.map(c => c.id), state.me.id])
       const others = r.users.filter(u => !known.has(u.id))
       if (others.length) {
-        results.append(h('div', { class: 'section-title' }, '找人'))
+        results.append(h('div', { class: 'section-title' }, 'Find people'))
         for (const u of others) results.append(resultRow({ name: u.display, avatar: u.avatar, room: false, sub: '@' + u.username, onClick: () => openDM(u) }))
       }
     } catch {}
-    if (!results.children.length) results.append(h('div', { class: 'list-empty' }, h('h2', {}, '无结果'), `没有找到“${q}”`))
+    if (!results.children.length) results.append(h('div', { class: 'list-empty' }, h('h2', {}, 'No results'), `Nothing found for “${q}”`))
   }
 
   // ------------------------------------------------------------ public
@@ -908,7 +908,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     setFilter: selectFilter,
     setMe(user) {
       me.replaceChildren(avatar(user?.avatar, user?.display, { size: 36 }))
-      me.setAttribute('aria-label', `${user?.display || '我'}，设置`)
+      me.setAttribute('aria-label', `${user?.display || 'Me'}, settings`)
     },
     openSearch,
     focusSearch() {

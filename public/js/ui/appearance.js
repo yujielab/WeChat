@@ -7,7 +7,7 @@ const root = document.documentElement
 
 export function getPrefs() {
   return {
-    // White is the default look; 跟随系统 and 深色 remain a choice in Settings.
+    // White is the default look; System and Dark remain a choice in Settings.
     theme: storage('ui:theme') || 'light', // light | system | dark
     glass: storage('ui:glass') || 'auto', // auto | solid
     glassAuto: storage('ui:glass-auto') === 'solid',

@@ -47,20 +47,20 @@ test('a digest without any text is not shown', () => {
 })
 
 test('how much of it there is, said in words', () => {
-  assert.equal(confidenceLabel('none'), '还太少')
-  assert.equal(confidenceLabel('low'), '刚开始记住')
-  assert.equal(confidenceLabel('medium'), '已经记得一些')
-  assert.equal(confidenceLabel('high'), '已经熟悉')
-  assert.equal(confidenceLabel('something-else'), '还太少', 'an unknown level reads as too little')
-  assert.equal(confidenceLabel(undefined), '还太少')
+  assert.equal(confidenceLabel('none'), 'Still too little')
+  assert.equal(confidenceLabel('low'), 'Starting to remember')
+  assert.equal(confidenceLabel('medium'), 'Remembers some')
+  assert.equal(confidenceLabel('high'), 'Knows you well')
+  assert.equal(confidenceLabel('something-else'), 'Still too little', 'an unknown level reads as too little')
+  assert.equal(confidenceLabel(undefined), 'Still too little')
 })
 
 test('when it was last read reads as a moment ago, or a day', () => {
   const now = 1_700_000_000_000
   assert.equal(when(0, now), '')
-  assert.equal(when(now - 30 * 1000, now), '刚刚')
-  assert.equal(when(now - 5 * 60 * 1000, now), '5 分钟前')
-  assert.equal(when(now - 3 * 3600 * 1000, now), '3 小时前')
-  assert.equal(when(now - 5 * 24 * 3600 * 1000, now), '5 天前')
+  assert.equal(when(now - 30 * 1000, now), 'Just now')
+  assert.equal(when(now - 5 * 60 * 1000, now), '5 min ago')
+  assert.equal(when(now - 3 * 3600 * 1000, now), '3 hr ago')
+  assert.equal(when(now - 5 * 24 * 3600 * 1000, now), '5 days ago')
   assert.notEqual(when(now - 90 * 24 * 3600 * 1000, now), '', 'an old day is still a day')
 })

@@ -109,7 +109,7 @@ test('a pack is kept for a while; one Telegram refuses is remembered; the browse
     const hand = await readSet(env, r2, 'HandDrawnEmoji', { now: 1000 })
     assert.equal(hand.stickers.length, 3, 'the bad id is left out')
     const pub = publicSet(hand)
-    assert.equal(pub.title, '手绘', 'our title for a preset')
+    assert.equal(pub.title, 'Hand-drawn', 'our title for a preset')
     assert.deepEqual(pub.stickers, [
       { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false },
       { id: 'AgADvide', emoji: '🎉', kind: 'video', nt: true },
@@ -146,8 +146,8 @@ test('the add list: every pack in the table Telegram has, with a cover and wheth
   await withTelegram(async () => {
     const list = catalog(await readSets(env, bucket(), allowedSets(env)), ['UtyaDuck'])
     assert.deepEqual(list, [
-      { name: 'HandDrawnEmoji', title: '手绘', count: 3, cover: { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false }, added: false },
-      { name: 'UtyaDuck', title: '小黄鸭', count: 1, cover: { id: 'AgADduck', emoji: '🦆', kind: 'animated', nt: true }, added: true }
+      { name: 'HandDrawnEmoji', title: 'Hand-drawn', count: 3, cover: { id: 'AgADstat', emoji: '😀', kind: 'static', nt: false }, added: false },
+      { name: 'UtyaDuck', title: 'Little Duck', count: 1, cover: { id: 'AgADduck', emoji: '🦆', kind: 'animated', nt: true }, added: true }
     ], 'packs Telegram refuses are left out; our titles, not the channel handle')
   })
 })

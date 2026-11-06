@@ -42,7 +42,7 @@ export function createOutbox({
   const valid = e => e && typeof e.cid === 'string' && typeof e.chat === 'string' && e.body && typeof e.body === 'object'
   function fail(e, err) {
     queue.shift()
-    failed.push({ ...e, error: err.message || '发送失败', ...(err.noFile && { lost: true }) })
+    failed.push({ ...e, error: err.message || 'Send failed', ...(err.noFile && { lost: true }) })
     persist()
     deps.onFailed(e, err)
   }
@@ -56,14 +56,14 @@ export function createOutbox({
       while (queue.length) {
         const e = queue[0]
         if (now() - e.at > maxAge) {
-          fail(e, new Error('发送超时'))
+          fail(e, new Error('Send timed out'))
           continue
         }
         let r
         try {
           if (e.media && !e.uploaded) {
             const file = await deps.blob?.(e.cid)
-            if (!file) throw Object.assign(new Error('请重新选择这张图片'), { status: 410, noFile: true })
+            if (!file) throw Object.assign(new Error('Please choose this photo again'), { status: 410, noFile: true })
             const up = await deps.upload(e, file)
             // Still at the head (not taken back meanwhile): keep what landed.
             e.uploaded = { url: up.url, meta: up.meta || {} }

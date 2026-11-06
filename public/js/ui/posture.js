@@ -5,13 +5,17 @@
 // Two sources, in order of trust:
 //   segments  the Viewport Segments API: the screen as one rectangle, or as
 //             two either side of the hinge. Where the browser has it, it is
-//             the answer — two segments is half open, one is not — even
-//             when the two touch with no gap between them (a continuous
-//             folding screen), which was read as no hinge at all; only a
-//             device that says it lies flat overrules two that touch.
-//   posture   the Device Posture API: "folded" or "continuous". Used only
-//             where there are no segments to go by; the hinge is then taken
-//             to run down the middle of the longer side.
+//             the answer — two segments with a gap between them is a hinge to
+//             respect (half open), one segment is not. Two that touch with no
+//             gap (a continuous folding screen) could be flat or bent: the
+//             segments alone cannot tell, so they are believed a hinge only
+//             where the Device Posture API says the device is "folded".
+//             Without that API, touching segments are taken for flat — a
+//             screen reporting them while open must not be pinned half open.
+//   posture   the Device Posture API: "folded" or "continuous". It decides a
+//             zero-gap hinge above, and where there are no segments at all it
+//             is the only source: the hinge is then taken to run down the
+//             middle of the longer side.
 
 /** The outer display is never the folded one: only a screen this wide both ways can be. */
 export const INNER_MIN = 560
@@ -30,9 +34,11 @@ const NONE = { axis: 'none', start: 0, end: 0 }
 export function readFold({ segments, posture, width, height }) {
   if (Array.isArray(segments)) {
     let hinge = segments.length >= 2 ? between(segments[0], segments[1], width, height) : null
-    // Two segments that touch say only where the screen could bend; if the
-    // device says it lies flat, it does. A hinge with a gap is always one.
-    if (hinge && hinge.start === hinge.end && posture === 'continuous') hinge = null
+    // Two segments that touch say only where the screen could bend, not that
+    // it is bent: a zero-gap hinge is believed only where the Device Posture
+    // API confirms "folded". Without that API, or where it says "continuous",
+    // touching segments are flat. A hinge with a gap is always one.
+    if (hinge && hinge.start === hinge.end && posture !== 'folded') hinge = null
     return { ...(hinge || NONE), source: 'segments' }
   }
   if (posture === 'folded' && Math.min(width, height) >= INNER_MIN) {
@@ -50,7 +56,8 @@ function between(a, b, width, height) {
   const start = Math.round(sideBySide ? first.x + first.width : first.y + first.height)
   const end = Math.round(sideBySide ? second.x : second.y)
   const length = sideBySide ? width : height
-  // Touching (no gap) is a hinge too; one outside the screen, or overlapping, is not believed.
+  // Touching (no gap) is reported as a possible hinge; readFold decides from
+  // the posture whether to believe it. One outside the screen, or overlapping, is not.
   if (!(end >= start && start > 0 && end < length)) return null
   return { axis: sideBySide ? 'vertical' : 'horizontal', start, end }
 }

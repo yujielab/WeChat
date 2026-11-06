@@ -87,11 +87,11 @@ function normLast(m, room) {
 
 export function previewText(m, room) {
   // A message taken back says who took it back (no "name:" prefix needed).
-  if (m.state === 'revoked') return m.sender === state.me?.id ? '你撤回了一条消息' : `${nameOf(m.sender, room?.id) || '对方'}撤回了一条消息`
+  if (m.state === 'revoked') return m.sender === state.me?.id ? 'You unsent a message' : `${nameOf(m.sender, room?.id) || 'Someone'} unsent a message`
   let body = m.type === 'text' ? m.body
     : m.type === 'call' ? callPreview(m)
-    : m.type === 'sticker' ? `[表情]${m.meta?.emoji ? ` ${m.meta.emoji}` : ''}`
-    : { image: '[图片]', drawing: '[手绘]', voice: '[语音]', video: '[视频]', file: '[文件]', system: m.body }[m.type] || '[消息]'
+    : m.type === 'sticker' ? `[Sticker]${m.meta?.emoji ? ` ${m.meta.emoji}` : ''}`
+    : { image: '[Photo]', drawing: '[Drawing]', voice: '[Voice]', video: '[Video]', file: '[File]', system: m.body }[m.type] || '[Message]'
   if (room?.kind === 'group' && m.type !== 'system' && m.sender !== state.me?.id) {
     const who = nameOf(m.sender, room.id)
     if (who) body = `${who}: ${body}`
@@ -103,7 +103,7 @@ export function previewText(m, room) {
 function callPreview(m) {
   const call = m.meta || {}
   const s = callSummary(call, call.caller ? call.caller === state.me?.id : m.sender === state.me?.id)
-  return `[${s.media}通话] ${s.text}`
+  return `[${s.media} call] ${s.text}`
 }
 
 export function nameOf(uid, roomId) {

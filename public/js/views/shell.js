@@ -23,7 +23,7 @@ const THREAD = 2
 const ARTIFACT = 3
 
 export function createShell(app, { socketSend, loadContacts, onCall, onCallBack = () => 'none', callRinging = () => false, onLogout }) {
-  const panes = ['边栏', '会话列表', '对话', '详情'].map(label => h('section', { class: 'pane', tabindex: '-1', 'aria-label': label }))
+  const panes = ['Sidebar', 'Chats', 'Conversation', 'Details'].map(label => h('section', { class: 'pane', tabindex: '-1', 'aria-label': label }))
   const shell = h('div', { class: 'shell', dataset: { layout: getLayout() } }, ...panes)
   app.replaceChildren(shell)
   const overlays = document.getElementById('overlays')
@@ -151,14 +151,14 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
 
   /**
    * Back from the details column, but a drawing that hasn't been sent is
-   * not thrown away without asking (Close, Escape, the 手绘 tool again, or a
+   * not thrown away without asking (Close, Escape, the drawing tool again, or a
    * swipe back all come here). An empty board closes at once. The same
    * question for every way out (views/draw-guard.js): the browser's Back is
    * with popstate, another conversation with openChat.
    */
   const guard = createDiscardGuard({
     unsaved: () => artifact.unsaved,
-    ask: anchor => confirmAction(anchor, { title: '放弃这张手绘？画好的内容不会保存', confirm: '放弃' })
+    ask: anchor => confirmAction(anchor, { title: "Discard this drawing? What you drew won't be saved", confirm: 'Discard' })
   })
   const mayDiscardDrawing = () => guard.mayDiscard()
   async function leaveArtifact({ velocity = 0, swiped = false } = {}) {
@@ -250,7 +250,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
     // board stays, and the same question as Close decides (5ba2794). Also
     // Back or Forward onto another conversation's entry (the long-press
     // history list): that would swap the board's conversation away.
-    // restore() puts back the entry of what's on screen; 放弃 then takes
+    // restore() puts back the entry of what's on screen; Discard then takes
     // the step it held.
     const elsewhere = Boolean(s.chat && s.chat !== thread.current && chatInfo(s.chat))
     // How far the browser jumped: back is positive. Entries from before d
@@ -266,7 +266,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
       },
       leave: () => {
         if (col < strip.focus && steps > 1) {
-          // 放弃 after a jump of several steps: take the whole jump.
+          // Discard after a jump of several steps: take the whole jump.
           skipPop++
           afterPop = null
           history.go(-steps)

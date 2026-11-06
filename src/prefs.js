@@ -40,18 +40,18 @@ export function patchPrefs(current, body, { uid, isMember }) {
   for (const key of ['chat', 'call']) {
     if (body[key] === undefined) continue
     const v = backdrop(body[key], 'bg', uid)
-    if (v === undefined) return { error: '背景无效' }
+    if (v === undefined) return { error: 'Invalid background' }
     next[key] = v
   }
   if (body.rooms !== undefined) {
-    if (!body.rooms || typeof body.rooms !== 'object' || Array.isArray(body.rooms)) return { error: '背景无效' }
+    if (!body.rooms || typeof body.rooms !== 'object' || Array.isArray(body.rooms)) return { error: 'Invalid background' }
     for (const [id, value] of Object.entries(body.rooms)) {
       const v = backdrop(value, 'bg', uid)
-      if (v === undefined || !isMember(id)) return { error: '背景无效' }
+      if (v === undefined || !isMember(id)) return { error: 'Invalid background' }
       if (v) next.rooms[id] = v
       else delete next.rooms[id]
     }
-    if (Object.keys(next.rooms).length > MAX_ROOMS) return { error: `最多为 ${MAX_ROOMS} 个聊天单独设置背景` }
+    if (Object.keys(next.rooms).length > MAX_ROOMS) return { error: `You can set a background for at most ${MAX_ROOMS} chats` }
   }
   return { prefs: next }
 }

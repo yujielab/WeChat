@@ -139,13 +139,13 @@ test('a day with a single moment says nothing about waking or sleeping; a thin r
 test('the writing help reads a line or two: the time for the writer, their usual day, how they answer', () => {
   const s = summarizeRoutine(live(7), at(7, 12))
   const text = routineText(s, at(7, 23, 50))
-  assert.match(text, /^现在是我这边的 23:50；我一般 7:40 起来、0:30 睡。/)
-  assert.match(text, /我回消息一般很短，大约 3 个字。/)
-  assert.match(text, /我常用的表情：👍 😂/)
+  assert.match(text, /^It's 23:50 where I am; I usually wake at 7:40 and sleep at 0:30\./)
+  assert.match(text, /My replies are usually short, about 3 characters\./)
+  assert.match(text, /Emoji I often use: 👍 😂/)
   // …last in the prompt, after the conversation, its digest and the style.
   const ctx = contextText('对方：在吗', '约了周五', '我常用的词：好的', text)
-  assert.ok(ctx.indexOf('聊天记录') < ctx.indexOf('早前') && ctx.indexOf('早前') < ctx.indexOf('用词') && ctx.indexOf('用词') < ctx.indexOf('我的作息和习惯'))
-  assert.equal(contextText('对方：在吗'), '聊天记录：\n对方：在吗', 'nothing added without it')
+  assert.ok(ctx.indexOf('Conversation') < ctx.indexOf('Earlier') && ctx.indexOf('Earlier') < ctx.indexOf('How I usually write') && ctx.indexOf('How I usually write') < ctx.indexOf('My routine and habits'))
+  assert.equal(contextText('对方：在吗'), 'Conversation:\n对方：在吗', 'nothing added without it')
 })
 
 test('switched off, nothing is learned and what was learned is gone; on again starts fresh', () => {

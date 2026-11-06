@@ -36,7 +36,7 @@ const SHAKY_MS = 2000
 const PULL_TRIES = 6
 // How the caller hears each callee was reached, best first.
 const REACH = ['ringing', 'notified', 'unreachable']
-const REACH_TEXT = { ringing: '对方响铃中…', notified: '已通知对方…', unreachable: '对方暂时无法接听' }
+const REACH_TEXT = { ringing: 'Ringing…', notified: 'They were notified…', unreachable: "They can't answer right now" }
 
 const isGroup = room => chatInfo(room)?.kind === 'group'
 
@@ -52,17 +52,17 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     if (active) {
       // The call under way: its own conversation's call button brings it back.
       if (active.room === roomId) return active.ui.expand()
-      return toast('正在通话中，请先结束当前通话', { type: 'error' })
+      return toast('Already on a call, end it first', { type: 'error' })
     }
-    if (!state.calls?.enabled) return toast('暂时无法通话', { type: 'error' })
+    if (!state.calls?.enabled) return toast("Calls aren't available right now", { type: 'error' })
     // The invitation travels on the socket: without it the other side would never ring.
-    if (!connected()) return toast('正在连接，请稍后再试', { type: 'error' })
+    if (!connected()) return toast('Connecting, try again in a moment', { type: 'error' })
     // Inside the tap: the ringback can sound once the other side rings.
     primeTones()
     const callId = `${Date.now()}${Math.floor(Math.random() * 1000)}`
     active = newCall({ room: roomId, callId, media, role: 'caller' })
     socketSend({ t: 'call', kind: 'invite', room: roomId, callId, media })
-    active.ringTimer = setTimeout(() => { if (active?.callId === callId && !active.answered) endSoon('无人接听', 'missed') }, RING_MS)
+    active.ringTimer = setTimeout(() => { if (active?.callId === callId && !active.answered) endSoon('No answer', 'missed') }, RING_MS)
     begin().catch(fail)
   }
 
@@ -91,20 +91,20 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
   }
   function alive(call) {
     if (!call.answered) return
-    // Our tracks again, for anyone who missed them; the clock or the picture clears 正在连接….
+    // Our tracks again, for anyone who missed them; the clock or the picture clears Connecting….
     announceTracks()
     checkLive(call)
   }
   function gone(call) {
     if (call.ending) return
-    const text = '通话已结束（网络中断）'
+    const text = 'Call ended (connection lost)'
     toast(text, { duration: 4000 })
     announce(text)
     end(true)
   }
   // Someone's connection dropped (or came back). A blip shorter than SHAKY_MS
   // is never shown or read out, so a flapping network doesn't chatter; once it
-  // has been said, coming back is said too (对方网络已恢复).
+  // has been said, coming back is said too (their connection is back).
   function unstable(call, msg, on) {
     const uid = msg.from
     if (!uid || uid === state.me?.id) return
@@ -121,7 +121,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
       call.shakyTimers.set(uid, setTimeout(() => {
         call.shakyTimers.delete(uid)
         if (active !== call || call.ending || !call.answered || !call.shaky.has(uid)) return
-        const text = who ? `${who}网络不稳定` : '对方网络不稳定'
+        const text = who ? `${who}'s connection is unstable` : 'Their connection is unstable'
         call.shakyShown.add(uid)
         call.shakyText = text
         showNotice(call)
@@ -134,14 +134,14 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     if (!call.shakyShown.delete(uid)) return
     // Someone else in a group may still be down: the line names them instead.
     const still = [...call.shakyShown][0]
-    if (still) call.shakyText = isGroup(call.room) ? `${nameOf(still, call.room)}网络不稳定` : '对方网络不稳定'
+    if (still) call.shakyText = isGroup(call.room) ? `${nameOf(still, call.room)}'s connection is unstable` : 'Their connection is unstable'
     showNotice(call)
-    if (call.answered && !call.ending) announce(who ? `${who}网络已恢复` : '对方网络已恢复')
+    if (call.answered && !call.ending) announce(who ? `${who}'s connection is back` : 'Their connection is back')
   }
   // One notice line: our own reconnecting outranks someone else's shaky line,
   // which outranks nothing; clearing one never clears the other.
   function showNotice(call) {
-    call.ui.setNotice(call.selfShaky ? '网络不稳定，正在重新连接…' : call.shakyShown?.size ? call.shakyText : null)
+    call.ui.setNotice(call.selfShaky ? 'Connection unstable, reconnecting…' : call.shakyShown?.size ? call.shakyText : null)
   }
 
   function accepted(call, msg) {
@@ -153,7 +153,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     clearTimeout(call.ringTimer)
     call.answered = true
     stopRinging(call)
-    call.ui.setStatus('正在连接…')
+    call.ui.setStatus('Connecting…')
     announceTracks()
     checkLive(call)
   }
@@ -163,7 +163,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     if (call.role !== 'caller' || call.answered) return
     if (call.reach && REACH.indexOf(call.reach) <= REACH.indexOf(kind)) return
     call.reach = kind
-    call.ui.setStatus(call.media === 'video' ? `视频通话 · ${REACH_TEXT[kind]}` : REACH_TEXT[kind])
+    call.ui.setStatus(call.media === 'video' ? `Video call · ${REACH_TEXT[kind]}` : REACH_TEXT[kind])
     // It rings over there (in the app, or as a notification): it rings back here.
     if (kind !== 'unreachable' && !call.ringback) call.ringback = ringback()
   }
@@ -172,11 +172,11 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     // In a group, one person saying no (or being busy) doesn't end it for the rest.
     if (isGroup(call.room)) {
       const who = nameOf(msg.from, call.room)
-      if (who && !call.answered) toast(msg.busy ? `${who}正在通话中` : msg.missed ? `${who}没有接听` : `${who}已拒绝`)
+      if (who && !call.answered) toast(msg.busy ? `${who} is on another call` : msg.missed ? `${who} didn't answer` : `${who} declined`)
       return
     }
-    if (msg.busy) endSoon('对方正在通话中', 'busy')
-    else endSoon(msg.missed ? '无人接听' : '对方已拒绝', msg.missed ? 'missed' : 'declined')
+    if (msg.busy) endSoon('They are on another call', 'busy')
+    else endSoon(msg.missed ? 'No answer' : 'They declined', msg.missed ? 'missed' : 'declined')
   }
 
   function left(call, msg) {
@@ -187,7 +187,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
       call.shakyTimers?.delete(msg.from)
       if (call.shakyShown?.delete(msg.from)) {
         const still = [...call.shakyShown][0]
-        if (still) call.shakyText = `${nameOf(still, call.room)}网络不稳定`
+        if (still) call.shakyText = `${nameOf(still, call.room)}'s connection is unstable`
         showNotice(call)
       }
     }
@@ -202,12 +202,12 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     // (the server says so); the rest only hear who left, said as shown.
     if (group && (call.peers.size || msg.ongoing)) {
       const who = nameOf(msg.from, call.room)
-      if (who) toast(msg.reason === 'lost' ? `${who}网络中断，已离开通话` : `${who}已离开通话`)
+      if (who) toast(msg.reason === 'lost' ? `${who} lost connection and left the call` : `${who} left the call`)
       return
     }
     // reason 'lost': the server ended it when their grace period ran out.
     const who = group ? nameOf(msg.from, call.room) : ''
-    endSoon(msg.reason === 'lost' ? `${who || '对方'}网络中断，通话已结束` : '通话结束')
+    endSoon(msg.reason === 'lost' ? `${who || 'They'} lost connection, call ended` : 'Call ended')
   }
 
   function remoteState(call, msg) {
@@ -224,8 +224,8 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     if (active) {
       // Busy: the caller hears so, and this side learns who tried.
       socketSend({ t: 'call', kind: 'decline', room: msg.room, callId: msg.callId, to: msg.from, busy: true })
-      const who = msg.caller?.display || nameOf(msg.from, msg.room) || '有人'
-      toast(`${who}邀请你${msg.media === 'video' ? '视频' : '语音'}通话，你正在通话中`, { duration: 4000 })
+      const who = msg.caller?.display || nameOf(msg.from, msg.room) || 'Someone'
+      toast(`${who} is inviting you to a ${msg.media === 'video' ? 'video' : 'voice'} call, but you're on another call`, { duration: 4000 })
       return
     }
     const call = active = newCall({ room: msg.room, callId: msg.callId, media: msg.media, role: 'callee', caller: msg.caller })
@@ -241,7 +241,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
         call.answered = true
         // In a group the call is the group's, not the caller's: it stays right when they leave.
         if (isGroup(call.room)) call.ui.retitle(chatInfo(call.room))
-        call.ui.setStatus('正在连接…')
+        call.ui.setStatus('Connecting…')
         begin().catch(fail)
       },
       decline: () => {
@@ -293,7 +293,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     }
     pc.onconnectionstatechange = () => {
       if (active !== call) return
-      if (['failed', 'closed'].includes(pc.connectionState)) endSoon('连接已断开')
+      if (['failed', 'closed'].includes(pc.connectionState)) endSoon('Connection lost')
       else if (pc.connectionState === 'connected') checkLive(call)
     }
     // A dip in the network says so while it recovers, rather than ending the call.
@@ -317,7 +317,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
       })
       // A 200 can still carry a failed track.
       const failed = res.tracks?.find(t => t.errorCode)
-      if (failed || !res.sessionDescription) throw Object.assign(new Error('通话服务暂时不可用'), { status: 502, code: failed?.errorCode })
+      if (failed || !res.sessionDescription) throw Object.assign(new Error('Call service is temporarily unavailable'), { status: 502, code: failed?.errorCode })
       await pc.setRemoteDescription(res.sessionDescription)
       call.localTracks = tracks.map(t => t.trackName)
     })
@@ -452,7 +452,7 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
       call.ui.attachLocal(call.stream, true, { mirror: (track.getSettings?.().facingMode || next) !== 'environment' })
     } catch (err) {
       console.warn('flip failed', err?.name || err)
-      if (active === call) toast('无法切换摄像头', { type: 'error' })
+      if (active === call) toast("Couldn't switch camera", { type: 'error' })
     } finally {
       call.flipping = false
     }
@@ -657,7 +657,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
   remoteAudio.srcObject = remoteStream
 
   const tileOff = h('span', { class: 'call-tile-off', 'aria-hidden': 'true' }, icon('video-slash'))
-  const tile = h('button', { class: 'call-tile', type: 'button', 'aria-label': '交换画面', 'aria-pressed': 'false', title: '交换画面' }, tileVideo, tileOff)
+  const tile = h('button', { class: 'call-tile', type: 'button', 'aria-label': 'Swap view', 'aria-pressed': 'false', title: 'Swap view' }, tileVideo, tileOff)
   const tileFrame = h('div', { class: 'call-tile-frame', 'aria-hidden': 'true' })
   const ring = h('span', { class: 'call-ring', 'aria-hidden': 'true' })
   const face = h('div', { class: 'call-face' }, ring)
@@ -668,13 +668,13 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
   const status = h('div', { class: 'call-status' })
   const badges = h('div', { class: 'call-badges' })
   const head = h('div', { class: 'call-head' }, name, status, badges)
-  const minBtn = h('button', { class: 'call-icon-btn call-min', type: 'button', 'aria-label': '缩小通话窗口', title: '缩小通话窗口' }, icon('pip-enter'))
+  const minBtn = h('button', { class: 'call-icon-btn call-min', type: 'button', 'aria-label': 'Minimize call', title: 'Minimize call' }, icon('pip-enter'))
   const top = h('div', { class: 'call-top' }, minBtn, head)
 
-  const mic = control({ icon: 'mic', pressedIcon: 'mic-slash', label: '静音', toggle: true, onChange: on => onMute(on) })
-  const cam = control({ icon: 'video', pressedIcon: 'video-slash', label: '关闭摄像头', toggle: true, onChange: off => onCamera(off) })
-  const flip = control({ icon: 'camera-rotate', label: '翻转摄像头', caption: '翻转', onPress: () => onFlip() })
-  const hang = control({ icon: 'phone-down', label: '挂断', cls: 'hang', onPress: () => onHangup() })
+  const mic = control({ icon: 'mic', pressedIcon: 'mic-slash', label: 'Mute', toggle: true, onChange: on => onMute(on) })
+  const cam = control({ icon: 'video', pressedIcon: 'video-slash', label: 'Turn off camera', toggle: true, onChange: off => onCamera(off) })
+  const flip = control({ icon: 'camera-rotate', label: 'Flip camera', caption: 'Flip', onPress: () => onFlip() })
+  const hang = control({ icon: 'phone-down', label: 'Hang up', cls: 'hang', onPress: () => onHangup() })
   cam.el.hidden = !hasVideo
   flip.el.hidden = true
   const controls = h('div', { class: 'call-controls' }, mic.el, cam.el, flip.el, hang.el)
@@ -682,7 +682,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
 
   // Behind it all (until a picture covers it): the backdrop chosen for
   // calls, always in its dark drawing.
-  const root = h('div', { class: ['call', hasVideo && 'video'], role: 'dialog', 'aria-label': '通话', tabindex: '-1', dataset: { mode } },
+  const root = h('div', { class: ['call', hasVideo && 'video'], role: 'dialog', 'aria-label': 'Call', tabindex: '-1', dataset: { mode } },
     backdropLayer(state.prefs?.call, 'call-backdrop'), stage, top, controls, remoteAudio)
 
   // ------------------------------------------------------------ the picture in picture
@@ -693,7 +693,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
   const pipTime = h('span', { class: 'call-pip-time' })
   const pipTab = h('span', { class: 'call-pip-tab' }, icon('chevron-left'))
   const pip = h('button', { class: 'call-pip', type: 'button', hidden: true, 'aria-describedby': hintId },
-    pipMute, pipTime, pipTab, h('span', { class: 'sr-only', id: hintId }, '可拖到任意角落，或用方向键移动；长按或按菜单键显示更多操作'))
+    pipMute, pipTime, pipTab, h('span', { class: 'sr-only', id: hintId }, 'Drag to any corner, or move with arrow keys; long-press or press the menu key for more'))
   // Where it may rest: inside the safe areas, clear of the headings at the
   // top and the bars at the foot, above the keyboard (call.css).
   const pipFrame = h('div', { class: 'call-pip-frame', 'aria-hidden': 'true' })
@@ -818,7 +818,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     const vq = velocity ? Math.max(0, Math.min(6, (dx * velocity.x + dy * velocity.y) / dist2)) : 0
     morph(to, { velocity: vq, damping: 0.86, response: 0.4 }).then(done => { if (done && mode === 'pip') rest() })
     giveFocusBack()
-    announce('通话已缩小为小窗，点按小窗返回通话')
+    announce('Call minimized to a small window, tap it to return')
   }
 
   function rest() {
@@ -873,7 +873,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     })
   }
 
-  // Focus that was in the call, or already lost to the page (it was on 接听,
+  // Focus that was in the call, or already lost to the page (it was on Answer,
   // which went away), goes back to where it was before the call, else to the
   // conversation's composer or the column in front (shell.js).
   function giveFocusBack() {
@@ -920,7 +920,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
       const now = Boolean(place.stashed)
       if (now !== wasStashed) {
         wasStashed = now
-        announce(now ? '通话小窗已收到屏幕边缘' : '通话小窗已移回角落')
+        announce(now ? 'Call window tucked to the screen edge' : 'Call window moved back to the corner')
       }
     },
     onDrag: () => pip.classList.add('dragging')
@@ -951,12 +951,12 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     if (mode !== 'pip' || !resting) return
     if (e?.type === 'pointerdown') haptic()
     pipMenu = openMenu(pip, [[
-      { label: '返回通话', icon: hasVideo ? 'video' : 'phone', onSelect: () => expand() },
-      { label: '静音', icon: 'mic-slash', checked: muted, toggle: true, onSelect: () => onMute(!muted) },
-      ...(cam.el.hidden ? [] : [{ label: '关闭摄像头', icon: 'video-slash', checked: camOff, toggle: true, onSelect: () => onCamera(!camOff) }]),
-      ...(canSystemPip() ? [{ label: '在其他应用上方显示', icon: 'pip-enter', onSelect: () => systemPip() }] : [])
+      { label: 'Back to call', icon: hasVideo ? 'video' : 'phone', onSelect: () => expand() },
+      { label: 'Mute', icon: 'mic-slash', checked: muted, toggle: true, onSelect: () => onMute(!muted) },
+      ...(cam.el.hidden ? [] : [{ label: 'Turn off camera', icon: 'video-slash', checked: camOff, toggle: true, onSelect: () => onCamera(!camOff) }]),
+      ...(canSystemPip() ? [{ label: 'Show over other apps', icon: 'pip-enter', onSelect: () => systemPip() }] : [])
     ], [
-      { label: '挂断', icon: 'phone-down', destructive: true, onSelect: () => onHangup() }
+      { label: 'Hang up', icon: 'phone-down', destructive: true, onSelect: () => onHangup() }
     ]], { title, variant: 'call-pip-menu', focusFirst: !e?.pointerType })
   }
   function syncPip(place = pipTile.place) {
@@ -1045,7 +1045,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     if (e.key === 'Escape' && !e.defaultPrevented && incomingUp) {
       e.preventDefault()
       e.stopPropagation()
-      announce('来电中，请接听或拒绝')
+      announce('Incoming call, answer or decline')
     } else if (e.key === 'Escape' && !e.defaultPrevented && mode === 'full' && canMinimize()) {
       e.preventDefault()
       e.stopPropagation()
@@ -1118,12 +1118,12 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     const text = ending ? statusText : notice || (liveAt ? callClock(Date.now() - liveAt) : statusText)
     if (status.textContent !== text) status.textContent = text
     if (pipTime.textContent !== text) pipTime.textContent = text
-    pip.setAttribute('aria-label', `返回通话：${title}${text ? `，${text}` : ''}${pip.dataset.stashed ? '，已收在屏幕边缘' : ''}`)
+    pip.setAttribute('aria-label', `Back to call: ${title}${text ? `, ${text}` : ''}${pip.dataset.stashed ? ', tucked at the screen edge' : ''}`)
   }
   function syncBadges() {
     const items = []
-    if (remote.mic === false) items.push(['mic-slash', '对方已静音'])
-    if (hasVideo && remote.cam === false) items.push(['video-slash', '对方已关闭摄像头'])
+    if (remote.mic === false) items.push(['mic-slash', 'They muted'])
+    if (hasVideo && remote.cam === false) items.push(['video-slash', 'They turned off camera'])
     badges.replaceChildren(...items.map(([glyph, text]) => h('span', { class: 'call-badge' }, icon(glyph), text)))
   }
   function setFace(src, label, room = false) {
@@ -1285,10 +1285,10 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
 
   return {
     showOutgoing(room, m) {
-      title = room?.name || '通话'
+      title = room?.name || 'Call'
       name.textContent = title
-      root.setAttribute('aria-label', `与${title}通话`)
-      statusText = m === 'video' ? '视频通话 · 正在呼叫…' : '正在呼叫…'
+      root.setAttribute('aria-label', `Call with ${title}`)
+      statusText = m === 'video' ? 'Video call · Calling…' : 'Calling…'
       // The conversation's own picture: the other person's photo, or the group's.
       setFace(room?.avatar || room?.peer?.avatar, room?.name || '', room?.kind === 'group')
       mount()
@@ -1298,28 +1298,28 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
       if (!room?.name) return
       title = room.name
       name.textContent = title
-      root.setAttribute('aria-label', `与${title}通话`)
+      root.setAttribute('aria-label', `Call with ${title}`)
       setFace(room.avatar, room.name, true)
     },
     showIncoming(caller, m, { accept, decline }) {
       incomingUp = true
       root.classList.add('incoming')
-      title = caller?.display || '来电'
+      title = caller?.display || 'Incoming call'
       name.textContent = title
-      root.setAttribute('aria-label', `${title}来电`)
-      statusText = m === 'video' ? '邀请你视频通话' : '邀请你语音通话'
+      root.setAttribute('aria-label', `Incoming call from ${title}`)
+      statusText = m === 'video' ? 'Video call invitation' : 'Voice call invitation'
       setFace(caller?.avatar, caller?.display || '')
-      const no = control({ icon: 'phone-down', label: '拒绝', cls: 'hang', onPress: () => { ringingIcon?.stop(); decline() } })
-      const yes = control({ icon: m === 'video' ? 'video' : 'phone-fill', label: '接听', cls: 'accept', onPress: () => {
+      const no = control({ icon: 'phone-down', label: 'Decline', cls: 'hang', onPress: () => { ringingIcon?.stop(); decline() } })
+      const yes = control({ icon: m === 'video' ? 'video' : 'phone-fill', label: 'Answer', cls: 'accept', onPress: () => {
         ringingIcon?.stop()
         incomingUp = false
         root.classList.remove('incoming')
-        root.setAttribute('aria-label', `与${title}通话`)
+        root.setAttribute('aria-label', `Call with ${title}`)
         incoming.remove()
         controls.hidden = false
         minBtn.hidden = false
         accept()
-        // 接听 itself is gone: focus moves to 挂断, not to the page.
+        // Answer itself is gone: focus moves to Hang up, not to the page.
         hang.button.focus({ preventScroll: true })
       } })
       incoming.append(no.el, yes.el)
@@ -1347,7 +1347,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
       clearInterval(tick)
       tick = setInterval(syncStatus, 1000)
       syncStatus()
-      announce('已接通')
+      announce('Connected')
       scheduleCalm()
     },
     ending(label) {
@@ -1390,8 +1390,8 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     setRemote(s) {
       const was = remote
       remote = s
-      if (was.mic && !s.mic) announce('对方已静音')
-      if (hasVideo && was.cam && !s.cam) announce('对方已关闭摄像头')
+      if (was.mic && !s.mic) announce('They muted')
+      if (hasVideo && was.cam && !s.cam) announce('They turned off camera')
       syncBadges()
       syncPicture()
     },
@@ -1416,7 +1416,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
     back() {
       if (destroyed) return 'none'
       if (incomingUp) {
-        announce('来电中，请接听或拒绝')
+        announce('Incoming call, answer or decline')
         return 'ringing'
       }
       if (ending) return 'ending'
@@ -1460,19 +1460,19 @@ function control({ icon: glyph, pressedIcon, label, caption = label, cls = '', t
 // its permission (named for what this call uses), or the server's own
 // plain answer for a refusal from the call service.
 function failureText(media, err) {
-  const devices = media === 'video' ? '麦克风和摄像头' : '麦克风'
+  const devices = media === 'video' ? 'microphone and camera' : 'microphone'
   switch (err?.name) {
     case 'NotAllowedError':
     case 'SecurityError':
-      return `需要允许使用${devices}`
+      return `Allow access to the ${devices}`
     case 'NotFoundError':
-      return `找不到可用的${devices}`
+      return `No ${devices} available`
     case 'NotReadableError':
     case 'AbortError':
-      return `${devices}正被其他应用占用`
+      return `The ${devices} is in use by another app`
     case 'OverconstrainedError':
-      return '摄像头不支持这次通话的设置'
+      return "The camera doesn't support this call's settings"
   }
-  if (err?.status !== undefined) return err.message || '通话服务暂时不可用，请稍后再试'
-  return '通话连接没能建立，请重新拨打'
+  if (err?.status !== undefined) return err.message || 'Call service is temporarily unavailable, try again later'
+  return "Couldn't establish the call, please redial"
 }

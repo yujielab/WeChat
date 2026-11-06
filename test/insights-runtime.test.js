@@ -101,14 +101,14 @@ test('smart panels: read when asked, for you alone; photos described once; weath
     assert.equal(read.insight.summary, '她到杭州了，约明天见')
     let prompts = await seen()
     assert.equal(prompts.filter(p => p.image).length, 1, 'their photo described')
-    assert.match(prompts.at(-1).text, /\[照片：a beach at sunset\]/, 'and read with the conversation')
-    assert.match(prompts.at(-1).text, /对方：我到杭州了/)
-    assert.match(prompts.at(-1).text, /我：好，明天见/)
+    assert.match(prompts.at(-1).text, /\[Photo: a beach at sunset\]/, 'and read with the conversation')
+    assert.match(prompts.at(-1).text, /Them: 我到杭州了/)
+    assert.match(prompts.at(-1).text, /Me: 好，明天见/)
 
     // Kept for the one who asked, and the weather is where they are.
     list = (await request('/api/insights?unit=c', undefined, a.cookie)).data
     assert.equal(list.rooms[0].insight.meetup.place, '星巴克')
-    assert.deepEqual({ place: list.weather.place, who: list.weather.who, temp: list.weather.temp, text: list.weather.text }, { place: '杭州', who: 'ins-b', temp: 22, text: '晴' })
+    assert.deepEqual({ place: list.weather.place, who: list.weather.who, temp: list.weather.temp, text: list.weather.text }, { place: '杭州', who: 'ins-b', temp: 22, text: 'Clear' })
     assert.equal((await request('/api/insights', undefined, b.cookie)).data.rooms[0].insight, null, 'not shown to the other side')
 
     // Read again only when there's something new, at most once a minute; the photo isn't described twice.

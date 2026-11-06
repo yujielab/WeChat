@@ -100,7 +100,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   const root = layer()
   root.dataset.layout = getLayout()
   const scrim = h('div', { class: 'scrim' })
-  const closeBtn = end || h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
+  const closeBtn = end || h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': 'Close' }, icon('xmark'))
   const head = h('div', { class: 'sheet-head' },
     start ? h('div', { class: 'start' }, start) : null,
     title ? h('h2', {}, title) : null,
@@ -115,7 +115,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     class: ['sheet', 'glass', 'glass-thick', tall && 'tall'],
     role: 'dialog',
     'aria-modal': 'true',
-    'aria-label': label || title || '面板',
+    'aria-label': label || title || 'Panel',
     tabindex: '-1'
   }, h('div', { class: 'grabber' }), head, body)
 
@@ -310,7 +310,7 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
   const highlight = h('span', { class: 'menu-highlight', 'aria-hidden': 'true' })
   const menu = h('div', {
     class: ['menu', 'glass', 'glass-thick', variant], role: 'menu', tabindex: '-1',
-    id: `duo-menu-${++nextMenuId}`, 'aria-label': title || '操作'
+    id: `duo-menu-${++nextMenuId}`, 'aria-label': title || 'Actions'
   }, highlight)
   const prevFocus = document.activeElement
   const trigger = anchor instanceof Element ? anchor : null
@@ -580,8 +580,8 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
 export function confirmAction(anchor, { title, confirm, destructive = true }) {
   return new Promise(resolve => {
     let chosen = false
-    // Focus starts on 取消 (the last choice): Return right away keeps things as they are.
-    openMenu(anchor, [[{ label: confirm, destructive, onSelect: () => { chosen = true; resolve(true) } }], [{ label: '取消' }]], {
+    // Focus starts on Cancel (the last choice): Return right away keeps things as they are.
+    openMenu(anchor, [[{ label: confirm, destructive, onSelect: () => { chosen = true; resolve(true) } }], [{ label: 'Cancel' }]], {
       title,
       focusAt: -1,
       onClose: () => { if (!chosen) resolve(false) }

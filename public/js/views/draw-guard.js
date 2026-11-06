@@ -1,5 +1,5 @@
 // A drawing that hasn't been sent is never thrown away without asking,
-// whichever way the board is left: its Close (and Escape, the 手绘 tool
+// whichever way the board is left: its Close (and Escape, the drawing tool
 // again, the details, a swipe back), the browser's or system's Back, the
 // conversation's own back, or another conversation opening (a notification,
 // the list beside it unfolded). An empty board leaves at once. One question
@@ -7,7 +7,7 @@
 
 /**
  * unsaved(): null, or { anchor, canvas } while the board has ink on it.
- * ask(anchor): resolves true for 放弃 (views/overlay.js confirmAction).
+ * ask(anchor): resolves true for Discard (views/overlay.js confirmAction).
  */
 export function createDiscardGuard({ unsaved, ask }) {
   let asking = false
@@ -32,7 +32,7 @@ export function createDiscardGuard({ unsaved, ask }) {
    * The browser has already taken a step Back (popstate). With ink on the
    * board, that step is undone at once (restore(): the entry is put back, so
    * history, the address and the conversation stay as they were) and then it
-   * asks; 放弃 takes the step for real (leave()). true when it held the step.
+   * asks; Discard takes the step for real (leave()). true when it held the step.
    */
   function holdPop({ leaving, restore, leave }) {
     if (!leaving || !unsaved()) return false

@@ -8,7 +8,7 @@
       return null
     }
   }
-  // Light (white) unless the user picked 跟随系统 or 深色 in Settings.
+  // Light (white) unless the user picked System or Dark in Settings.
   var theme = read('ui:theme') || 'light'
   if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme)
   var glass = read('ui:glass') || read('ui:glass-auto')

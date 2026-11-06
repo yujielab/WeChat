@@ -16,10 +16,10 @@ export const SHOWN = 24
 
 /** What the memory is worth, said in words rather than a number. */
 const CONFIDENCE = {
-  none: '还太少',
-  low: '刚开始记住',
-  medium: '已经记得一些',
-  high: '已经熟悉'
+  none: 'Still too little',
+  low: 'Starting to remember',
+  medium: 'Remembers some',
+  high: 'Knows you well'
 }
 
 /** How much of it there is, in words. */
@@ -30,11 +30,11 @@ export function when(ts, now = Date.now()) {
   if (!ts) return ''
   const diff = now - ts
   const day = 24 * 3600 * 1000
-  if (diff < 60 * 1000) return '刚刚'
-  if (diff < 3600 * 1000) return `${Math.floor(diff / 60000)} 分钟前`
-  if (diff < day) return `${Math.floor(diff / 3600000)} 小时前`
-  if (diff < 30 * day) return `${Math.floor(diff / day)} 天前`
-  return new Date(ts).toLocaleDateString('zh-CN')
+  if (diff < 60 * 1000) return 'Just now'
+  if (diff < 3600 * 1000) return `${Math.floor(diff / 60000)} min ago`
+  if (diff < day) return `${Math.floor(diff / 3600000)} hr ago`
+  if (diff < 30 * day) return `${Math.floor(diff / day)} days ago`
+  return new Date(ts).toLocaleDateString('en-US')
 }
 
 /** Nothing remembered — which is not an error, just nothing yet. */
@@ -56,7 +56,7 @@ export const emptyRoutine = () => ({
   kinds: [], emoji: [], peers: []
 })
 
-const ROUTINE_CONFIDENCE = { none: '还在了解你', low: '刚开始了解', medium: '已经了解一些', high: '已经熟悉' }
+const ROUTINE_CONFIDENCE = { none: 'Still getting to know you', low: 'Starting to know you', medium: 'Knows some of your routine', high: 'Knows it well' }
 export const routineConfidenceLabel = level => ROUTINE_CONFIDENCE[level] || ROUTINE_CONFIDENCE.none
 
 const minute = v => (Number.isFinite(v) && v >= 0 && v < 1440 ? Math.round(v) : null)
@@ -93,37 +93,37 @@ export function clock(m) {
   return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`
 }
 
-/** "21–24 点" */
-export const hoursText = ([a, b]) => `${a}–${b === 0 ? 24 : b} 点`
+/** "21:00–24:00" */
+export const hoursText = ([a, b]) => `${a}:00–${b === 0 ? 24 : b}:00`
 
 /** How soon someone usually answers, in words. */
 export function replyText(seconds) {
-  if (seconds < 60) return '通常 1 分钟内'
-  if (seconds < 3600) return `通常约 ${Math.round(seconds / 60)} 分钟`
-  return `通常约 ${Math.round(seconds / 3600)} 小时`
+  if (seconds < 60) return 'Usually within a minute'
+  if (seconds < 3600) return `Usually about ${Math.round(seconds / 60)} min`
+  return `Usually about ${Math.round(seconds / 3600)} hr`
 }
 
 /** How long their messages usually are, in words. */
 export function lengthText(n) {
-  if (n <= 8) return `多是短句，大约 ${n} 个字`
-  if (n <= 30) return `一般 ${n} 个字左右`
-  return `常写长段，大约 ${n} 个字`
+  if (n <= 8) return `Mostly short, about ${n} characters`
+  if (n <= 30) return `Usually around ${n} characters`
+  return `Often long, about ${n} characters`
 }
 
-const KIND = { text: '文字', sticker: '表情', image: '图片', drawing: '手绘', voice: '语音', video: '视频', file: '文件' }
-/** "文字 82% · 表情 10%" */
+const KIND = { text: 'Text', sticker: 'Stickers', image: 'Photos', drawing: 'Drawings', voice: 'Voice', video: 'Video', file: 'Files' }
+/** "Text 82% · Stickers 10%" */
 export const kindsText = kinds => kinds.map(k => `${KIND[k.kind] || k.kind} ${k.share}%`).join(' · ')
 
-const BAND = { morning: '早上', afternoon: '下午', evening: '晚上', night: '深夜' }
-/** "早上常和 小红 · 晚上常和 小明" */
-export const peersText = peers => peers.map(p => `${BAND[p.band]}常和 ${p.name}`).join(' · ')
+const BAND = { morning: 'Mornings', afternoon: 'Afternoons', evening: 'Evenings', night: 'Late night' }
+/** "Mornings often with Rosie · Evenings often with Sam" */
+export const peersText = peers => peers.map(p => `${BAND[p.band]} often with ${p.name}`).join(' · ')
 
 /** When they are usually up, said once — or for weekdays and weekends apart, when those differ. */
 export function sleepText(r) {
   if (r.weekday && r.weekend) {
-    return `工作日 ${clock(r.weekday.wake)} 起来、${clock(r.weekday.sleep)} 睡；周末 ${clock(r.weekend.wake)} 起来、${clock(r.weekend.sleep)} 睡`
+    return `Weekdays up at ${clock(r.weekday.wake)}, asleep by ${clock(r.weekday.sleep)}; weekends up at ${clock(r.weekend.wake)}, asleep by ${clock(r.weekend.sleep)}`
   }
-  if (r.wake !== null && r.sleep !== null) return `通常 ${clock(r.wake)} 起来、${clock(r.sleep)} 睡`
+  if (r.wake !== null && r.sleep !== null) return `Usually up at ${clock(r.wake)}, asleep by ${clock(r.sleep)}`
   return ''
 }
 

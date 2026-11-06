@@ -67,7 +67,7 @@ export function stickerEl(st, size = 'msg', { eager = size !== 'grid' } = {}) {
   const box = h('span', {
     class: ['stk', size, st.kind === 'animated' && 'lot'],
     role: 'img',
-    'aria-label': st.emoji || '表情',
+    'aria-label': st.emoji || 'Sticker',
     dataset: st.kind === 'animated' ? { lot: st.id, set: st.set } : {}
   }, h('i', { class: 'stk-fb', 'aria-hidden': 'true' }, st.emoji || ''))
   // Ready at once (decoded ahead): no fade and no emoji first. Otherwise
@@ -228,10 +228,10 @@ function loadCatalog() {
  * (prewarmStickers); if not, the shape of the row and grid stands in.
  */
 export async function openStickers({ onPick, origin }) {
-  const tabs = h('div', { class: 'stk-tabs', role: 'tablist', 'aria-label': '表情包' })
+  const tabs = h('div', { class: 'stk-tabs', role: 'tablist', 'aria-label': 'Sticker packs' })
   const body = h('div', { class: 'stk-body' })
   const content = h('div', { class: 'stk-panel' }, tabs, body)
-  const sheet = openSheet({ title: '表情', content, tall: true, origin, onClose: () => release(content) })
+  const sheet = openSheet({ title: 'Stickers', content, tall: true, origin, onClose: () => release(content) })
   if (!sets) {
     tabs.replaceChildren(...[56, 72].map(w => skel('stk-tab', h('span', { class: 'skel-bar', style: { width: `${w}px` } }))))
     body.replaceChildren(h('div', { class: 'stk-grid', 'aria-busy': 'true' }, ...Array.from({ length: 12 }, () => skel('stk-cell', h('span', { class: 'skel-blob' })))))
@@ -249,7 +249,7 @@ export async function openStickers({ onPick, origin }) {
       b.addEventListener('click', () => { adding = false; tab = i; paint() })
       return b
     })
-    const add = h('button', { class: ['stk-tab', 'stk-tab-add', adding && 'on'], type: 'button', role: 'tab', 'aria-selected': String(adding), 'aria-label': '添加表情包' }, icon('plus'))
+    const add = h('button', { class: ['stk-tab', 'stk-tab-add', adding && 'on'], type: 'button', role: 'tab', 'aria-selected': String(adding), 'aria-label': 'Add sticker pack' }, icon('plus'))
     add.addEventListener('click', () => { if (!adding) { adding = true; paint() } })
     tabs.replaceChildren(...packTabs, add)
   }
@@ -259,7 +259,7 @@ export async function openStickers({ onPick, origin }) {
     const grid = h('div', { class: 'stk-grid', role: 'group', 'aria-label': pack.title }, ...pack.stickers.map((st, i) => {
       const item = { ...st, set: pack.name }
       // The first rows load at once; the rest as they scroll near.
-      const b = h('button', { class: 'stk-cell', type: 'button', 'aria-label': `发送表情 ${st.emoji || ''}`.trim() }, stickerEl(item, 'grid', { eager: i < 24 }))
+      const b = h('button', { class: 'stk-cell', type: 'button', 'aria-label': `Send sticker ${st.emoji || ''}`.trim() }, stickerEl(item, 'grid', { eager: i < 24 }))
       b.addEventListener('click', () => {
         sheet.close()
         onPick(item)
@@ -270,14 +270,14 @@ export async function openStickers({ onPick, origin }) {
     mountStickers(grid)
   }
 
-  // One pack in the add list: its cover, name and size, and 添加 / 移除.
+  // One pack in the add list: its cover, name and size, and Add / Remove.
   const packRow = p => {
     const button = h('button', { class: 'stk-add', type: 'button' })
     const show = () => {
       const added = all.some(s => samePack(s.name, p.name))
-      button.textContent = added ? '移除' : '添加'
+      button.textContent = added ? 'Remove' : 'Add'
       button.classList.toggle('added', added)
-      button.setAttribute('aria-label', `${added ? '移除' : '添加'}${p.title}`)
+      button.setAttribute('aria-label', `${added ? 'Remove' : 'Add'} ${p.title}`)
     }
     show()
     button.addEventListener('click', async () => {
@@ -295,14 +295,14 @@ export async function openStickers({ onPick, origin }) {
         }
         paintTabs()
       } catch (err) {
-        toast(err.message || (add ? '添加失败' : '移除失败'), { type: 'error' })
+        toast(err.message || (add ? 'Add failed' : 'Remove failed'), { type: 'error' })
       }
       button.disabled = false
       show()
     })
     return h('div', { class: 'stk-row', role: 'listitem' },
       stickerEl({ ...p.cover, set: p.name }, 'row'),
-      h('div', { class: 'stk-row-text' }, h('span', { class: 'stk-row-title' }, p.title), h('span', { class: 'stk-row-sub' }, `${p.count} 个`)),
+      h('div', { class: 'stk-row-text' }, h('span', { class: 'stk-row-title' }, p.title), h('span', { class: 'stk-row-sub' }, `${p.count} stickers`)),
       button)
   }
 
@@ -320,10 +320,10 @@ export async function openStickers({ onPick, origin }) {
     // Moved to a pack, or closed, while it loaded.
     if (!adding || !content.isConnected) return
     if (!packs?.length) {
-      body.replaceChildren(h('p', { class: 'stk-empty' }, packs ? '暂时没有可添加的表情包' : '暂时取不到表情包'))
+      body.replaceChildren(h('p', { class: 'stk-empty' }, packs ? 'No sticker packs to add right now' : 'Could not load sticker packs'))
       return
     }
-    const list = h('div', { class: 'stk-store', role: 'list', 'aria-label': '可添加的表情包' }, ...packs.map(packRow))
+    const list = h('div', { class: 'stk-store', role: 'list', 'aria-label': 'Sticker packs to add' }, ...packs.map(packRow))
     body.replaceChildren(list)
     mountStickers(list)
   }

@@ -7,12 +7,12 @@ import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
 import { toast, lockApp, unlockApp } from './overlay.js'
 import { placeOnSide, foldSide } from '../ui/fold.js'
 
-export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = '图片', images, index = 0 }) {
+export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = 'Photo', images, index = 0 }) {
   const previousFocus = document.activeElement
   const entries = kind === 'image' && Array.isArray(images) ? images.filter(image => image.src || image.fullSrc) : []
   const gallery = entries.length > 1 ? entries : []
   let selected = gallery.length ? Math.max(0, Math.min(gallery.length - 1, index)) : 0
-  if (entries.length) ({ src, fullSrc, w = 0, h: hh = 0, label = '图片' } = entries[selected])
+  if (entries.length) ({ src, fullSrc, w = 0, h: hh = 0, label = 'Photo' } = entries[selected])
   src ||= fullSrc
   const layer = document.getElementById('overlays')
   const bg = h('div', { class: 'viewer-bg' })
@@ -20,18 +20,18 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     ? h('video', { class: 'viewer-media', src: fullSrc, controls: true, playsInline: true, autoplay: true, preload: 'metadata' })
     : h('img', { class: 'viewer-media', alt: label, draggable: false, src })
   const stage = h('div', { class: 'viewer-stage' }, media)
-  const closeBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '关闭' }, icon('xmark'))
-  const shareBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '分享或存储' }, icon('share'))
+  const closeBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Close' }, icon('xmark'))
+  const shareBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Share or save' }, icon('share'))
   const counter = gallery.length ? h('span', { class: 'viewer-gallery-count', 'aria-live': 'polite' }) : null
   // Close leads and Share follows; on the outer display and the inner
   // display in landscape they run down the trailing edge (duo-layout.css).
   const top = h('div', { class: 'viewer-bar top' }, closeBtn, shareBtn)
   const root = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1' }, bg, stage, top, counter)
-  const previous = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '上一张照片' }, icon('chevron-left')) : null
-  const next = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': '下一张照片' }, icon('chevron-right')) : null
-  const thumbnailBar = gallery.length ? h('div', { class: 'viewer-gallery-thumbnails', role: 'group', 'aria-label': '照片列表' }) : null
+  const previous = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Previous photo' }, icon('chevron-left')) : null
+  const next = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Next photo' }, icon('chevron-right')) : null
+  const thumbnailBar = gallery.length ? h('div', { class: 'viewer-gallery-thumbnails', role: 'group', 'aria-label': 'Photos' }) : null
   const thumbnailButtons = gallery.map((image, i) => {
-    const button = h('button', { class: 'viewer-gallery-thumb', type: 'button', 'aria-label': `查看第 ${i + 1} 张照片`, 'aria-pressed': String(i === selected) },
+    const button = h('button', { class: 'viewer-gallery-thumb', type: 'button', 'aria-label': `View photo ${i + 1}`, 'aria-pressed': String(i === selected) },
       h('img', { src: image.src || image.fullSrc, alt: '', loading: 'lazy', decoding: 'async', draggable: false }))
     button.addEventListener('click', () => select(i))
     thumbnailBar.append(button)
@@ -181,7 +181,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     g = null
     selected = i
     navigated = true
-    ;({ src, fullSrc, w = 0, h: hh = 0, label = '图片' } = gallery[i])
+    ;({ src, fullSrc, w = 0, h: hh = 0, label = 'Photo' } = gallery[i])
     media.src = src || fullSrc
     media.alt = label
     root.setAttribute('aria-label', label)
@@ -281,7 +281,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
       if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] })
       else window.open(source, '_blank', 'noopener')
     } catch (err) {
-      if (err?.name !== 'AbortError') toast('无法分享这张图片', { type: 'error' })
+      if (err?.name !== 'AbortError') toast("Couldn't share this photo", { type: 'error' })
     }
   })
 

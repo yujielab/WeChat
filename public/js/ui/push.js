@@ -21,9 +21,9 @@ export async function currentSubscription() {
 
 /** Asks for permission (call from a tap), subscribes and registers with the server. */
 export async function enablePush(vapid) {
-  if (await Notification.requestPermission() !== 'granted') throw new Error('没有获得通知权限')
+  if (await Notification.requestPermission() !== 'granted') throw new Error('Notification permission was not granted')
   const pm = await manager()
-  if (!pm) throw new Error('此设备不支持网页推送')
+  if (!pm) throw new Error('This device does not support web push')
   const sub = await keptSubscription(pm, vapid) || await pm.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(vapid) })
   await api.post('/api/push/subscribe', { sub: sub.toJSON() })
   await retireWorkerSubscription(sub)

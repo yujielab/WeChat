@@ -120,9 +120,9 @@
   --t-footnote: 0.765rem;        /* 13 */
   --t-caption: 0.706rem;         /* 12 */
   --t-caption-2: 0.647rem;       /* 11 */
-  /* Display face for the wordmark, eyebrows and numerals: DIN where the
-     system has it (SpaceX's D-DIN, iOS's DIN Alternate), SF elsewhere. */
-  --font-display: "D-DIN", "DIN Alternate", "DIN Next LT Pro", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+  /* Display face for the wordmark, eyebrows and numerals: Clarinetta, the
+     app's own face, with system fallbacks while it loads or for glyphs it lacks. */
+  --font-display: "Clarinetta", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --track-wordmark: 0.34em;
   --track-eyebrow: 0.08em;
   --w-regular: 400;

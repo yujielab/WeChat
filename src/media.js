@@ -32,16 +32,16 @@ export async function handleMedia(request, url, user, hub) {
 
 async function upload(request, url, user, hub) {
   const kind = url.searchParams.get('kind')
-  if (!KINDS.has(kind)) return j({ ok: false, error: '未知的媒体类型' }, 400)
+  if (!KINDS.has(kind)) return j({ ok: false, error: 'Unknown media type' }, 400)
   const room = url.searchParams.get('room') || ''
   if (!OWN.has(kind)) {
-    if (!room || !hub.store.isMember(room, user.id)) return j({ ok: false, error: '无权上传到该会话' }, 403)
+    if (!room || !hub.store.isMember(room, user.id)) return j({ ok: false, error: 'Not allowed to upload to this chat' }, 403)
   } else if (!/^image\//.test(request.headers.get('content-type') || '')) {
-    return j({ ok: false, error: '请选择图片' }, 400)
+    return j({ ok: false, error: 'Please choose an image' }, 400)
   }
   const size = Number(request.headers.get('content-length') || 0)
-  if (size > MAX_BYTES) return j({ ok: false, error: '文件过大（上限 30MB）' }, 413)
-  if (!request.body) return j({ ok: false, error: '没有内容' }, 400)
+  if (size > MAX_BYTES) return j({ ok: false, error: 'File too large (max 30MB)' }, 413)
+  if (!request.body) return j({ ok: false, error: 'No content' }, 400)
 
   const contentType = request.headers.get('content-type') || 'application/octet-stream'
   const scope = OWN.has(kind) ? user.id : room
@@ -79,7 +79,7 @@ async function download(key, user, hub) {
   const [kind, scope] = key.split('/')
   if (!kind || !scope) return j({ ok: false, error: 'not found' }, 404)
   const allowed = PUBLIC.has(kind) || (kind === 'bg' ? scope === user.id : hub.store.isMember(scope, user.id))
-  if (!allowed) return j({ ok: false, error: '无权访问' }, 403)
+  if (!allowed) return j({ ok: false, error: 'No access' }, 403)
   const obj = await hub.env.MEDIA.get(key)
   if (!obj) return j({ ok: false, error: 'not found' }, 404)
   const headers = new Headers(DOWNLOAD_HEADERS)

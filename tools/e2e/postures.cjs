@@ -174,7 +174,7 @@ assert.deepEqual(await held(),draft,'the draft survives closing too')
   const t0=Date.now();assert.ok(await waitPose(q,'half'),'two touching segments, no event: half open '+JSON.stringify(await state(q)));const took=Date.now()-t0
   assert.ok(took<700,'within a moment: '+took+'ms');await sleep(800)
   let st=await state(q);assert.ok(st.pose==='half'&&st.list===476&&Math.abs(st.list+st.thread-INNER.width)<=1,'the columns meet at the hinge '+JSON.stringify(st))
-  assert.match(await q.evaluate(async()=>{const{openSettings}=await import('/js/views/sheets.js');openSettings({onLogout(){},origin:null});await new Promise(r=>setTimeout(r,500));return[...document.querySelectorAll('.sheet .cell')].find(c=>c.textContent.includes('屏幕姿态'))?.textContent||''}),/^(?=.*半开 · 视口分段)(?=.*2 段，铰链 476–476)(?=.*设备姿态：折起)/,'Settings says what the device reports')
+  assert.match(await q.evaluate(async()=>{const{openSettings}=await import('/js/views/sheets.js');openSettings({onLogout(){},origin:null});await new Promise(r=>setTimeout(r,500));return[...document.querySelectorAll('.sheet .cell')].find(c=>c.textContent.includes('Screen posture'))?.textContent||''}),/^(?=.*Half open · Viewport segments)(?=.*2 segments, hinge 476–476)(?=.*Device posture: Folded)/,'Settings says what the device reports')
   await q.screenshot({path:path.join(OUT,'8-posture-readings.png')})
   await q.keyboard.press('Escape');await sleep(400)
   await q.evaluate(()=>{window.__seg=[{x:0,y:0,width:innerWidth,height:innerHeight}]})

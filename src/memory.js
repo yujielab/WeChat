@@ -177,8 +177,8 @@ export const emptyStyle = () => ({
 export function styleText(profile) {
   if (!profile || !profile.messages) return ''
   const lines = []
-  if (profile.words?.length) lines.push(`我常用的词：${profile.words.slice(0, 20).join('、')}`)
-  if (profile.endings?.length) lines.push(`我常把话说成：${profile.endings.slice(0, 8).map(e => `…${e}`).join('、')}`)
+  if (profile.words?.length) lines.push(`Words I often use: ${profile.words.slice(0, 20).join(', ')}`)
+  if (profile.endings?.length) lines.push(`How I often phrase things: ${profile.endings.slice(0, 8).map(e => `…${e}`).join(', ')}`)
   return lines.join('\n')
 }
 
@@ -292,8 +292,8 @@ export function writeDigest(store, userId, roomId, text, at = Date.now()) {
  */
 export function digestPrompt(lines) {
   return [
-    { role: 'system', content: '你整理聊天记录。把已经较早的聊天压缩成简短的要点，只保留明确说过的内容：聊到的话题、约定的时间地点、还没做的事。不要推测，不要编造，不要客套。只输出要点，每条一行，不超过5行。' },
-    { role: 'user', content: `较早的聊天记录：\n${lines}\n\n要点： /no_think` }
+    { role: 'system', content: 'You summarize a chat log. Compress the older part of the conversation into short bullet points, keeping only what was clearly said: topics discussed, agreed times and places, things not yet done. Do not speculate, do not make things up, no pleasantries. Output only the points, one per line, no more than 5 lines.' },
+    { role: 'user', content: `Earlier chat log:\n${lines}\n\nKey points: /no_think` }
   ]
 }
 

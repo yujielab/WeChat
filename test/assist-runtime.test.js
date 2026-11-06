@@ -16,7 +16,7 @@ export class AI extends WorkerEntrypoint {
   async run(model, input) {
     const text = input.messages.map(m => m.content).join('\\n')
     seen.push(text)
-    if (text.includes('挑出')) return { response: '["明天下午3点","会议室"]' }
+    if (text.includes('keywords')) return { response: '["明天下午3点","会议室"]' }
     return { response: '下午三点见' }
   }
 }

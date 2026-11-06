@@ -104,7 +104,7 @@ export class CallBroker {
       }
       case 'state': {
         // "My microphone / camera is on or off": the others show it (a face
-        // instead of a dark picture, 对方已静音). Kept with the call, like tracks.
+        // instead of a dark picture, they muted). Kept with the call, like tracks.
         const st = mediaState(msg)
         if (!st) return
         if (current) {
@@ -175,7 +175,7 @@ export class CallBroker {
             finished = true
           } else this.put(room, current)
         }
-        // A callee already on another call says so: the caller hears 对方正在通话中.
+        // A callee already on another call says so: the caller hears they are on another call.
         // ongoing: the call is still on for the rest (a group with someone in it or being rung),
         // so nobody else's call or ring is put away with this one leaving.
         relay({ missed: Boolean(msg.missed), ongoing: Boolean(this.get(room)), ...(kind === 'decline' && msg.busy === true && { busy: true }) })
@@ -215,8 +215,8 @@ export class CallBroker {
       if (call?.callId !== callId || !call.ringing.includes(uid) || call.notified.includes(uid)) continue
       const caller = this.hub.store.getUser(call.caller)
       const sent = await this.hub.pushTo(uid, {
-        title: caller?.display || '来电',
-        body: call.media === 'video' ? '邀请你视频通话' : '邀请你语音通话',
+        title: caller?.display || 'Incoming call',
+        body: call.media === 'video' ? 'Video call invitation' : 'Voice call invitation',
         tag: `call-${callId}`,
         link: `/?chat=${encodeURIComponent(room)}&call=${encodeURIComponent(callId)}`
       }, { ttl: Math.round(RING_MS / 1000), topic: `call-${callId}` })
@@ -237,8 +237,8 @@ export class CallBroker {
     const caller = this.hub.store.getUser(call.caller)
     for (const uid of call.notified.filter(u => call.ringing.includes(u))) {
       await this.hub.pushTo(uid, {
-        title: caller?.display || '未接来电',
-        body: call.media === 'video' ? '未接视频通话' : '未接语音通话',
+        title: caller?.display || 'Missed call',
+        body: call.media === 'video' ? 'Missed video call' : 'Missed voice call',
         tag: `call-${call.callId}`,
         link: `/?chat=${encodeURIComponent(room)}`
       }, { topic: `call-${call.callId}` })
@@ -329,7 +329,7 @@ export class CallBroker {
     // Fewer than two in it (counting those still in their grace period), and nobody
     // being rung: over. With the caller gone, one person alone while others ring: over too.
     const over = call.participants.length < 2 && (!call.ringing.length || !call.participants.includes(call.caller))
-    // reason 'lost': the others say 对方网络中断 rather than a plain 通话结束.
+    // reason 'lost': the others say their connection dropped rather than a plain call ended.
     for (const u of [...call.participants, ...call.ringing]) {
       this.hub.sendToUser(u, { t: 'call', kind: 'hangup', room, callId, from: uid, reason: 'lost', ongoing: !over })
     }
@@ -351,8 +351,8 @@ export class CallBroker {
   }
 
   logCall(room, from, msg, caller) {
-    const label = msg.media === 'video' ? '视频通话' : '语音通话'
-    const text = msg.missed ? `未接${label}` : `${label}已结束${msg.duration ? '，' + fmtDur(msg.duration) : ''}`
+    const label = msg.media === 'video' ? 'Video call' : 'Voice call'
+    const text = msg.missed ? `Missed ${label.toLowerCase()}` : `${label} ended${msg.duration ? ', ' + fmtDur(msg.duration) : ''}`
     // How it ended, as the caller's side saw it; each side words it for itself.
     const result = !msg.missed ? 'completed' : CALL_RESULTS.includes(msg.result) ? msg.result : 'missed'
     const media = msg.media === 'video' ? 'video' : 'audio'
@@ -364,7 +364,7 @@ export class CallBroker {
 
   // ---------------------------------------------------------------- media proxy (/rtc/*)
   async http(request, url, user) {
-    if (!this.configured().enabled) return j({ ok: false, error: '暂时无法通话' }, 503)
+    if (!this.configured().enabled) return j({ ok: false, error: "Calls aren't available right now" }, 503)
     const path = url.pathname.replace(/^\/rtc/, '')
 
     if (path === '/turn' && request.method === 'POST') {
@@ -377,7 +377,7 @@ export class CallBroker {
     const mTracks = path.match(/^\/sessions\/([\w-]+)\/tracks\/new$/)
     if (mTracks && request.method === 'POST') {
       const body = await safeBody(request)
-      if (!validTracks(body.tracks)) return j({ ok: false, error: '通话请求无效' }, 400)
+      if (!validTracks(body.tracks)) return j({ ok: false, error: 'Invalid call request' }, 400)
       return this.rtc('POST', `/sessions/${mTracks[1]}/tracks/new`, body)
     }
     const mReneg = path.match(/^\/sessions\/([\w-]+)\/renegotiate$/)
@@ -401,7 +401,7 @@ export class CallBroker {
         signal: AbortSignal.timeout(RTC_TIMEOUT_MS)
       })
     } catch {
-      return j({ ok: false, error: '通话服务没有响应，请稍后再试' }, 504)
+      return j({ ok: false, error: 'The call service did not respond, try again later' }, 504)
     }
     const text = await res.text()
     let code
@@ -451,19 +451,19 @@ const clean = value => (typeof value === 'string' ? value.trim() : '')
 
 /**
  * What to say when the SFU refuses: which side to look at, never the
- * service's own words. reason is ours (see README › 通话出错时).
+ * service's own words. reason is ours (see README › Call errors).
  */
 function refusal(status, code, apiPath) {
-  if (status === 401 || status === 403 || code === 'unauthorized') return { reason: 'RTC_AUTH', error: '通话服务配置有误，暂时无法通话' }
+  if (status === 401 || status === 403 || code === 'unauthorized') return { reason: 'RTC_AUTH', error: 'Call service is misconfigured, calls unavailable' }
   if (status === 404 || code === 'not_found') {
     return apiPath === '/sessions/new'
-      ? { reason: 'RTC_APP', error: '通话服务配置有误，暂时无法通话' }
-      : { reason: 'RTC_GONE', error: '这次通话已失效，请重新拨打' }
+      ? { reason: 'RTC_APP', error: 'Call service is misconfigured, calls unavailable' }
+      : { reason: 'RTC_GONE', error: 'This call is no longer valid, please redial' }
   }
-  if (status === 429) return { reason: 'RTC_BUSY', error: '通话请求太频繁，请稍后再试' }
-  if (['decoding_error', 'invalid_params', 'invalid_session_description'].includes(code)) return { reason: 'RTC_NEGOTIATION', error: '通话连接没能建立，请重新拨打' }
-  if (['not_found_track_error', 'empty_track_error', 'session_error'].includes(code)) return { reason: 'RTC_MEDIA', error: '对方的声音或画面还没准备好，请重新拨打' }
-  return { reason: 'RTC_SERVICE', error: '通话服务暂时不可用，请稍后再试' }
+  if (status === 429) return { reason: 'RTC_BUSY', error: 'Too many call requests, try again later' }
+  if (['decoding_error', 'invalid_params', 'invalid_session_description'].includes(code)) return { reason: 'RTC_NEGOTIATION', error: "Couldn't establish the call, please redial" }
+  if (['not_found_track_error', 'empty_track_error', 'session_error'].includes(code)) return { reason: 'RTC_MEDIA', error: "The other side's audio or video isn't ready, please redial" }
+  return { reason: 'RTC_SERVICE', error: 'Call service is temporarily unavailable, try again later' }
 }
 
 // One ICE server as RTCPeerConnection takes it, or null.

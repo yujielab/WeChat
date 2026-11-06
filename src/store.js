@@ -12,10 +12,10 @@ export const EDIT_WINDOW = 15 * 60 * 1000
 export const EDIT_MAX = 5
 /** Why `uid` can't rewrite message `m` as `text` now ('' when they can). */
 export function editProblem(m, uid, text, at = now()) {
-  if (!m || m.sender !== uid || m.type !== 'text' || m.state === 'revoked') return '无法编辑这条消息'
-  if (!String(text).trim()) return '不能改成空消息'
-  if (at - m.ts > EDIT_WINDOW) return '发出超过 15 分钟的消息不能再编辑'
-  if ((m.edited || 0) >= EDIT_MAX) return `每条消息最多编辑 ${EDIT_MAX} 次`
+  if (!m || m.sender !== uid || m.type !== 'text' || m.state === 'revoked') return "Can't edit this message"
+  if (!String(text).trim()) return "Can't change it to an empty message"
+  if (at - m.ts > EDIT_WINDOW) return "Messages sent over 15 minutes ago can't be edited"
+  if ((m.edited || 0) >= EDIT_MAX) return `Each message can be edited at most ${EDIT_MAX} times`
   return ''
 }
 
@@ -242,7 +242,7 @@ export class Store {
   createGroup({ name, creator, members }) {
     const id = rid()
     const t = now()
-    this.exec(`INSERT INTO rooms (id, kind, name, creator, created) VALUES (?,?,?,?,?)`, id, 'group', name || '群聊', creator, t)
+    this.exec(`INSERT INTO rooms (id, kind, name, creator, created) VALUES (?,?,?,?,?)`, id, 'group', name || 'Group', creator, t)
     const all = new Set([creator, ...(members || [])])
     for (const u of all) this.#addMember(id, u, u === creator ? 'owner' : 'member', t)
     return id

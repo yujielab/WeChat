@@ -74,10 +74,10 @@ async function boot() {
   try {
     status = await fetch('/auth/status', { credentials: 'same-origin' }).then(r => r.json())
   } catch {
-    if (shell) shell.setStatus({ text: '正在连接…', spinner: true })
+    if (shell) shell.setStatus({ text: 'Connecting…', spinner: true })
     else {
       app.replaceChildren()
-      toast('无法连接服务器，请检查网络', { type: 'error', duration: 6000 })
+      toast("Can't reach the server, check your connection", { type: 'error', duration: 6000 })
     }
     setTimeout(boot, 4000)
     return
@@ -95,7 +95,7 @@ async function start(me) {
     await refresh()
   } catch (err) {
     // A restored app says it is still connecting; a blank one says why.
-    if (shell) shell.setStatus({ text: '正在连接…', spinner: true })
+    if (shell) shell.setStatus({ text: 'Connecting…', spinner: true })
     else toast(err.message, { type: 'error' })
     return setTimeout(() => start(me), 3000)
   }
@@ -106,9 +106,9 @@ async function start(me) {
     // The open conversation fetches what came while it was off (a call record
     // the server wrote meanwhile, say); the others do when they're opened.
     onOpen: () => { state.socket = true; shell?.setStatus({}); outbox.resume(); refresh().catch(() => {}); shell?.thread.catchUp().catch(() => {}) },
-    // Off the socket, who is online is unknown: nobody shows 在线 or a green
+    // Off the socket, who is online is unknown: nobody shows online or a green
     // dot until hello brings presence again.
-    onClose: () => { state.socket = false; setPresence([]); shell?.setStatus({ text: '正在连接…', spinner: true }) }
+    onClose: () => { state.socket = false; setPresence([]); shell?.setStatus({ text: 'Connecting…', spinner: true }) }
   })
   enterApp()
 }
@@ -276,7 +276,7 @@ function bumpRoom(m, raw) {
       unread: incUnread ? counted + 1 : existing.unread,
       ...(raw.type !== 'system' && { hidden: false }),
       ...(incUnread && { marked: false }),
-      // Mentioned while elsewhere: the list says 有人@我 until it's read.
+      // Mentioned while elsewhere: the list says Mentioned you until it's read.
       ...(incUnread && !existing.mention && raw.meta?.mentions?.includes(state.me?.id) && { mention: m.id })
     })
   } else {

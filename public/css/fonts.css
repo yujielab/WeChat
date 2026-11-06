@@ -1,0 +1,109 @@
+/* Clarinetta — the app's own face, served from /fonts (CSP font-src 'self').
+ * One family across the weights it ships, upright and italic, so font-weight
+ * and font-style pick the right file; the unicase bold is its own family.
+ * font-display: swap paints text at once in the fallback, then swaps — no
+ * blank text while the face loads. The faces map to the standard numeric
+ * weights so the design tokens (var(--w-*)) keep working unchanged. */
+
+@font-face {
+  font-family: "Clarinetta";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-Light.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-LightItalic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-Regular.woff2") format("woff2"),
+       url("/fonts/Clarinetta-Regular.woff") format("woff");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-RegularItalic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-MediumItalic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-BoldItalic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-ExtraBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-ExtraBoldItalic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-Black.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-BlackItalic.woff2") format("woff2");
+}
+/* Ultra ships italic only; the heaviest step. */
+@font-face {
+  font-family: "Clarinetta";
+  font-style: italic;
+  font-weight: 1000;
+  font-display: swap;
+  src: url("/fonts/Clarinetta-UltraItalic.woff2") format("woff2");
+}
+
+/* Unicase bold — a separate family, used only where asked for by name. */
+@font-face {
+  font-family: "Clarinetta Unicase";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/ClarinettaUnicase-Bold.woff2") format("woff2");
+}

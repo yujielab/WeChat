@@ -1,5 +1,5 @@
-// Long-term memory of how a person lives with the app: their routine (作息)
-// and their habits (习惯) — when they are up and about and when they go
+// Long-term memory of how a person lives with the app: their routine
+// and their habits — when they are up and about and when they go
 // quiet, which hours they are busiest, who they talk to at which time of
 // day, how quickly and how briefly they answer, what they send and which
 // emoji they reach for.
@@ -321,11 +321,11 @@ export function routineText(summary, now = Date.now()) {
   if (summary.wake !== null && summary.sleep !== null) {
     const p = localParts(now, summary.tz ?? 0)
     const usual = p.weekend && summary.weekend ? summary.weekend : !p.weekend && summary.weekday ? summary.weekday : summary
-    lines.push(`现在是我这边的 ${clock(p.minute)}${p.weekend ? '（周末）' : ''}；我一般 ${clock(usual.wake)} 起来、${clock(usual.sleep)} 睡。`)
+    lines.push(`It's ${clock(p.minute)} where I am${p.weekend ? ' (weekend)' : ''}; I usually wake at ${clock(usual.wake)} and sleep at ${clock(usual.sleep)}.`)
   }
   if (summary.length !== null) {
-    lines.push(summary.length <= 8 ? `我回消息一般很短，大约 ${summary.length} 个字。` : `我的消息一般 ${summary.length} 个字左右。`)
+    lines.push(summary.length <= 8 ? `My replies are usually short, about ${summary.length} characters.` : `My messages are usually around ${summary.length} characters.`)
   }
-  if (summary.emoji?.length) lines.push(`我常用的表情：${summary.emoji.slice(0, 3).join(' ')}`)
+  if (summary.emoji?.length) lines.push(`Emoji I often use: ${summary.emoji.slice(0, 3).join(' ')}`)
   return lines.join('\n')
 }

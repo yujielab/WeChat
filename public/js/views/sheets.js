@@ -32,27 +32,27 @@ function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) 
   return el
 }
 /**
- * 屏幕姿态: what the screen is taken to be (合上 / 半开 / 展开) and what the
+ * Screen posture: what the screen is taken to be (Closed / Half open / Open) and what the
  * device reports that from — the viewport's segments, its posture, or
  * neither — kept current while it shows, so folding the screen with
  * Settings open shows whether the browser tells the page. Only where the
  * browser reports anything.
  */
-const POSES = { closed: '合上', half: '半开', open: '展开' }
-const SOURCES = { segments: '视口分段', posture: '设备姿态', emulated: '模拟', none: '屏幕宽度' }
+const POSES = { closed: 'Closed', half: 'Half open', open: 'Open' }
+const SOURCES = { segments: 'Viewport segments', posture: 'Device posture', emulated: 'Emulated', none: 'Screen width' }
 function postureCell() {
   const first = getPostureReadings()
   if (first.segments === null && first.posture === null && first.source !== 'emulated') return null
   const value = h('span', { class: 'value' })
   const sub = h('span', { class: 'sub' })
-  const el = cell('屏幕姿态', value)
+  const el = cell('Screen posture', value)
   el.querySelector('.grow').append(sub)
   const paint = () => {
     const r = getPostureReadings()
-    const seg = r.segments === null ? '不支持' : r.segments.length < 2 ? '1 段' : `2 段，铰链 ${r.fold.axis === 'none' ? '—' : `${r.fold.start}–${r.fold.end}`}`
-    const pos = r.posture === null ? '不支持' : r.posture === 'folded' ? '折起' : '平展'
+    const seg = r.segments === null ? 'Unsupported' : r.segments.length < 2 ? '1 segment' : `2 segments, hinge ${r.fold.axis === 'none' ? '—' : `${r.fold.start}–${r.fold.end}`}`
+    const pos = r.posture === null ? 'Unsupported' : r.posture === 'folded' ? 'Folded' : 'Flat'
     value.textContent = `${POSES[r.pose] || r.pose} · ${SOURCES[r.source] || r.source}`
-    sub.textContent = `视口分段：${seg}　设备姿态：${pos}`
+    sub.textContent = `Viewport segments: ${seg} · Device posture: ${pos}`
   }
   paint()
   const timer = setInterval(() => (el.isConnected ? paint() : clearInterval(timer)), 300)
@@ -103,7 +103,7 @@ function withCover(card, cover) {
  * the picker. get() reads it; opts go to the picker, whose save() is
  * followed by the row.
  */
-function backdropCell(label, ic, get, { none = '默认', ...opts }) {
+function backdropCell(label, ic, get, { none = 'Default', ...opts }) {
   const swatch = h('span', { class: 'bd-swatch', 'aria-hidden': 'true' }, backdropLayer(get() || opts.fallback || ''))
   const name = h('span', {}, backdropLabel(get(), none))
   const update = () => {
@@ -129,9 +129,9 @@ export function openSettings({ onLogout, origin }) {
   const prefs = getPrefs()
   const me = state.me
   // The card is the one way into editing who you are; no second row for it.
-  const card = me => withCover(h('button', { class: 'profile profile-btn', type: 'button', 'aria-label': `${me?.display || '我'}，编辑资料` },
-    avatar(me?.avatar, me?.display || '我', { size: 84 }),
-    h('h3', {}, me?.display || '我'),
+  const card = me => withCover(h('button', { class: 'profile profile-btn', type: 'button', 'aria-label': `${me?.display || 'Me'}, edit profile` },
+    avatar(me?.avatar, me?.display || 'Me', { size: 84 }),
+    h('h3', {}, me?.display || 'Me'),
     h('p', {}, '@' + (me?.username || ''))), me?.cover)
   let profile = card(me)
   // What's edited there shows here as soon as it's saved.
@@ -148,59 +148,59 @@ export function openSettings({ onLogout, origin }) {
 
   const content = h('div', {},
     profile,
-    groupTitle('账号'),
+    groupTitle('Account'),
     group(
-      cell('修改密码', chev(), { icon: 'lock', onClick: () => changePassword() })
+      cell('Change password', chev(), { icon: 'lock', onClick: () => changePassword() })
     ),
-    groupTitle('显示与交互'),
+    groupTitle('Display & interaction'),
     group(
-      cell('外观', segmented([
-        { label: '浅色', value: 'light' },
-        { label: '深色', value: 'dark' },
-        { label: '自动', value: 'system' }
-      ], prefs.theme, setTheme, '外观')),
-      cell('降低透明度', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), '降低透明度')),
-      cell('减少动态效果', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), '减少动态效果')),
+      cell('Appearance', segmented([
+        { label: 'Light', value: 'light' },
+        { label: 'Dark', value: 'dark' },
+        { label: 'Auto', value: 'system' }
+      ], prefs.theme, setTheme, 'Appearance')),
+      cell('Reduce transparency', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), 'Reduce transparency')),
+      cell('Reduce motion', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), 'Reduce motion')),
       // Only offered where the device can play it (iPhone), so it never
       // claims to be on when nothing would happen.
-      hapticsAvailable ? cell('触感反馈', toggle(prefs.haptics, on => setHaptics(on), '触感反馈')) : null,
+      hapticsAvailable ? cell('Haptic feedback', toggle(prefs.haptics, on => setHaptics(on), 'Haptic feedback')) : null,
       postureCell()
     ),
     // Backdrops, the same on each of your devices (each conversation can
     // also have its own, in its details).
-    groupTitle('背景'),
+    groupTitle('Backgrounds'),
     group(
-      backdropCell('聊天背景', 'bubble', () => state.prefs.chat, { look: 'chat', save: v => saveBackdrops({ chat: v }) }),
-      backdropCell('通话背景', 'phone', () => state.prefs.call, { look: 'call', save: v => saveBackdrops({ call: v }) })
+      backdropCell('Chat background', 'bubble', () => state.prefs.chat, { look: 'chat', save: v => saveBackdrops({ chat: v }) }),
+      backdropCell('Call background', 'phone', () => state.prefs.call, { look: 'call', save: v => saveBackdrops({ call: v }) })
     ),
     // Writing help, only where the server has Workers AI.
-    state.assist ? groupTitle('智能') : null,
+    state.assist ? groupTitle('Smart') : null,
     state.assist ? group(
-      cell('输入预测', toggle(assistPrefs().predict, on => setAssistPref('predict', on), '输入预测')),
-      cell('加亮关键词', toggle(assistPrefs().keys, on => setAssistPref('keys', on), '加亮关键词')),
-      cell('智能通知', toggle(insightsOn(), on => setInsightsPref(on), '智能通知'))
+      cell('Typing suggestions', toggle(assistPrefs().predict, on => setAssistPref('predict', on), 'Typing suggestions')),
+      cell('Highlight keywords', toggle(assistPrefs().keys, on => setAssistPref('keys', on), 'Highlight keywords')),
+      cell('Insights', toggle(insightsOn(), on => setInsightsPref(on), 'Insights'))
     ) : null,
-    state.assist ? foot('智能通知从最近的私聊里整理提醒，只给你自己看。') : null,
+    state.assist ? foot('Insights pull reminders from your recent direct chats, just for you.') : null,
     state.assist ? group(
-      cell('记忆', chev(), { icon: 'sparkles', onClick: () => openMemorySheet(origin) })
+      cell('Memory', chev(), { icon: 'sparkles', onClick: () => openMemorySheet(origin) })
     ) : null,
-    state.assist ? foot('输入联想会记住你的用词、作息和聊天习惯，只来自你自己的使用，随时可以查看、关闭或清除。') : null,
-    groupTitle('通知'),
+    state.assist ? foot('Typing suggestions remember your words, routine and chat habits, only from your own use — you can view, turn off or clear them anytime.') : null,
+    groupTitle('Notifications'),
     pushSlot,
     h('div', { style: { height: '20px' } }),
-    group(cell('退出登录', null, { destructive: true, onClick: () => onLogout() }))
+    group(cell('Log out', null, { destructive: true, onClick: () => onLogout() }))
   )
-  openSheet({ title: '设置', content, tall: true, origin })
+  openSheet({ title: 'Settings', content, tall: true, origin })
 }
 
 function editProfile(onEdited) {
   const me = state.me
   // The cover across the top (anyone who opens your profile sees it), your
   // photo over its lower edge.
-  const cover = h('button', { class: 'cover-edit', type: 'button', 'aria-label': '更换封面' },
-    backdropLayer(me?.cover), h('span', { class: 'cover-edit-label', 'aria-hidden': 'true' }, icon('photo'), '更换封面'))
-  const av = h('button', { class: 'avatar-edit', type: 'button', 'aria-label': '更换头像' },
-    avatar(me?.avatar, me?.display || '我', { size: 96 }), h('span', { class: 'avatar-edit-badge' }, icon('camera')))
+  const cover = h('button', { class: 'cover-edit', type: 'button', 'aria-label': 'Change cover' },
+    backdropLayer(me?.cover), h('span', { class: 'cover-edit-label', 'aria-hidden': 'true' }, icon('photo'), 'Change cover'))
+  const av = h('button', { class: 'avatar-edit', type: 'button', 'aria-label': 'Change avatar' },
+    avatar(me?.avatar, me?.display || 'Me', { size: 96 }), h('span', { class: 'avatar-edit-badge' }, icon('camera')))
   // Both open the editor (views/avatar-editor.js), on their own tab; what it
   // saves shows here at once.
   const saved = next => {
@@ -210,9 +210,9 @@ function editProfile(onEdited) {
   }
   av.addEventListener('click', () => openAvatarEditor({ tab: 'avatar', origin: av, onSaved: saved }))
   cover.addEventListener('click', () => openAvatarEditor({ tab: 'cover', origin: cover, onSaved: saved }))
-  const display = input({ value: me?.display || '', placeholder: '昵称', maxlength: 40 })
-  const bio = input({ value: me?.bio || '', placeholder: '简介（可选）', maxlength: 120 })
-  const save = h('button', { class: 'btn primary solid-press', type: 'button' }, '保存')
+  const display = input({ value: me?.display || '', placeholder: 'Display name', maxlength: 40 })
+  const bio = input({ value: me?.bio || '', placeholder: 'Bio (optional)', maxlength: 120 })
+  const save = h('button', { class: 'btn primary solid-press', type: 'button' }, 'Save')
 
   save.addEventListener('click', async () => {
     save.disabled = true
@@ -220,7 +220,7 @@ function editProfile(onEdited) {
       const r = await api.post('/api/profile', { display: display.value.trim() || me.username, bio: bio.value.trim() })
       setMe(r.me)
       onEdited?.(r.me)
-      toast('已保存', { type: 'ok' })
+      toast('Saved', { type: 'ok' })
       sheet.close()
     } catch (err) { toast(err.message, { type: 'error' }); save.disabled = false }
   })
@@ -228,31 +228,31 @@ function editProfile(onEdited) {
   const content = h('div', { class: 'form-sheet' },
     cover,
     h('div', { class: 'avatar-edit-wrap over-cover' }, av),
-    h('label', { class: 'f-label' }, '昵称'), display,
-    h('label', { class: 'f-label' }, '简介'), bio,
+    h('label', { class: 'f-label' }, 'Display name'), display,
+    h('label', { class: 'f-label' }, 'Bio'), bio,
     h('div', { class: 'f-go' }, save))
-  const sheet = openSheet({ title: '编辑资料', content })
+  const sheet = openSheet({ title: 'Edit profile', content })
 }
 
 function changePassword() {
-  const cur = input({ type: 'password', placeholder: '当前密码', autocomplete: 'current-password' })
-  const next = input({ type: 'password', placeholder: '新密码（至少 6 位）', autocomplete: 'new-password' })
+  const cur = input({ type: 'password', placeholder: 'Current password', autocomplete: 'current-password' })
+  const next = input({ type: 'password', placeholder: 'New password (at least 6 characters)', autocomplete: 'new-password' })
   const err = h('div', { class: 'field-error' })
-  const save = h('button', { class: 'btn primary solid-press', type: 'button' }, '更新密码')
+  const save = h('button', { class: 'btn primary solid-press', type: 'button' }, 'Update password')
   save.addEventListener('click', async () => {
     err.textContent = ''
     save.disabled = true
     try {
       await api.post('/api/password', { current: cur.value, next: next.value })
-      toast('密码已更新', { type: 'ok' })
+      toast('Password updated', { type: 'ok' })
       sheet.close()
     } catch (e) { err.textContent = e.message; save.disabled = false }
   })
   const content = h('div', { class: 'form-sheet' },
-    h('label', { class: 'f-label' }, '当前密码'), cur,
-    h('label', { class: 'f-label' }, '新密码'), next, err,
+    h('label', { class: 'f-label' }, 'Current password'), cur,
+    h('label', { class: 'f-label' }, 'New password'), next, err,
     h('div', { class: 'f-go' }, save))
-  const sheet = openSheet({ title: '修改密码', content })
+  const sheet = openSheet({ title: 'Change password', content })
 }
 
 // ---------------------------------------------------------------- notifications
@@ -263,18 +263,18 @@ async function renderPush(slot) {
   const sub = supported ? await currentSubscription() : null
   // A note only when the switch can't be used, saying how to make it usable.
   let note = null
-  if (!supported) note = isStandalone() ? '此设备不支持通知。' : '将 Cuven 添加到主屏幕后即可开启通知。'
-  else if (Notification.permission === 'denied') note = '请在“设置 › 通知”中允许 Cuven 发送通知。'
-  const sw = toggle(Boolean(sub), on => (on ? turnOn() : turnOff()), '通知')
+  if (!supported) note = isStandalone() ? 'This device does not support notifications.' : 'Add Cuven to your Home Screen to enable notifications.'
+  else if (Notification.permission === 'denied') note = 'Allow Cuven to send notifications in Settings › Notifications.'
+  const sw = toggle(Boolean(sub), on => (on ? turnOn() : turnOff()), 'Notifications')
   sw.disabled = Boolean(note)
-  slot.replaceChildren(group(cell('通知', sw, { icon: 'bell' })), ...(note ? [foot(note)] : []))
+  slot.replaceChildren(group(cell('Notifications', sw, { icon: 'bell' })), ...(note ? [foot(note)] : []))
 }
 async function turnOn() {
   try {
     await enablePush(state.vapid)
-    toast('通知已开启', { type: 'ok' })
+    toast('Notifications on', { type: 'ok' })
     return true
-  } catch (err) { toast(`无法开启通知：${err.message}`, { type: 'error' }); return false }
+  } catch (err) { toast(`Couldn't enable notifications: ${err.message}`, { type: 'error' }); return false }
 }
 async function turnOff() {
   try {
@@ -285,21 +285,21 @@ async function turnOff() {
 
 // ---------------------------------------------------------------- new chat
 export function openNewChat({ loadContacts, onOpen }) {
-  const search = input({ type: 'search', placeholder: '按用户名查找', enterkeyhint: 'search' })
+  const search = input({ type: 'search', placeholder: 'Search by username', enterkeyhint: 'search' })
   const results = h('div', {})
   const list = h('div', {})
 
   const content = h('div', {},
     h('div', { class: 'sheet-search' }, h('label', { class: 'glass search-pill' }, icon('search'), search)),
-    group(cell('新建群聊', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } })),
-    groupTitle('联系人'),
+    group(cell('New group', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } })),
+    groupTitle('Contacts'),
     list,
     results
   )
-  const sheet = openSheet({ title: '新聊天', content, tall: true, side: 'list' })
+  const sheet = openSheet({ title: 'New chat', content, tall: true, side: 'list' })
 
   loadContacts().then(cs => {
-    list.replaceChildren(cs.length ? group(...cs.map(c => contactCell(c, () => openDM(c.id)))) : foot('没有联系人'))
+    list.replaceChildren(cs.length ? group(...cs.map(c => contactCell(c, () => openDM(c.id)))) : foot('No contacts'))
   })
 
   let seq = 0
@@ -313,7 +313,7 @@ export function openNewChat({ loadContacts, onOpen }) {
       if (s !== seq) return
       results.replaceChildren(r.users.length
         ? group(...r.users.map(u => contactCell(u, () => openDM(u.id), u.state)))
-        : foot(`没有找到“${q}”`))
+        : foot(`Nothing found for “${q}”`))
     } catch {}
   })
 
@@ -328,7 +328,7 @@ export function openNewChat({ loadContacts, onOpen }) {
 }
 
 function contactCell(u, onClick, relState) {
-  const sub = relState === 'pending_out' ? '已发送请求' : relState === 'pending_in' ? '请求加你为好友' : '@' + u.username
+  const sub = relState === 'pending_out' ? 'Request sent' : relState === 'pending_in' ? 'Wants to add you' : '@' + u.username
   const el = cell(u.display, chev(), { onClick, sub })
   el.prepend(avatar(u.avatar, u.display, { size: 40 }))
   return el
@@ -336,19 +336,19 @@ function contactCell(u, onClick, relState) {
 
 // ---------------------------------------------------------------- new group
 export function openNewGroup({ loadContacts, onOpen }) {
-  const name = input({ placeholder: '群聊名称（可选）', maxlength: 40 })
+  const name = input({ placeholder: 'Group name (optional)', maxlength: 40 })
   const picked = new Set()
   const list = h('div', {})
-  const create = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, '创建群聊')
+  const create = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, 'Create group')
 
   const content = h('div', { class: 'form-sheet' },
-    h('label', { class: 'f-label' }, '名称'), name,
-    h('label', { class: 'f-label' }, '选择成员'), list,
+    h('label', { class: 'f-label' }, 'Name'), name,
+    h('label', { class: 'f-label' }, 'Choose members'), list,
     h('div', { class: 'f-go' }, create))
-  const sheet = openSheet({ title: '新建群聊', content, tall: true })
+  const sheet = openSheet({ title: 'New group', content, tall: true })
 
   loadContacts().then(cs => {
-    list.replaceChildren(cs.length ? group(...cs.map(c => pickRow(c))) : foot('没有联系人'))
+    list.replaceChildren(cs.length ? group(...cs.map(c => pickRow(c))) : foot('No contacts'))
   })
   function pickRow(c) {
     const check = h('span', { class: 'pick-check' }, icon('check'))
@@ -373,7 +373,7 @@ export function openNewGroup({ loadContacts, onOpen }) {
 }
 
 // ---------------------------------------------------------------- room info
-export const roomInfoTitle = roomId => (state.chats.get(roomId)?.kind === 'group' ? '群聊信息' : '联系人')
+export const roomInfoTitle = roomId => (state.chats.get(roomId)?.kind === 'group' ? 'Group info' : 'Contact')
 
 /**
  * A conversation's details, rendered into `body`. host: { el, close } — the
@@ -393,15 +393,15 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
   } catch {}
 
   const header = isGroup
-    ? h('div', { class: 'profile' }, avatar(room.avatar, room.name, { size: 84, room: true }), h('h3', {}, room.name), h('p', {}, `${members.length} 位成员`))
+    ? h('div', { class: 'profile' }, avatar(room.avatar, room.name, { size: 84, room: true }), h('h3', {}, room.name), h('p', {}, `${members.length} members`))
     : withCover(h('div', { class: 'profile' }, avatar(c.peer?.avatar, c.peer?.display, { size: 84 }), h('h3', {}, c.peer?.display || c.name), h('p', {}, '@' + (c.peer?.username || ''))), (room.peer || c.peer)?.cover)
 
   const flags = group(
-    cell('消息免打扰', toggle(c.muted, on => setFlag(roomId, { muted: on ? 1 : 0 }), '免打扰'), { icon: 'bell-slash' }),
-    cell('置顶聊天', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), '置顶'), { icon: 'pin' }),
+    cell('Mute', toggle(c.muted, on => setFlag(roomId, { muted: on ? 1 : 0 }), 'Mute'), { icon: 'bell-slash' }),
+    cell('Pin chat', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), 'Pin'), { icon: 'pin' }),
     // This conversation's own backdrop, or the one for all of them.
-    backdropCell('聊天背景', 'photo', () => state.prefs.rooms[roomId] || '', {
-      none: '跟随通用', fallback: state.prefs.chat, look: 'chat',
+    backdropCell('Chat background', 'photo', () => state.prefs.rooms[roomId] || '', {
+      none: 'Use default', fallback: state.prefs.chat, look: 'chat',
       save: v => saveBackdrops({ rooms: { [roomId]: v } })
     })
   )
@@ -415,13 +415,13 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
     for (const m of members) {
       grid.append(h('div', { class: 'member' }, avatar(m.avatar, m.display, { size: 48 }), h('span', {}, m.display)))
     }
-    const addBtn = h('button', { class: 'member add', type: 'button', 'aria-label': '添加成员' }, h('span', { class: 'member-add' }, icon('plus')), h('span', {}, '添加'))
+    const addBtn = h('button', { class: 'member add', type: 'button', 'aria-label': 'Add member' }, h('span', { class: 'member-add' }, icon('plus')), h('span', {}, 'Add'))
     addBtn.addEventListener('click', () => addMembers(roomId, members.map(m => m.id), loadContacts))
     grid.append(addBtn)
-    blocks.push(groupTitle('成员'), grid)
-    blocks.push(h('div', { style: { height: '14px' } }), group(cell('退出群聊', null, { destructive: true, onClick: () => leaveRoom(roomId, host) })))
+    blocks.push(groupTitle('Members'), grid)
+    blocks.push(h('div', { style: { height: '14px' } }), group(cell('Leave group', null, { destructive: true, onClick: () => leaveRoom(roomId, host) })))
   } else {
-    blocks.push(h('div', { style: { height: '14px' } }), group(cell('删除会话', null, { destructive: true, onClick: () => { setFlag(roomId, { hidden: 1 }); host.close() } })))
+    blocks.push(h('div', { style: { height: '14px' } }), group(cell('Delete chat', null, { destructive: true, onClick: () => { setFlag(roomId, { hidden: 1 }); host.close() } })))
   }
   body.replaceChildren(...blocks)
 
@@ -435,9 +435,9 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
 async function addMembers(roomId, existing, loadContacts) {
   const picked = new Set()
   const list = h('div', {})
-  const add = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, '添加')
-  const content = h('div', { class: 'form-sheet' }, h('label', { class: 'f-label' }, '选择联系人'), list, h('div', { class: 'f-go' }, add))
-  const sheet = openSheet({ title: '添加成员', content, tall: true })
+  const add = h('button', { class: 'btn primary solid-press', type: 'button', disabled: true }, 'Add')
+  const content = h('div', { class: 'form-sheet' }, h('label', { class: 'f-label' }, 'Choose a contact'), list, h('div', { class: 'f-go' }, add))
+  const sheet = openSheet({ title: 'Add member', content, tall: true })
   const cs = (await loadContacts()).filter(c => !existing.includes(c.id))
   list.replaceChildren(cs.length ? group(...cs.map(c => {
     const check = h('span', { class: 'pick-check' }, icon('check'))
@@ -448,7 +448,7 @@ async function addMembers(roomId, existing, loadContacts) {
     } })
     el.prepend(avatar(c.avatar, c.display, { size: 40 }))
     return el
-  })) : foot('没有可添加的联系人'))
+  })) : foot('No contacts to add'))
   add.addEventListener('click', async () => {
     add.disabled = true
     try { await api.post(`/api/room/${roomId}/invite`, { members: [...picked] }); sheet.close() }
@@ -457,7 +457,7 @@ async function addMembers(roomId, existing, loadContacts) {
 }
 
 async function leaveRoom(roomId, host) {
-  if (!await confirmAction(host.el, { title: '退出这个群聊？', confirm: '退出群聊' })) return
+  if (!await confirmAction(host.el, { title: 'Leave this group?', confirm: 'Leave group' })) return
   try { await api.post(`/api/room/${roomId}/leave`); patchRoom(roomId, { hidden: true }); host.close() }
   catch (err) { toast(err.message, { type: 'error' }) }
 }

@@ -16,7 +16,7 @@ import { prepareImage } from './composer.js'
  * each backdrop ('chat' bubbles, a 'call' picture, or a bare 'cover');
  * save(value) keeps it (and throws if it can't).
  */
-export function openBackdropPicker({ title, value = '', none = '默认', fallback = '', kind = 'bg', look = 'chat', save, origin, side }) {
+export function openBackdropPicker({ title, value = '', none = 'Default', fallback = '', kind = 'bg', look = 'chat', save, origin, side }) {
   let current = value || ''
   let busy = false
   const tiles = []
@@ -34,7 +34,7 @@ export function openBackdropPicker({ title, value = '', none = '默认', fallbac
   for (const p of PRESETS) grid.append(tile(`preset:${p.id}`, p.label))
   // Your own photo: the last tile, showing it once there is one.
   const file = h('input', { type: 'file', accept: 'image/*', hidden: true })
-  const photo = tile(readBackdrop(current)?.photo ? current : '', '照片', h('span', { class: 'bd-add', 'aria-hidden': 'true' }, icon('photo')))
+  const photo = tile(readBackdrop(current)?.photo ? current : '', 'Photo', h('span', { class: 'bd-add', 'aria-hidden': 'true' }, icon('photo')))
   if (!readBackdrop(current)?.photo) paintBackdrop(photo.querySelector('.backdrop'), '')
   photo.classList.add('bd-photo')
   grid.append(photo, file)
@@ -57,13 +57,13 @@ export function openBackdropPicker({ title, value = '', none = '默认', fallbac
         method: 'POST', credentials: 'same-origin', headers: { 'content-type': small.type || 'image/jpeg' }, body: small
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.ok) throw new Error(data.error || '上传失败')
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Upload failed')
       photo._value = data.url
       paintBackdrop(photo.querySelector('.backdrop'), data.url)
       busy = false
       await choose(data.url)
     } catch (err) {
-      toast(err.message || '上传失败', { type: 'error' })
+      toast(err.message || 'Upload failed', { type: 'error' })
     } finally {
       busy = false
       photo.classList.remove('loading')
@@ -84,7 +84,7 @@ export function openBackdropPicker({ title, value = '', none = '默认', fallbac
     } catch (err) {
       current = before
       mark()
-      toast(err.message || '设置失败', { type: 'error' })
+      toast(err.message || 'Update failed', { type: 'error' })
     }
   }
   mark()

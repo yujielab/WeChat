@@ -18,11 +18,11 @@ const PHOTO_BYTES = 1.5 * 1024 * 1024
 const MIN = 60 * 1000
 const HOUR = 60 * MIN
 const DAY = 24 * HOUR
-const WEEK = '日一二三四五六'
+const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export const MOODS = ['开心', '兴奋', '平静', '疲惫', '低落', '焦虑', '生气', '难过']
-export const RIDE_STAGES = ['等车', '在车上', '已下车']
-export const HOME_STATES = ['到家', '出门', '在路上']
+export const MOODS = ['happy', 'excited', 'calm', 'tired', 'down', 'anxious', 'angry', 'sad']
+export const RIDE_STAGES = ['waiting', 'riding', 'arrived']
+export const HOME_STATES = ['home', 'out', 'on the way']
 
 /** The conversations panels are made for: one-to-one, active this week. */
 export function insightRooms(rooms, now = Date.now()) {
@@ -43,11 +43,11 @@ export function fromLocal(text, tzOffset = 0) {
   const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0)) + tzOffset * MIN
   return Number.isFinite(t) && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31 ? t : null
 }
-const weekday = (ts, tzOffset) => `周${WEEK[new Date(ts - tzOffset * MIN).getUTCDay()]}`
+const weekday = (ts, tzOffset) => WEEK[new Date(ts - tzOffset * MIN).getUTCDay()]
 
 /**
  * The conversation as the model reads it: numbered lines, oldest first —
- * "[3] 10-30 14:05 周四 对方：…". photos: descriptions of photos, by message.
+ * "[3] 10-30 14:05 Thu Them: …". photos: descriptions of photos, by message.
  * refs[n - 1] is the message of line [n].
  */
 export function transcript(messages, { me, tzOffset = 0, photos = new Map() }) {
@@ -56,43 +56,43 @@ export function transcript(messages, { me, tzOffset = 0, photos = new Map() }) {
   const shown = messages.filter(m => m.state !== 'revoked' && m.type !== 'system').slice(-MAX_LINES)
   for (const m of shown) {
     const body = m.type === 'text' ? m.body
-      : m.type === 'sticker' ? `[表情 ${m.meta?.emoji || ''}]`
-        : m.type === 'image' ? (photos.get(m.id) ? `[照片：${photos.get(m.id)}]` : '[照片]')
-          : m.type === 'drawing' ? '[手绘]'
-            : m.type === 'voice' ? '[语音]'
-              : m.type === 'video' ? '[视频]'
-                : m.type === 'file' ? `[文件 ${m.meta?.name || ''}]`
-                  : m.type === 'call' ? '[通话]' : ''
+      : m.type === 'sticker' ? `[Sticker ${m.meta?.emoji || ''}]`
+        : m.type === 'image' ? (photos.get(m.id) ? `[Photo: ${photos.get(m.id)}]` : '[Photo]')
+          : m.type === 'drawing' ? '[Drawing]'
+            : m.type === 'voice' ? '[Voice]'
+              : m.type === 'video' ? '[Video]'
+                : m.type === 'file' ? `[File ${m.meta?.name || ''}]`
+                  : m.type === 'call' ? '[Call]' : ''
     if (!body) continue
     refs.push(m)
-    lines.push(`[${refs.length}] ${localTime(m.ts, tzOffset).slice(5)} ${weekday(m.ts, tzOffset)} ${m.sender === me ? '我' : '对方'}：${String(body).replace(/\s+/g, ' ').slice(0, 200)}`)
+    lines.push(`[${refs.length}] ${localTime(m.ts, tzOffset).slice(5)} ${weekday(m.ts, tzOffset)} ${m.sender === me ? 'Me' : 'Them'}: ${String(body).replace(/\s+/g, ' ').slice(0, 200)}`)
   }
   return { text: lines.join('\n'), refs }
 }
 
 export function prompt(text, { now, tzOffset = 0 }) {
   return [
-    { role: 'system', content: '你帮我整理聊天里关于“对方”的提醒。只根据聊天记录里明确说过的内容，不要猜测或编造；没有的就留空。只输出 JSON。' },
+    { role: 'system', content: 'You help me pull together reminders about the other person ("them") from our chat. Only use what was clearly said in the messages — do not guess or make anything up; leave anything unknown empty. Output JSON only.' },
     {
       role: 'user',
-      content: `现在是 ${localTime(now, tzOffset)} ${weekday(now, tzOffset)}（我的当地时间）。
-聊天记录（[编号] 时间 说话人：内容）：
-${text || '（无）'}
+      content: `It is now ${localTime(now, tzOffset)} ${weekday(now, tzOffset)} (my local time).
+Chat log ([index] time speaker: content):
+${text || '(none)'}
 
-按下面的格式输出 JSON。时间一律写成我的当地时间 "YYYY-MM-DD HH:mm"，“明天”“二十分钟后”之类按那条消息的时间推算；ref 是相关消息的编号。
+Output JSON in the format below. Always write times in my local time as "YYYY-MM-DD HH:mm"; resolve "tomorrow", "in twenty minutes" and the like relative to that message's time; ref is the index of the related message.
 {
-"city": "对方现在所在的城市，没提到就空",
-"upcoming": [{"what": "对方说的、将要发生的事（12字内）", "at": "YYYY-MM-DD HH:mm", "ref": 0}],
-"ride": {"stage": "等车|在车上|已下车", "plate": "车牌", "car": "车型或颜色", "pickup": "预计上车时间", "dropoff": "预计或实际下车时间", "to": "目的地", "ref": 0},
-"home": {"state": "到家|出门|在路上", "at": "YYYY-MM-DD HH:mm", "ref": 0},
-"meetup": {"place": "我们约定见面的地点", "at": "YYYY-MM-DD HH:mm", "ref": 0},
-"mood": {"label": "${MOODS.join('|')}", "note": "依据，一句话（20字内）", "ref": 0},
-"photos": [{"ref": 0, "place": "对方发的照片大致在什么地方", "reading": "一句解读（20字内）"}],
-"summary": "最近聊了什么，一两句话（40字内）",
-"ongoing": [{"what": "对方持续中的事，如经期、生病、出差、考试（8字内）", "since": "YYYY-MM-DD", "until": "YYYY-MM-DD 或空", "note": "一句（16字内）", "ref": 0}],
-"likes": ["对方喜欢的"], "dislikes": ["对方不喜欢的"], "hobbies": ["对方的爱好"]
+"city": "the city they are in now, empty if not mentioned",
+"upcoming": [{"what": "something they said will happen (max 12 words)", "at": "YYYY-MM-DD HH:mm", "ref": 0}],
+"ride": {"stage": "waiting|riding|arrived", "plate": "license plate", "car": "car model or color", "pickup": "estimated pickup time", "dropoff": "estimated or actual drop-off time", "to": "destination", "ref": 0},
+"home": {"state": "home|out|on the way", "at": "YYYY-MM-DD HH:mm", "ref": 0},
+"meetup": {"place": "the place we agreed to meet", "at": "YYYY-MM-DD HH:mm", "ref": 0},
+"mood": {"label": "${MOODS.join('|')}", "note": "the reason, one sentence (max 20 words)", "ref": 0},
+"photos": [{"ref": 0, "place": "roughly where the photo they sent was taken", "reading": "a one-sentence read (max 20 words)"}],
+"summary": "what you've chatted about lately, one or two sentences (max 40 words)",
+"ongoing": [{"what": "something ongoing for them, e.g. a period, illness, a trip, an exam (max 8 words)", "since": "YYYY-MM-DD", "until": "YYYY-MM-DD or empty", "note": "one sentence (max 16 words)", "ref": 0}],
+"likes": ["things they like"], "dislikes": ["things they dislike"], "hobbies": ["their hobbies"]
 }
-没有的写 null 或 []。 /no_think`
+Write null or [] for anything missing. /no_think`
     }
   ]
 }

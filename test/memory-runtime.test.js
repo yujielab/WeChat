@@ -85,18 +85,18 @@ test('the writing help remembers: the conversation, its digest and how the write
     assert.equal(suggestion.data.text, '三点')
     const prompts = await seen()
     const asked = prompts.at(-1).text
-    assert.match(asked, /聊天记录：/, 'the conversation is read')
+    assert.match(asked, /Conversation:/, 'the conversation is read')
     assert.match(asked, /我把材料准备好了/, 'what was said is read')
-    assert.match(asked, /我常用的词/, 'how the writer writes is read')
+    assert.match(asked, /Words I often use/, 'how the writer writes is read')
     assert.match(asked, /材料/, 'the word the writer keeps using is remembered')
 
     // The memory is the writer's own: the other side does not get it.
     await say('好的')
     await request('/api/ai/suggest', { room, draft: '会议室' }, b.cookie)
     const theirPrompt = (await seen()).at(-1).text
-    assert.match(theirPrompt, /聊天记录：/, 'the other side reads the conversation too')
-    assert.ok(!/我常用的词：材料/.test(theirPrompt), "one person's habits do not become another's")
-    assert.ok(!/我常用的词：/.test(theirPrompt), 'the other side has too little of their own to be a habit')
+    assert.match(theirPrompt, /Conversation:/, 'the other side reads the conversation too')
+    assert.ok(!/Words I often use: 材料/.test(theirPrompt), "one person's habits do not become another's")
+    assert.ok(!/Words I often use:/.test(theirPrompt), 'the other side has too little of their own to be a habit')
 
     // A long conversation: what it was about before the window is kept, and
     // read back into the next suggestion.
@@ -110,7 +110,7 @@ test('the writing help remembers: the conversation, its digest and how the write
     await say('约好了明天的会议')
     await request('/api/ai/suggest', { room: long, draft: '好' }, a.cookie)
     const withDigest = (await seen()).at(-1).text
-    assert.match(withDigest, /早前的内容/, 'what the conversation was about earlier is read')
+    assert.match(withDigest, /Earlier in this chat/, 'what the conversation was about earlier is read')
     assert.match(withDigest, /约好了明天的会议/, 'the digest itself is read')
 
     // The digest belongs to one conversation: another one does not get it.
@@ -119,7 +119,7 @@ test('the writing help remembers: the conversation, its digest and how the write
     await request('/api/messages', { room: group, type: 'text', text: '这里聊的是另一件事' }, a.cookie)
     await request('/api/ai/suggest', { room: group, draft: '好' }, a.cookie)
     const elsewhere = (await seen()).at(-1).text
-    assert.ok(!/早前的内容/.test(elsewhere), 'a digest does not cross conversations')
+    assert.ok(!/Earlier in this chat/.test(elsewhere), 'a digest does not cross conversations')
 
     // What is remembered is yours to read, and nobody else's.
     const mine = (await request('/api/ai/memory', undefined, a.cookie)).data
