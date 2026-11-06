@@ -9,6 +9,7 @@
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { ghost, filler } from '../ui/skeleton.js'
 import { tip } from '../ui/guides.js'
+import { reveal } from '../ui/reveal.js'
 import { api } from '../api.js'
 import { openSheet, openMenu } from './overlay.js'
 import { openViewer } from './viewer.js'
@@ -154,6 +155,8 @@ export function openMemories({ origin, page = false, swap = false } = {}) {
       m.type === 'video' ? h('video', { src: m.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' }) : h('img', { src: m.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
       m.type === 'video' ? h('span', { class: 'mem-dur tabular' }, m.dur ? duration(m.dur) : icon('play')) : null,
       m.type === 'drawing' ? h('span', { class: 'mem-badge' }, icon('brush')) : null)
+    const pic = b.querySelector('img')
+    if (pic) reveal(pic, b)
     b.addEventListener('click', () => {
       if (m.type === 'video') return openViewer({ kind: 'video', fullSrc: m.url, src: m.url, w: m.w, h: m.h, label: label(m) })
       const pics = group.filter(x => x.type !== 'video')

@@ -20,6 +20,7 @@
 // everyone. On your own, a round button at the foot shares a new one.
 
 import { ghost, filler } from '../ui/skeleton.js'
+import { reveal } from '../ui/reveal.js'
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { api } from '../api.js'
 import { state, upsertRoom } from '../store.js'
@@ -355,7 +356,7 @@ function openProfile({ userId, tab, origin, back, page: asPage = false, swap = f
       const ratio = x.w && x.h ? Math.min(1.5, Math.max(0.66, x.w / x.h)) : 1
       const card = h('button', { class: 'mo-card', type: 'button', dataset: { id: m.id }, 'aria-label': m.text || 'Moment' },
         h('span', { class: ['mo-card-pic', x.type === 'video' && 'video'], style: { aspectRatio: String(ratio) } },
-          x.type === 'video' ? h('video', { src: x.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' }) : h('img', { src: x.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
+          x.type === 'video' ? h('video', { src: x.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' }) : revealed(h('img', { src: x.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false })),
           x.type === 'video' ? h('span', { class: 'mo-play' }, icon('play')) : m.media.length > 1 ? h('span', { class: 'mo-count' }, `${m.media.length}`) : null),
         m.text ? h('span', { class: 'mo-card-text' }, m.text) : null,
         h('span', { class: 'mo-card-foot' }, avatar(m.user.avatar, m.user.display, { size: 20 }), h('span', { class: 'mo-card-name' }, nameOf(m.user)), h('span', { class: 'mo-card-likes' }, icon('heart'), m.likes.length ? String(m.likes.length) : '')))
@@ -689,8 +690,8 @@ function slide(m, x, i) {
   }
   const label = `${n > 1 ? `Photo ${i + 1} of ${n}` : 'Photo'}${x.alt ? `: ${x.alt}` : ''}`
   return h('div', { class: 'mo-slide', dataset: { i: String(i) } },
-    h('button', { class: 'mo-photo', type: 'button', 'aria-label': label },
-      h('img', { src: x.url, alt: x.alt || '', loading: 'lazy', decoding: 'async', draggable: false })),
+    revealedIn(h('button', { class: 'mo-photo', type: 'button', 'aria-label': label },
+      h('img', { src: x.url, alt: x.alt || '', loading: 'lazy', decoding: 'async', draggable: false }))),
     // Its description, for anyone who wants to read it.
     x.alt ? h('button', { class: 'mo-alt', type: 'button', 'aria-label': 'Read the description' }, 'ALT') : null)
 }
@@ -761,4 +762,16 @@ export function agoLong(ts, now = Date.now()) {
 /** The editor (views/moments-editor.js); what it shares goes to the top of every page open. */
 export function openMomentComposer({ origin, onPosted } = {}) {
   return openMomentEditor({ origin, onPosted: m => { everywhere('posted', m); onPosted?.(m) } })
+}
+
+// A picture arriving opens out of its frame (ui/reveal.js): the frame is the
+// element around it once it is in the page.
+function revealed(img) {
+  queueMicrotask(() => img.parentElement && reveal(img, img.parentElement))
+  return img
+}
+function revealedIn(frame) {
+  const img = frame.querySelector('img')
+  if (img) reveal(img, frame)
+  return frame
 }

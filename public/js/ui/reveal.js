@@ -58,11 +58,11 @@ export function reveal(img, frame, { play = false } = {}) {
 const progress = new Map()
 const justSent = new Set()
 
-/** The upload of `cid` has reached `p` (0…1); null when it is over (sent or failed). */
-export function setProgress(cid, p) {
+/** The upload of `cid` has reached `p` (0…1); null when it is over (sent: whether it went). */
+export function setProgress(cid, p, { sent = true } = {}) {
   if (!cid) return
   if (p == null) {
-    if (progress.has(cid)) justSent.add(cid)
+    if (sent && progress.has(cid)) justSent.add(cid)
     progress.delete(cid)
   } else progress.set(cid, Math.max(0, Math.min(1, p)))
   window.dispatchEvent(new CustomEvent('media-progress', { detail: { cid, p: progress.get(cid) ?? null } }))

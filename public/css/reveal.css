@@ -7,9 +7,13 @@
 
 @property --rv-ph { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --rv-r { syntax: '<percentage>'; inherits: false; initial-value: 160%; }
+/* How far a send has gone, 0…1, set on the bubble (js/ui/reveal.js); registered so the ring fills smoothly. */
+@property --rv-p { syntax: '<number>'; inherits: true; initial-value: 0; }
 
-.rv { position: relative; isolation: isolate; }
-.rv > :is(img, video) { position: relative; z-index: 0; }
+/* Zero specificity: a frame or picture that is already placed keeps its own
+   position (an absolutely placed tile, an album cover); one that isn't
+   becomes the rings' containing block. */
+:where(.rv) { position: relative; isolation: isolate; }
 
 /* ---------------------------------------------------------------- waiting */
 .rv.rv-wait,
@@ -49,6 +53,7 @@
 @keyframes rv-drift { from { transform: translate(-22%, -14%) scale(.8); } to { transform: translate(20%, 16%) scale(1.05); } }
 
 /* ---------------------------------------------------------------- arrived */
+.rv.rv-in > img { transition: none; opacity: 1; }
 .rv.rv-in > img {
   -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 calc(var(--rv-r) - 26%), transparent var(--rv-r));
   mask-image: radial-gradient(circle at 50% 50%, #000 calc(var(--rv-r) - 26%), transparent var(--rv-r));
@@ -59,6 +64,7 @@
 /* ---------------------------------------------------------------- sending */
 .bubble.media.sending.rv > img { filter: brightness(.8) saturate(.85) blur(1.5px); }
 .rv-send {
+  line-height: normal;
   position: absolute;
   z-index: 2;
   inset: 0;
@@ -67,7 +73,6 @@
   pointer-events: none;
 }
 .rv-dial {
-  --rv-p: 0;
   width: 58px;
   height: 58px;
   display: grid;
@@ -79,9 +84,9 @@
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   box-shadow: 0 8px 20px -10px rgb(0 0 0 / .5);
-  transition: --rv-p 260ms ease-out;
 }
-.rv-count { color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.bubble.media.rv { transition: --rv-p 260ms ease-out; }
+.rv-count { line-height: 1.2; color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .bubble.media:not(.sending) .rv-send { display: none; }
 
 :root[data-motion="reduce"] .rv::before,
