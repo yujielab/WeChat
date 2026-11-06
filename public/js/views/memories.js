@@ -7,6 +7,8 @@
 // squares — a video with its length — newest first, more as you scroll.
 
 import { h, icon, reducedMotion } from '../ui/dom.js'
+import { ghost, filler } from '../ui/skeleton.js'
+import { tip } from '../ui/guides.js'
 import { api } from '../api.js'
 import { openSheet, openMenu } from './overlay.js'
 import { openViewer } from './viewer.js'
@@ -160,11 +162,17 @@ export function openMemories({ origin, page = false, swap = false } = {}) {
     if (!reducedMotion()) b.style.setProperty('--d', `${Math.min(i, 16) * 18}ms`)
     return b
   }
+  // The page's skeleton from its own parts (ui/skeleton.js): a recap card, a
+  // month's name and count, a grid of tiles — whatever their CSS makes them.
   function skeleton() {
-    return h('div', { class: 'mem-skeleton', 'aria-hidden': 'true' }, h('i', { class: 'r' }), h('i', { class: 'm' }), h('div', { class: 'mem-grid' }, Array.from({ length: 12 }, () => h('i'))))
+    return h('div', { class: 'mem-ghost' }, ...ghost(
+      h('div', { class: 'mem-recap' }, h('span', { class: 'mem-recap-text' }, h('b', {}, filler(3, 2)), h('span', {}, filler(5, 4)))),
+      h('section', { class: 'mem-month' }, h('h2', { class: 'mem-month-name' }, filler(1, 3), h('span', { class: 'mem-month-count' }, '00')),
+        h('div', { class: 'mem-grid' }, Array.from({ length: 12 }, () => h('div', { class: 'mem-tile sk-b' }))))))
   }
 
   placeLine()
   reload()
+  setTimeout(() => tip('memories', tabBar, { title: 'Kept for you', text: 'Photos, videos and drawings from your chats gather here by month, without saving anything.', side: 'below' }), 900)
   return sheet
 }

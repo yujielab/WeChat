@@ -32,7 +32,11 @@
   font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url("/fonts/Clarinetta-RegularItalic.woff2") format("woff2");
+  /* Clarinetta-RegularItalic.woff2 as shipped (here and at quantum.cuven.us)
+     is byte for byte the Black Italic, so regular italic text came out in the
+     heaviest weight. The Medium Italic stands in, the nearest weight, until a
+     real Regular Italic replaces it (test/fonts.test.js refuses twins). */
+  src: url("/fonts/Clarinetta-MediumItalic.woff2") format("woff2");
 }
 @font-face {
   font-family: "Clarinetta";

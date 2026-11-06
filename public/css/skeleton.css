@@ -1,0 +1,58 @@
+/* Skeletons made from the real components (js/ui/skeleton.js): containers
+   keep their own size, padding, radius and spacing; text runs become bars as
+   long as the text; pictures, avatars, swatches and symbols become blocks of
+   their own shape. Nothing here names a particular view, so a view's skeleton
+   follows whatever its CSS says. */
+
+.skeleton {
+  --sk: color-mix(in srgb, var(--label) 9%, transparent);
+  --sk-soft: color-mix(in srgb, var(--label) 4%, transparent);
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Text: a rounded bar per line, exactly as long as the words would be. */
+.skeleton .sk-t {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none !important;
+  background: var(--sk);
+  border-radius: .45em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Pictures, avatars, swatches, switches and symbols: a block in their own shape. */
+.skeleton .sk-b,
+.skeleton .icon {
+  color: transparent !important;
+  background: var(--sk) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+.skeleton .icon { border-radius: 30%; stroke: transparent !important; fill: transparent !important; }
+.skeleton .sk-b > :is(img, video, canvas, svg) { visibility: hidden; }
+.skeleton .sk-b .sk-t { background: none; }
+/* Surfaces that hold text (bubbles, buttons, fields, pills, cards) go quiet: the
+   same shape, one soft tone, so only the bars inside read. */
+.skeleton :is(.bubble, button, .field, .glass, .mo-message, .row-count, .row-dot, .pres, .m-meta) {
+  background: var(--sk-soft) !important;
+  background-image: none !important;
+  color: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+.skeleton :is(input, textarea)::placeholder { color: transparent; }
+.skeleton :is(input, textarea) { background: var(--sk-soft) !important; border-color: transparent !important; }
+.skeleton :is(.bubble, button)::before,
+.skeleton :is(.bubble, button)::after { display: none !important; }
+.skeleton .m-meta, .skeleton .pres, .skeleton .row-dot, .skeleton .row-count, .skeleton .row-chevron { visibility: hidden; }
+/* A slow breath, all together. */
+.skeleton :is(.sk-t, .sk-b, .icon, .bubble) { animation: sk-breathe 1.15s ease-in-out infinite alternate; }
+@keyframes sk-breathe { to { opacity: .5; } }
+:root[data-motion="reduce"] .skeleton :is(.sk-t, .sk-b, .icon, .bubble) { animation: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="full"]) .skeleton :is(.sk-t, .sk-b, .icon, .bubble) { animation: none; } }
+/* The real content takes the place with a short fade, not a jump. */
+.skeleton-gone { animation: sk-arrive 220ms var(--ease-out) both; }
+@keyframes sk-arrive { from { opacity: 0; } }
+:root[data-motion="reduce"] .skeleton-gone { animation: none; }

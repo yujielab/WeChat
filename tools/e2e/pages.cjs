@@ -1,5 +1,5 @@
 // Pages (ui/pages.js): on the iPhone Duo, a capsule of the app's places at the foot of the system's column —
-// Chats, Moments, You, Requests, Menu — with the current one marked by a circle that glides to it. It switches
+// Chats, Moments, Memories, Requests, You, Menu — with the current one marked by a circle that glides to it. It switches
 // pages in place: from page to page there is only ever one page up (the next fades in over the same scrim), it
 // stays in reach over every page, Chats and Menu are the list and the sidebar; the list's Search and New chat
 // keep to the head of the column. A conversation has the column to itself, and so does anything opened over a
@@ -26,7 +26,8 @@ await A.reload();await A.waitForSelector('.row');await sleep(900)
 
 // 1. The rail: the five places, Chats current; the list's own rail above it (Back at its head, Search and New chat at its foot).
 let r=await rail(A)
-assert.equal(r.shown,true,'a rail on the Duo');assert.deepEqual(r.items,['chats','moments','memories','you','requests','menu'])
+assert.equal(r.shown,true,'a rail on the Duo');assert.deepEqual(r.items,['chats','moments','memories','requests','you','menu'])
+assert.equal(await A.evaluate(()=>getComputedStyle(document.querySelector('.list-moments')).display),'none','no second Moments beside the title: it is in the capsule')
 assert.equal(r.current,'chats');assert.equal(r.aria,'page')
 const listRail=await A.evaluate(()=>{const top=document.querySelector('.pane-list .duo-rail');const pr=document.querySelector('.page-rail').getBoundingClientRect();const items=[...document.querySelectorAll('.pane-list .duo-rail .bar-item:not([hidden])')].map(b=>({id:b.dataset.item,bottom:b.getBoundingClientRect().bottom}));return{inTop:[...top.querySelectorAll('.bar-item')].map(b=>b.dataset.item),clear:items.every(i=>i.bottom<=pr.top)}})
 assert.deepEqual(listRail.inTop,['back','search','compose'],'Back where every column has it; Search and New chat just above the pages');assert.ok(listRail.clear,'clear of the pages')
@@ -88,5 +89,5 @@ const P=await account(`gp_${uniq}`,'Phone',{viewport:{width:393,height:852},isMo
 assert.equal((await rail(P)).shown,false,'no system column, no rail')
 
 assert.deepEqual(errors,[],'no page errors')
-console.log('PASS: on the Duo the pages\' capsule at the foot of the column (Chats, Moments, You, Requests, Menu), Chats current with the circle on it; the list\'s Search and New chat at the head; Moments as a page with the capsule still in reach; You and Requests each in the other\'s place, one page up at a time; Menu the sidebar, Chats the list; a page\'s own Close back to its column; nothing over a page under it; a conversation with the column to itself; a count on the bell; dark; no rail on a phone')
+console.log('PASS: on the Duo the pages\' capsule at the foot of the column (Chats, Moments, Memories, Requests, You, Menu), Chats current with the circle on it; the list\'s Search and New chat at the head; Moments as a page with the capsule still in reach; You and Requests each in the other\'s place, one page up at a time; Menu the sidebar, Chats the list; a page\'s own Close back to its column; nothing over a page under it; a conversation with the column to itself; a count on the bell; dark; no rail on a phone')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)})

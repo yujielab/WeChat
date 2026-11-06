@@ -27,7 +27,7 @@
 /* The wash covers only the composer's own band, so the newest message and its
    status stay sharp at rest and only text sliding under the field is washed. */
 .thread .edge-bottom { height: calc(var(--composer-h, 76px) + 4px); }
-.msgs { display: flex; flex-direction: column; min-height: min-content; }
+.msgs, .msgs-ghost { display: flex; flex-direction: column; min-height: min-content; }
 /* Switching conversations side by side happens all the time: the new one
    is simply there, eased in over 160ms rather than cut — no blur, no wait. */
 .msgs.swap { animation: swap-in 160ms var(--ease-out) backwards; }
@@ -1164,42 +1164,54 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 
 /* ---------------------------------------------------------------- composer glow
    A diffuse light behind the message field, rising from the foot of the
-   conversation (Settings › Composer glow: Ocean, Dawn, Aurora, or off). It
-   breathes slowly, brightens a little while you type, and keeps still with
-   Reduce Motion. It never reaches past the conversation's right edge or its
-   foot, even mid-drift: anything there widens or lengthens what the
-   conversation can be scrolled by, and iOS scrolls it sideways when the field
-   takes focus. Past the left edge is out of reach, so the drift lives there,
-   and the blur (not part of the scrollable area) softens the edges. */
-:root[data-glow="ocean"] { --glow-a: rgb(38 128 140 / .78); --glow-b: rgb(96 176 198 / .62); --glow-c: rgb(150 210 212 / .5); }
-:root[data-glow="dawn"] { --glow-a: rgb(255 118 92 / .7); --glow-b: rgb(255 186 104 / .6); --glow-c: rgb(255 160 186 / .45); }
-:root[data-glow="aurora"] { --glow-a: rgb(102 90 255 / .66); --glow-b: rgb(56 206 168 / .6); --glow-c: rgb(184 110 255 / .45); }
-:root[data-theme="dark"][data-glow] { --glow-k: 1.3; }
-:root[data-glow] .composer::after {
-  content: "";
+   conversation (Settings › Composer glow: Ocean, Dawn, Aurora, or off). Four
+   soft lights, each its own colour, drift on their own slow paths and breathe
+   in and out of step, so the light keeps flowing and its colour keeps
+   changing where they cross; it brightens a little while you type and holds
+   still with Reduce Motion. Each light is a radial gradient that already
+   fades to nothing (no blur filter to redraw), only transform and opacity
+   move, and the layer clips them: nothing reaches past the conversation's
+   edges or foot, so it can't be scrolled sideways. */
+:root[data-glow="ocean"] { --glow-a: rgb(38 128 140 / .7); --glow-b: rgb(96 176 198 / .6); --glow-c: rgb(150 210 212 / .5); --glow-d: rgb(70 120 200 / .45); }
+:root[data-glow="dawn"] { --glow-a: rgb(255 118 92 / .62); --glow-b: rgb(255 186 104 / .56); --glow-c: rgb(255 160 186 / .45); --glow-d: rgb(240 120 170 / .4); }
+:root[data-glow="aurora"] { --glow-a: rgb(102 90 255 / .58); --glow-b: rgb(56 206 168 / .55); --glow-c: rgb(184 110 255 / .42); --glow-d: rgb(60 170 255 / .4); }
+:root[data-theme="dark"][data-glow] { --glow-k: 1.25; }
+.composer-glow { display: none; }
+:root[data-glow] .composer-glow {
   position: absolute;
   z-index: -1;
-  top: auto;
-  left: -12%;
+  left: 0;
   right: 0;
   bottom: 0;
   height: calc(100% + 230px);
-  transform-origin: 50% 100%;
-  background:
-    radial-gradient(42% 46% at 78% 82%, var(--glow-a), transparent 70%),
-    radial-gradient(46% 44% at 24% 88%, var(--glow-b), transparent 70%),
-    radial-gradient(80% 36% at 50% 100%, var(--glow-c), transparent 72%);
-  filter: blur(30px) saturate(calc(var(--glow-k, 1) * 100%));
-  opacity: .9;
+  display: block;
+  overflow: hidden;
+  contain: strict;
   pointer-events: none;
+  opacity: .9;
   transition: opacity 400ms ease-out;
-  animation: composer-glow 9s ease-in-out infinite alternate;
+  -webkit-mask-image: linear-gradient(to top, #000 40%, transparent);
+  mask-image: linear-gradient(to top, #000 40%, transparent);
 }
-:root[data-glow] .composer.is-focused::after { opacity: 1; }
-@keyframes composer-glow {
-  0% { transform: translateX(-6%) scaleY(.96); }
-  50% { transform: translateX(-2%) scaleY(1.04); }
-  100% { transform: translateX(0) scaleY(.98); }
+:root[data-glow] .composer.is-focused .composer-glow { opacity: 1; }
+.composer-glow > i {
+  position: absolute;
+  bottom: -30%;
+  width: 70%;
+  aspect-ratio: 1.6;
+  border-radius: 50%;
+  opacity: calc(.85 * var(--glow-k, 1));
+  will-change: transform, opacity;
+  animation: glow-drift-a 17s ease-in-out infinite alternate, glow-breathe 9s ease-in-out infinite alternate;
 }
-:root[data-motion="reduce"][data-glow] .composer::after { animation: none; }
-@media (prefers-reduced-motion: reduce) { :root:not([data-motion="full"])[data-glow] .composer::after { animation: none; } }
+.composer-glow > i:nth-child(1) { left: 42%; background: radial-gradient(closest-side, var(--glow-a), transparent); }
+.composer-glow > i:nth-child(2) { left: -12%; bottom: -36%; background: radial-gradient(closest-side, var(--glow-b), transparent); animation-name: glow-drift-b, glow-breathe; animation-duration: 23s, 11s; animation-delay: -6s, -3s; }
+.composer-glow > i:nth-child(3) { left: 14%; width: 90%; bottom: -44%; background: radial-gradient(closest-side, var(--glow-c), transparent); animation-name: glow-drift-c, glow-breathe; animation-duration: 29s, 13s; animation-delay: -11s, -7s; }
+.composer-glow > i:nth-child(4) { left: 60%; width: 55%; bottom: -22%; background: radial-gradient(closest-side, var(--glow-d), transparent); animation-name: glow-drift-d, glow-breathe; animation-duration: 19s, 15s; animation-delay: -4s, -9s; }
+@keyframes glow-drift-a { 0% { transform: translate(-18%, 6%) scale(.92); } 50% { transform: translate(6%, -10%) scale(1.08); } 100% { transform: translate(-30%, -2%) scale(1); } }
+@keyframes glow-drift-b { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(34%, -14%) scale(1.12); } 100% { transform: translate(58%, 4%) scale(.94); } }
+@keyframes glow-drift-c { 0% { transform: translate(-10%, 4%) scale(1.04); } 50% { transform: translate(12%, -8%) scale(.92); } 100% { transform: translate(-4%, -14%) scale(1.1); } }
+@keyframes glow-drift-d { 0% { transform: translate(0, 0) scale(.9); } 50% { transform: translate(-48%, -12%) scale(1.1); } 100% { transform: translate(-80%, 2%) scale(1); } }
+@keyframes glow-breathe { from { opacity: calc(.45 * var(--glow-k, 1)); } to { opacity: calc(.95 * var(--glow-k, 1)); } }
+:root[data-motion="reduce"] .composer-glow > i { animation: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="full"]) .composer-glow > i { animation: none; } }

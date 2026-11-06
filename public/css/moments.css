@@ -444,14 +444,6 @@ button.mo-who:active { opacity: .7; }
 .mo-empty { display: grid; justify-items: center; gap: 6px; padding: 48px 28px; text-align: center; color: var(--label-2); font-size: var(--t-subhead); line-height: 1.45; }
 .mo-empty b { color: var(--label); font-size: var(--t-headline); }
 .mo-empty .mo-pill { margin-top: 12px; }
-.mo-skel-card { padding: 10px 0 18px; }
-.mo-skel-head { display: flex; align-items: center; gap: 10px; padding: 0 14px 10px; }
-.mo-skel-card i { display: block; border-radius: 8px; background: var(--fill); animation: mo-shimmer 1.2s ease-in-out infinite alternate; }
-.mo-skel-card .a { flex: none; width: 36px; height: 36px; border-radius: 50%; }
-.mo-skel-card .l1 { width: 36%; height: 13px; }
-.mo-skel-card .m { width: 100%; aspect-ratio: 1; max-height: 48vh; border-radius: 0; }
-.mo-skel-card .l2 { width: 62%; height: 13px; margin: 14px 16px 0; }
-@keyframes mo-shimmer { to { opacity: .45; } }
 .mo-more { height: 24px; }
 
 /* ---------------------------------------------------------------- new moment */
@@ -487,7 +479,6 @@ button.mo-who:active { opacity: .7; }
 .side-moments .moments-dot { position: static; margin-left: auto; }
 
 :root[data-motion="reduce"] :is(.mo-tab-line, .moments-dot, .mo-close, .mo-ring, .mo-index, .mo-pips i, .mo-play) { transition: none; }
-:root[data-motion="reduce"] .mo-skel-card i { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .mo-track { scroll-behavior: auto; }
 }

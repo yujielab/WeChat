@@ -420,7 +420,10 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
   }
   document.addEventListener('pointerdown', e => {
     const t = e.target
-    if (t === shell || t === app || t === document.body || t === document.documentElement || t.matches?.('#overlays > .scrim')) heal()
+    // A column whose role says it is on screen but which can't be reached is put right by any touch,
+    // wherever that touch lands (it can't have landed in that column).
+    const stuck = panes.some(p => p.inert && p.dataset.role !== 'hidden')
+    if (stuck || t === shell || t === app || t === document.body || t === document.documentElement || t.matches?.('#overlays > .scrim')) heal()
   }, { capture: true })
   document.addEventListener('visibilitychange', () => { if (!document.hidden) heal() })
 

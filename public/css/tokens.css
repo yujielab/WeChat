@@ -91,11 +91,15 @@
   --pop-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 12px 32px -6px rgb(0 0 0 / 0.14);
 
   /* ---- glass: light (white tint + hairline + contact shadow) */
-  --glass-tint: rgb(255 255 255 / 0.72);
+  /* Every piece of liquid glass sits on a frosted base: a white-grey at 50%
+     with a soft blur (liquid.css puts it under the WebGL glass too). */
+  --glass-frost: rgb(236 236 240 / 0.5);
+  --glass-frost-blur: 14px;
+  --glass-tint: var(--glass-frost);
   --glass-tint-strong: rgb(255 255 255 / 0.86);
   /* Liquid Glass "Clear" (Settings): a see-through tint; "Tinted" keeps the
      values above for contrast. --glass-glare drives the moving specular (liquid.css). */
-  --glass-tint-clear: rgb(255 255 255 / 0.5);
+  --glass-tint-clear: var(--glass-frost);
   --glass-tint-strong-clear: rgb(255 255 255 / 0.66);
   --glass-glare: rgb(255 255 255 / 0.9);
   --glass-solid: #ffffff;
@@ -128,6 +132,7 @@
   /* Display face for the wordmark, eyebrows and numerals: Clarinetta, the
      app's own face, with system fallbacks while it loads or for glyphs it lacks. */
   --font-display: "Clarinetta", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+  --font-text: "Clarinetta", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", system-ui, sans-serif;
   --track-wordmark: 0.34em;
   --track-eyebrow: 0.08em;
   --w-regular: 400;
@@ -290,9 +295,10 @@
     --link-in: #5eb0ff;
     --scrim: rgb(0 0 0 / 0.6);
     --image-outline: rgb(255 255 255 / 0.12);
-    --glass-tint: rgb(24 24 27 / 0.55);
+    --glass-frost: rgb(72 72 78 / 0.5);
+    --glass-tint: var(--glass-frost);
     --glass-tint-strong: rgb(18 18 20 / 0.82);
-    --glass-tint-clear: rgb(24 24 27 / 0.34);
+    --glass-tint-clear: var(--glass-frost);
     --glass-tint-strong-clear: rgb(18 18 20 / 0.6);
     --glass-glare: rgb(255 255 255 / 0.5);
     --glass-solid: #121214;
@@ -374,7 +380,8 @@
   --link-in: #5eb0ff;
   --scrim: rgb(0 0 0 / 0.6);
   --image-outline: rgb(255 255 255 / 0.12);
-  --glass-tint: rgb(24 24 27 / 0.55);
+  --glass-frost: rgb(72 72 78 / 0.5);
+  --glass-tint: var(--glass-frost);
   --glass-tint-strong: rgb(18 18 20 / 0.82);
   --glass-solid: #121214;
   --glass-sheen-top: rgb(255 255 255 / 0.12);

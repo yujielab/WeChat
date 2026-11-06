@@ -131,16 +131,21 @@
   opacity: 0;
   transition: opacity 200ms ease-out;
 }
+/* The WebGL glass refracts what is under each button; over it every button
+   wears the same frosted base as the rest of the app's glass (a white-grey at
+   50%, softly blurred, a hairline rim) instead of nothing at all. */
 [data-lg-gl] .field,
 [data-lg-gl] .composer-mic,
 .composer[data-lg-gl]:not(.has-text):not(.editing) .composer-action,
 [data-lg-gl] .bar-item:not(.active),
 [data-lg-gl] .bar-group.capsule {
-  background: transparent !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
+  background: var(--glass-frost) !important;
+  -webkit-backdrop-filter: blur(var(--glass-frost-blur)) saturate(150%) !important;
+  backdrop-filter: blur(var(--glass-frost-blur)) saturate(150%) !important;
+  box-shadow: inset 0 0 0 var(--hairline) var(--glass-rim-low) !important;
 }
+/* A button inside a capsule shares the capsule's base rather than doubling it. */
+[data-lg-gl] .bar-group.capsule .bar-item:not(.active) { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; }
 [data-lg-gl] :is(.field, .composer-mic:not(.is-recording), .composer-action, .bar-item)::before { display: none !important; }
 /* The shader can't draw focus or dictation, so the field keeps those rings. */
 .composer[data-lg-gl].is-focused .field {

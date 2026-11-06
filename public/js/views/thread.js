@@ -1,6 +1,8 @@
 // Conversation view.
 
 import { h, icon, clear, reducedMotion, announce, edge, storage } from '../ui/dom.js'
+import { ghost, filler } from '../ui/skeleton.js'
+import { tip } from '../ui/guides.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { threadTime, callSummary, sendState, groupState } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
@@ -172,6 +174,35 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const foot = h('div', { class: 'thread-foot', 'aria-hidden': 'true' })
   const scroller = h('div', { class: 'scroll thread-scroll', role: 'log', 'aria-label': 'Messages' }, foot, msgs)
   scroller.style.overflowAnchor = 'none'
+  // While a conversation's first page loads with nothing kept from before: its
+  // messages' skeleton, made by the real message builder (ui/skeleton.js), in
+  // a box of its own beside the log so nothing mistakes it for messages.
+  let ghostBox = null
+  let ghostTimer = 0
+  // Only when the page is slow to come: a quick one simply appears, with no skeleton flashing first.
+  function showGhost() {
+    hideGhost()
+    ghostTimer = setTimeout(paintGhost, 250)
+  }
+  function paintGhost() {
+    const me = state.me?.id
+    const lines = [[3, false], [6, false], [2, true], [8, true], [4, false], [5, true], [3, true]]
+    const nodes = lines.map(([n, out], i) => buildNode({ id: `sk-${i}`, chat: current, type: 'text', text: filler(n, i), out, from: out ? me : `sk-peer`, ts: Date.now(), status: 'read' }))
+    ghostBox = h('div', { class: 'msgs-ghost' }, ghost(nodes))
+    scroller.insertBefore(ghostBox, msgs)
+  }
+  // Once: holding a message is where reacting, replying and editing are (ui/guides.js).
+  function tipHold() {
+    if (!msgs.querySelector('.m.in')) return
+    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply, copy or forward it — and to edit or unsend your own.' })
+  }
+  function hideGhost() {
+    clearTimeout(ghostTimer)
+    if (!ghostBox) return
+    ghostBox.remove()
+    ghostBox = null
+    if (!reducedMotion()) { msgs.classList.remove('skeleton-gone'); void msgs.offsetWidth; msgs.classList.add('skeleton-gone') }
+  }
 
   // The conversation's heading is content: it stays with the messages on
   // every display, and opens the chat's details.
@@ -914,6 +945,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     typingTimer = 0
     titleSub.classList.remove('typing')
     clearGhost()
+    hideGhost()
     newCount = 0
     newIds = []
     jumpBadge.hidden = true
@@ -959,7 +991,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     }
     try {
       if (!t.loaded) {
-        olderEl.replaceChildren(h('span', { class: 'spinner' }))
+        if (t.list.length) olderEl.replaceChildren(h('span', { class: 'spinner' }))
+        else showGhost()
         const r = await api.get(`/api/messages?room=${encodeURIComponent(id)}&limit=${PAGE}`)
         // Kept even if another conversation opened meanwhile: coming back is instant.
         if (!t.loaded) {
@@ -969,14 +1002,17 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         }
         if (current !== id) return
         olderEl.replaceChildren()
+        hideGhost()
         reconcile()
         scrollToBottom()
+        tipHold()
       } else {
         await catchUp(id)
       }
     } catch (err) {
       if (current === id) {
         olderEl.replaceChildren()
+        hideGhost()
         toast(err.message, { type: 'error' })
       }
     }
@@ -1037,6 +1073,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     composer.flushDraft()
     composer.blur()
     stopVoice()
+    hideGhost()
     clearTimeout(typingTimer)
     typingTimer = 0
     titleSub.classList.remove('typing')
