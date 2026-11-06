@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v69'
+const SHELL = 'shell-v70'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -44,6 +44,7 @@ const SHELL_FILES = [
   '/css/chat.css',
   '/css/memories.css',
   '/css/people.css',
+  '/css/explain.css',
   '/js/boot.js',
   '/js/viewport-boot.js',
   '/js/main.js',
@@ -92,12 +93,15 @@ const SHELL_FILES = [
   '/js/views/stickers.js',
   '/js/views/predict.js',
   '/js/views/insights.js',
+  '/js/views/explain.js',
+  '/js/views/explain-pick.js',
   '/js/views/memory.js',
   '/js/views/memory-model.js',
   '/js/views/avatar-editor.js',
   '/js/ui/framing.js',
   '/js/ui/columns.js',
   '/js/ui/posture.js',
+  '/js/ui/text-pick.js',
   '/js/views/moments.js',
   '/js/views/moments-editor.js',
   '/js/views/people.js',

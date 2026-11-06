@@ -19,6 +19,7 @@ import { backdrop, readPrefs, patchPrefs } from './prefs.js'
 import { routineKey, emptyRoutine, record, setLearning, summarizeRoutine, routineText, clampTz, localParts } from './routine.js'
 import { insightRooms, analyze, photosToRead, describePhoto, allowRefresh } from './insights.js'
 import { geocode, weatherAt } from './weather.js'
+import { explainConfigured, allowExplain, readInput, explainResponse } from './explain.js'
 import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
@@ -467,6 +468,16 @@ export class Hub {
         console.warn('transcribe', err.message)
         return json({ ok: false, error: "Couldn't transcribe that" }, 502)
       }
+    }
+    // Search and explain (src/explain.js): words picked out of a message,
+    // searched on the web and explained, streamed back as JSON lines. Only
+    // the words, their message and this sheet's questions are sent.
+    if (path === '/api/ai/explain' && method === 'POST') {
+      if (!explainConfigured(this.env)) return json({ ok: false, error: 'Search and explain is unavailable' }, 400)
+      const input = readInput(body)
+      if (!input.text) return json({ ok: false, error: 'Nothing to explain' }, 400)
+      if (!allowExplain(user.id)) return json({ ok: false, error: 'Too many requests, try again shortly' }, 429)
+      return explainResponse(this.env, input)
     }
     // The writing help's memory (src/memory.js): what it remembers about
     // you, and the way to forget it. Only your own words are kept, so this
