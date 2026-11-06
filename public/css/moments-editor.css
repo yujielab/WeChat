@@ -1,0 +1,236 @@
+/* The Moments editor (js/views/moments-editor.js), after the reference, in
+   the app's paper and ink: Cancel and a Post pill across the top; your photo
+   and the words; the photos as large cards side by side (× at the corner, a
+   pencil and +ALT at the foot); Tag people; then, kept at the foot, who can
+   see and comment with Undo and Redo, and the tools with a ring for how much
+   is left to write. */
+
+.overlays[data-layout="split"] .sheet.moments-editor { --sheet-w: min(620px, calc(100% - var(--safe-left) - var(--safe-right) - 64px)); }
+.sheet.moments-editor .sheet-head { display: none; }
+.sheet.moments-editor .sheet-body { padding: 0; display: flex; flex-direction: column; }
+.sheet.moments-editor .grabber { position: absolute; z-index: 5; top: 0; left: 0; right: 0; }
+.me-page { flex: 1; min-height: 100%; display: flex; flex-direction: column; }
+
+/* ---------------------------------------------------------------- the top */
+.me-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 14px 16px 6px 12px;
+  background: color-mix(in srgb, var(--paper, var(--bg)) 90%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+}
+.me-cancel { height: 44px; padding: 0 10px; border-radius: 999px; color: var(--label); font-size: var(--t-body); font-weight: var(--w-semibold); }
+.me-cancel:active { background: var(--fill-2); }
+.me-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--label-2); font-size: var(--t-footnote); }
+.me-post {
+  height: 40px;
+  min-width: 84px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: var(--t-subhead);
+  font-weight: var(--w-bold);
+  transition: opacity var(--dur-quick) ease-out, transform 160ms ease-out;
+}
+.me-post:disabled { opacity: .35; }
+.me-post:not(:disabled):active { transform: scale(.96); }
+.me-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; }
+.me-progress i { display: block; height: 100%; background: var(--blue); transform: scaleX(0); transform-origin: left; transition: transform 300ms var(--ease-out); }
+.sheet.moments-editor.posting :is(.me-body, .me-dock) { opacity: .6; pointer-events: none; }
+
+/* ---------------------------------------------------------------- the words */
+.me-body { flex: 1; padding: 4px 0 18px; }
+.me-writing { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 6px 18px 0 14px; }
+.me-face .avatar { --size: 44px; }
+.me-text {
+  width: 100%;
+  min-height: 84px;
+  padding: 8px 0 6px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: var(--t-title-3);
+  line-height: 1.4;
+  overflow: hidden;
+}
+.me-text::placeholder { color: var(--label-3); }
+
+/* ---------------------------------------------------------------- the cards */
+.me-strip {
+  --card-h: clamp(200px, 42vh, 300px);
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 0 18px 4px 70px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 70px 18px;
+  scrollbar-width: none;
+}
+.me-strip::-webkit-scrollbar { display: none; }
+.me-strip[hidden] { display: none; }
+.me-card {
+  --ratio: 1;
+  position: relative;
+  flex: none;
+  height: var(--card-h);
+  width: calc(var(--card-h) * var(--ratio));
+  max-width: calc(100vw - 110px);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--fill-2);
+  box-shadow: 0 0 0 1px var(--line);
+  scroll-snap-align: start;
+  animation: me-card-in 260ms var(--ease-out) both;
+}
+@keyframes me-card-in { from { opacity: 0; transform: scale(.94); } }
+.me-card > :is(img, video) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.me-card-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(0 0 0 / .72);
+  color: #fff;
+}
+.me-card-x::before { content: ""; position: absolute; inset: -5px; }
+.me-card-x .icon { width: 15px; height: 15px; }
+.me-card-tools { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 8px; }
+.me-card-btn {
+  height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / .72);
+  color: #fff;
+  font-size: var(--t-subhead);
+  font-weight: var(--w-bold);
+  letter-spacing: .02em;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.me-card-btn .icon { width: 19px; height: 19px; }
+.me-card-edit { padding: 0; width: 44px; }
+.me-card-alt.set { background: rgb(255 255 255 / .92); color: #000; }
+.me-card-alt.set .icon { width: 14px; height: 14px; }
+.me-card-btn:active, .me-card-x:active { transform: scale(.94); }
+
+/* ---------------------------------------------------------------- tag people, when */
+.me-rows { display: grid; gap: 2px; margin-top: 10px; padding: 0 12px 0 64px; }
+.me-row { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 12px; color: var(--blue-text); font-size: var(--t-subhead); font-weight: var(--w-semibold); text-align: left; }
+.me-row[hidden] { display: none; }
+.me-row .icon { flex: none; width: 20px; height: 20px; }
+.me-row-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-row:active { background: var(--fill-2); }
+.me-tags.set { color: var(--label); }
+.me-when-wrap { display: flex; align-items: center; }
+.me-when { flex: 1; min-width: 0; color: var(--label); }
+.me-when-clear { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; color: var(--label-2); }
+.me-when-clear[hidden] { display: none; }
+.me-when-clear .icon { width: 14px; height: 14px; }
+
+/* ---------------------------------------------------------------- the foot */
+.me-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding: 0 10px calc(max(var(--safe-bottom), 8px));
+  background: color-mix(in srgb, var(--paper, var(--bg)) 92%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 -1px 0 var(--separator);
+}
+.me-dock-top { display: flex; align-items: center; gap: 2px; min-height: 52px; box-shadow: 0 1px 0 var(--separator); }
+.me-grow { flex: 1; }
+.me-who { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 999px; color: var(--blue-text); font-size: var(--t-footnote); font-weight: var(--w-semibold); text-align: left; }
+.me-who:active { background: var(--fill-2); }
+.me-who-icon { display: grid; place-items: center; }
+.me-who-icon .icon { width: 20px; height: 20px; }
+.me-who-label { min-width: 0; }
+.me-tools { display: flex; align-items: center; gap: 4px; min-height: 56px; }
+.me-tool { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--label); }
+.me-tool .icon { width: 25px; height: 25px; }
+.me-tool:disabled { opacity: .3; }
+.me-tool:not(:disabled):active { background: var(--fill-2); }
+.me-tool.set { color: var(--blue-text); }
+/* How much is left to write: a ring that fills; the number once there's little left. */
+.me-ring { position: relative; width: 30px; height: 30px; margin-right: 8px; display: grid; place-items: center; transition: opacity 200ms ease-out, transform 200ms var(--ease-out); }
+.me-ring.none { opacity: 0; transform: scale(.7); }
+.me-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.me-ring circle { fill: none; stroke-width: 2.6; }
+.me-ring-track { stroke: var(--fill); }
+.me-ring-fill { stroke: var(--blue); stroke-linecap: round; stroke-dasharray: 0 100; transition: stroke-dasharray 160ms ease-out, stroke 160ms ease-out; }
+.me-ring.near .me-ring-fill { stroke: var(--orange); }
+.me-ring-n { position: relative; color: var(--label-2); font-size: var(--t-caption-2); font-weight: var(--w-semibold); }
+
+/* ---------------------------------------------------------------- the small sheets: description, tags, when, edit */
+.sheet.me-small-sheet .sheet-head { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+.sheet.me-small-sheet .sheet-head .start { grid-column: 1; }
+.sheet.me-small-sheet .sheet-head h2 { grid-column: 2; text-align: center; font-size: var(--t-headline); }
+.sheet.me-small-sheet .sheet-head .end { grid-column: 3; }
+.me-small-sheet .me-alt-done { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+.me-small-sheet .me-alt-done:disabled { opacity: .35; }
+.me-hint { margin: 10px 0 0; color: var(--label-2); font-size: var(--t-footnote); line-height: 1.45; }
+
+.me-alt { display: grid; padding: 4px 20px 20px; }
+.me-alt-photo { width: 100%; max-height: 220px; object-fit: contain; border-radius: 14px; background: var(--fill-2); }
+.me-alt-text { margin-top: 14px; width: 100%; min-height: 120px; padding: 12px 14px; border: 0; border-radius: 14px; outline: none; resize: vertical; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); color: var(--label); font: inherit; font-size: var(--t-body); line-height: 1.45; }
+.me-alt-count { justify-self: end; margin-top: 6px; color: var(--label-3); font-size: var(--t-caption); }
+
+.me-tagging { padding: 0 12px 20px; }
+.me-tag-search { width: 100%; height: 44px; border-radius: 999px; margin: 2px 0 8px; }
+.me-tag-list { list-style: none; margin: 0; padding: 0; }
+.me-tag-row { width: 100%; min-height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 8px; border-radius: 14px; text-align: left; }
+.me-tag-row:active { background: var(--fill-2); }
+.me-tag-row .avatar { --size: 44px; flex: none; }
+.me-tag-name { flex: 1; min-width: 0; display: grid; }
+.me-tag-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--w-semibold); }
+.me-tag-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); font-size: var(--t-subhead); }
+.me-tag-check { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--label-3); color: transparent; transition: background-color 160ms ease-out, color 160ms ease-out; }
+.me-tag-check .icon { width: 14px; height: 14px; }
+.me-tag-row.on .me-tag-check { background: var(--ink); box-shadow: none; color: var(--on-ink); }
+
+.me-scheduling { display: grid; gap: 12px; padding: 4px 20px 22px; }
+.me-when-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.me-chip { height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: var(--fill-2); color: var(--label); font-size: var(--t-footnote); font-weight: var(--w-semibold); }
+.me-chip .icon { width: 17px; height: 17px; }
+.me-chip:active { background: var(--fill); }
+.me-when-input { width: 100%; height: 48px; border-radius: 14px; font-size: var(--t-body); }
+.me-when-summary { margin: 0; font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+.me-when-summary.bad { color: var(--red); }
+.me-when-now { justify-self: start; height: 40px; padding: 0 4px; color: var(--blue-text); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+
+.me-edit { display: grid; gap: 14px; padding: 0 16px 20px; }
+.me-edit-stage { display: grid; place-items: center; min-height: 220px; max-height: 46vh; padding: 10px; border-radius: 18px; background: #111; overflow: hidden; }
+.me-edit-preview { display: block; max-width: 100%; max-height: calc(46vh - 20px); width: auto; height: auto; border-radius: 4px; }
+.me-edit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.me-shapes { flex: 1; min-width: 220px; }
+.me-looks { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.me-looks::-webkit-scrollbar { display: none; }
+.me-looks[hidden] { display: none; }
+.me-look { flex: none; display: grid; justify-items: center; gap: 6px; color: var(--label-2); font-size: var(--t-caption); }
+.me-look canvas { width: 64px; height: 64px; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
+.me-look.on { color: var(--label); font-weight: var(--w-semibold); }
+.me-look.on canvas { box-shadow: 0 0 0 2.5px var(--ink); }
+
+:root[data-motion="reduce"] .me-card { animation: none; }
+:root[data-motion="reduce"] :is(.me-progress i, .me-ring, .me-ring-fill, .me-tag-check) { transition: none; }

@@ -369,6 +369,27 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
   `POST /api/moments/:id/comments`、`DELETE /api/moments/:id/comments/:cid`；每条动态带 `audience` 和 `user.friend`；
   WebSocket 事件 `moment` / `moment-changed` / `moment-deleted`。
 
+### 动态编辑器
+
+发动态用一个单独的整页编辑器（`js/views/moments-editor.js`、`css/moments-editor.css`），照参考图排版，沿用纸面和墨色：
+- 顶部：Cancel 和墨色“Post”胶囊（没内容时不能点；定时时变成“Schedule”）。下面是头像和大字的“What's new?”。
+- 照片和视频是并排的大卡片，横向滑动，按各自比例；每张右上 × 移除，右下铅笔（编辑）和“+ALT”（描述）。
+  - 编辑：旋转 90°、裁成原比例 / 正方形 / 4:5 / 16:9、六种色调（Original、Vivid、Warm、Cool、Mono、Fade）。
+    总是从原图重新生成，再编辑时从原图开始；改回全部默认就恢复原图。
+  - ALT：给照片写描述（最多 1000 字），卡片按钮变成“✓ ALT”。发出后照片角上有“ALT”，点开读描述；
+    屏幕阅读器读到的照片标签和大图的标签也是这段描述。
+- “Tag people”：从朋友里选（最多 10 个），发出后卡片上写“With Coisini and …”，点名字看对方主页。
+- 底部一直贴着表单底边：一行“Everyone can see and comment”（点开菜单选谁能看：所有人 / 朋友；谁能评论：所有人 / 朋友 / 关闭），
+  右边撤销和重做（文字按停顿合成一步，照片、编辑、描述、圈人、设置、定时都可以撤销；也支持 ⌘Z / ⇧⌘Z）；
+  再下面是相册、相机（`capture`）、定时三个工具，右端一个圆环显示还能写多少字（剩 100 字以内显示数字、变橙色）。
+- 定时：快捷选项“In an hour / Tonight, 20:00 / Tomorrow, 9:00”和日期时间输入，一分钟后到 30 天内。到时间之前只有自己看得到
+  （卡片上蓝色“Scheduled for …”），朋友的首页、对方主页、单条动态和它的照片都看不到；到时间自动出现。
+- 离开时有内容会先问“Discard this moment?”——Cancel、Esc、点遮罩、下滑都会问（`openSheet` 新增的 `guard`）。
+- 评论权限：设成“朋友”时陌生人卡片上写“Only Tokio's friends can comment”，设成“关闭”时写“Comments are off”，都没有输入框；
+  作者自己总能评论。服务器同样拒绝（403）。
+- 服务器：`moments` 新增列 `tags`、`comments`；照片项可带 `alt`；`POST /api/moments` 接受 `tags`、`comments`、`at`；
+  新路由 `GET /api/friends`（可以圈的人）。
+
 ### 头像与封面
 
 编辑资料里点头像或封面，打开同一个编辑器（`js/views/avatar-editor.js`，照系统“设置 › 你的名字 › 照片”的样子）：
@@ -498,6 +519,10 @@ npm test             # 数据层与账号加密单测 + Web Push（RFC 8291 测�
   × 后服务器也不再推荐；邀请卡片可划掉；See all）；搜索时全部收起、取消后回来；其他筛选下不显示推荐；展开深色。
   `test/people-runtime.test.js` 在真实 Worker 上验证便签（一行、60 字、24 小时、只给朋友、删除）和推荐（联系人里没聊过的、朋友的朋友按共同朋友数、
   发公开动态的、新加入的；不推荐已知、已请求和划掉的人）。
+- 动态编辑器回归：`node tools/e2e/moments-editor.cjs` 验证：编辑器的各部分和底栏贴底；两张照片按比例成卡片、×/铅笔/+ALT；字数圆环；
+  撤销重做文字和照片；铅笔旋转、裁正方形、Mono 色调后卡片变成正方形；写描述；只能圈朋友；评论只给朋友；Esc 和 Cancel 都先问；
+  发出后照片带描述（标签和 ALT）、With Coisini、陌生人看到只有朋友能评论而朋友能评论；定时到明天 9 点（按钮变 Schedule、只有自己看到并标注）；
+  展开深色时在屏幕正中。
 - 动态回归：`node tools/e2e/moments.cjs` 用三个真实账号（自己、聊过天的朋友、没聊过的人）验证：朋友发了新动态时入口带红点、看过即消失；
   首页（标题和三个圆钮、头像排：自己在前、有新动态的带圆环、没聊过的带小标；卡片铺满宽度、按图片比例、最新的在前；
   没聊过的人只给朋友看的动态不出现）；视频进屏幕后静音播放、喇叭开关声音；三张照片一张张滑、“2/3”和圆点、长文字有“more”；

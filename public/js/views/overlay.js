@@ -96,7 +96,12 @@ function setPresence(p) {
 
 // ---------------------------------------------------------------- sheets
 
-export function openSheet({ title, content, tall = false, start = null, end = null, label, side, origin, onClose }) {
+/**
+ * guard: asked before the person dismisses the sheet (Escape, the scrim, its
+ * Close, a drag down); resolving false keeps it open (a drag springs back).
+ * Closing it from code (`close()`) never asks.
+ */
+export function openSheet({ title, content, tall = false, start = null, end = null, label, side, origin, onClose, guard }) {
   const root = layer()
   root.dataset.layout = getLayout()
   const scrim = h('div', { class: 'scrim' })
@@ -208,12 +213,24 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopImmediatePropagation()
-      close()
+      dismiss()
     } else trapTab(e, sheet)
   }
   document.addEventListener('keydown', onKey)
-  scrim.addEventListener('click', () => close())
-  closeBtn.addEventListener('click', () => close())
+  scrim.addEventListener('click', () => dismiss())
+  closeBtn.addEventListener('click', () => dismiss())
+  // The person asked to close it: ask the guard first, if there is one.
+  let asking = false
+  async function dismiss(velocity = 0) {
+    if (ctl.closed || asking) return
+    if (guard) {
+      asking = true
+      let ok = false
+      try { ok = await guard() } finally { asking = false }
+      if (!ok) { springBack(velocity); return }
+    }
+    close(velocity)
+  }
 
   // Drag down to dismiss (folded layout), with velocity projection.
   let drag = null
@@ -261,9 +278,15 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     const v = was.vt.velocity().y
     const y = currentY()
     if (y + project(v) > sheet.offsetHeight * 0.4 || v > 1100) {
-      close(v)
+      dismiss(v)
       return
     }
+    springBack(v)
+  }
+  /** Back up to where it rests, after a drag that didn't dismiss it. */
+  function springBack(v = 0) {
+    const y = currentY()
+    if (!sheet.classList.contains('dragging')) return
     const run = settleRun = spring({ from: y, to: 0, velocity: v, damping: 0.86, response: 0.32, onUpdate: val => { sheet.style.transform = `translate3d(0, ${val}px, 0)`; track(Math.max(0, val)) } })
     run.done.then(finished => {
         if (!finished || ctl.closed || settleRun !== run) return
