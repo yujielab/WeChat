@@ -25,7 +25,7 @@
 //   at each column's foot ("horizontal").
 
 import { reducedMotion } from './dom.js'
-import { readFold, poseOf, INNER_MIN } from './posture.js'
+import { poseOf, INNER_MIN } from './posture.js'
 
 const root = document.documentElement
 const vv = window.visualViewport
@@ -281,48 +281,20 @@ function measureBars() {
 }
 
 function measureFold() {
-  let next
-  if (foldOverride) {
-    const length = foldOverride.axis === 'vertical' ? window.innerWidth : window.innerHeight
-    const size = foldOverride.size ?? 24
-    next = { axis: foldOverride.axis, start: Math.round((length - size) / 2), end: Math.round((length + size) / 2), source: 'emulated' }
-  } else {
-    next = readFold({ segments: readSegments(), posture: readPosture(), width: window.innerWidth, height: window.innerHeight })
-  }
+  // The half-open (hinge) posture has been removed: the app is either the outer
+  // display (closed) or the inner display (open), never half. The folding
+  // region is always reported as none, so no hinge divider or tabletop layout
+  // appears and poseOf never returns 'half'. (readSegments / readPosture stay
+  // for the settings' screen-posture readout; they no longer drive layout.)
+  const next = { axis: 'none', start: 0, end: 0, source: 'none' }
   fold.source = next.source
   if (next.axis === fold.axis && next.start === fold.start && next.end === fold.end) return
-  // Standing the screen up like a laptop, or laying it flat again, with one
-  // column: what is watched moves above the hinge and what is touched below
-  // it, as a morph (css/posture.css) rather than a cut.
-  const turn = applied === 'stack' && (fold.axis === 'horizontal') !== (next.axis === 'horizontal') && canMorph()
-  const inner = applied === 'split' || Math.min(window.innerWidth, window.innerHeight) >= INNER_MIN
-  if (pose && pose.pose !== 'closed' && inner && (fold.axis === 'none') !== (next.axis === 'none')) markShift(next.axis === 'none' ? 'open' : 'half')
   fold = next
-  const write = () => {
-    if (fold.axis === 'none') {
-      delete root.dataset.fold
-      root.style.removeProperty('--fold-start')
-      root.style.removeProperty('--fold-end')
-    } else {
-      root.dataset.fold = fold.axis
-      root.style.setProperty('--fold-start', `${fold.start}px`)
-      root.style.setProperty('--fold-end', `${fold.end}px`)
-    }
-  }
-  if (!turn) {
-    write()
-    return
-  }
-  root.dataset.poseTurn = ''
-  const t = document.startViewTransition(write)
-  t.ready.catch(() => {})
-  const late = setTimeout(() => t.skipTransition?.(), 1200)
-  t.finished.catch(() => {}).finally(() => {
-    clearTimeout(late)
-    delete root.dataset.poseTurn
-  })
+  delete root.dataset.fold
+  root.style.removeProperty('--fold-start')
+  root.style.removeProperty('--fold-end')
 }
-const canMorph = () => Boolean(document.startViewTransition) && !reducedMotion() && document.visibilityState === 'visible' && !posture
+
 
 /** Pretend the device is partially folded (axis: 'vertical' | 'horizontal'), or clear it. */
 export function emulateFold(options = null) {

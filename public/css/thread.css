@@ -507,8 +507,8 @@
   display: grid;
   place-items: center;
   color: var(--label);
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--line), var(--chrome-shadow);
+  /* Liquid glass material comes from .glass; the Send/Save states fill it with
+     ink below. Only the transition and the ink swap live here. */
   transition: background-color var(--dur-quick) ease-out, color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out, transform var(--press-out) var(--ease-out);
 }
 .composer-action .icon { grid-area: 1 / 1; width: 22px; height: 22px; transition: opacity var(--dur-quick) ease-out, transform var(--spring-snappy-dur) var(--spring-snappy); }
