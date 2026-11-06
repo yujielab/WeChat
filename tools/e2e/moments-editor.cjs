@@ -74,15 +74,18 @@ await A.locator('.me-small-sheet .me-alt-done').click();await sleep(400)
 assert.equal(await ed.locator('.me-tags .me-row-label').textContent(),'With Coisini')
 
 // 6. Who can see and comment: everyone sees it, only friends comment.
-await ed.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can comment")').click();await sleep(300)
+await ed.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can comment")').click()
+await A.waitForFunction(()=>document.querySelector('.moments-editor .me-who-label')?.textContent.endsWith('Friends can comment'))
 assert.equal(await ed.locator('.me-who-label').textContent(),'Everyone can see · Friends can comment')
 await A.screenshot({path:path.join(OUT,'4-ready.png')})
 
 // 7. Leaving asks first: Escape, then Cancel; both kept.
-await A.keyboard.press('Escape');await A.locator('.menu .menu-item:has-text("Discard")').waitFor()
-await A.locator('.menu .menu-item:has-text("Cancel")').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Escape asked; kept')
-await ed.locator('.me-cancel').click();await A.locator('.menu .menu-item:has-text("Discard")').waitFor()
-await A.locator('.menu .menu-item:has-text("Cancel")').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Cancel asked; kept')
+await A.keyboard.press('Escape');await A.locator('.prompt .prompt-btn.main:has-text("Discard")').waitFor()
+assert.equal(await A.locator('.prompt .prompt-title').textContent(),'Discard this moment?');await sleep(500)
+await A.screenshot({path:path.join(OUT,'4b-discard.png')})
+await A.locator('.prompt .prompt-cancel').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Escape asked; kept')
+await ed.locator('.me-cancel').click();await A.locator('.prompt .prompt-btn.main:has-text("Discard")').waitFor()
+await A.locator('.prompt .prompt-cancel').click();await sleep(300);assert.equal(await A.locator('.moments-editor').count(),1,'Cancel asked; kept')
 
 // 8. Post: it leads the feed — with its description, Coisini, and comments for friends.
 await ed.locator('.me-post').click();await A.locator('.moments-editor').waitFor({state:'detached'});await sleep(800)

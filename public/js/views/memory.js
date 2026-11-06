@@ -111,7 +111,7 @@ function learningSwitch(routine, onChange) {
   const sw = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(routine.learning), 'aria-label': 'Learn routine and habits' })
   sw.addEventListener('click', async () => {
     const next = sw.getAttribute('aria-checked') !== 'true'
-    if (!next && !await confirmAction(sw, { title: 'Turn off and forget the routine and habits learned?', confirm: 'Turn off' })) return
+    if (!next && !await confirmAction(sw, { title: 'Turn off learning?', message: 'The routine and habits learned so far are forgotten too.', confirm: 'Turn off' })) return
     sw.setAttribute('aria-checked', String(next))
     const updated = await setRoutineLearning(next)
     if (!updated) sw.setAttribute('aria-checked', String(!next))
@@ -186,7 +186,7 @@ export async function openMemorySheet(anchor) {
 
     const clear = h('button', { class: 'btn btn-outline', type: 'button' }, 'Clear all memory')
     clear.addEventListener('click', async () => {
-      if (!await confirmAction(clear, { title: 'Clear all memory?', confirm: 'Clear' })) return
+      if (!await confirmAction(clear, { title: 'Clear all memory?', message: 'Every word and chat summary it remembers is deleted. This can’t be undone.', confirm: 'Clear' })) return
       if (!await forgetMemory()) return
       toast('Cleared', { type: 'ok' })
       sheet.close?.()

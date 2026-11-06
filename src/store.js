@@ -260,6 +260,21 @@ export class Store {
     return rows.map(r => ({ ...this.pub(this.getUser(r.peer)), state: r.state, since: r.created })).filter(r => r.id)
   }
 
+  // ---------------------------------------------------------------- memories
+  /**
+   * Every photo, video and drawing shared in `user`'s chats (by anyone, not
+   * withdrawn), newest first: their memories, kept without anyone saving them.
+   */
+  memoriesFor(user, { before = Number.MAX_SAFE_INTEGER, limit = 60, type } = {}) {
+    const types = type === 'photo' ? ['image'] : type === 'video' ? ['video'] : type === 'drawing' ? ['drawing'] : ['image', 'video', 'drawing']
+    return this.exec(
+      `SELECT m.* FROM messages m JOIN room_members rm ON rm.room = m.room AND rm.user = ?
+       WHERE m.type IN (${types.map(() => '?').join(',')}) AND m.state <> 'revoked' AND m.ts < ?
+       ORDER BY m.ts DESC, m.id DESC LIMIT ?`,
+      user, ...types, before, limit
+    ).map(r => this.#msg(r)).filter(m => typeof m.meta?.url === 'string' && m.meta.url.startsWith('/api/media/'))
+  }
+
   // ---------------------------------------------------------------- notes
   /** Someone's note while it lasts (a day), or null. */
   noteOf(uid, at = now()) {

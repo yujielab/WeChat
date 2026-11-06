@@ -13,6 +13,7 @@ export function getPrefs() {
     glassAuto: storage('ui:glass-auto') === 'solid',
     glassTint: storage('ui:glass-tint') || 'tinted', // tinted | clear (Liquid Glass)
     motion: storage('ui:motion') || 'system', // system | reduce
+    glow: storage('ui:glow') || 'ocean', // off | ocean | dawn | aurora
     haptics: storage('ui:haptics') !== 'off'
   }
 }
@@ -48,6 +49,12 @@ export function setGlassTint(mode) {
 export function setMotion(mode) {
   storage('ui:motion', mode === 'system' ? null : mode)
   applyAttr('data-motion', mode === 'system' ? null : mode)
+}
+
+/** The diffuse light behind the message field: a colour, or off. */
+export function setGlow(mode) {
+  storage('ui:glow', mode === 'ocean' ? null : mode)
+  applyAttr('data-glow', mode === 'off' ? null : mode)
 }
 
 export function setHaptics(on) {

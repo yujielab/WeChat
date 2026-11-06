@@ -16,6 +16,7 @@ import { openInsights } from './insights.js'
 import { closeAllOverlays, healOverlays, confirmAction } from './overlay.js'
 import { h } from '../ui/dom.js'
 import { createDiscardGuard } from './draw-guard.js'
+import { createPages } from '../ui/pages.js'
 
 const SIDEBAR = 0
 const LIST = 1
@@ -64,6 +65,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
     loadContacts
   })
   const views = [sidebar, list, thread, artifact]
+  let pages = null // ui/pages.js, once the strip is up
 
   const strip = createStrip(shell, panes, {
     onRoles: changed => {
@@ -75,10 +77,26 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
         // A column out of view keeps the arrangement it was last seen in.
         if (pane.dataset.role !== 'hidden') views[panes.indexOf(pane)].setLayout(pane.dataset.role)
       }
+      // The pages' rail (ui/pages.js) belongs to whichever column has the edge: the list's or the sidebar's.
+      pages?.setColumn(edgeColumn())
     },
     onSwipeBack: ({ from, velocity }) => (from === ARTIFACT ? leaveArtifact({ velocity, swiped: true }) : from === THREAD ? leaveThread({ velocity, swiped: true }) : back(from, { velocity })),
     swipeZone: pane => (pane.dataset.edgeSwipe !== undefined ? 40 : pane.clientWidth * 0.6)
   })
+
+  // ------------------------------------------------------------ pages
+  // The column with the system's edge column beside it: alone, or the trailing one of two.
+  const edgeColumn = () => {
+    const i = panes.findIndex(p => p.dataset.role === 'single' || p.dataset.role === 'trailing')
+    return i === SIDEBAR ? 'menu' : i === LIST ? 'chats' : null
+  }
+  pages = createPages({
+    goColumn: id => {
+      if (id === 'menu') { if (strip.focus !== SIDEBAR) back(Math.min(strip.focus, LIST)) }
+      else if (strip.focus === SIDEBAR) forward(LIST)
+    }
+  })
+  pages.setColumn(edgeColumn())
 
   // ------------------------------------------------------------ navigation
   // History mirrors the strip: entries pushed going forward to a
@@ -158,7 +176,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
    */
   const guard = createDiscardGuard({
     unsaved: () => artifact.unsaved,
-    ask: anchor => confirmAction(anchor, { title: "Discard this drawing? What you drew won't be saved", confirm: 'Discard' })
+    ask: anchor => confirmAction(anchor, { title: 'Discard this drawing?', message: "What you drew won't be saved.", confirm: 'Discard' })
   })
   const mayDiscardDrawing = () => guard.mayDiscard()
   async function leaveArtifact({ velocity = 0, swiped = false } = {}) {

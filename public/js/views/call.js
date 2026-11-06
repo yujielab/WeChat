@@ -667,7 +667,9 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
   const name = h('div', { class: 'call-name' })
   const status = h('div', { class: 'call-status' })
   const badges = h('div', { class: 'call-badges' })
-  const head = h('div', { class: 'call-head' }, name, status, badges)
+  // The heading as a capsule: their photo, how long, who (after the reference).
+  const headFace = h('span', { class: 'call-head-face', 'aria-hidden': 'true' })
+  const head = h('div', { class: 'call-head' }, headFace, h('span', { class: 'call-head-text' }, status, name), h('span', { class: 'call-head-chev', 'aria-hidden': 'true' }, icon('chevron-right')), badges)
   const minBtn = h('button', { class: 'call-icon-btn call-min', type: 'button', 'aria-label': 'Minimize call', title: 'Minimize call' }, icon('pip-enter'))
   const top = h('div', { class: 'call-top' }, minBtn, head)
 
@@ -677,6 +679,8 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
   const hang = control({ icon: 'phone-down', label: 'Hang up', cls: 'hang', onPress: () => onHangup() })
   cam.el.hidden = !hasVideo
   flip.el.hidden = true
+  // In the bar at the foot, in the reference's order: camera, flip, mute, then hang up.
+  cam.el.dataset.c = 'camera'; flip.el.dataset.c = 'flip'; mic.el.dataset.c = 'mic'; hang.el.dataset.c = 'hang'
   const controls = h('div', { class: 'call-controls' }, mic.el, cam.el, flip.el, hang.el)
   const incoming = h('div', { class: 'call-incoming' })
 
@@ -1129,6 +1133,7 @@ function createCallUI({ media, onHangup, onMute, onCamera, onFlip, level, onCove
   function setFace(src, label, room = false) {
     face.querySelector('.avatar')?.remove()
     face.append(avatar(src, label, { room }))
+    headFace.replaceChildren(avatar(src, label, { room, size: 40 }))
     root.classList.toggle('room-face', room)
   }
   function syncLock() {

@@ -12,6 +12,9 @@ const layer = () => document.getElementById('overlays')
 const app = () => document.getElementById('app')
 const open = new Set()
 const topmost = () => [...open].at(-1)
+/** The frontmost sheet's element, or null (ui/pages.js keeps its rail to pages). */
+export const frontSheet = () => [...open].reverse().find(o => o.el?.classList.contains('sheet'))?.el || null
+const overlaysChanged = () => window.dispatchEvent(new CustomEvent('overlays-change'))
 
 // Only the frontmost surface receives keyboard navigation. In particular,
 // Escape from an editor should return to Settings, rather than close both.
@@ -100,8 +103,12 @@ function setPresence(p) {
  * guard: asked before the person dismisses the sheet (Escape, the scrim, its
  * Close, a drag down); resolving false keeps it open (a drag springs back).
  * Closing it from code (`close()`) never asks.
+ * page: it is one of the app's pages (ui/pages.js), switched from the rail.
+ * swap: it takes the place of another page: it fades in where it stands, over
+ * a scrim already there, while the other fades out (`swapOut()`), rather than
+ * rising in from the edge.
  */
-export function openSheet({ title, content, tall = false, start = null, end = null, label, side, origin, onClose, guard }) {
+export function openSheet({ title, content, tall = false, start = null, end = null, label, side, origin, onClose, guard, page = false, swap = false }) {
   const root = layer()
   root.dataset.layout = getLayout()
   const scrim = h('div', { class: 'scrim' })
@@ -117,14 +124,14 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   for (const el of sections.slice(0, 12)) el.classList.add('sheet-reveal')
   stagger(sections.slice(0, 12))
   const sheet = h('div', {
-    class: ['sheet', 'glass', 'glass-thick', tall && 'tall'],
+    class: ['sheet', 'glass', 'glass-thick', tall && 'tall', page && 'page-sheet'],
     role: 'dialog',
     'aria-modal': 'true',
     'aria-label': label || title || 'Panel',
     tabindex: '-1'
   }, h('div', { class: 'grabber' }), head, body)
 
-  const ctl = { el: sheet, body, scrim, closed: false, close }
+  const ctl = { el: sheet, body, scrim, closed: false, close, swapOut: () => close(0, { swap: true }) }
   let settleRun = null
   open.add(ctl)
   const prevFocus = document.activeElement
@@ -132,7 +139,15 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
   placeOnSide(sheet, side)
   // Unfolded, a sheet opened from something on screen (your avatar, for
   // settings) grows out of it and shrinks back into it.
-  if (origin?.isConnected && getLayout() !== 'stack' && !reducedMotion()) {
+  if (swap) {
+    // In place at once, over a scrim that's already there; then it fades in.
+    scrim.style.transition = sheet.style.transition = 'none'
+    scrim.classList.add('on')
+    sheet.classList.add('on')
+    void getComputedStyle(sheet).transform
+    scrim.style.transition = sheet.style.transition = ''
+    if (!reducedMotion()) sheet.animate?.([{ opacity: 0, scale: '0.97' }, { opacity: 1, scale: '1' }], { duration: 260, easing: 'cubic-bezier(.2,.9,.3,1)' })
+  } else if (origin?.isConnected && getLayout() !== 'stack' && !reducedMotion()) {
     const o = origin.getBoundingClientRect()
     const box = root.getBoundingClientRect()
     const left = box.left + sheet.offsetLeft - sheet.offsetWidth / 2
@@ -147,6 +162,7 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     sheet.style.transition = ''
   }
   lockApp(ctl)
+  overlaysChanged()
   const recedes = getLayout() === 'stack' && !reducedMotion()
   let receded = false
   nextFrame().then(() => {
@@ -170,11 +186,14 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     if (receded) setPresence(1 - y / Math.max(1, sheet.offsetHeight))
   }
 
-  async function close(velocity = 0) {
+  async function close(velocity = 0, { swap: swapping = false } = {}) {
     if (ctl.closed) return
     ctl.closed = true
     settleRun?.stop()
     document.removeEventListener('keydown', onKey)
+    sheet.dispatchEvent(new CustomEvent('sheet-close'))
+    // Handing over to another page: its scrim is already up, so this one goes at once.
+    if (swapping) scrim.style.transition = 'none'
     scrim.classList.remove('on')
     dimThemeColor([...open].reverse().find(o => o !== ctl && o.scrim)?.scrim || null)
     // The app is back in use the moment the sheet starts to leave: taps go
@@ -182,11 +201,16 @@ export function openSheet({ title, content, tall = false, start = null, end = nu
     scrim.style.pointerEvents = sheet.style.pointerEvents = 'none'
     open.delete(ctl)
     unlockApp(ctl)
-    restoreFocus(prevFocus)
+    overlaysChanged()
+    if (!swapping) restoreFocus(prevFocus)
     // Folded, the sheet always leaves on the spring a drag hands off to, so
     // Close, Escape, the scrim and a flick all feel the same; a flick keeps
     // its momentum.
-    if (getLayout() === 'stack' && !reducedMotion()) {
+    if (swapping) {
+      // Another page took its place: it fades where it stands.
+      unrecede()
+      if (!reducedMotion()) await sheet.animate?.([{ opacity: 1 }, { opacity: 0, scale: '0.98' }], { duration: 180, easing: 'ease-out', fill: 'forwards' }).finished.catch(() => {})
+    } else if (getLayout() === 'stack' && !reducedMotion()) {
       const from = currentY()
       const to = sheet.offsetHeight + 60
       sheet.classList.add('dragging')
@@ -602,15 +626,81 @@ export function openMenu(anchor, sections, { title, header, apart = false, place
 }
 
 /** Confirmation for destructive actions, shown as a menu from its trigger. */
-export function confirmAction(anchor, { title, confirm, destructive = true }) {
+/**
+ * Asks before something that can't be taken back, on a card of its own: the
+ * question in bold over the card, a line about it, the action as a wide pill
+ * and Cancel under it, over the app blurred away. Resolves true for the
+ * action. Focus starts on Cancel: Return right away keeps things as they are.
+ */
+export function confirmAction(anchor, { title, message, confirm, destructive = true }) {
+  return openPrompt(anchor, { title, message, actions: [{ label: confirm, destructive, value: true }], cancel: 'Cancel' }).then(v => v === true)
+}
+
+/**
+ * A card that asks: title (over it), message, actions (wide pills, the first
+ * the main one), and Cancel. Resolves to the chosen action's value, or null.
+ */
+export function openPrompt(anchor, { title, message, actions = [], cancel = 'Cancel' } = {}) {
   return new Promise(resolve => {
-    let chosen = false
-    // Focus starts on Cancel (the last choice): Return right away keeps things as they are.
-    openMenu(anchor, [[{ label: confirm, destructive, onSelect: () => { chosen = true; resolve(true) } }], [{ label: 'Cancel' }]], {
-      title,
-      focusAt: -1,
-      onClose: () => { if (!chosen) resolve(false) }
+    const root = layer()
+    const trigger = anchor instanceof Element ? anchor : null
+    const scrim = h('div', { class: 'scrim prompt-scrim' })
+    const heading = title ? h('h2', { class: 'prompt-title', id: `duo-prompt-${++nextMenuId}` }, title) : null
+    const buttons = actions.map((a, i) => {
+      const b = h('button', { class: ['prompt-btn', i === 0 && 'main', a.destructive && 'destructive'], type: 'button' }, a.label)
+      b.addEventListener('click', () => done(a.value ?? a.label))
+      return b
     })
+    const cancelBtn = cancel ? h('button', { class: 'prompt-btn prompt-cancel', type: 'button' }, cancel) : null
+    cancelBtn?.addEventListener('click', () => done(null))
+    const card = h('div', { class: 'prompt-card' },
+      message ? h('p', { class: 'prompt-message' }, message) : null,
+      h('div', { class: 'prompt-actions' }, ...buttons, cancelBtn))
+    const box = h('div', {
+      class: 'prompt', role: 'alertdialog', 'aria-modal': 'true', tabindex: '-1',
+      ...(heading ? { 'aria-labelledby': heading.id } : { 'aria-label': actions[0]?.label || 'Confirm' })
+    }, heading, card)
+    const prevFocus = document.activeElement
+    const ctl = { el: box, scrim, closed: false, close: () => done(null) }
+    root.append(scrim, box)
+    placeOnSide(box, foldSide(trigger))
+    open.add(ctl)
+    lockApp(ctl)
+    // From where it was asked: the card grows out of that side of the screen.
+    if (trigger?.isConnected) {
+      const t = trigger.getBoundingClientRect()
+      const b = box.getBoundingClientRect()
+      box.style.setProperty('--py', `${Math.max(-60, Math.min(60, (t.top + t.height / 2) - (b.top + b.height / 2))) / 4}px`)
+    }
+    nextFrame().then(() => {
+      if (ctl.closed) return
+      scrim.classList.add('on')
+      box.classList.add('on')
+      ;(cancelBtn || buttons[0])?.focus({ preventScroll: true })
+    })
+    const onKey = e => {
+      if (topmost() !== ctl) return
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); done(null) }
+      else trapTab(e, box)
+    }
+    document.addEventListener('keydown', onKey)
+    scrim.addEventListener('click', () => done(null))
+    async function done(value) {
+      if (ctl.closed) return
+      ctl.closed = true
+      document.removeEventListener('keydown', onKey)
+      open.delete(ctl)
+      unlockApp(ctl)
+      scrim.classList.remove('on')
+      box.classList.remove('on')
+      box.classList.add('off')
+      scrim.style.pointerEvents = box.style.pointerEvents = 'none'
+      restoreFocus(prevFocus)
+      resolve(value)
+      if (!reducedMotion()) await new Promise(r => setTimeout(r, 200))
+      scrim.remove()
+      box.remove()
+    }
   })
 }
 

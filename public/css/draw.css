@@ -135,3 +135,89 @@
 .draw-color[style*="#ffffff"]:not(.on) { box-shadow: inset 0 0 0 1px var(--separator); }
 :root[data-theme="dark"] .draw-color:not(.on) { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .draw-color:not(.on) { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22); } }
+
+/* ---------------------------------------------------------------- the expanded bar, after the reference
+   A capsule of tools floating under the paper: the pens standing in a row
+   (the one in hand stands taller, its tip and band in the colour; its width
+   on its body), a hairline, the colours two rows deep with a wheel for any
+   other, and "…" for the size, the paper and Clear. Undo and Redo share the
+   capsule in the bar under it, between Close and Send. */
+.draw-stage { position: relative; }
+.draw-live { position: absolute; inset: 0; pointer-events: none; }
+/* Lines or a grid printed on the paper (multiplied over the ink, never sent). */
+.draw-stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; }
+.draw-stage[data-paper="lines"]::after { background: repeating-linear-gradient(to bottom, transparent 0 39px, rgb(90 110 150 / .16) 39px 40px); }
+.draw-stage[data-paper="grid"]::after {
+  background-image: linear-gradient(rgb(90 110 150 / .12) 1px, transparent 1px), linear-gradient(90deg, rgb(90 110 150 / .12) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.draw-palette {
+  --pen: #18181b;
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 86px;
+  padding: 0 8px 8px 12px;
+  border-radius: 34px;
+  overflow: visible;
+}
+.draw-nibs { display: flex; align-items: flex-end; gap: 2px; height: 82px; padding: 0 2px; overflow: hidden; }
+.draw-nib {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 82px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transform: translateY(18px);
+  transition: transform 300ms var(--spring-bouncy, var(--ease-out));
+  -webkit-tap-highlight-color: transparent;
+}
+.draw-nib.on { transform: translateY(2px); }
+.draw-nib:focus-visible { outline: 2px solid var(--label-2); outline-offset: -2px; border-radius: 10px; }
+.nib-body {
+  position: relative;
+  width: 22px;
+  height: 52px;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(90deg, #dcdce3, #fafafc 45%, #d2d2da);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .08), 0 -1px 0 rgb(255 255 255 / .6) inset;
+}
+.nib-tip { position: absolute; left: 50%; bottom: 100%; width: 14px; height: 20px; transform: translateX(-50%); clip-path: polygon(50% 0, 100% 100%, 0 100%); background: var(--pen); }
+.nib-band { position: absolute; left: 0; right: 0; top: 10px; height: 6px; background: var(--pen); }
+.nib-size { position: absolute; left: 0; right: 0; bottom: 6px; color: #8e8e93; font-size: 9px; font-weight: var(--w-bold); text-align: center; opacity: 0; transition: opacity 200ms ease-out; }
+.draw-nib.on .nib-size { opacity: 1; }
+/* Each pen its own shape. */
+.draw-nib[data-tool="pen"] .nib-tip { width: 12px; height: 22px; background: linear-gradient(90deg, #3a3a40, #8a8a92 50%, #2a2a30); clip-path: polygon(50% 0, 82% 62%, 100% 100%, 0 100%, 18% 62%); }
+.draw-nib[data-tool="pen"] .nib-tip::after { content: ""; position: absolute; left: 50%; top: 0; width: 2px; height: 6px; transform: translateX(-50%); background: var(--pen); }
+.draw-nib[data-tool="marker"] .nib-tip { width: 16px; height: 16px; clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); border-radius: 4px 4px 0 0; }
+.draw-nib[data-tool="marker"] .nib-body { width: 24px; }
+.draw-nib[data-tool="highlighter"] .nib-tip { width: 18px; height: 16px; clip-path: polygon(0 30%, 100% 0, 100% 100%, 0 100%); opacity: .75; }
+.draw-nib[data-tool="highlighter"] .nib-band { opacity: .75; height: 10px; }
+.draw-nib[data-tool="pencil"] .nib-tip { width: 16px; height: 22px; background: linear-gradient(to bottom, var(--pen) 0 28%, #ecc690 28%); }
+.draw-nib[data-tool="pencil"] .nib-body { background: linear-gradient(90deg, #f4c95d, #ffdf8c 45%, #e8b440); }
+.draw-nib[data-tool="eraser"] .nib-tip { display: none; }
+.draw-nib[data-tool="eraser"] .nib-body { height: 50px; border-radius: 8px 8px 2px 2px; background: linear-gradient(to bottom, #ffb3c1 0 14px, #f2f2f6 14px); }
+.draw-nib[data-tool="eraser"] .nib-band { display: none; }
+
+.draw-divider { flex: none; width: 1px; align-self: stretch; margin: 14px 2px 6px; background: var(--separator); }
+.draw-colors { flex: none; display: grid; grid-template-columns: repeat(3, 26px); gap: 8px; align-self: center; margin-top: 8px; }
+.draw-colors .draw-color { width: 26px; height: 26px; }
+.draw-colors .draw-color::before { inset: -5px; }
+.draw-colors .draw-color.on { transform: scale(1.12); }
+.draw-colors .draw-color.on::before { inset: calc((36px / 1.12 - 26px) / -2); }
+.draw-wheel {
+  --c: #5856d6;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(from 0deg, #ff3b30, #ff9500, #ffcc00, #34c759, #5ac8fa, #007aff, #af52de, #ff2d55, #ff3b30);
+  cursor: pointer;
+}
+.draw-wheel::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px #fff; }
+.draw-wheel input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.draw-more { flex: none; align-self: center; margin: 8px 0 0 auto; width: 40px; height: 40px; }
+.draw-more .icon { width: 18px; height: 18px; }
+.draw-tools .draw-tool:disabled { opacity: .35; }
+:root[data-motion="reduce"] :is(.draw-nib, .nib-size) { transition: none; }

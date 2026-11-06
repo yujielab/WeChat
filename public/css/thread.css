@@ -1156,3 +1156,40 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 
 /* UI 设计师: the spoken 「提及 某某」 inside a mention stays out of a copy. */
 .mention .sr-only { user-select: none; -webkit-user-select: none; }
+
+/* ---------------------------------------------------------------- composer glow
+   A diffuse light behind the message field, rising from the foot of the
+   conversation (Settings › Composer glow: Ocean, Dawn, Aurora, or off). It
+   breathes slowly, brightens a little while you type, and keeps still with
+   Reduce Motion. */
+:root[data-glow="ocean"] { --glow-a: rgb(38 128 140 / .78); --glow-b: rgb(96 176 198 / .62); --glow-c: rgb(150 210 212 / .5); }
+:root[data-glow="dawn"] { --glow-a: rgb(255 118 92 / .7); --glow-b: rgb(255 186 104 / .6); --glow-c: rgb(255 160 186 / .45); }
+:root[data-glow="aurora"] { --glow-a: rgb(102 90 255 / .66); --glow-b: rgb(56 206 168 / .6); --glow-c: rgb(184 110 255 / .45); }
+:root[data-theme="dark"][data-glow] { --glow-k: 1.3; }
+:root[data-glow] .composer::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: auto;
+  left: -8%;
+  right: -8%;
+  bottom: -40px;
+  height: calc(100% + 230px);
+  background:
+    radial-gradient(42% 46% at 78% 82%, var(--glow-a), transparent 70%),
+    radial-gradient(46% 44% at 24% 88%, var(--glow-b), transparent 70%),
+    radial-gradient(80% 36% at 50% 100%, var(--glow-c), transparent 72%);
+  filter: blur(30px) saturate(calc(var(--glow-k, 1) * 100%));
+  opacity: .9;
+  pointer-events: none;
+  transition: opacity 400ms ease-out;
+  animation: composer-glow 9s ease-in-out infinite alternate;
+}
+:root[data-glow] .composer.is-focused::after { opacity: 1; }
+@keyframes composer-glow {
+  0% { transform: translateX(-3%) scaleY(.96); }
+  50% { transform: translateX(2%) scaleY(1.04); }
+  100% { transform: translateX(4%) scaleY(.98); }
+}
+:root[data-motion="reduce"][data-glow] .composer::after { animation: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="full"])[data-glow] .composer::after { animation: none; } }

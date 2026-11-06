@@ -40,12 +40,16 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
     h('span', { class: 'side-scope-icon' }, icon('photo')), h('span', { class: 'side-scope-label' }, 'Moments'), momentsDot)
   moments.addEventListener('click', async () => (await import('./moments.js')).openMoments({ origin: moments }))
   window.addEventListener('moments-new', e => moments.classList.toggle('fresh', Boolean(e.detail)))
+  // Memories (views/memories.js): the photos and videos shared in your chats.
+  const memories = h('button', { class: 'side-link side-memories', type: 'button' },
+    h('span', { class: 'side-scope-icon' }, icon('photo-stack')), h('span', { class: 'side-scope-label' }, 'Memories'))
+  memories.addEventListener('click', async () => (await import('./memories.js')).openMemories({ origin: memories }))
   const title = h('h1', { class: 'large-title side-title' }, 'Cuven')
   const scroll = h('div', { class: 'scroll side-scroll' },
     h('header', { class: 'side-head' }, title),
     me,
     scopes,
-    h('ul', { class: 'side-scopes side-more', 'aria-label': 'Discover' }, h('li', {}, moments)))
+    h('ul', { class: 'side-scopes side-more', 'aria-label': 'Discover' }, h('li', {}, moments), h('li', {}, memories)))
   // Search and New Chat start something, so they stay in reach at the foot
   // of the sidebar when it has the screen to itself. Beside the list they
   // are the list's own. Where the system keeps its column on the right edge

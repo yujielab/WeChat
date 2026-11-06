@@ -3,7 +3,7 @@
 
 import { h, icon, storage } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
-import { getPrefs, setTheme, setGlass, setGlassTint, setMotion, setHaptics } from '../ui/appearance.js'
+import { getPrefs, setTheme, setGlass, setGlassTint, setMotion, setHaptics, setGlow } from '../ui/appearance.js'
 import { isStandalone, getPostureReadings } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
@@ -165,6 +165,13 @@ export function openSettings({ onLogout, origin }) {
         { label: 'Clear', value: 'clear' },
         { label: 'Tinted', value: 'tinted' }
       ], prefs.glassTint, setGlassTint, 'Liquid Glass')),
+      // A diffuse light behind the message field, in one of a few colours.
+      cell('Composer glow', segmented([
+        { label: 'Off', value: 'off' },
+        { label: 'Ocean', value: 'ocean' },
+        { label: 'Dawn', value: 'dawn' },
+        { label: 'Aurora', value: 'aurora' }
+      ], prefs.glow, setGlow, 'Composer glow')),
       cell('Reduce transparency', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), 'Reduce transparency')),
       cell('Reduce motion', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), 'Reduce motion')),
       // Only offered where the device can play it (iPhone), so it never
@@ -481,7 +488,7 @@ async function addMembers(roomId, existing, loadContacts) {
 }
 
 async function leaveRoom(roomId, host) {
-  if (!await confirmAction(host.el, { title: 'Leave this group?', confirm: 'Leave group' })) return
+  if (!await confirmAction(host.el, { title: 'Leave this group?', message: 'You won’t get its messages any more unless someone adds you again.', confirm: 'Leave group' })) return
   try { await api.post(`/api/room/${roomId}/leave`); patchRoom(roomId, { hidden: true }); host.close() }
   catch (err) { toast(err.message, { type: 'error' }) }
 }

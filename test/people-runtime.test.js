@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 
-test('notes for friends for a day; people to chat with and to add', async () => {
+test('notes for friends for a day; people to chat with and to add; memories from your chats', async () => {
   const bundled = await build({ entryPoints: [fileURLToPath(new URL('../src/index.js', import.meta.url))], bundle: true, write: false, format: 'esm', platform: 'browser' })
   const persistence = await mkdtemp(join(tmpdir(), 'duo-people-'))
   const mf = new Miniflare(convertV4MiniflareOptions({
@@ -95,6 +95,24 @@ test('notes for friends for a day; people to chat with and to add', async () => 
     // Once a chats with f, f is no longer someone to start a chat with.
     await request('/api/dm', { user: f.id }, a.cookie)
     assert.deepEqual((await peopleOf(a)).suggested, [])
+
+    // ---------------------------------------------------------------- memories
+    // The photos, videos and drawings shared in your chats, by anyone, newest first; not someone else's chats; not one withdrawn.
+    const roomAB = (await request('/api/dm', { user: b.id }, a.cookie)).data.room.id
+    const pic = (n, type = 'image', who = a) => request('/api/messages', { room: roomAB, type, meta: { url: `/api/media/chat/${roomAB}/p${n}`, w: 1200, h: 900 } }, who.cookie)
+    const first = (await pic(1)).data.msg
+    await pic(2, 'video', b)
+    await request('/api/messages', { room: roomAB, type: 'text', text: 'not a memory' }, a.cookie)
+    const third = (await pic(3, 'drawing')).data.msg
+    const mem = (await request('/api/memories', undefined, b.cookie)).data
+    assert.deepEqual(mem.memories.map(m => m.type), ['drawing', 'video', 'photo'], 'newest first, words left out')
+    assert.equal(mem.memories[2].url, `/api/media/chat/${roomAB}/p1`); assert.equal(mem.memories[2].w, 1200)
+    assert.equal(mem.memories[0].from.username, 'pe-a'); assert.equal(mem.memories[1].mine, true)
+    assert.deepEqual((await request('/api/memories?type=photo', undefined, b.cookie)).data.memories.map(m => m.id), [first.id], 'photos only')
+    assert.deepEqual((await request(`/api/memories?before=${third.ts}&limit=1`, undefined, b.cookie)).data.memories.map(m => m.type), ['video'], 'a page at a time')
+    assert.deepEqual((await request('/api/memories', undefined, e.cookie)).data.memories, [], 'not from chats you are not in')
+    assert.equal((await request('/api/revoke', { id: first.id, room: roomAB }, a.cookie)).response.status, 200)
+    assert.ok(!(await request('/api/memories', undefined, b.cookie)).data.memories.some(m => m.id === first.id), 'withdrawn: gone')
   } finally {
     await mf.dispose()
     await rm(persistence, { recursive: true, force: true })

@@ -187,9 +187,9 @@ export function createRequestsLink() {
 }
 
 /** Who wants to add you (Accept, or ×), and whom you've asked (Cancel). */
-export function openRequests({ origin } = {}) {
+export function openRequests({ origin, page = false, swap = false } = {}) {
   const body = h('div', { class: 'people-sheet' })
-  const sheet = openSheet({ title: 'Requests', content: body, tall: true, origin, side: 'list' })
+  const sheet = openSheet({ title: 'Requests', content: body, tall: true, origin, side: 'list', page, swap })
   sheet.el.classList.add('requests-sheet')
   function paint() {
     const incoming = state.contacts.filter(c => c.state === 'pending_in')
