@@ -10,7 +10,7 @@ import {
 import { sendWebPush, generateVapid, declarativeMessage } from './push/webpush.js'
 import { CallBroker } from './call.js'
 import { handleMedia } from './media.js'
-import { assistConfigured, allowSuggestion, suggest, keywords, ask, CONTEXT } from './assist.js'
+import { assistConfigured, allowSuggestion, suggest, keywords, ask, transcribe, CONTEXT } from './assist.js'
 import {
   readStyle, writeStyle, mergeStyle, styleOf, styleText, confidence, styleKey, digestKey,
   readDigest, writeDigest, digestPrompt, readDigestAnswer
@@ -32,6 +32,7 @@ const NAME_MAX = 40
 const BIO_MAX = 120
 const GROUP_MAX = 500
 const RECENT_AVATARS = 8 // photos kept to go back to in the avatar editor
+const MAX_AUDIO = 8 * 1024 * 1024 // a dictated clip, decoded from base64 (16 kHz mono WAV)
 const DIGEST_EVERY = 10 * 60 * 1000 // how often a conversation's digest is rebuilt (10 minutes)
 
 /** Free text from a client: a string on one line, at most `max` characters. */
@@ -356,6 +357,23 @@ export class Hub {
       } catch (err) {
         console.warn('assist suggest', err.message)
         return json({ ok: true, text: '' })
+      }
+    }
+    // Voice-to-text (src/assist.js): a short dictated clip (16 kHz mono WAV,
+    // base64) → the words in it, for the composer. Nothing is stored.
+    if (path === '/api/ai/transcribe' && method === 'POST') {
+      if (!assistConfigured(this.env)) return json({ ok: false, error: 'Voice input is unavailable' }, 400)
+      const b64 = String(body.audio || '')
+      let bytes
+      try { bytes = b64 ? Uint8Array.from(atob(b64), c => c.charCodeAt(0)) : new Uint8Array() } catch { return json({ ok: false, error: 'Invalid audio' }, 400) }
+      if (!bytes.length) return json({ ok: false, error: 'No audio' }, 400)
+      if (bytes.length > MAX_AUDIO) return json({ ok: false, error: 'Recording too long' }, 413)
+      if (!allowSuggestion(user.id)) return json({ ok: false, error: 'Too many requests, try again shortly' }, 429)
+      try {
+        return json({ ok: true, text: await transcribe(this.env, bytes) })
+      } catch (err) {
+        console.warn('transcribe', err.message)
+        return json({ ok: false, error: "Couldn't transcribe that" }, 502)
       }
     }
     // The writing help's memory (src/memory.js): what it remembers about

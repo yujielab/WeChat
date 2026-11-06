@@ -17,6 +17,7 @@
   var lowEnd = (nav.connection && nav.connection.saveData) || (nav.deviceMemory && nav.deviceMemory <= 2) ||
     (nav.hardwareConcurrency && nav.hardwareConcurrency <= 2)
   if (glass === 'solid' || (lowEnd && !read('ui:glass'))) root.setAttribute('data-glass', 'solid')
+  if (read('ui:glass-tint') === 'clear') root.setAttribute('data-glass-tint', 'clear')
   var motion = read('ui:motion')
   if (motion === 'reduce' || motion === 'full') root.setAttribute('data-motion', motion)
 })()

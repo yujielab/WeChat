@@ -1,9 +1,9 @@
 // Settings and new chat / new group on the shared floating sheet from
 // overlay.js, and a conversation's details, rendered into the details column.
 
-import { h, icon } from '../ui/dom.js'
+import { h, icon, storage } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
-import { getPrefs, setTheme, setGlass, setMotion, setHaptics } from '../ui/appearance.js'
+import { getPrefs, setTheme, setGlass, setGlassTint, setMotion, setHaptics } from '../ui/appearance.js'
 import { isStandalone, getPostureReadings } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
@@ -159,6 +159,12 @@ export function openSettings({ onLogout, origin }) {
         { label: 'Dark', value: 'dark' },
         { label: 'Auto', value: 'system' }
       ], prefs.theme, setTheme, 'Appearance')),
+      // Liquid Glass: "Clear" is more see-through; "Tinted" raises opacity to
+      // lift the contrast of content and controls.
+      cell('Liquid Glass', segmented([
+        { label: 'Clear', value: 'clear' },
+        { label: 'Tinted', value: 'tinted' }
+      ], prefs.glassTint, setGlassTint, 'Liquid Glass')),
       cell('Reduce transparency', toggle(prefs.glass === 'solid', on => setGlass(on ? 'solid' : 'auto'), 'Reduce transparency')),
       cell('Reduce motion', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), 'Reduce motion')),
       // Only offered where the device can play it (iPhone), so it never
@@ -178,7 +184,10 @@ export function openSettings({ onLogout, origin }) {
     state.assist ? group(
       cell('Typing suggestions', toggle(assistPrefs().predict, on => setAssistPref('predict', on), 'Typing suggestions')),
       cell('Highlight keywords', toggle(assistPrefs().keys, on => setAssistPref('keys', on), 'Highlight keywords')),
-      cell('Insights', toggle(insightsOn(), on => setInsightsPref(on), 'Insights'))
+      cell('Insights', toggle(insightsOn(), on => setInsightsPref(on), 'Insights')),
+      // Dictation in the composer (Whisper). Shown with the other AI features
+      // and only usable where the mic and a secure connection are available.
+      cell('Voice to text', toggle(storage('ui:voice') !== 'off', on => { storage('ui:voice', on ? null : 'off'); return true }, 'Voice to text'))
     ) : null,
     state.assist ? foot('Insights pull reminders from your recent direct chats, just for you.') : null,
     state.assist ? group(

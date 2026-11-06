@@ -16,11 +16,13 @@
 // than like a stranger.
 
 export const DEFAULT_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8'
+export const WHISPER_MODEL = '@cf/openai/whisper'  // voice-to-text; AI_TRANSCRIBE_MODEL picks another
 export const CONTEXT = 24   // messages read for a suggestion
 const CONTEXT_CHARS = 200   // of each
 const MAX_SUGGESTION = 24   // characters suggested
 const PER_MINUTE = 30       // suggestions per person
 const TIMEOUT_MS = 4000
+const TRANSCRIBE_TIMEOUT_MS = 25000
 
 export function assistConfigured(env) {
   return typeof env?.AI?.run === 'function'
@@ -37,6 +39,25 @@ export async function ask(env, messages, maxTokens, { timeout = TIMEOUT_MS } = {
     const text = typeof out === 'string' ? out : out?.response ?? out?.choices?.[0]?.message?.content ?? out?.result?.response ?? ''
     // Some models think aloud first; only the answer counts.
     return String(text).replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*$/, '').trim()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Voice-to-text (the AI binding's Whisper model): spoken audio, as bytes, to
+ * the words in it. Used only for dictation into the composer — the clip is
+ * transcribed and dropped, never stored. Returns '' when there is nothing to
+ * hear or the model can't make it out.
+ */
+export async function transcribe(env, bytes, { timeout = TRANSCRIBE_TIMEOUT_MS } = {}) {
+  const model = String(env.AI_TRANSCRIBE_MODEL || WHISPER_MODEL).trim()
+  let timer
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('transcribe timeout')), timeout) })
+  try {
+    const out = await Promise.race([env.AI.run(model, { audio: Array.from(bytes) }), late])
+    const text = typeof out === 'string' ? out : out?.text ?? out?.transcription ?? out?.result?.text ?? ''
+    return String(text).replace(/\s+/g, ' ').trim()
   } finally {
     clearTimeout(timer)
   }

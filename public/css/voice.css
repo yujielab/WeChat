@@ -1,0 +1,61 @@
+/* VoiceBeam — the canvas glow that js/ui/voice-beam.js draws along a control's
+ * bottom edge, plus the composer's mic affordance. The canvas is positioned
+ * and sized by custom properties the renderer writes (--vb-left/top/w/h); it
+ * only paints light, so it is pointer-transparent and fades in and out.
+ */
+
+.voice-beam {
+  position: absolute;
+  left: var(--vb-left, 0);
+  top: var(--vb-top, 0);
+  width: var(--vb-w, 0);
+  height: var(--vb-h, 0);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 3;
+  transition: opacity 260ms var(--ease-out);
+  will-change: opacity;
+  mix-blend-mode: screen;
+}
+.voice-beam.on { opacity: 1; }
+/* While transcribing, the beam gathers and travels; a soft, slower fade reads
+   as "working" rather than a hard cut. */
+.voice-beam.processing { opacity: 0.95; }
+
+/* The mic lives in the composer as a glass bead beside the Add/Send button. */
+.composer-mic {
+  order: 2;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
+  color: var(--label);
+}
+.composer-mic .icon { width: 22px; height: 22px; }
+.composer.has-text .composer-mic,
+.composer.editing .composer-mic { display: none; }
+
+/* While listening it takes a live tint and a gentle breathing ring so it is
+   clearly recording. */
+.composer-mic.is-recording { color: var(--red, #ff3b30); }
+.composer-mic.is-recording::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--red, #ff3b30) 55%, transparent);
+  animation: voice-pulse 1.4s var(--ease-in-out) infinite;
+}
+@keyframes voice-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+/* The field itself warms slightly while dictating, so the text area reads as
+   the thing being spoken into. */
+.composer.is-dictating .field { box-shadow: 0 0 0 1px var(--focus-ring), 0 0 0 4px color-mix(in srgb, var(--focus-ring) 60%, transparent), var(--chrome-shadow); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .composer-mic.is-recording::before { animation: none; opacity: 0.7; }
+}
+:root[data-motion="reduce"] .composer-mic.is-recording::before { animation: none; opacity: 0.7; }
