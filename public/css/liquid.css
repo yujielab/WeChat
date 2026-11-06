@@ -108,44 +108,79 @@
   --glass-sheen-mid: transparent;
 }
 
-/* ---------------------------------------------------------------- WebGL engine
-   js/ui/liquid-glass draws the buttons of the composer row, the conversation's
-   heading and the rail as a refracting-glass canvas (the liquid-glass-studio
-   shader) behind their content. While it's attached the host carries
-   data-lg-gl, and those controls' own material is stripped so only the shader
-   shows. A button filled with ink to show its state (Send, Save, an item
-   that's on) keeps that fill and isn't a glass shape. */
-.lg-gl-clip {
+/* ---------------------------------------------------------------- every button
+   js/ui/liquid-glass/buttons.js turns every button into one Liquid Glass and
+   marks it data-lg (its tone in data-lg-tone: clear, dim or tint):
+     gl     the liquid-glass-studio shader, drawn into .lg-btn behind the
+            button's content; the button's own material is off
+     wait   its glass is being drawn: its own look until then
+     css    no WebGL (or Real-time glass off): one CSS glass for every button
+     solid  Reduce Transparency, high contrast, the solid fallback
+     inner  inside another glass button: part of that glass
+     probe  for an instant, its own CSS is read (to pick the tone) */
+[data-lg] { isolation: isolate; }
+[data-lg]:not([data-lg="probe"])[data-lg-pos] { position: relative; }
+.lg-btn {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: -1;
-  overflow: hidden;
-  overflow: clip;
+  display: none;
+  /* the canvas reaches past the button (rim, shadow): painted, but kept out
+     of every scrollable area */
+  contain: layout;
   pointer-events: none !important;
 }
-.lg-gl {
+[data-lg="gl"] > .lg-btn { display: block; }
+.lg-btn > .lg-canvas {
   position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
   display: block;
-  pointer-events: none !important;
-  opacity: 0;
-  transition: opacity 200ms ease-out;
 }
-[data-lg-gl] .field,
-[data-lg-gl] .composer-mic,
-.composer[data-lg-gl]:not(.has-text):not(.editing) .composer-action,
-[data-lg-gl] .bar-item:not(.active),
-[data-lg-gl] .bar-group.capsule {
+[data-lg="probe"] { transition: none !important; }
+
+/* The shader is the material: no fill, rim or shadow of the button's own. */
+[data-lg="gl"],
+[data-lg="inner"] {
   background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-  box-shadow: none !important;
 }
-[data-lg-gl] :is(.field, .composer-mic:not(.is-recording), .composer-action, .bar-item)::before { display: none !important; }
+[data-lg="gl"].glass:not(.is-recording)::before,
+[data-lg="inner"].glass:not(.is-recording)::before { display: none !important; }
+@media (hover: hover) and (pointer: fine) {
+  [data-lg="gl"]:hover:not(:disabled) > .lg-btn { filter: brightness(1.06) saturate(1.05); }
+}
+
+/* CSS glass, where the shader can't run: the same material on every button —
+   clear buttons are glass with no fill; dim and tinted keep their own fill
+   and take the glass edge light. */
+[data-lg="css"] {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
+  box-shadow:
+    inset 0 1px 0.5px -0.5px var(--glass-rim),
+    inset 0 0 0 var(--hairline) var(--glass-rim-low),
+    inset 0 -1px 1.5px -1px var(--glass-edge-dark),
+    var(--glass-shadow) !important;
+}
+[data-lg="css"][data-lg-tone="clear"] { background: transparent !important; border-color: transparent !important; }
+
+/* Solid: a plain surface and a hairline, readable on anything. */
+[data-lg="solid"][data-lg-tone="clear"] {
+  background: var(--glass-solid) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: inset 0 0 0 1px var(--line), var(--glass-shadow) !important;
+}
+
 /* The shader can't draw focus or dictation, so the field keeps those rings. */
-.composer[data-lg-gl].is-focused .field {
+.composer.is-focused .field:is([data-lg="gl"], [data-lg="css"]) {
   box-shadow: 0 0 0 1px var(--label-3), 0 0 0 4px var(--focus-ring) !important;
 }
-.composer[data-lg-gl].is-dictating .field {
+.composer.is-dictating .field:is([data-lg="gl"], [data-lg="css"]) {
   box-shadow: 0 0 0 1px var(--focus-ring), 0 0 0 4px color-mix(in srgb, var(--focus-ring) 60%, transparent) !important;
 }

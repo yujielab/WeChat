@@ -508,7 +508,11 @@ async function openPhotoEditor(p, { origin, urls }) {
     const done = h('button', { class: 'glass glass-btn me-alt-done', type: 'button', 'aria-label': 'Done' }, icon('check'))
     const cancel = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': 'Cancel' }, icon('xmark'))
     const content = h('div', { class: 'me-edit' }, stage, h('div', { class: 'me-edit-row' }, turn, shapes), looks)
-    const sheet = openSheet({ title: 'Edit photo', content, tall: true, start: cancel, end: done, origin, onClose: () => resolve(result) })
+    // Done also closes the sheet (it is the sheet's end button), and saving
+    // the edit takes a moment: if the sheet is gone first, wait for the edit
+    // rather than settling on nothing (which lost it on a slow phone).
+    let saving = null
+    const sheet = openSheet({ title: 'Edit photo', content, tall: true, start: cancel, end: done, origin, onClose: () => (saving ? saving.then(resolve) : resolve(result)) })
     sheet.el.classList.add('me-small-sheet', 'me-edit-sheet')
     // A small copy to try the looks on.
     const thumb = renderEdit(img, { rotate: 0, shape: 'square', look: 'none' }, 120)
@@ -546,13 +550,18 @@ async function openPhotoEditor(p, { origin, urls }) {
         return
       }
       done.disabled = true
-      const canvas = renderEdit(img, edit, 2048)
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9))
-      if (!blob) { toast("Can't save this edit", { type: 'error' }); done.disabled = false; return }
-      const file = new File([blob], 'moment.jpg', { type: 'image/jpeg' })
-      const url = URL.createObjectURL(file)
-      urls.add(url)
-      resolve({ ...p, file, url, w: canvas.width, h: canvas.height, original, edit })
+      saving = (async () => {
+        const canvas = renderEdit(img, edit, 2048)
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9))
+        if (!blob) { toast("Can't save this edit", { type: 'error' }); return null }
+        const file = new File([blob], 'moment.jpg', { type: 'image/jpeg' })
+        const url = URL.createObjectURL(file)
+        urls.add(url)
+        return { ...p, file, url, w: canvas.width, h: canvas.height, original, edit }
+      })()
+      const next = await saving
+      if (!next) { saving = null; done.disabled = false; return }
+      resolve(next)
       sheet.close()
     })
     paint()
