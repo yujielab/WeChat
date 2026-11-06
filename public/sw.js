@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v59'
+const SHELL = 'shell-v60'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -18,6 +18,8 @@ const SHELL_FILES = [
   '/css/base.css',
   '/css/symbols.css',
   '/css/glass.css',
+  '/css/liquid.css',
+  '/css/voice.css',
   '/css/list.css',
   '/css/thread.css',
   '/css/overlays.css',

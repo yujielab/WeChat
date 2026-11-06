@@ -8,11 +8,15 @@
 
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { haptic } from '../ui/haptics.js'
-import { getDraft, setDraft } from '../store.js'
+import { getDraft, setDraft, state } from '../store.js'
 import { storage } from '../ui/dom.js'
 import { openAttachments } from './attachments.js'
 import { createPredictor } from './predict.js'
 import { avatar } from './avatar.js'
+import { toast } from './overlay.js'
+import { api } from '../api.js'
+import { createVoiceBeam } from '../ui/voice-beam.js'
+import { createMicrophone, microphoneSupported, bytesToBase64 } from '../ui/microphone.js'
 
 // The field shows up to five lines, fewer when the window is short, then
 // scrolls inside.
@@ -81,7 +85,11 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     'aria-expanded': 'false',
     'aria-controls': panelId
   }, icon('plus', 'action-add'), badge, icon('arrow-up', 'action-send'), icon('check', 'action-save'))
-  const form = h('form', { class: 'composer', autocomplete: 'off' }, field, action, panel)
+  // Dictation: speak into the field. A glass mic that, while listening, lights
+  // a VoiceBeam glow along the field's bottom edge (ui/voice-beam.js) and sends
+  // the clip to Whisper (/api/ai/transcribe). Only shown where it can work.
+  const mic = h('button', { class: 'composer-mic glass glass-btn', type: 'button', 'aria-label': 'Dictate', title: 'Dictate', hidden: true }, icon('mic'))
+  const form = h('form', { class: 'composer', autocomplete: 'off' }, field, mic, action, panel)
 
   let draftTimer = 0
   let readonly = false
@@ -91,6 +99,81 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   let hasText = false
   let editing = null // { original, draft, onSave, onEnd }
   let replying = null // { id, name, text }: the message the next one answers
+
+  // ---------------------------------------------------------------- dictation
+  let micObj = null
+  let beam = null
+  let dictating = false
+  let transcribing = false
+  const voiceAvailable = () => Boolean(state.assist) && microphoneSupported() && storage('ui:voice') !== 'off'
+  // The mic shows when it can work and the field is idle; it stays through a
+  // recording and its transcription so it can be the stop button.
+  function updateMic() {
+    mic.hidden = !(dictating || transcribing || (voiceAvailable() && !hasText && !editing && !readonly))
+  }
+  function insertSpeech(text) {
+    const t = String(text || '').trim()
+    if (!t) return
+    const start = textarea.selectionStart ?? textarea.value.length
+    const end = textarea.selectionEnd ?? start
+    const before = textarea.value.slice(0, start)
+    const after = textarea.value.slice(end)
+    const lead = before && !/\s$/.test(before) ? ' ' : ''
+    const ins = lead + t + (after && !/^\s/.test(after) ? ' ' : '')
+    textarea.value = before + ins + after
+    const caret = (before + ins).length
+    try { textarea.setSelectionRange(caret, caret) } catch {}
+    // Run the field's own input pipeline: height, Send state, draft, prediction.
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  async function startDictation() {
+    try {
+      micObj = micObj || createMicrophone()
+      await micObj.start()
+    } catch (err) {
+      toast(err?.message || "Couldn't start the microphone", { type: 'error' })
+      return
+    }
+    dictating = true
+    haptic()
+    mic.classList.add('is-recording')
+    mic.setAttribute('aria-label', 'Stop dictation')
+    form.classList.add('is-dictating')
+    if (!beam) beam = createVoiceBeam(form, field, { type: 'default', colorVariant: 'colorful', reach: 0.52 })
+    beam.setLevel(() => micObj.level())
+    beam.setProcessing(false).setActive(true)
+    updateMic()
+  }
+  async function stopDictation() {
+    if (!dictating) return
+    dictating = false
+    transcribing = true
+    mic.classList.remove('is-recording')
+    mic.setAttribute('aria-label', 'Dictate')
+    beam?.setProcessing(true)
+    let wav = null
+    try { ({ wav } = await micObj.stop()) } catch {}
+    if (wav) {
+      try {
+        const data = await api.post('/api/ai/transcribe', { audio: bytesToBase64(wav) })
+        if (data?.text) { insertSpeech(data.text); haptic() }
+      } catch (err) {
+        toast(err?.message || "Couldn't transcribe that", { type: 'error' })
+      }
+    }
+    endDictation()
+  }
+  function endDictation() {
+    transcribing = false
+    beam?.setProcessing(false)
+    beam?.setActive(false)
+    form.classList.remove('is-dictating')
+    mic.classList.remove('is-recording')
+    micObj?.release()
+    updateMic()
+    if (!readonly) textarea.focus({ preventScroll: true })
+  }
+  mic.addEventListener('click', () => { if (dictating) stopDictation(); else if (!transcribing) startDictation() })
 
   function openImages(files = []) {
     if (readonly || !chat) return false
@@ -191,6 +274,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       action.setAttribute('aria-haspopup', 'menu')
       action.setAttribute('aria-expanded', String(open))
     }
+    updateMic()
   }
 
   // The panel grows out of the button and shrinks back into it. Toggling
@@ -568,6 +652,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
     el: form,
     setChat(id, { readonly: ro = false } = {}) {
       attachmentSheet?.close()
+      if (dictating || transcribing) endDictation()
       setOpen(false, { focus: false })
       // An edit belongs to its conversation: leaving it puts the draft back.
       endEdit()
@@ -595,6 +680,7 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
       field.classList.add('no-grow')
       autosize()
       showKept()
+      updateMic()
       requestAnimationFrame(() => field.classList.remove('no-grow'))
     },
     /** Members just arrived (or changed): names already in the text light up. */

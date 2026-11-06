@@ -93,6 +93,11 @@
   /* ---- glass: light (white tint + hairline + contact shadow) */
   --glass-tint: rgb(255 255 255 / 0.72);
   --glass-tint-strong: rgb(255 255 255 / 0.86);
+  /* Liquid Glass "Clear" (Settings): a see-through tint; "Tinted" keeps the
+     values above for contrast. --glass-glare drives the moving specular (liquid.css). */
+  --glass-tint-clear: rgb(255 255 255 / 0.5);
+  --glass-tint-strong-clear: rgb(255 255 255 / 0.66);
+  --glass-glare: rgb(255 255 255 / 0.9);
   --glass-solid: #ffffff;
   --glass-sheen-top: rgb(255 255 255 / 0.5);
   --glass-sheen-mid: rgb(255 255 255 / 0.04);
@@ -287,6 +292,9 @@
     --image-outline: rgb(255 255 255 / 0.12);
     --glass-tint: rgb(24 24 27 / 0.55);
     --glass-tint-strong: rgb(18 18 20 / 0.82);
+    --glass-tint-clear: rgb(24 24 27 / 0.34);
+    --glass-tint-strong-clear: rgb(18 18 20 / 0.6);
+    --glass-glare: rgb(255 255 255 / 0.5);
     --glass-solid: #121214;
     --glass-sheen-top: rgb(255 255 255 / 0.12);
     --glass-sheen-mid: rgb(255 255 255 / 0.02);

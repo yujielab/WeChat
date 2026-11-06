@@ -1,0 +1,97 @@
+/* Liquid Glass — the "liquid" layer on top of the material in glass.css.
+ *
+ * This file only ever adds light, motion and a tint switch; it never sets the
+ * backdrop blur or the solid fallbacks (those stay in glass.css). Everything
+ * here is cascade-safe: the fallbacks in glass.css hide the inner reflection
+ * with `display: none`, which still wins over the richer background below, and
+ * the tint switch only swaps a custom property. Loaded after glass.css.
+ *
+ *   tint switch        Clear / Tinted (Settings → Liquid Glass, data-glass-tint)
+ *   liquid specular    a crisp diagonal highlight across the reflection
+ *   press deform       a glass bead squishes on contact (形变 / morph)
+ *   merge / separate   adjacent controls flow into one blob and split apart
+ *                      (分离), driven by js/ui/morph.js
+ */
+
+/* ---------------------------------------------------------------- Clear ↔ Tinted
+   "Clear" trades opacity for see-through; "Tinted" (default) keeps the material
+   opaque for contrast. Only the variables are swapped, so the solid and
+   unsupported fallbacks in glass.css are untouched. */
+:root[data-glass-tint="clear"] {
+  --glass-tint: var(--glass-tint-clear);
+  --glass-tint-strong: var(--glass-tint-strong-clear);
+}
+
+/* ---------------------------------------------------------------- liquid specular
+   A single bright streak entering top-left, over the existing reflection and
+   caustic. Added to ::before, which the glass.css fallbacks hide with
+   display:none — so this never shows on a solid surface. */
+:root:not([data-glass="solid"]) .glass::before {
+  background:
+    linear-gradient(128deg, var(--glass-glare) 0%, transparent 20%),
+    radial-gradient(130% 95% at 15% -10%, var(--glass-reflect), transparent 52%),
+    radial-gradient(70% 55% at 90% 115%, var(--glass-caustic), transparent 62%);
+}
+/* On a round bead the streak reads as a glass highlight; pull it to the cap. */
+:root:not([data-glass="solid"]) .glass-btn::before {
+  background:
+    radial-gradient(60% 45% at 32% 16%, var(--glass-glare), transparent 60%),
+    radial-gradient(120% 90% at 18% -8%, var(--glass-reflect), transparent 54%);
+}
+
+/* The press bloom in glass.css glows under the finger; make it a touch brighter
+   and let it bloom a hair larger, so contact feels like it displaces liquid. */
+.glass.is-pressed::after { opacity: 1; filter: saturate(1.1); }
+
+/* ---------------------------------------------------------------- press deform (形变)
+   Beyond the scale in glass.css, a round button eases toward a squircle on
+   contact and a pill tightens its radius — the surface gives like a liquid
+   bead and springs back. Shape only; the target size is held by the ::after
+   hit padding already on bar items. */
+:root:not([data-motion="reduce"]) .glass-btn { transition: transform var(--spring-snappy-dur) var(--spring-snappy), border-radius var(--press-in) var(--ease-out); }
+:root:not([data-motion="reduce"]) .glass-btn.is-pressed { border-radius: 42%; }
+:root:not([data-motion="reduce"]) .glass-pill.is-pressed { border-radius: calc(var(--hit) / 2 - 3px); }
+
+/* ---------------------------------------------------------------- merge / separate (分离)
+   A reserved grouping: items in an .lg-group sit apart, and when the group is
+   marked data-merged they flow edge-to-edge into one continuous blob, the
+   inner corners flattening. js/ui/morph.js toggles the attribute on a spring;
+   any row of glass controls can opt in. --lg-r is the blob's outer radius. */
+.lg-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lg-gap, 8px);
+  transition: gap var(--spring-smooth-dur) var(--spring-smooth);
+}
+.lg-group[data-merged] { gap: 0; }
+.lg-item {
+  --lg-r: calc(var(--hit) / 2);
+  transition:
+    border-radius var(--spring-smooth-dur) var(--spring-smooth),
+    transform var(--spring-bouncy-dur) var(--spring-bouncy);
+}
+/* Merged: outer caps keep the radius, every inner edge goes square, so the row
+   reads as one lozenge of glass. */
+.lg-group[data-merged] .lg-item { border-radius: 0; }
+.lg-group[data-merged] .lg-item:first-child { border-radius: var(--lg-r) 0 0 var(--lg-r); }
+.lg-group[data-merged] .lg-item:last-child { border-radius: 0 var(--lg-r) var(--lg-r) 0; }
+.lg-group[data-merged] .lg-item:only-child { border-radius: var(--lg-r); }
+
+/* A general morph hook: elements marked data-morph ride a spring when their
+   transform or border-radius changes, so morph() in js/ui/morph.js (FLIP) and
+   any CSS state change animate the same way. */
+[data-morph] {
+  transition:
+    transform var(--spring-bouncy-dur) var(--spring-bouncy),
+    border-radius var(--spring-smooth-dur) var(--spring-smooth);
+}
+
+/* ---------------------------------------------------------------- reduced motion
+   The deform and the flow are motion; drop them, keep the material. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) :is(.lg-group, .lg-item, [data-morph]) { transition: none; }
+  /* The deform rules above still match (motion isn't "reduce"); hold the base shape. */
+  :root:not([data-motion="full"]) .glass-btn.is-pressed { border-radius: 50%; }
+  :root:not([data-motion="full"]) .glass-pill.is-pressed { border-radius: calc(var(--hit) / 2); }
+}
+:root[data-motion="reduce"] :is(.lg-group, .lg-item, [data-morph]) { transition: none; }

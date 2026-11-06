@@ -11,6 +11,7 @@ export function getPrefs() {
     theme: storage('ui:theme') || 'light', // light | system | dark
     glass: storage('ui:glass') || 'auto', // auto | solid
     glassAuto: storage('ui:glass-auto') === 'solid',
+    glassTint: storage('ui:glass-tint') || 'tinted', // tinted | clear (Liquid Glass)
     motion: storage('ui:motion') || 'system', // system | reduce
     haptics: storage('ui:haptics') !== 'off'
   }
@@ -34,6 +35,14 @@ export function setGlass(mode) {
   storage('ui:glass', mode === 'auto' ? null : mode)
   if (mode === 'auto') storage('ui:glass-auto', null)
   applyAttr('data-glass', mode === 'solid' ? 'solid' : null)
+}
+
+// Liquid Glass tint: "clear" is more see-through, "tinted" (default) keeps the
+// opaque material for contrast. Only the attribute for "clear" is written, so
+// the default look is unchanged. Read in boot.js so it never flashes.
+export function setGlassTint(mode) {
+  storage('ui:glass-tint', mode === 'tinted' ? null : mode)
+  applyAttr('data-glass-tint', mode === 'clear' ? 'clear' : null)
 }
 
 export function setMotion(mode) {
