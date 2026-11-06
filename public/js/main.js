@@ -3,6 +3,7 @@
 import { initViewport } from './ui/viewport.js'
 import { initSteady } from './ui/steady.js'
 import { initPress } from './ui/press.js'
+import { initLiquidGlass } from './ui/liquid-glass/index.js'
 import { initInputModality } from './ui/input-modality.js'
 import { syncThemeColor, startPerfProbe } from './ui/appearance.js'
 import { api, connectSocket, onApiEvent } from './api.js'
@@ -30,6 +31,8 @@ let calls = null
 initViewport()
 initSteady()
 initPress()
+// Every button, in the real Liquid Glass (ui/liquid-glass).
+initLiquidGlass()
 initInputModality()
 syncThemeColor()
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeColor)

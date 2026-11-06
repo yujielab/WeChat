@@ -81,12 +81,12 @@ vec3 LCH_TO_SRGB(vec3 lch){ return LAB_TO_SRGB(LCH_TO_LAB(lch)); }
 float vec2ToAngle(vec2 v){ float a = atan(v.y, v.x); if (a < 0.0) a += 2.0*PI; return a; }
 vec4 getTextureDispersion(sampler2D tex1, sampler2D tex2, float mixRate, vec2 offset, float factor){
   vec4 pixel = vec4(1.0);
-  float bgR = texture(tex1, v_uv + offset*(1.0-(N_R-1.0)*factor)).r;
-  float bgG = texture(tex1, v_uv + offset*(1.0-(N_G-1.0)*factor)).g;
-  float bgB = texture(tex1, v_uv + offset*(1.0-(N_B-1.0)*factor)).b;
-  float blurR = texture(tex2, v_uv + offset*(1.0-(N_R-1.0)*factor)).r;
-  float blurG = texture(tex2, v_uv + offset*(1.0-(N_G-1.0)*factor)).g;
-  float blurB = texture(tex2, v_uv + offset*(1.0-(N_B-1.0)*factor)).b;
+  float bgR = texture(tex1, g_uv + offset*(1.0-(N_R-1.0)*factor)).r;
+  float bgG = texture(tex1, g_uv + offset*(1.0-(N_G-1.0)*factor)).g;
+  float bgB = texture(tex1, g_uv + offset*(1.0-(N_B-1.0)*factor)).b;
+  float blurR = texture(tex2, g_uv + offset*(1.0-(N_R-1.0)*factor)).r;
+  float blurG = texture(tex2, g_uv + offset*(1.0-(N_G-1.0)*factor)).g;
+  float blurB = texture(tex2, g_uv + offset*(1.0-(N_B-1.0)*factor)).b;
   pixel.r = mix(bgR, blurR, mixRate);
   pixel.g = mix(bgG, blurG, mixRate);
   pixel.b = mix(bgB, blurB, mixRate);
@@ -100,38 +100,6 @@ in vec4 a_position;
 out vec2 v_uv;
 void main(){ v_uv = (a_position.xy + 1.0) * 0.5; gl_Position = a_position; }`
 
-// Background pass: the texture we refract (the app's chat backdrop), sized to
-// the canvas, so v_uv maps 1:1.
-export const BG = `#version 300 es
-precision highp float;
-in vec2 v_uv;
-out vec4 fragColor;
-uniform sampler2D u_bgTexture;
-void main(){ fragColor = vec4(texture(u_bgTexture, v_uv).rgb, 1.0); }`
-
-export const VBLUR = `#version 300 es
-precision highp float;
-#define MAX_BLUR_RADIUS (64)
-in vec2 v_uv;
-uniform sampler2D u_prevPassTexture;
-uniform vec2 u_resolution;
-uniform int u_blurRadius;
-uniform float u_blurWeights[MAX_BLUR_RADIUS + 1];
-out vec4 fragColor;
-void main(){
-  vec2 texelSize = 1.0 / u_resolution;
-  vec4 color = texture(u_prevPassTexture, v_uv) * u_blurWeights[0];
-  for (int i = 1; i <= u_blurRadius; ++i){
-    float w = u_blurWeights[i];
-    vec2 offset = vec2(float(i)) * texelSize;
-    color += texture(u_prevPassTexture, v_uv + vec2(offset.x, 0.0)) * w;
-    color += texture(u_prevPassTexture, v_uv - vec2(offset.x, 0.0)) * w;
-  }
-  fragColor = color;
-}`
-
-export const HBLUR = VBLUR.replace('vec2(offset.x, 0.0)', 'vec2(0.0, offset.y)').replace('vec2(offset.x, 0.0)', 'vec2(0.0, offset.y)')
-
 // Main pass: the glass. SDF → refraction with dispersion, Fresnel and glare,
 // LCH-tinted — the project's STEP 9, with the outside made transparent.
 export const MAIN = `#version 300 es
@@ -143,7 +111,17 @@ const float N_B = 1.0 + 0.02;
 in vec2 v_uv;
 uniform sampler2D u_blurredBg;
 uniform sampler2D u_bg;
-uniform vec2 u_resolution;
+uniform vec2 u_resolution; // the backdrop texture, phys px
+uniform vec2 u_texPad;     // how far it reaches past the output on each side, phys px
+uniform float u_shadowExpand; // the project's soft shadow (fragment-bg.glsl): its reach, css px
+uniform float u_shadowFactor;
+uniform vec2 u_shadowOffset;  // phys px, y up
+// outside the glass, the shadow only reaches as far as there is room (what
+// clips the button): its own reach, strength and drop there
+uniform float u_shadowOutExpand;
+uniform float u_shadowOutFactor;
+uniform vec2 u_shadowOutOffset;
+vec2 g_uv;                 // this fragment's place in the backdrop texture
 uniform float u_dpr;
 uniform vec4 u_tint;
 uniform float u_refThickness;
@@ -166,8 +144,14 @@ ${MATH_LIB}
 ${NORMAL_LIB}
 ${COLOR_LIB}
 void main(){
+  g_uv = (gl_FragCoord.xy + u_texPad) / u_resolution;
   float h1x = u_viewH / u_dpr; // the reference viewport height, css px
   float merged = mainSDF(gl_FragCoord.xy);
+  // The shadow the project bakes into its background, under and around the
+  // shape: the glass refracts it (a darker rim inside the lens), and around
+  // the glass it lifts it off the page.
+  float shadow = exp(-1.0 / u_shadowExpand * abs(mainSDF(gl_FragCoord.xy + u_shadowOffset)) * h1x) * 0.6 * u_shadowFactor;
+  float shadowOut = exp(-1.0 / u_shadowOutExpand * abs(mainSDF(gl_FragCoord.xy + u_shadowOutOffset)) * h1x) * 0.6 * u_shadowOutFactor;
   vec4 outColor = vec4(0.0);
   if (merged < 0.005) {
     float nmerged = -1.0 * (merged * h1x);
@@ -177,7 +161,8 @@ void main(){
     float edgeFactor = -1.0 * tan(thetaT - thetaI);
     if (nmerged >= u_refThickness) { edgeFactor = 0.0; }
     if (edgeFactor <= 0.0) {
-      outColor = texture(u_blurredBg, v_uv);
+      outColor = texture(u_blurredBg, g_uv);
+      outColor.rgb -= vec3(shadow);
       outColor = mix(outColor, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
     } else {
       float edgeH = nmerged / u_refThickness;
@@ -189,6 +174,7 @@ void main(){
         -normal * edgeFactor * u_refDistance * u_dpr * u_viewH / u_resolution,
         u_refDispersion
       );
+      blurredPixel.rgb -= vec3(shadow);
       outColor = mix(blurredPixel, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
       float fresnelFactor = clamp(pow(1.0 + merged * h1x / 1500.0 * pow(500.0 / u_refFresnelRange, 2.0) + u_refFresnelHardness, 5.0), 0.0, 1.0);
       vec3 fresnelTintLCH = SRGB_TO_LCH(mix(vec3(1.0), vec3(u_tint.r, u_tint.g, u_tint.b), u_tint.a * 0.5));
@@ -210,5 +196,6 @@ void main(){
   }
   // Fade to transparent across the edge so the canvas overlays the app cleanly.
   float alpha = outColor.a * (1.0 - smoothstep(-0.0015, 0.0015, merged));
-  fragColor = vec4(outColor.rgb * alpha, alpha);
+  // the glass over its shadow, premultiplied
+  fragColor = vec4(outColor.rgb * alpha, alpha) + vec4(0.0, 0.0, 0.0, shadowOut) * (1.0 - alpha);
 }`

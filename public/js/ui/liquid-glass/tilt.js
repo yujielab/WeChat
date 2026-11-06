@@ -3,8 +3,9 @@
 // over real glass: at most 16°, eased on a soft spring, and drifting home when
 // the phone is held still. Nothing moves with Reduce Motion, while the page is
 // hidden, or where no orientation sensor answers (most desktops). iOS asks
-// once for Motion & Orientation access, on the first tap after a glass surface
-// appears; a refusal is remembered and never asked again.
+// once for Motion & Orientation access, on the first tap on a glass button
+// once you're signed in (never over the sign-in form); a refusal is
+// remembered and never asked again.
 
 import { reducedMotion, storage } from '../dom.js'
 import { screenAxes, createTiltFilter } from './tilt-math.js'
@@ -37,7 +38,8 @@ function onOrient(e) {
   lastEvent = now
   const [x, y] = screenAxes(e.beta, e.gamma, screenAngle())
   const next = filter(x, y, dt)
-  target = reducedMotion() ? 0 : next
+  // nearly home is home: the light stops there instead of creeping for ever
+  target = reducedMotion() || Math.abs(next) < EPS / 2 ? 0 : next
   kick()
 }
 
@@ -54,7 +56,8 @@ function frame(t) {
   value += velocity * dt
   const settled = Math.abs(target - value) < 1e-4 && Math.abs(velocity) < 1e-3
   if (settled) { value = target; velocity = 0 }
-  if (Math.abs(value - shown) >= EPS || (settled && value !== shown)) {
+  // a visible change, or the final step home
+  if (Math.abs(value - shown) >= EPS || (settled && value === 0 && shown !== 0)) {
     shown = value
     for (const fn of subs) fn(shown)
   }
@@ -80,7 +83,9 @@ function unlisten() {
 function askOnGesture() {
   if (asking || storage('ui:tilt') === 'denied') return
   asking = true
-  const ask = () => {
+  const ask = e => {
+    // a tap on a glass button, in the app
+    if (!e.target?.closest?.('[data-lg]') || !document.querySelector('.shell')) return
     window.removeEventListener('click', ask, true)
     window.removeEventListener('touchend', ask, true)
     DeviceOrientationEvent.requestPermission().then(state => {
