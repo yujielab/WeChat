@@ -122,6 +122,10 @@ export class Store {
     // feed and on the author's page) or friends only. Those shared before
     // the choice existed were for friends.
     this.#column('moments', 'audience', `TEXT NOT NULL DEFAULT 'friends'`)
+    // Friends it's with (a JSON list of ids), and who may comment on it:
+    // everyone who sees it, the author's friends, or nobody.
+    this.#column('moments', 'tags', `TEXT NOT NULL DEFAULT '[]'`)
+    this.#column('moments', 'comments', `TEXT NOT NULL DEFAULT 'everyone'`)
     s(`CREATE TABLE IF NOT EXISTS moment_likes (
       moment TEXT NOT NULL,
       user TEXT NOT NULL,
@@ -373,18 +377,32 @@ export class Store {
   canSeeMoment(m, viewer) {
     if (!m) return false
     if (m.user === viewer) return true
+    // Scheduled for later: only its author, until then.
+    if (m.created > now()) return false
     if (this.blockedWith(viewer).has(m.user)) return false
     return m.audience === 'everyone' || this.friendsOf(m.user).has(viewer)
   }
   /** Whether a picture of `author`'s is in one of their moments for everyone. */
   isPublicMomentMedia(author, url) {
     // instr, not LIKE: the Durable Object's SQLite refuses LIKE patterns this long.
-    return this.exec(`SELECT 1 AS ok FROM moments WHERE user=? AND audience='everyone' AND instr(media, ?) > 0 LIMIT 1`, author, JSON.stringify(url)).length > 0
+    return this.exec(`SELECT 1 AS ok FROM moments WHERE user=? AND audience='everyone' AND created <= ? AND instr(media, ?) > 0 LIMIT 1`, author, now(), JSON.stringify(url)).length > 0
   }
-  addMoment({ user, text = '', media = [], audience = 'everyone' }) {
+  /** A new moment; `at`, a time to come, schedules it (until then only its author sees it). */
+  addMoment({ user, text = '', media = [], audience = 'everyone', tags = [], comments = 'everyone', at }) {
     const id = rid()
-    this.exec(`INSERT INTO moments (id, user, text, media, created, audience) VALUES (?,?,?,?,?,?)`, id, user, text, JSON.stringify(media), now(), audience === 'friends' ? 'friends' : 'everyone')
+    this.exec(
+      `INSERT INTO moments (id, user, text, media, created, audience, tags, comments) VALUES (?,?,?,?,?,?,?,?)`,
+      id, user, text, JSON.stringify(media), at || now(), audience === 'friends' ? 'friends' : 'everyone',
+      JSON.stringify(tags), ['friends', 'off'].includes(comments) ? comments : 'everyone'
+    )
     return this.getMoment(id)
+  }
+  /** Whether `viewer` may comment on moment `m` (its author always may). */
+  canComment(m, viewer) {
+    if (m.user === viewer) return true
+    if (m.comments === 'off') return false
+    if (m.comments === 'friends') return this.friendsOf(m.user).has(viewer)
+    return true
   }
   /**
    * The home feed for `viewer`: their own and their friends' moments, and
@@ -397,15 +415,15 @@ export class Store {
     return this.exec(
       `SELECT * FROM moments WHERE (user IN (${mine.map(() => '?').join(',')}) OR audience = 'everyone')
        ${blocked.length ? `AND user NOT IN (${blocked.map(() => '?').join(',')})` : ''}
-       AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
-      ...mine, ...blocked, before, limit
+       AND (created <= ? OR user = ?) AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
+      ...mine, ...blocked, now(), viewer, before, limit
     ).map(r => ({ ...r, media: parseList(r.media) }))
   }
-  /** One person's moments, newest first; only those for everyone when `publicOnly`. */
-  momentsOf(author, { publicOnly = false, before = Number.MAX_SAFE_INTEGER, limit = 20 } = {}) {
+  /** One person's moments, newest first; only those for everyone when `publicOnly`; scheduled ones only with `scheduled` (their author). */
+  momentsOf(author, { publicOnly = false, scheduled = false, before = Number.MAX_SAFE_INTEGER, limit = 20 } = {}) {
     return this.exec(
-      `SELECT * FROM moments WHERE user=? ${publicOnly ? `AND audience='everyone'` : ''} AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
-      author, before, limit
+      `SELECT * FROM moments WHERE user=? ${publicOnly ? `AND audience='everyone'` : ''} ${scheduled ? '' : 'AND created <= ?'} AND created < ? ORDER BY created DESC, id DESC LIMIT ?`,
+      author, ...(scheduled ? [] : [now()]), before, limit
     ).map(r => ({ ...r, media: parseList(r.media) }))
   }
   getMoment(id) {
@@ -426,8 +444,8 @@ export class Store {
       ...ids, before, limit
     ).map(r => ({ ...r, media: parseList(r.media) }))
   }
-  countMoments(user, publicOnly = false) {
-    return this.exec(`SELECT COUNT(*) AS n FROM moments WHERE user=? ${publicOnly ? `AND audience='everyone'` : ''}`, user)[0]?.n || 0
+  countMoments(user, publicOnly = false, scheduled = false) {
+    return this.exec(`SELECT COUNT(*) AS n FROM moments WHERE user=? ${publicOnly ? `AND audience='everyone'` : ''} ${scheduled ? '' : 'AND created <= ?'}`, user, ...(scheduled ? [] : [now()]))[0]?.n || 0
   }
   likeMoment(moment, user, on) {
     if (on) this.exec(`INSERT OR IGNORE INTO moment_likes (moment, user, ts) VALUES (?,?,?)`, moment, user, now())

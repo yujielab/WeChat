@@ -26,10 +26,9 @@ import { avatar } from './avatar.js'
 import { openSheet, openMenu, confirmAction, toast } from './overlay.js'
 import { backdropLayer, readBackdrop } from '../ui/backdrops.js'
 import { openViewer } from './viewer.js'
-import { prepareImage } from './composer.js'
+import { openMomentEditor, whenText, PHOTOS_MAX } from './moments-editor.js'
 
-export const PHOTOS_MAX = 9
-const VIDEO_MAX_BYTES = 30 * 1024 * 1024
+export { PHOTOS_MAX }
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const nameOf = u => u?.display || u?.username || ''
 
@@ -437,7 +436,8 @@ function card(moment, { owner }) {
   let m = moment
   const u = m.user
   const stranger = !m.mine && !u.friend
-  const el = h('article', { class: 'mo-item', dataset: { id: m.id, user: u.id }, 'aria-label': `${nameOf(u)}, ${agoLong(m.created)}` })
+  const when = m.scheduled ? `Scheduled for ${whenText(m.created)}` : agoLong(m.created)
+  const el = h('article', { class: ['mo-item', m.scheduled && 'scheduled'], dataset: { id: m.id, user: u.id }, 'aria-label': `${nameOf(u)}, ${when}` })
 
   // ------------------------------------------------------------ who
   const whoInner = [avatar(u.avatar, u.display, { size: 36 }), h('span', { class: 'mo-who-text' },
@@ -481,8 +481,12 @@ function card(moment, { owner }) {
   const input = h('input', { class: 'mo-reply-input', type: 'text', placeholder: 'Add a comment…', maxlength: 300, enterkeyhint: 'send', autocomplete: 'off', 'aria-label': `Comment on ${nameOf(u)}'s moment` })
   const post = h('button', { class: 'mo-send', type: 'submit', 'aria-label': 'Post comment', hidden: true }, icon('arrow-up'))
   const reply = h('form', { class: 'mo-reply' }, avatar(state.me?.avatar, nameOf(state.me), { size: 26 }), input, post)
+  // Who may comment is the author's to say: otherwise, a line saying so.
+  const closed = m.canComment === false
+    ? h('p', { class: 'mo-closed' }, icon('bubble'), m.commenting === 'off' ? 'Comments are off' : `Only ${nameOf(u)}'s friends can comment`)
+    : null
   input.addEventListener('input', () => { post.hidden = !input.value.trim() })
-  talk.addEventListener('click', () => input.focus())
+  talk.addEventListener('click', () => { if (closed) { expanded = true; paint() } else input.focus() })
   reply.addEventListener('submit', async e => {
     e.preventDefault()
     const text = input.value.trim()
@@ -496,10 +500,19 @@ function card(moment, { owner }) {
     } catch (err) { toast(err.message, { type: 'error' }) } finally { post.disabled = false }
   })
 
-  const time = h('p', { class: 'mo-time' }, h('time', { datetime: new Date(m.created).toISOString() }, agoLong(m.created)),
+  const time = h('p', { class: 'mo-time' },
+    m.scheduled ? h('span', { class: 'mo-scheduled' }, icon('calendar'), h('time', { datetime: new Date(m.created).toISOString() }, `Scheduled for ${whenText(m.created)}`)) : h('time', { datetime: new Date(m.created).toISOString() }, agoLong(m.created)),
     m.audience === 'friends' ? h('span', { class: 'mo-for' }, icon('people'), 'Friends') : null)
 
-  el.append(...[head, pictures?.box || words?.wrap, bar, caption?.wrap, talkBox, reply, time].filter(Boolean))
+  // With friends: their names lead to their pages.
+  const withEl = m.tags?.length ? h('p', { class: 'mo-with' }, icon('person'), 'With ', ...m.tags.flatMap((t, i) => {
+    const b = h('button', { class: 'mo-with-name', type: 'button' }, nameOf(t))
+    b.addEventListener('click', () => openMoments({ userId: t.id, back: true, origin: b }))
+    const sep = i === m.tags.length - 1 ? [] : [i === m.tags.length - 2 ? ' and ' : ', ']
+    return [b, ...sep]
+  })) : null
+
+  el.append(...[head, pictures?.box || words?.wrap, bar, withEl, caption?.wrap, talkBox, closed || reply, time].filter(Boolean))
 
   function paint() {
     like.classList.toggle('on', m.liked)
@@ -627,6 +640,7 @@ function mediaEl(m, { burst, onDouble }) {
   box.addEventListener('click', e => {
     const target = e.target.closest('.mo-slide')
     if (!target || e.target.closest('.mo-sound')) return
+    if (e.target.closest('.mo-alt')) return showAlt(m.media[Number(target.dataset.i) || 0], e.target.closest('.mo-alt'))
     const i = Number(target.dataset.i) || 0
     if (e.detail === 0) return single(target, i) // the keyboard
     const now = performance.now()
@@ -663,8 +677,17 @@ function slide(m, x, i) {
     watch(v)
     return s
   }
-  return h('button', { class: 'mo-slide', type: 'button', dataset: { i: String(i) }, 'aria-label': n > 1 ? `Photo ${i + 1} of ${n}` : 'Photo' },
-    h('img', { src: x.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false }))
+  const label = `${n > 1 ? `Photo ${i + 1} of ${n}` : 'Photo'}${x.alt ? `: ${x.alt}` : ''}`
+  return h('div', { class: 'mo-slide', dataset: { i: String(i) } },
+    h('button', { class: 'mo-photo', type: 'button', 'aria-label': label },
+      h('img', { src: x.url, alt: x.alt || '', loading: 'lazy', decoding: 'async', draggable: false })),
+    // Its description, for anyone who wants to read it.
+    x.alt ? h('button', { class: 'mo-alt', type: 'button', 'aria-label': 'Read the description' }, 'ALT') : null)
+}
+
+function showAlt(x, origin) {
+  const sheet = openSheet({ title: 'Description', content: h('p', { class: 'mo-alt-text' }, x.alt), origin })
+  sheet.el.classList.add('mo-alt-sheet')
 }
 
 function show(m, i, from) {
@@ -673,7 +696,7 @@ function show(m, i, from) {
   const photos = m.media.filter(y => y.type === 'image')
   openViewer({
     thumb: from.querySelector('img'),
-    images: photos.map((y, k) => ({ src: y.url, fullSrc: y.url, w: y.w, h: y.h, label: `Photo ${k + 1} of ${photos.length}` })),
+    images: photos.map((y, k) => ({ src: y.url, fullSrc: y.url, w: y.w, h: y.h, label: y.alt || `Photo ${k + 1} of ${photos.length}` })),
     index: photos.indexOf(x)
   })
 }
@@ -725,121 +748,7 @@ export function agoLong(ts, now = Date.now()) {
 }
 
 // ---------------------------------------------------------------- a new one
-/**
- * The composer: a few words, and up to nine photos or one video, picked from
- * the library, shown as they'll be shared, for everyone or only for friends,
- * uploaded on Post.
- */
+/** The editor (views/moments-editor.js); what it shares goes to the top of every page open. */
 export function openMomentComposer({ origin, onPosted } = {}) {
-  const picks = [] // { file, url, type, w, h }
-  let audience = 'everyone'
-  const text = h('textarea', { class: 'mo-compose-text', placeholder: 'Share something…', maxlength: 2000, rows: 4, 'aria-label': 'What you want to say' })
-  const file = h('input', { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true })
-  const add = h('button', { class: 'mo-pick-add', type: 'button', 'aria-label': 'Add photos or a video' }, icon('plus'))
-  const grid = h('div', { class: 'mo-picks' })
-  const note = h('p', { class: 'mo-compose-note' }, `Up to ${PHOTOS_MAX} photos, or 1 video`)
-  const hints = { everyone: 'Anyone on Cuven can see it and message you.', friends: "Only your contacts and the people you've talked with." }
-  const hint = h('p', { class: 'mo-audience-hint' }, hints.everyone)
-  const options = [['everyone', 'Everyone'], ['friends', 'Friends']]
-  const seg = h('div', { class: 'seg mo-audience-seg', role: 'radiogroup', 'aria-label': 'Who can see it', style: { '--n': '2', '--i': '0' } }, h('span', { class: 'thumb', 'aria-hidden': 'true' }))
-  options.forEach(([value, label], i) => {
-    const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(i === 0), dataset: { audience: value } }, label)
-    b.addEventListener('click', () => {
-      audience = value
-      seg.style.setProperty('--i', String(i))
-      for (const x of seg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b))
-      hint.textContent = hints[value]
-    })
-    seg.append(b)
-  })
-  const who = h('div', { class: 'mo-audience' }, h('span', { class: 'mo-audience-label' }, 'Who can see it'), seg)
-  const post = h('button', { class: 'glass glass-btn mo-post', type: 'button', 'aria-label': 'Post', disabled: true }, icon('arrow-up'))
-  const cancel = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': 'Cancel' }, icon('xmark'))
-  const content = h('div', { class: 'mo-composer-body' }, text, grid, note, who, hint, file)
-  const sheet = openSheet({ title: 'New moment', content, start: cancel, end: post, origin })
-  sheet.el.classList.add('mo-composer')
-  cancel.addEventListener('click', () => sheet.close())
-
-  const ready = () => { post.disabled = !(text.value.trim() || picks.length) }
-  text.addEventListener('input', () => {
-    text.style.height = 'auto'
-    text.style.height = `${Math.min(260, text.scrollHeight)}px`
-    ready()
-  })
-  function paint() {
-    const video = picks.some(p => p.type === 'video')
-    grid.replaceChildren(...picks.map((p, i) => {
-      const x = h('button', { class: 'mo-pick-x', type: 'button', 'aria-label': 'Remove' }, icon('xmark'))
-      x.addEventListener('click', () => { URL.revokeObjectURL(p.url); picks.splice(i, 1); paint() })
-      return h('div', { class: ['mo-pick', p.type === 'video' && 'video'] },
-        p.type === 'video' ? h('video', { src: p.url, muted: true, playsInline: true, preload: 'metadata' }) : h('img', { src: p.url, alt: '' }),
-        p.type === 'video' ? h('span', { class: 'mo-play' }, icon('play')) : null, x)
-    }), ...(video || picks.length >= PHOTOS_MAX ? [] : [add]))
-    ready()
-  }
-  add.addEventListener('click', () => file.click())
-  file.addEventListener('change', async () => {
-    const chosen = [...file.files]
-    file.value = ''
-    for (const f of chosen) {
-      const video = f.type.startsWith('video/')
-      if (video && (picks.length || chosen.length > 1)) { toast('A video goes on its own', { type: 'error' }); continue }
-      if (!video && !f.type.startsWith('image/')) continue
-      if (picks.some(p => p.type === 'video') || picks.length >= PHOTOS_MAX) { toast(`Up to ${PHOTOS_MAX} photos, or 1 video`); break }
-      if (video) {
-        if (f.size > VIDEO_MAX_BYTES) { toast('That video is too large (30 MB at most)', { type: 'error' }); continue }
-        const url = URL.createObjectURL(f)
-        const [w, hh] = await videoSize(url)
-        picks.push({ file: f, url, type: 'video', w, h: hh })
-      } else {
-        const { file: prepared, w, h: hh } = await prepareImage(f)
-        picks.push({ file: prepared, url: URL.createObjectURL(prepared), type: 'image', w, h: hh })
-      }
-      paint()
-    }
-  })
-
-  post.addEventListener('click', async () => {
-    post.disabled = true
-    sheet.el.classList.add('posting')
-    try {
-      const media = []
-      for (const [i, p] of picks.entries()) {
-        note.textContent = picks.length > 1 ? `Uploading ${i + 1} of ${picks.length}…` : 'Uploading…'
-        const res = await fetch(`/api/media/upload?kind=moment&name=moment&w=${p.w || ''}&h=${p.h || ''}`, {
-          method: 'POST', credentials: 'same-origin', headers: { 'content-type': p.file.type || (p.type === 'video' ? 'video/mp4' : 'image/jpeg') }, body: p.file
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok || !data.ok) throw new Error(data.error || 'Upload failed')
-        media.push({ url: data.url, type: p.type, w: p.w, h: p.h })
-      }
-      note.textContent = 'Sharing…'
-      const r = await api.post('/api/moments', { text: text.value, media, audience })
-      for (const p of picks) URL.revokeObjectURL(p.url)
-      sheet.close()
-      toast(audience === 'friends' ? 'Shared with your friends' : 'Shared', { type: 'ok' })
-      everywhere('posted', r.moment)
-      onPosted?.(r.moment)
-    } catch (err) {
-      toast(err.message || "Couldn't share it", { type: 'error' })
-      note.textContent = `Up to ${PHOTOS_MAX} photos, or 1 video`
-      sheet.el.classList.remove('posting')
-      post.disabled = false
-    }
-  })
-  paint()
-  requestAnimationFrame(() => text.focus({ preventScroll: true }))
-  return sheet
-}
-
-function videoSize(url) {
-  return new Promise(resolve => {
-    const v = document.createElement('video')
-    v.preload = 'metadata'
-    v.muted = true
-    v.onloadedmetadata = () => resolve([v.videoWidth || 0, v.videoHeight || 0])
-    v.onerror = () => resolve([0, 0])
-    setTimeout(() => resolve([0, 0]), 4000)
-    v.src = url
-  })
+  return openMomentEditor({ origin, onPosted: m => { everywhere('posted', m); onPosted?.(m) } })
 }

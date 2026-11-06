@@ -136,6 +136,34 @@ test('moments: friends see them all, anyone else what is for everyone; likes and
     assert.deepEqual(await feedOf(b), [m3.id, m2.id])
     assert.equal((await request(photo, undefined, a.cookie)).response.status, 404, 'its photo is gone too')
 
+    // The editor's extras: a description for each photo; friends it's with; who may comment; for later.
+    const pic = (await upload(a)).data.url
+    const described = (await request('/api/moments', { text: 'Lake day', media: [{ url: pic, type: 'image', alt: '  A blue lake under\nsnowy peaks  ' }], tags: [b.id, c.id, b.id], comments: 'friends' }, a.cookie)).data.moment
+    assert.equal(described.media[0].alt, 'A blue lake under snowy peaks', 'a description, on one line')
+    assert.deepEqual(described.tags.map(t => t.username), ['mo-b', 'mo-c'], 'with friends, each once')
+    assert.equal(described.commenting, 'friends'); assert.equal(described.canComment, true, 'the author always may')
+    assert.equal((await request('/api/moments', { text: 'x', tags: [d.id] }, a.cookie)).response.status, 400, 'only friends can be tagged')
+    assert.equal((await request('/api/moments', { text: 'x', tags: Array.from({ length: 11 }, () => b.id) }, a.cookie)).response.status, 200, 'the same friend twice is once')
+    assert.equal((await request(`/api/moments/${described.id}`, undefined, b.cookie)).data.moment.canComment, true, 'a friend may comment')
+    assert.equal((await request(`/api/moments/${described.id}`, undefined, d.cookie)).data.moment.canComment, false, 'a stranger may not')
+    assert.equal((await request(`/api/moments/${described.id}/comments`, { text: 'Nice' }, d.cookie)).response.status, 403)
+    assert.equal((await request(`/api/moments/${described.id}/comments`, { text: 'Gorgeous' }, b.cookie)).response.status, 200)
+    const quiet = (await request('/api/moments', { text: 'No comments please', comments: 'off' }, a.cookie)).data.moment
+    assert.equal((await request(`/api/moments/${quiet.id}/comments`, { text: 'Hm' }, b.cookie)).response.status, 403, 'comments off')
+    assert.equal((await request(`/api/moments/${quiet.id}/comments`, { text: 'Note to self' }, a.cookie)).response.status, 200, 'but not for the author')
+    // Scheduled: its author sees it (marked), nobody else, not even its photo, until then.
+    const later = (await upload(a)).data.url
+    const at = Date.now() + 2 * 60 * 60 * 1000
+    const planned = (await request('/api/moments', { text: 'See you tomorrow', media: [{ url: later, type: 'image' }], at }, a.cookie)).data.moment
+    assert.equal(planned.scheduled, true); assert.equal(planned.created, at)
+    assert.ok((await feedOf(a)).includes(planned.id), 'its author sees it')
+    assert.ok(!(await feedOf(b)).includes(planned.id), 'a friend does not, yet'); assert.ok(!(await feedOf(d)).includes(planned.id))
+    assert.equal((await request(`/api/moments/${planned.id}`, undefined, b.cookie)).response.status, 404)
+    assert.equal((await request(later, undefined, d.cookie)).response.status, 403, 'nor its photo')
+    assert.ok((await request(`/api/moments/user/${a.id}`, undefined, a.cookie)).data.moments.some(m => m.id === planned.id), 'on its author\'s page')
+    assert.ok(!(await request(`/api/moments/user/${a.id}`, undefined, b.cookie)).data.moments.some(m => m.id === planned.id))
+    for (const bad of [Date.now() + 1000, Date.now() + 31 * 24 * 60 * 60 * 1000, 'soon']) assert.equal((await request('/api/moments', { text: 'x', at: bad }, a.cookie)).response.status, 400)
+
     // A contact request is not friendship either.
     await request('/api/contacts/add', { user: d.id }, a.cookie)
     assert.equal((await request(`/api/moments/user/${a.id}`, undefined, d.cookie)).data.visible, false, 'a request is not friendship')

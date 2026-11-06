@@ -50,6 +50,10 @@ export function cleanLines(value, max) {
 const MOMENT_TEXT_MAX = 2000
 const MOMENT_PHOTOS_MAX = 9
 const COMMENT_MAX = 300
+const ALT_MAX = 1000 // a photo's description, for people who can't see it
+const TAGS_MAX = 10
+const SCHEDULE_MIN = 60 * 1000 // a moment can be scheduled from a minute ahead…
+const SCHEDULE_MAX = 30 * 24 * 60 * 60 * 1000 // …up to 30 days
 /** A moment's pictures, as sent: only this account's own uploads; up to nine photos, or one video. Undefined when they won't do. */
 export function momentMedia(list, uid) {
   if (list === undefined || list === null) return []
@@ -61,11 +65,13 @@ export function momentMedia(list, uid) {
     if (typeof m.url !== 'string' || !m.url.startsWith(own) || !/^[\w-]+$/.test(m.url.slice(own.length))) return undefined
     if (m.type !== 'image' && m.type !== 'video') return undefined
     const size = v => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.min(20000, Math.round(Number(v))) : 0)
-    out.push({ url: m.url, type: m.type, w: size(m.w), h: size(m.h) })
+    const alt = m.type === 'image' ? cleanText(m.alt, ALT_MAX) : ''
+    out.push({ url: m.url, type: m.type, w: size(m.w), h: size(m.h), ...(alt && { alt }) })
   }
   if (out.some(m => m.type === 'video') && out.length > 1) return undefined
   return out
 }
+const parseTags = v => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string') : [] } catch { return [] } }
 /** A request body is a plain object, whatever was sent. */
 const asObject = value => (value && typeof value === 'object' && !Array.isArray(value) ? value : {})
 const LOCKOUT_FAILS = 6
@@ -303,6 +309,12 @@ export class Hub {
     // --- people: who to chat with, who to add; a suggestion set aside
     if (path === '/api/people' && method === 'GET') {
       return json({ ok: true, ...this.store.peopleFor(user.id) })
+    }
+    // Your friends (contacts, and people you've written with one to one), by name: whom a moment can be with.
+    if (path === '/api/friends' && method === 'GET') {
+      const friends = [...this.store.friendsOf(user.id)].map(id => this.store.pub(this.store.getUser(id))).filter(Boolean)
+      friends.sort((a, b) => (a.display || a.username).localeCompare(b.display || b.username))
+      return json({ ok: true, friends })
     }
     if (path === '/api/people/dismiss' && method === 'POST') {
       if (typeof body.user !== 'string' || body.user === user.id || !this.store.getUser(body.user)) return json({ ok: false, error: 'User not found' }, 404)
@@ -922,9 +934,9 @@ export class Hub {
         user: { ...store.pub(author), joined: author.created },
         friend: friend && author.id !== user.id,
         visible: friend,
-        count: blocked ? 0 : store.countMoments(author.id, publicOnly),
+        count: blocked ? 0 : store.countMoments(author.id, publicOnly, author.id === user.id),
         friends: author.id === user.id ? store.friendsOf(author.id).size : undefined,
-        moments: blocked || !limit ? [] : this.momentsView(store.momentsOf(author.id, { publicOnly, before, limit }), user.id)
+        moments: blocked || !limit ? [] : this.momentsView(store.momentsOf(author.id, { publicOnly, scheduled: author.id === user.id, before, limit }), user.id)
       })
     }
     // POST /api/moments — share one.
@@ -933,9 +945,23 @@ export class Hub {
       const media = momentMedia(body.media, user.id)
       if (media === undefined) return json({ ok: false, error: 'Up to 9 photos, or 1 video, of your own' }, 400)
       if (!text && !media.length) return json({ ok: false, error: 'Write something or add a photo' }, 400)
-      const moment = store.addMoment({ user: user.id, text, media, audience: body.audience === 'friends' ? 'friends' : 'everyone' })
-      // Your friends' feeds have something new; your other devices too.
-      for (const uid of [user.id, ...store.friendsOf(user.id)]) this.sendToUser(uid, { t: 'moment', id: moment.id, user: user.id })
+      // With friends of yours: up to ten, each once.
+      const friends = store.friendsOf(user.id)
+      const tags = body.tags === undefined ? [] : Array.isArray(body.tags) ? [...new Set(body.tags)] : null
+      if (!tags || tags.length > TAGS_MAX || tags.some(id => typeof id !== 'string' || !friends.has(id))) return json({ ok: false, error: `Tag up to ${TAGS_MAX} of your friends` }, 400)
+      // For later: from a minute ahead to 30 days.
+      let at
+      if (body.at !== undefined && body.at !== null) {
+        at = Math.round(Number(body.at))
+        if (!Number.isFinite(at) || at < Date.now() + SCHEDULE_MIN || at > Date.now() + SCHEDULE_MAX) return json({ ok: false, error: 'Schedule it between a minute and 30 days from now' }, 400)
+      }
+      const moment = store.addMoment({
+        user: user.id, text, media, tags, at,
+        audience: body.audience === 'friends' ? 'friends' : 'everyone',
+        comments: ['friends', 'off'].includes(body.comments) ? body.comments : 'everyone'
+      })
+      // Your friends' feeds have something new (once it's out); your other devices too.
+      for (const uid of [user.id, ...(at ? [] : friends)]) this.sendToUser(uid, { t: 'moment', id: moment.id, user: user.id })
       return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
     }
     const moment = seg[2] && seg[2] !== 'user' ? store.getMoment(seg[2]) : null
@@ -965,6 +991,7 @@ export class Hub {
     if (seg[3] === 'comments' && !seg[4] && method === 'POST') {
       const text = cleanText(body.text, COMMENT_MAX)
       if (!text) return json({ ok: false, error: 'Write a comment' }, 400)
+      if (!store.canComment(moment, user.id)) return json({ ok: false, error: moment.comments === 'off' ? 'Comments are off for this moment' : 'Only friends can comment on this moment' }, 403)
       store.addMomentComment({ moment: moment.id, user: user.id, text })
       changed()
       return json({ ok: true, moment: this.momentsView([moment], user.id)[0] })
@@ -1002,6 +1029,9 @@ export class Hub {
       return people.get(id)
     }
     const blocked = store.blockedWith(viewer)
+    const now = Date.now()
+    const circles = new Map()
+    const friendsOfAuthor = uid => { if (!circles.has(uid)) circles.set(uid, uid === viewer ? friends : store.friendsOf(uid)); return circles.get(uid) }
     const seen = (uid, m) => !blocked.has(uid) && (m.audience === 'everyone' || uid === viewer || uid === m.user || friends.has(uid))
     return rows.map(m => ({
       id: m.id,
@@ -1010,6 +1040,11 @@ export class Hub {
       media: m.media,
       created: m.created,
       audience: m.audience === 'friends' ? 'friends' : 'everyone',
+      // Who it's with (but nobody either of you blocked), who may comment, and whether it's still to come.
+      tags: parseTags(m.tags).filter(id => !blocked.has(id)).map(person),
+      commenting: ['friends', 'off'].includes(m.comments) ? m.comments : 'everyone',
+      canComment: m.user === viewer || (m.comments !== 'off' && (m.comments !== 'friends' || friendsOfAuthor(m.user).has(viewer))),
+      scheduled: m.created > now,
       mine: m.user === viewer,
       liked: likes.some(l => l.moment === m.id && l.user === viewer),
       likes: likes.filter(l => l.moment === m.id && seen(l.user, m)).map(l => person(l.user)),
