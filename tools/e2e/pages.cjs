@@ -35,6 +35,8 @@ await A.screenshot({path:path.join(OUT,'1-chats.png')})
 // 2. Moments: a page, the rail still there over it, Moments current.
 await A.locator('.page-item[data-page="moments"]').click();await A.locator('.moments-home.page-sheet').waitFor();await settle(A);await sleep(400)
 r=await rail(A);assert.equal(r.shown,true,'still in reach');assert.equal(r.current,'moments');assert.equal(r.thumbOn,true,'the circle went with it')
+// The list's own rail steps aside under the page (the edge column is the pages').
+assert.equal(await A.evaluate(()=>getComputedStyle(document.querySelector('.pane-list > .duo-rail')).visibility),'hidden','the list rail steps aside over a page')
 await A.screenshot({path:path.join(OUT,'2-moments.png')})
 
 // 3. You, then Requests: each takes the other's place — one page up at a time.
@@ -56,6 +58,7 @@ assert.equal(await A.evaluate(()=>document.querySelector('.pane-list').dataset.r
 await A.locator('.page-item[data-page="moments"]').click();await A.locator('.moments-home').waitFor();await sleep(400)
 await A.locator('.moments-home .mo-head-actions [aria-label="Close"]').click();await A.locator('.moments-home').waitFor({state:'detached'});await sleep(300)
 assert.equal((await rail(A)).current,'chats')
+assert.equal(await A.evaluate(()=>getComputedStyle(document.querySelector('.pane-list > .duo-rail')).visibility),'visible','and comes back once it goes')
 
 // 6. Something opened over a page has the screen: no rail; it comes back when that goes.
 await A.locator('.page-item[data-page="moments"]').click();await A.locator('.moments-home').waitFor();await sleep(400)

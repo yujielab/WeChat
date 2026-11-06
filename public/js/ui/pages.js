@@ -95,8 +95,9 @@ export function createPages({ goColumn }) {
       shown = visible
       rail.hidden = !visible
       document.documentElement.toggleAttribute('data-pages', visible)
-      document.documentElement.toggleAttribute('data-page-over', visible && onPage)
     }
+    // A page opened or closed while the capsule stays: the app's rails step aside under it, or come back.
+    document.documentElement.toggleAttribute('data-page-over', visible && onPage)
     const id = current()
     for (const [pid, b] of buttons) {
       const on = pid === id

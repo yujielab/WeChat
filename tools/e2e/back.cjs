@@ -47,6 +47,8 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   const A=await seeded(label,opts,null,label.length)
   const at={}
   // List.
+  // On the Duo the controls move into the rail once the system's column is measured, a moment after the list shows.
+  await A.waitForFunction(()=>[...document.querySelectorAll('.pane-list .bar-item[data-item="back"]')].some(b=>b.getClientRects().length&&getComputedStyle(b).visibility!=='hidden'));await sleep(200)
   let e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the list has Back');at.list=e[0]
   const listCompose=await A.evaluate(()=>{const b=document.querySelector('.pane-list [data-item="compose"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
   // Conversation.
