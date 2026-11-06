@@ -57,7 +57,7 @@ const inset=await D.evaluate(()=>getComputedStyle(document.documentElement).getP
 for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,`under the clock ${i.id} at ${i.x+i.w/2} (inset ${inset})`)
 await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-right','91px'));await sleep(200)
 for(const i of (await rail(D,'.pane-list > .duo-rail')).items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,'still under the clock with a 91pt inset '+JSON.stringify(i))
-assert.ok(r.items[0].y>=162-.5,'below the camera and status bar')
+assert.ok(r.items[0].y>=170-.5,'below the camera and status bar, clear of the signal ring with Silent mode on (158pt)')
 assert.ok(r.items[0].y+r.items[0].h<r.items[1].y&&r.items[1].y<r.items[2].y,'Back above, then Search and New Chat')
 // …and the pages' capsule below them, at the column's foot, clear of them.
 const pagesTop=await D.evaluate(()=>document.querySelector('.page-rail').getBoundingClientRect().top)

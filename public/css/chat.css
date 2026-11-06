@@ -12,8 +12,13 @@
 /* ---------------------------------------------------------------- the heading */
 .thread { --head-h: 92px; --r-bubble: 22px; }
 .thread-nav {
+  /* Both sides keep the room of the wider one (one 44pt button, or the
+     calls' capsule of two), so the heading in the middle stays centred and
+     gives way — its name trimmed — instead of running under them on a
+     narrow screen. */
+  --nav-side: 44px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(var(--nav-side), 1fr) minmax(0, auto) minmax(var(--nav-side), 1fr);
   align-items: center;
   gap: 8px;
   padding-bottom: 0;
@@ -22,13 +27,19 @@
 }
 .thread-nav > .bar-section { display: contents; }
 .thread-nav .bar-group:has([data-item="audio"], [data-item="video"]) { grid-column: 1; grid-row: 1; justify-self: start; }
+.thread-nav:has(.bar-group.capsule) { --nav-side: 98px; }
 .thread-nav .bar-group:has([data-item="info"]) { grid-column: 3; grid-row: 1; justify-self: end; }
+/* What overflows goes into the menu at the end of the row (the details go
+   first, so it never shares that end with them). */
+.thread-nav .bar-group:has(.bar-more) { grid-column: 3; grid-row: 1; justify-self: end; }
 .thread-nav .thread-title {
   grid-column: 2;
   grid-row: 1;
+  justify-self: center;
   flex: none;
   width: auto;
-  max-width: min(260px, 54vw);
+  min-width: 0;
+  max-width: min(260px, 54vw, 100%);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -54,13 +65,13 @@
   background: var(--bg-elevated);
   box-shadow: 0 0 0 1px var(--line), 0 6px 16px -10px rgb(0 0 0 / .35);
 }
-.thread-title .name { font-size: var(--t-subhead); font-weight: var(--w-bold); line-height: 1.2; }
-.thread-title .sub { margin-top: 0; font-size: var(--t-caption-2); color: var(--label-2); }
+.thread-title .name { min-width: 0; flex: 0 1 auto; font-size: var(--t-subhead); font-weight: var(--w-bold); line-height: 1.2; }
+.thread-title .sub { min-width: 0; flex: 0 3 auto; overflow: hidden; text-overflow: ellipsis; margin-top: 0; font-size: var(--t-caption-2); color: var(--label-2); }
 .thread-title .sub:not(:empty)::before { content: "·"; margin-right: 5px; }
 .thread-title:active .thread-person { transform: scale(.96); }
 .thread-title .thread-person { transition: transform 200ms var(--spring-snappy, var(--ease-out)); }
 /* In the rail, the row is the heading alone: in the middle. */
-.thread[data-bars="vertical"] .thread-nav { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.thread[data-bars="vertical"] .thread-nav { grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr); }
 
 /* ---------------------------------------------------------------- bubbles */
 .thread { --bubble-out: var(--ink); --bubble-out-text: var(--on-ink); --link-out: var(--on-ink); }

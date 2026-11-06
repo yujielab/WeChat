@@ -44,13 +44,14 @@ assert.ok(d.scroll.y>=d.header.bottom-.5);assert.equal(d.underHeader,false);asse
 const railed=c.right>=64&&!c.lead
 if(railed){
  // The rail stands in the system column; the heading and the field keep to the content beside it.
- // Below the camera and status bar: 162pt on the outer display, 112pt on the inner one; turned on its side, the camera is at the foot instead.
- const col=c.w-c.right,reserve=c.split?112:c.h>c.w?162:12,ids=d.items.map(i=>i.id),item=id=>d.items.find(i=>i.id===id)
+ // Below the camera and status bar: 170pt on the outer display, 118pt on the inner one; turned on its side, the camera is at the foot instead.
+ const col=c.w-c.right,reserve=c.split?118:c.h>c.w?170:12,ids=d.items.map(i=>i.id),item=id=>d.items.find(i=>i.id===id)
  assert.equal(await p.evaluate(()=>document.documentElement.dataset.bars),'vertical')
  for(const b of d.items){assert.ok(b.x>=col-.5&&b.right<=Math.min(c.w,d.thread.right)+.5,'in the system column '+b.id+' '+JSON.stringify({x:b.x,right:b.right,col}));assert.ok(b.w>=44&&b.h>=44,'44pt '+b.id);assert.ok(b.y>=reserve-.5&&b.bottom<=H-B+.5,'rail vertical '+b.id+' '+JSON.stringify({reserve,...b}))}
  for(const b of[d.field,{id:'action',...d.action}])assert.ok(b.right<=col+.5&&b.x>=Math.max(d.thread.x,c.split?0:c.left||0)-.5,'the field keeps to the content '+b.id+' '+JSON.stringify({x:b.x,right:b.right,col}))
  assert.ok(d.title.right<=col+.5,'the heading stops at the column')
- assert.ok(d.action.w>=55.5&&d.action.h>=55.5,'the field\'s button is 56pt')
+ // Send sits inside the end of the field (css/chat.css): a 44pt circle within the field's own box.
+ assert.ok(d.action.w>=43.5&&d.action.h>=43.5,'the field\'s button is 44pt');assert.ok(d.action.x>=d.field.x-.5&&d.action.x+d.action.w<=d.field.right+.5&&d.action.y>=d.field.y-.5&&d.action.y+d.action.h<=d.field.bottom+.5,'Send inside the field '+JSON.stringify({a:d.action,f:d.field}))
  // Back leads the rail, then the calls, then the details; none beside the list.
  const order=['back','audio','video','info'].filter(id=>item(id));if(c.split)assert.ok(!item('back'),'no Back beside the list');else assert.ok(item('back'),'Back never overflows')
  if(!c.railOverflow){assert.deepEqual(ids,order,'one under the other');for(let i=1;i<order.length;i++)assert.ok(item(order[i]).y>=item(order[i-1]).bottom-.5,order[i]+' under '+order[i-1])}
@@ -64,17 +65,19 @@ if(railed){
 }else{
 for(const b of[...d.items,d.field,{id:'action',...d.action}]){const limit=Math.min(c.w-c.right,d.thread.right),start=Math.max(d.thread.x,c.split?0:c.left||0);assert.ok(b.x>=start-.5&&b.right<=limit+.5,'safe horizontal '+b.id+' '+JSON.stringify({x:b.x,right:b.right,start,limit}));assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
 for(const b of d.items)assert.ok(b.w>=44&&b.h>=44,'44pt '+b.id)
-assert.ok(d.action.w>=55.5&&d.action.h>=55.5,'the field\'s button is 56pt')
+assert.ok(d.action.w>=43.5&&d.action.h>=43.5,'the field\'s button is 44pt');assert.ok(d.action.x>=d.field.x-.5&&d.action.x+d.action.w<=d.field.right+.5,'Send inside the field '+JSON.stringify({a:d.action,f:d.field}))
 const ids=d.items.map(i=>i.id),item=id=>d.items.find(i=>i.id===id)
-// The heading: the calls and the details follow the name.
-for(const id of['audio','video','info'])if(item(id)){assert.ok(item(id).x>=d.title.right-.5,id+' after the name');assert.ok(item(id).y>=d.header.y-.5&&item(id).bottom<=d.header.bottom+.5,id+' in the heading')}
+// The heading (css/chat.css): the calls before the name, in the middle; the details after it.
+for(const id of['audio','video'])if(item(id))assert.ok(item(id).right<=d.title.x+.5,id+' before the name '+JSON.stringify({b:item(id),title:d.title}))
+if(item('info'))assert.ok(item('info').x>=d.title.right-.5,'info after the name')
+for(const id of['audio','video','info'])if(item(id))assert.ok(item(id).y>=d.header.y-.5&&item(id).bottom<=d.header.bottom+.5,id+' in the heading')
 // The bar at the foot: Back leads it, before the field; drawing and photos follow the field; one row.
 // A field grown taller (long text, large type) keeps the bar on its bottom edge.
 const onRow=i=>i.bottom<=d.field.bottom+.5&&i.bottom>=d.field.bottom-7
 if(c.split||c.lead)assert.ok(!item('back'),'no Back beside the list or the details (the details\' Close is the way out)')
 else{assert.ok(item('back'),'Back never overflows');assert.ok(item('back').x-(c.left||0)<=24,'each inset counted once '+item('back').x);assert.ok(item('back').right<=d.field.x+.5&&onRow(item('back')),'Back leads the bar '+JSON.stringify({back:item('back'),field:d.field}))}
-// The field's one button (photos and drawing, or Send) follows it on the same row.
-assert.ok(d.action.x>=d.field.right-.5&&onRow(d.action),'button after the field '+JSON.stringify({action:d.action,field:d.field}))
+// The field's one button (photos and drawing, or Send) sits inside its end, on the same row.
+assert.ok(d.action.x>=d.field.x-.5&&d.action.right<=d.field.right+.5&&onRow(d.action),'button inside the end of the field '+JSON.stringify({action:d.action,field:d.field}))
 assert.ok(d.field.bottom<=H-B+.5&&d.field.bottom>=H-B-Math.max(16,0)-30,'the bar sits at the foot '+JSON.stringify(d.field))
 if(c.overflow){
  // Overflow goes by priority into the one menu, at the end of the heading; Back stays.
@@ -88,7 +91,7 @@ if(c.overflow){
 // At the newest message, it and its status stay fully readable above the floating bar, also once
 // the field grows to several lines. The room is a real element at the foot of the log: Safari leaves
 // a column-reverse scroller's bottom padding out of what it scrolls.
-const clear=async lines=>{await p.evaluate(n=>{const t=document.querySelector('.composer textarea');t.value=Array.from({length:n},(_,i)=>'第'+(i+1)+'行').join('\n');t.dispatchEvent(new Event('input',{bubbles:true}))},lines);await p.waitForTimeout(160);return p.evaluate(()=>{const s=document.querySelector('.thread-scroll');s.scrollTop=0;const r=e=>e.getBoundingClientRect(),field=r(document.querySelector('.composer .field')),last=[...document.querySelectorAll('.msgs .m')].at(-1),meta=document.querySelector('.msgs > .m-meta');return{field:field.top,last:r(last).bottom,meta:meta&&meta.textContent?r(meta).bottom:0,pad:parseFloat(getComputedStyle(s).paddingBottom),foot:r(document.querySelector('.thread-foot')).height,bar:document.querySelector('.composer').offsetHeight}})}
+const clear=async lines=>{await p.evaluate(n=>{const t=document.querySelector('.composer textarea');t.value=Array.from({length:n},(_,i)=>'第'+(i+1)+'行').join('\n');t.dispatchEvent(new Event('input',{bubbles:true}))},lines);await p.waitForTimeout(60);await p.waitForFunction(()=>!document.querySelector('.composer textarea').getAnimations().length);await p.waitForTimeout(60);return p.evaluate(()=>{const s=document.querySelector('.thread-scroll');s.scrollTop=0;const r=e=>e.getBoundingClientRect(),field=r(document.querySelector('.composer .field')),last=[...document.querySelectorAll('.msgs .m')].at(-1),meta=document.querySelector('.msgs > .m-meta');return{field:field.top,last:r(last).bottom,meta:meta&&meta.textContent?r(meta).bottom:0,pad:parseFloat(getComputedStyle(s).paddingBottom),foot:r(document.querySelector('.thread-foot')).height,bar:document.querySelector('.composer').offsetHeight}})}
 for(const lines of[0,4]){const v=await clear(lines);assert.ok(v.last<=v.field-8&&v.meta<=v.field-8,'newest message clear of the bar '+JSON.stringify({lines,...v}));assert.equal(v.pad,0);assert.ok(Math.abs(v.foot-(v.bar+14))<=1,'foot follows the bar '+JSON.stringify(v))}
 await clear(0)
 if(c.name)await p.screenshot({path:path.join(OUT,c.name+'.png')})
