@@ -35,19 +35,25 @@ export const BUTTONS = [
 ].join(', ')
 const NOT = '.thread-title, .switch, .lg-btn'
 
-// The demo's default glass (src/Controls.tsx, with App.tsx's transforms).
+// The demo's glass (src/Controls.tsx, with App.tsx's transforms), tuned to
+// the app's target: a milky, clean glass — a thinner lens, no colour
+// fringes (dispersion off), a soft white rim light with no colour of its
+// own, and a gentle Fresnel.
 const LOOK = {
-  u_refThickness: 20, u_refDistance: 0.05, u_refFactor: 1.4, u_refDispersion: 7,
-  u_refFresnelRange: 30, u_refFresnelHardness: 0.2, u_refFresnelFactor: 0.2,
-  u_glareRange: 30, u_glareHardness: 0.2, u_glareConvergence: 0.5, u_glareOppositeFactor: 0.8, u_glareFactor: 0.9,
+  u_refThickness: 16, u_refDistance: 0.05, u_refFactor: 1.4, u_refDispersion: 0,
+  u_refFresnelRange: 30, u_refFresnelHardness: 0.2, u_refFresnelFactor: 0.14,
+  u_glareRange: 30, u_glareHardness: 0.2, u_glareConvergence: 0.5, u_glareOppositeFactor: 0.6, u_glareFactor: 0.5,
+  u_glareChroma: 0,
   u_blurEdge: 1
 }
 const GLARE = (-45 * Math.PI) / 180
 // The demo's canvas is its whole window and its pixel-based controls are
 // tuned against that; the shader takes its units against this window height.
 const REF_VIEW_H = 900
-// The demo's soft shadow (src/Controls.tsx: shadowExpand 25, shadowFactor 15, 10px down).
-const SHADOW = { expand: 25, factor: 0.15, drop: 10 }
+// A soft, wide shadow that lifts the glass off the page (the demo's was
+// shadowExpand 25, shadowFactor 15, 10px down). Nothing of it shows through
+// the glass: no darker ring inside the lens.
+const SHADOW = { expand: 30, factor: 0.09, drop: 8, inside: 0 }
 // The demo's glass is tuned in pixels for its 200px shape; a button is that
 // same glass made smaller, by this factor.
 const sizeOf = (W, H) => Math.min(1, Math.max(0.2, Math.min(W, H) / 200))
@@ -317,8 +323,8 @@ function shadowFor(e) {
   // within the room before something clips it: its reach is ~3× expand plus the drop
   const fit = Math.min(1, e.room / (3 * SHADOW.expand * s + SHADOW.drop * s))
   return {
-    // under the glass: the whole shadow (it stays inside the button)
-    u_shadowExpand: SHADOW.expand * s, u_shadowFactor: SHADOW.factor, u_shadowOffset: [0, SHADOW.drop * s * e.dpr],
+    // under the glass: none (it would show as a darker ring inside the lens)
+    u_shadowExpand: SHADOW.expand * s, u_shadowFactor: SHADOW.inside, u_shadowOffset: [0, SHADOW.drop * s * e.dpr],
     // around it: only what fits before something clips it
     u_shadowOutExpand: Math.max(0.5, SHADOW.expand * s * fit),
     u_shadowOutFactor: fit < 0.15 ? 0 : SHADOW.factor,
