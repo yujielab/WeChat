@@ -16,7 +16,7 @@ import { avatar } from './avatar.js'
 import { openMenu, toast } from './overlay.js'
 import { createBars, railed } from '../ui/bars.js'
 import { onBars } from '../ui/viewport.js'
-import { insightsOn } from './insights.js'
+import { createInsightsPanel } from './insights.js'
 import { createNotes, createRequestsLink, createPeople } from './people.js'
 
 export const FILTERS = {
@@ -26,7 +26,7 @@ export const FILTERS = {
   groups: { label: 'Groups', test: c => c.room }
 }
 
-export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSettings, onInsights, loadContacts }) {
+export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSettings, loadContacts }) {
   pane.classList.add('pane-list')
   // Rows swipe themselves; a back swipe starts at the column's leading edge.
   pane.dataset.edgeSwipe = ''
@@ -45,11 +45,6 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // are (and settings) sits at the end of the list's heading.
   const me = h('button', { class: 'list-me', type: 'button', 'aria-label': 'Settings' })
   me.addEventListener('click', () => onSettings?.(me))
-  // Smart notifications (views/insights.js), where the server can read for them.
-  const insights = h('button', { class: 'list-insights', type: 'button', 'aria-label': 'Insights', hidden: true }, icon('sparkles'))
-  insights.addEventListener('click', () => onInsights?.(insights))
-  const showInsights = () => { insights.hidden = !insightsOn() }
-  window.addEventListener('insights-pref', showInsights)
   // Moments (views/moments.js): what friends share, with a dot while there's something new.
   const moments = h('button', { class: 'list-moments', type: 'button', 'aria-label': 'Moments' }, icon('photo'), h('span', { class: 'moments-dot', 'aria-hidden': 'true' }))
   moments.addEventListener('click', async () => (await import('./moments.js')).openMoments({ origin: moments }))
@@ -58,7 +53,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     moments.setAttribute('aria-label', e?.detail ? 'Moments, new from friends' : 'Moments')
   }
   window.addEventListener('moments-new', paintMomentsDot)
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, insights, me))
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, me))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': 'Filter chats' }, filterThumb)
   const filterButtons = new Map()
@@ -90,10 +85,12 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // filters with Requests at their end; under the chats, who to start one
   // with and people you may know.
   const notes = createNotes({ onOpen: id => onOpen(id) })
+  // Smart panels (views/insights.js): there by themselves while something is timely.
+  const panel = createInsightsPanel({ onOpen: id => onOpen(id) })
   const requests = createRequestsLink()
   const section = h('div', { class: 'list-section' }, filterTabs, requests)
   const people = createPeople({ onOpen: id => onOpen(id) })
-  const scroll = h('div', { class: 'scroll list-scroll' }, head, notes.el, section, filterNote, pinLabel, pinned, rows, capsule, empty, people.el, results)
+  const scroll = h('div', { class: 'scroll list-scroll' }, head, notes.el, panel.el, section, filterNote, pinLabel, pinned, rows, capsule, empty, people.el, results)
 
   const inlineTitle = h('div', { class: 'list-inline-title', 'aria-hidden': 'true' }, 'Messages')
   const topbar = h('div', { class: 'list-topbar' }, inlineTitle, h('div', { class: 'spacer' }))
@@ -431,9 +428,9 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   // ------------------------------------------------------------ render
   function render() {
     updateFilters()
-    showInsights()
     if (openSwipe && !openSwipe.isConnected) openSwipe = null
     if (searching) return renderResults()
+    panel.refresh()
     const filter = FILTERS[state.filter] || FILTERS.all
     const all = sortedChats().filter(filter.test)
     const showPins = state.filter === 'all'

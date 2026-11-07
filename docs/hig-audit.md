@@ -114,7 +114,7 @@
 
 ### P1-4 还有几个点按区域不到 44pt
 - **证据**：
-  - `insights.css:63` `.ins-fold` 是 36×36px（覆盖了 `glass.css` 的 44px）。
+  - ~~`insights.css:63` `.ins-fold` 是 36×36px~~（智能面板改为列表顶部的卡片后已不存在；新的类别胶囊看上去 36px，`::before` 把点按区域扩到 44px；卡片按钮高 46px）。
   - `overlays.css:646` `.menu-reaction` 宽 42px。
   - `auth.css:9` `.auth-tab` `min-height: 42px`。
   - `draw.css:103` 见 P0-4。

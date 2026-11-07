@@ -208,7 +208,7 @@ export function openSettings({ onLogout, origin }) {
       // and only usable where the mic and a secure connection are available.
       cell('Voice to text', toggle(storage('ui:voice') !== 'off', on => { storage('ui:voice', on ? null : 'off'); return true }, 'Voice to text'))
     ) : null,
-    state.assist ? foot('Insights pull reminders from your recent direct chats, just for you.') : null,
+    state.assist ? foot('When something in your recent direct chats is timely — a ride, a plan, someone just home — it shows at the top of your chats, just for you.') : null,
     state.assist ? group(
       cell('Memory', chev(), { icon: 'sparkles', onClick: () => openMemorySheet(origin) })
     ) : null,
