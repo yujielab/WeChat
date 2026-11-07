@@ -1,5 +1,5 @@
 /* Search and explain (views/explain-pick.js, views/explain.js): the words
-   picked in a message, the Explain button by a selection, and the sheet —
+   picked in a message and their handles, the Explain button, and the sheet —
    steps as they happen, the streamed answer with its citation marks, source
    cards, and the questions to ask next. */
 
@@ -15,7 +15,13 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
 }
 
-/* ---- the Explain button by a selection ---- */
+/* Handles at the two ends while picking: drag one to move that end. */
+.pick-handle { position: absolute; width: 2px; margin-left: -1px; border-radius: 1px; background: currentColor; opacity: 0.85; }
+.pick-handle::before { content: ""; position: absolute; left: 50%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: currentColor; }
+.pick-handle.start::before { top: -8px; }
+.pick-handle.end::before { bottom: -8px; }
+
+/* ---- the Explain button by what is picked ---- */
 .explain-pill {
   position: fixed;
   z-index: var(--z-menu);
@@ -31,6 +37,10 @@
   white-space: nowrap;
 }
 .explain-pill .icon, .explain-pill svg { width: 17px; height: 17px; }
+.explain-pill { animation: explain-pill-in 180ms var(--ease-out) both; transition: opacity 140ms ease-out; }
+/* stepping aside while the selection is being changed */
+.explain-pill.is-away { opacity: 0; pointer-events: none; }
+@keyframes explain-pill-in { from { opacity: 0; transform: translateY(4px) scale(0.96); } }
 
 /* ---- the sheet ---- */
 .xp { display: flex; flex-direction: column; gap: 14px; padding: 2px 20px 18px; }
@@ -138,8 +148,9 @@
 .xp-foot { margin: -4px 0 0; text-align: center; font-size: var(--t-caption-2); color: var(--label-3); }
 
 @media (prefers-reduced-motion: reduce) {
-  .xp-step[data-state="doing"] .xp-dot, .xp-caret, .xp-source.is-flash { animation: none; }
+  .xp-step[data-state="doing"] .xp-dot, .xp-caret, .xp-source.is-flash, .explain-pill { animation: none; }
 }
+:root[data-motion="reduce"] .explain-pill,
 :root[data-motion="reduce"] .xp-step[data-state="doing"] .xp-dot,
 :root[data-motion="reduce"] .xp-caret,
 :root[data-motion="reduce"] .xp-source.is-flash { animation: none; }

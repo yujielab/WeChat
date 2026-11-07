@@ -1,10 +1,12 @@
-// Search and explain: double-tap a message (yours or theirs) and slide to pick words — whole words where
-// words are spaced, single characters in Chinese — and let go to ask. The page doesn't scroll and the
-// long-press menu doesn't open while picking. The sheet shows each step as it happens, streams the answer
-// with [n] marks pointing at the source cards, and offers questions to ask next (glass chips) that carry
-// the conversation so far. Closing the sheet stops the answer and clears the marks. With a mouse, a
-// selection gets an Explain button; without the AI, a double-tap still loves the message.
-// Uses browser-only fixtures and a scripted /api/ai/explain stream; no server data is created.
+// Search and explain: double-tap a message (yours or theirs) to start picking — the word under the finger
+// is taken, with a handle at each end and an Explain button by it, and nothing is asked yet. Then slide
+// to pick (whole words where words are spaced, single characters in Chinese), drag a handle to move one
+// end, or tap a word to take it; a touch anywhere else stops picking. Explain asks. The page doesn't
+// scroll and the long-press menu doesn't open while picking. The sheet shows each step as it happens,
+// streams the answer with [n] marks pointing at the source cards, and offers questions to ask next (glass
+// chips) that carry the conversation so far. Closing the sheet stops the answer and clears the marks.
+// With a mouse, a selection gets the same Explain button; without the AI, a double-tap still loves the
+// message. Uses browser-only fixtures and a scripted /api/ai/explain stream; no server data is created.
 // npm run dev:e2e; node tools/e2e/explain.cjs [outdir]
 const { chromium } = require('playwright'), assert = require('node:assert/strict'), fs = require('fs'), path = require('path')
 const BASE = process.env.BASE || 'http://127.0.0.1:8787', OUT = process.argv[2] || path.join(process.cwd(), 'screenshots-explain')
@@ -114,34 +116,87 @@ const spot = (p, id, word, n = 0) => p.evaluate(([id, word, n]) => {
     const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' || type === 'touchCancel' ? [] : [{ x, y, id: 1 }] })
     const scrollTop = () => p.evaluate(() => document.querySelector('.thread:not([hidden]) .thread-scroll').scrollTop)
     const marks = () => p.evaluate(() => [...document.querySelectorAll('.pick-mark')].map(m => Math.round(m.getBoundingClientRect().width)))
-    // double-tap at `from`, slide to `to`, let go
-    async function pick(from, to, { hold = 0, shot } = {}) {
-      await touch('touchStart', from.x, from.y); await sleep(40); await touch('touchEnd', from.x, from.y)
-      await sleep(110)
+    const tapAt = async ({ x, y }) => { await touch('touchStart', x, y); await sleep(40); await touch('touchEnd', x, y) }
+    const slide = async (from, to, { steps = 12, shot } = {}) => {
+      await touch('touchStart', from.x, from.y); await sleep(40)
+      for (let i = 1; i <= steps; i++) { await touch('touchMove', from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps); await sleep(18) }
+      const during = { marks: await marks(), away: await p.locator('.explain-pill.is-away').count() }
+      if (shot) await p.screenshot({ path: path.join(OUT, shot) })
+      await touch('touchEnd', to.x, to.y); await sleep(120)
+      return during
+    }
+    // what is picked, as the Explain button reads it ('' when not picking)
+    const picked = () => p.evaluate(() => {
+      const b = document.querySelector('.explain-pill:not(.is-away)')
+      return b ? b.getAttribute('aria-label').replace(/^Search and explain “|”$/g, '') : ''
+    })
+    const handle = end => p.evaluate(end => { const r = document.querySelector(`.pick-handle.${end}`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } }, end)
+    const confirm = async () => { const b = await p.locator('.explain-pill:not(.is-away)').boundingBox(); await tapAt({ x: b.x + b.width / 2, y: b.y + b.height / 2 }) }
+    const asks = () => p.evaluate(() => window.__asked.length)
+    // double-tap at `from` — keeping the finger down to slide on to `to`, or holding — then Explain
+    async function pick(from, to, { hold = 0 } = {}) {
+      await tapAt(from); await sleep(110)
       await touch('touchStart', from.x, from.y); await sleep(60)
       if (hold) await sleep(hold)
       const steps = to ? 12 : 0
       for (let i = 1; i <= steps; i++) { await touch('touchMove', from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps); await sleep(18) }
-      const during = await marks()
-      if (shot) await p.screenshot({ path: path.join(OUT, shot) })
       const end = to || from
-      await touch('touchEnd', end.x, end.y)
-      return during
+      await touch('touchEnd', end.x, end.y); await sleep(250)
+      assert.equal(await p.locator('.sheet').count(), 0, 'nothing is asked until Explain')
+      await confirm()
     }
     const sheetOpen = () => p.locator('.sheet .xp').waitFor()
     const closeSheet = async () => { await p.keyboard.press('Escape'); await p.locator('.sheet .xp').waitFor({ state: 'detached' }); await sleep(250) }
 
-    // 1. Theirs, in English: double-tap "Ghibli" and slide to "museum" — two whole words.
+    // 1. Theirs, in English. A double-tap starts picking: the word, its handles, the Explain button — nothing asked.
     const top0 = await scrollTop()
     const g = await spot(p, 'en', 'Ghibli'), mu = await spot(p, 'en', 'museum')
-    const during = await pick(g, { x: mu.left + 6, y: mu.y }, { shot: '1-picking.png' })
-    assert.ok(during.length >= 1 && during[0] > 40, 'the picked words are marked while sliding ' + JSON.stringify(during))
+    await tapAt(g); await sleep(110); await tapAt(g); await sleep(300)
+    assert.equal(await picked(), 'Ghibli')
+    assert.equal(await p.locator('.pick-handle').count(), 2, 'a handle at each end')
+    assert.equal(await p.locator('.explain-pill').evaluate(x => Boolean(x.dataset.lg)), true, 'the Explain button is liquid glass')
+    const clear = await p.evaluate(() => { const b = document.querySelector('.explain-pill').getBoundingClientRect(), m = document.querySelector('.m[data-id="en"] .bubble').getBoundingClientRect(); return b.bottom <= m.top || b.top >= m.bottom })
+    assert.ok(clear, 'the button stands clear of the message, so every word stays free to touch')
+    assert.equal(await p.locator('.sheet').count(), 0, 'a double-tap alone asks nothing')
+    assert.equal(await asks(), 0)
+    await p.screenshot({ path: path.join(OUT, '0-picking.png') })
+    // slide from one word to another: both, whole; the button steps aside while sliding
+    const during = await slide(g, { x: mu.left + 6, y: mu.y }, { shot: '1-sliding.png' })
+    assert.ok(during.marks.length >= 1 && during.marks[0] > 40, 'the picked words are marked while sliding ' + JSON.stringify(during))
+    assert.equal(during.away, 1, 'the button steps aside while sliding')
+    assert.equal(await picked(), 'Ghibli museum')
+    // drag the end handle on to "Saturday", then the start handle back to "the"
+    const sat = await spot(p, 'en', 'Saturday'), the = await spot(p, 'en', 'the')
+    await slide(await handle('end'), { x: sat.left + 8, y: sat.y })
+    assert.equal(await picked(), 'Ghibli museum on Saturday', 'the end handle moved the end')
+    await slide(await handle('start'), { x: the.left + 3, y: the.y })
+    assert.equal(await picked(), 'the Ghibli museum on Saturday', 'the start handle moved the start')
+    await p.screenshot({ path: path.join(OUT, '1b-handles.png') })
+    // a tap on a word takes just that word
+    const tk = await spot(p, 'en', 'tickets')
+    await tapAt(tk); await sleep(250)
+    assert.equal(await picked(), 'tickets')
+    // held still on the message while picking: never the long-press menu
+    await touch('touchStart', mu.x, mu.y); await sleep(800); await touch('touchEnd', mu.x, mu.y); await sleep(250)
+    assert.equal(await p.locator('.ctx-preview').count(), 0, 'no long-press menu while picking')
+    assert.equal(await picked(), 'museum')
     assert.equal(await scrollTop(), top0, 'the page did not scroll while picking')
+    // a touch anywhere else stops picking, asking nothing
+    const other = await spot(p, 'o13', 'Earlier')
+    await tapAt(other); await sleep(300)
+    assert.deepEqual([await picked(), await p.locator('.pick-marks').count(), await p.locator('.explain-pill').count(), await asks()], ['', 0, 0, 0], 'stopped, nothing asked')
+    // again, and Explain asks
+    await tapAt(g); await sleep(110); await tapAt(g); await sleep(250)
+    await slide(g, { x: mu.left + 6, y: mu.y })
+    await confirm()
     await sheetOpen()
     assert.equal(await p.locator('.ctx-preview').count(), 0, 'the long-press menu stayed away')
     let asked = await p.evaluate(() => window.__asked.at(-1))
     assert.deepEqual([asked.text, asked.context, asked.question, asked.history], ['Ghibli museum', EN, '', []])
     assert.equal(await p.locator('.sheet .xp-pick').innerText(), 'Ghibli museum')
+    assert.equal(await p.locator('.explain-pill').count(), 0, 'the button goes once asked')
+    assert.equal(await p.locator('.pick-handle').count(), 0, 'the words stay marked, without handles')
+    assert.ok(await p.locator('.pick-mark').count() >= 1)
 
     // the steps as they happen
     await p.locator('.xp-step[data-step="search"][data-state="doing"]').waitFor()
@@ -202,18 +257,23 @@ const spot = (p, id, word, n = 0) => p.evaluate(([id, word, n]) => {
     assert.equal((await p.evaluate(() => window.__asked.at(-1))).text, '周六', 'a double-tap takes the word')
     await closeSheet()
     const ji = await spot(p, 'zh', '吉'), guan = await spot(p, 'zh', '馆')
-    await pick(ji, guan, { shot: '5-picking-zh.png' })
-    await sheetOpen()
-    assert.equal((await p.evaluate(() => window.__asked.at(-1))).text, '吉卜力美术馆', 'a slide takes characters')
-    await closeSheet()
+    await tapAt(zhou); await sleep(110); await tapAt(zhou); await sleep(250)
+    await slide(ji, guan, { shot: '5-picking-zh.png' })
+    assert.equal(await picked(), '吉卜力美术馆', 'a slide takes characters')
     const li = await spot(p, 'zh', '力')
-    await pick(ji, li)
+    await slide(await handle('end'), { x: li.x, y: li.y })
+    assert.equal(await picked(), '吉卜力', 'the end handle, a character at a time')
+    await confirm()
     await sheetOpen()
     assert.equal((await p.evaluate(() => window.__asked.at(-1))).text, '吉卜力')
     await closeSheet()
+    // the double-tap's finger can slide straight on, too
+    await pick(ji, guan)
+    await sheetOpen()
+    assert.equal((await p.evaluate(() => window.__asked.at(-1))).text, '吉卜力美术馆')
+    await closeSheet()
 
     // 4. Held still after the double-tap: still picking, never the long-press menu.
-    const tk = await spot(p, 'en', 'tickets')
     await pick(tk, null, { hold: 700 })
     await sheetOpen()
     assert.equal(await p.locator('.ctx-preview').count(), 0, 'no menu after holding')
@@ -244,8 +304,8 @@ const spot = (p, id, word, n = 0) => p.evaluate(([id, word, n]) => {
     await closeSheet()
 
     // 7. A single tap and a scroll still behave as before.
-    await touch('touchStart', g.x, g.y); await sleep(40); await touch('touchEnd', g.x, g.y); await sleep(500)
-    assert.equal(await p.locator('.sheet').count(), 0, 'one tap opens nothing')
+    await tapAt(g); await sleep(500)
+    assert.equal(await p.locator('.sheet').count() + await p.locator('.pick-marks').count(), 0, 'one tap opens nothing')
     // dark
     await p.evaluate(async () => (await import('/js/ui/appearance.js')).setTheme('dark'))
     await pick(g, { x: mu.left + 6, y: mu.y })
@@ -291,6 +351,6 @@ const spot = (p, id, word, n = 0) => p.evaluate(([id, word, n]) => {
     await plain.close()
 
     assert.deepEqual(errors, [], 'no page errors')
-    console.log('PASS: double-tap + slide picks words (whole words / single characters), no scroll and no menu while picking; the sheet shows each step, streams a cited answer with source cards and glass follow-ups that carry the conversation; closing stops it; errors retry; a mouse selection gets an Explain button; without the AI a double-tap still loves the message')
+    console.log('PASS: a double-tap starts picking (word, handles, Explain button; nothing asked); slides pick whole words / single characters, handles move one end, a tap takes a word, a touch elsewhere stops; Explain asks; no scroll and no menu while picking; the sheet shows each step, streams a cited answer with source cards and glass follow-ups that carry the conversation; closing stops it; errors retry; a mouse selection gets an Explain button; without the AI a double-tap still loves the message')
   } finally { await browser.close() }
 })().catch(e => { console.error('FAIL:', e); process.exit(1) })

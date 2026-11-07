@@ -1,8 +1,9 @@
 // Picking words out of a message's text (views/explain-pick.js): what a
-// double-tap takes, and how far a slide reaches. The double-tap takes the
-// word under the finger; sliding then takes whole words where words are
-// spaced, and single characters in Chinese and Japanese, so a phrase of
-// either can be picked exactly. Plain text offsets only — no DOM here.
+// double-tap takes, how far a slide reaches, and where a dragged handle
+// leaves the selection. The double-tap takes the word under the finger;
+// sliding takes whole words where words are spaced, and single characters
+// in Chinese and Japanese, so a phrase of either can be picked exactly.
+// Plain text offsets only — no DOM here.
 
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u
 const EDGE = /^[\s\p{P}]+|[\s\p{P}]+$/gu
@@ -77,6 +78,17 @@ export function pickSpan(text, segs, anchor, focus, moved) {
   const f = unitAt(text, segs, focus)
   if (!a || !f) return a || f
   return { start: Math.min(a.start, f.start), end: Math.max(a.end, f.end) }
+}
+
+/** One end of a span dragged by its handle: the other end (`fixed`, a
+ *  boundary) stays put, this one follows the finger a word or a character
+ *  at a time, and may cross over to the other side. */
+export function dragEdge(text, segs, fixed, focus) {
+  const u = unitAt(text, segs, focus)
+  if (!u) return null
+  if (u.start >= fixed) return { start: fixed, end: u.end }
+  if (u.end <= fixed) return { start: u.start, end: fixed }
+  return { start: Math.min(u.start, fixed), end: Math.max(u.end, fixed) }
 }
 
 /** The words of a span, without the spaces and punctuation at its ends. */
