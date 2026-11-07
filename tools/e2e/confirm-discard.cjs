@@ -99,8 +99,8 @@ const UNFOLDED = { width: 951, height: 669 }
         expect(`${combo}: tool toggle asks`, Boolean(await menuTitle()))
         await A.keyboard.press('Escape'); await sleep(400)
       }
-      if (await A.locator('.thread [data-item="info"]').isVisible()) {
-        await A.click('.thread [data-item="info"]'); await sleep(500)
+      if (await A.locator('.thread .thread-info').isVisible()) {
+        await A.click('.thread .thread-info'); await sleep(500)
         expect(`${combo}: details asks`, Boolean(await menuTitle()))
         await A.keyboard.press('Escape'); await sleep(400)
         expect(`${combo}: details cancel keeps board`, await A.evaluate(() => Boolean(document.querySelector('.pane-artifact .draw'))))

@@ -46,14 +46,14 @@ assert.ok(lb.me.width>=44&&lb.me.right<=lb.pane.right&&lb.me.top<lb.pane.top+120
 await shot('25-strip-open-list-chat')
 
 // Details slide the window one column along: the list leaves on the left, details arrive on the right.
-await p.click('.thread [data-item="info"]');await sleep(120)
+await p.click('.thread .thread-info');await sleep(120)
 const mid=await state();assert.ok(mid.boxes.thread.x>1&&mid.boxes.thread.x<444,'the strip is mid-slide '+mid.boxes.thread.x);assert.ok(mid.shown.includes('list')&&mid.shown.includes('artifact'),'both outgoing and incoming columns drawn while sliding')
 await settled('artifact');await p.locator('.art-content .profile').waitFor();s=await state()
 assert.deepEqual(s.roles,['hidden','hidden','leading','trailing']);assert.ok(Math.abs(s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.right-s.boxes.artifact.x)<1)
 // The conversation leads now, with no Back of its own — the details' Close beside it does the same, so there is
 // one way out and it is in the column being left; details is pressed.
-const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread [data-item="info"]').getAttribute('aria-pressed')}))
-assert.deepEqual(lead,{items:['audio','video','info'],info:'true'})
+const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread .thread-info').getAttribute('aria-pressed')}))
+assert.deepEqual(lead,{items:['audio','video'],info:'true'})
 assert.equal(await p.locator('.art-body [data-item="close"]').isVisible(),true,'details close beside the conversation')
 await sleep(200);await shot('26-strip-open-chat-details')
 
@@ -99,7 +99,7 @@ await p.setViewportSize({width:466,height:678});await unposed();await sleep(300)
 // Escape closes details from either column; with reduced motion the window moves without sliding.
 await p.setViewportSize({width:890,height:626});await unposed();await sleep(300)
 await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="draw"]');await settled('artifact');await p.locator('.pane-artifact .draw').waitFor();await p.keyboard.press('Escape');await settled('thread')
-await p.evaluate(()=>{document.documentElement.dataset.motion='reduce'});await p.click('.thread [data-item="info"]');assert.equal(await p.evaluate(()=>document.querySelector('.shell').dataset.anim),undefined);await settled('artifact')
+await p.evaluate(()=>{document.documentElement.dataset.motion='reduce'});await p.click('.thread .thread-info');assert.equal(await p.evaluate(()=>document.querySelector('.shell').dataset.anim),undefined);await settled('artifact')
 await p.click('.art-body [data-item="close"]');await settled('thread')
 await p.evaluate(()=>{delete document.documentElement.dataset.motion})
 

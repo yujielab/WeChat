@@ -217,11 +217,15 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   }
 
   // The conversation's heading is content: it stays with the messages on
-  // every display, and opens the chat's details.
+  // every display. Their photo and name open their page; the (i) at the end
+  // of the name's pill, plain and blue, opens the chat's details.
   const titleName = h('span', { class: 'name' })
   const titleSub = h('span', { class: 'sub' })
+  // (The photo is the name's twin for a finger: not a stop of its own for keys.)
   const titleAvatar = h('span', { class: 'thread-person' })
-  const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
+  const titleWho = h('button', { class: 'thread-who', type: 'button' }, titleName, titleSub)
+  const titleInfo = h('button', { class: 'thread-info', type: 'button', title: 'Chat info', 'aria-label': 'Chat info', 'aria-pressed': 'false' }, icon('info'))
+  const titleBtn = h('div', { class: 'glass glass-pill thread-title' }, titleAvatar, h('span', { class: 't' }, titleWho, titleInfo))
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   // The calls and the details sit in the heading, after the name; Back
@@ -244,13 +248,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       { id: 'back', icon: 'chevron-left', title: 'Back to chats', primary: true, badge: unreadBadge, onSelect: () => onBack() },
       { id: 'audio', icon: 'phone', title: 'Voice call', priority: 6, onSelect: () => current && onCall?.(current, 'audio') },
       { id: 'video', icon: 'video', title: 'Video call', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
-      { id: 'info', icon: 'info', title: 'Chat info', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
     ],
     arrange: axis => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
       const back = pane.dataset.layout === 'single' ? [['back']] : []
-      return axis === 'vertical' ? { top: [...back, ...calls, ['info']], bottom: [] } : { top: [...calls, ['info']], bottom: back }
+      return axis === 'vertical' ? { top: [...back, ...calls], bottom: [] } : { top: calls, bottom: back }
     }
   })
   const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': 'Chat actions' })
@@ -482,15 +485,18 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const empty = h('div', { class: 'thread-empty' })
   pane.append(empty, root)
 
-  // The name at the top: in a chat with one person, their page (views/moments.js);
-  // a group's details otherwise. (Chat info has the details either way.)
-  titleBtn.addEventListener('click', async () => {
+  // Their photo and name: in a chat with one person, their page
+  // (views/moments.js); a group's details otherwise. The (i): the details.
+  const openPerson = async () => {
     if (!current) return
     const c = chatInfo(current)
     const peer = c?.kind !== 'group' && c?.peer?.id
     if (!peer) return onInfo(current)
     ;(await import('./moments.js')).openMoments({ userId: peer, origin: titleBtn })
-  })
+  }
+  titleAvatar.addEventListener('click', openPerson)
+  titleWho.addEventListener('click', openPerson)
+  titleInfo.addEventListener('click', () => current && onInfo(current))
   jump.addEventListener('click', () => scrollToBottom(true))
 
   let lastWidth = 0, lastHeight = 0
@@ -1196,7 +1202,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
     if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} members` : '') : (c.online ? 'Online' : '')
-    titleBtn.setAttribute('aria-label', room || !c.peer?.id ? `${c.name}, view chat info` : `${c.name}, view profile`)
+    titleWho.setAttribute('aria-label', room || !c.peer?.id ? `${c.name}, view chat info` : `${c.name}, view profile`)
     // The unread badge on Back is status: it changes what overflows first.
     bars.refresh()
     arrangeBars()
@@ -2307,6 +2313,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     },
     bars,
     setTool: (id, active) => composer.setTool(id, active),
+    /** Whether the details are open beside it: the (i) says so. */
+    setInfoOpen: open => titleInfo.setAttribute('aria-pressed', String(Boolean(open))),
     sendDrawing: (blob, size) => sendDrawing(blob, size),
     /** A text to any conversation, open or not (an answer from views/banner.js). */
     sendText: (text, chat) => sendText(text, chat),

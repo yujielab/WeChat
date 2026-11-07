@@ -57,7 +57,7 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   // The field's button now sits inside the field's end (css/chat.css): the field (or the microphone after it) ends where New Chat does.
   const action=await A.evaluate(()=>{const c=document.querySelector('.thread:not([hidden]) .composer');const ends=[...c.querySelectorAll(':scope > .field, :scope > .composer-mic:not([hidden])')].map(e=>e.getBoundingClientRect().right);return{right:Math.max(...ends)}})
   // Details.
-  await A.locator('.thread:not([hidden]) [data-item="info"]').first().dispatchEvent('click');await sleep(900);e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the details have Back');at.details=e[0]
+  await A.locator('.thread:not([hidden]) .thread-info').click();await sleep(900);e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the details have Back');at.details=e[0]
   await A.locator('.art-body [data-item="back"]').tap();await sleep(800)
   // Drawing board.
   await A.locator('.thread:not([hidden]) .composer .composer-action').tap();await sleep(500)
@@ -91,7 +91,7 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   }
   await run('conversation → list',()=>A.locator('.thread:not([hidden]) [data-item="back"]').tap())
   await run('list → conversation',()=>A.locator('.row .row-inner').first().tap())
-  await run('conversation → details',()=>A.locator('.thread:not([hidden]) [data-item="info"]').first().dispatchEvent('click'))
+  await run('conversation → details',()=>A.locator('.thread:not([hidden]) .thread-info').click())
   await run('details → conversation',()=>A.locator('.art-body [data-item="back"]').first().tap())
 
   // A finger held half way through the swipe back: the same.
@@ -114,7 +114,7 @@ for(const [label,init] of [['unfolded',null],['unfolded on the Duo',safeRight84]
   const A=await seeded(label,inner,init,200+label.length)
   await open(A)
   assert.deepEqual((await exits(A)).map(x=>x.what+'@'+x.col),[],label+': beside the list there is no Back')
-  await A.locator('.thread:not([hidden]) [data-item="info"]').first().dispatchEvent('click');await sleep(900)
+  await A.locator('.thread:not([hidden]) .thread-info').click();await sleep(900)
   assert.deepEqual((await exits(A)).map(x=>x.what+'@'+x.col),['close@artifact'],label+': beside the details, their Close is the one way out')
   assert.equal(await A.evaluate(()=>[...document.querySelectorAll('.thread:not([hidden]) .bar-item[data-item="back"]')].filter(e=>e.getClientRects().length).length),0,label+': the conversation has no Back of its own')
   await A.screenshot({path:path.join(OUT,`86-one-way-out-${label.includes('Duo')?'duo':'plain'}.png`)})

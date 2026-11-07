@@ -322,7 +322,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
 
   function syncToggles() {
     const art = strip.focus === ARTIFACT ? artifact.current : null
-    thread.bars.set('info', { state: { active: art?.kind === 'info' } })
+    thread.setInfoOpen(art?.kind === 'info')
     thread.setTool('draw', art?.kind === 'draw')
   }
 

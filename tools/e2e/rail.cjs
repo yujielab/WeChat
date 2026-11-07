@@ -91,7 +91,7 @@ assert.equal(await D.locator('.thread:not([hidden]) .composer .bar-item').count(
 await D.screenshot({path:path.join(OUT,'78-rail-thread.png')})
 // A call from the rail reaches the call.
 // The details open in place of the conversation, with Back in the rail.
-await D.locator('.thread:not([hidden]) .duo-rail [data-item="info"]').tap();await sleep(800)
+await D.locator('.thread:not([hidden]) .thread-info').tap();await sleep(800)
 r=await rail(D,'.art-body > .duo-rail');assert.ok(r&&ids(r).length===1&&['back','close'].includes(ids(r)[0]),'details: '+JSON.stringify(r&&ids(r)))
 await D.screenshot({path:path.join(OUT,'79-rail-details.png')})
 await D.locator('.art-body .duo-rail .bar-item').first().tap();await sleep(800)
@@ -120,7 +120,7 @@ assert.ok(await P.locator('.pane-list .list-bottombar .bar-item').count()>=1,'th
 await open(P)
 assert.equal(await rail(P,'.thread:not([hidden]) > .duo-rail'),null)
 assert.ok(await P.locator('.thread:not([hidden]) .composer .bar-item[data-item="back"]').count(),'Back leads the bar at the foot')
-assert.ok(await P.locator('.thread:not([hidden]) .thread-nav .bar-item[data-item="info"]').count(),'the details in the heading')
+assert.ok(await P.locator('.thread:not([hidden]) .thread-nav .thread-title .thread-info').count(),'the details in the heading, in the name\'s pill')
 await P.screenshot({path:path.join(OUT,'82-phone-bars.png')})
 
 // 7. Unfolded Duo: the list beside the conversation keeps its bar; the conversation, in the column, has the rail.
@@ -132,7 +132,7 @@ r=await rail(U,'.thread:not([hidden]) > .duo-rail');assert.ok(r);assert.deepEqua
 for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(890-49))<=1,'open, under the clock too '+JSON.stringify(i))
 for(const i of r.items)assert.ok(i.x>=890-84-.5,'in the system column '+i.id)
 await U.screenshot({path:path.join(OUT,'83-rail-unfolded.png')})
-await U.locator('.thread:not([hidden]) .duo-rail [data-item="info"]').tap();await sleep(900)
+await U.locator('.thread:not([hidden]) .thread-info').tap();await sleep(900)
 assert.ok(await rail(U,'.art-body > .duo-rail'),'the details column has the rail')
 assert.equal(await rail(U,'.thread:not([hidden]) > .duo-rail'),null,'and the conversation beside it, now leading, has its bar')
 assert.ok(await U.locator('.thread:not([hidden]) .composer .bar-item[data-item="back"], .thread:not([hidden]) .thread-nav .bar-item').count())
