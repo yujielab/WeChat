@@ -1030,6 +1030,8 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 /* 直接落在默认壁纸上的小字（已读 / 已发送、加载更早消息）：压到涂鸦线条上会掉到 3.9:1，
    用壁纸色托一圈底，和有背景时的做法一样。 */
 .thread:not(.has-backdrop) :is(.m-meta, .load-older) { text-shadow: 0 0 6px var(--wallpaper), 0 0 2px var(--wallpaper); }
+/* Time and ticks inside a bubble sit on the bubble's own colour: no halo. */
+.thread .bubble > .m-meta:not(.media-badge) { text-shadow: none; }
 
 /* Step 3 (code side): time and ticks inside the bubble, bottom-right.
    Baseline only — colours, spacing and the inline-vs-own-line fit are the
