@@ -1,6 +1,6 @@
 // Service worker: offline app shell, a media cache, and Web Push.
 
-const SHELL = 'shell-v72'
+const SHELL = 'shell-v73'
 const MEDIA = 'media-v1'
 const MEDIA_MAX = 400
 const SHELL_FILES = [
@@ -47,6 +47,7 @@ const SHELL_FILES = [
   '/css/skeleton.css',
   '/css/guides.css',
   '/css/reveal.css',
+  '/css/explain.css',
   '/js/boot.js',
   '/js/viewport-boot.js',
   '/js/main.js',
@@ -98,22 +99,33 @@ const SHELL_FILES = [
   '/js/views/stickers.js',
   '/js/views/predict.js',
   '/js/views/insights.js',
+  '/js/views/explain.js',
+  '/js/views/explain-pick.js',
   '/js/views/memory.js',
   '/js/views/memory-model.js',
   '/js/views/avatar-editor.js',
   '/js/ui/framing.js',
   '/js/ui/columns.js',
   '/js/ui/posture.js',
+  '/js/ui/text-pick.js',
   '/js/views/moments.js',
   '/js/views/moments-editor.js',
   '/js/views/people.js',
   '/js/views/memories.js',
   '/js/views/backdrops.js',
-  '/js/ui/liquid-glass/surface.js',
+  '/js/ui/liquid-glass/buttons.js',
+  '/js/ui/liquid-glass/engine.js',
+  '/js/ui/liquid-glass/paint.js',
+  '/js/ui/liquid-glass/tone.js',
   '/js/ui/liquid-glass/index.js',
   '/js/ui/liquid-glass/renderer.js',
   '/js/ui/liquid-glass/shaders.js',
-  '/icons/icon.svg'
+  '/js/ui/liquid-glass/tilt.js',
+  '/js/ui/liquid-glass/tilt-math.js',
+  '/favicon.ico',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png'
 ]
 
 self.addEventListener('install', event => {
