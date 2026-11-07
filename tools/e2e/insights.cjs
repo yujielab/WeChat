@@ -1,10 +1,11 @@
-// Smart notifications: the sparkles button at the top of the list opens cards made from what recent
-// conversations say (a ride, a plan, getting home, things that will happen, mood, something going on, a
-// photo's place, a summary, likes) and the weather where they are — ten kinds. The three most pressing
-// stand and the rest stack beneath; the stack opens into the whole list (现在) and closes again. A
-// conversation with something new is read while you look; a card opens its conversation; the
-// conversation's details show its own cards; Settings can switch it off. The local server has no Workers
-// AI, so its answers are stood in for here; accounts and conversations are real.
+// Smart panels: no button and no sheet — when something in recent one-to-one conversations is timely (a
+// ride under way, a plan in the next hours, someone just home), cards made from it come to the top of
+// the chat list by themselves ("For you"), and are gone when nothing is. Chips choose between the kinds
+// there are (Plans, People, Photos, Weather), the most pressing leading; each card has what and when on
+// top, dashed rules around its rows, and one action at the foot (Open chat, Directions, Say hi, View
+// photo). A conversation that moved on is read again; a card opens its conversation; the conversation's
+// details show its own cards; searching hides the panel; Settings can switch it off. The local server
+// has no Workers AI, so its answers are stood in for here; accounts and conversations are real.
 // npm run dev:e2e; node tools/e2e/insights.cjs [outdir]
 const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path')
 const BASE=process.env.BASE||'http://127.0.0.1:8787',OUT=process.argv[2]||path.join(process.cwd(),'screenshots-insights')
@@ -17,7 +18,7 @@ const PHOTO='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.
 ;(async()=>{const browser=await chromium.launch();try{
 const errors=[]
 async function account(username,display){
-  const ctx=await browser.newContext({viewport:{width:466,height:678},locale:'zh-CN',serviceWorkers:'block',deviceScaleFactor:2})
+  const ctx=await browser.newContext({viewport:{width:466,height:678},locale:'en-US',serviceWorkers:'block',deviceScaleFactor:2})
   const p=await ctx.newPage();p.on('pageerror',e=>errors.push(`[${display}] ${e.message}`));p.setDefaultTimeout(10000)
   await p.goto(BASE)
   assert.equal(await p.evaluate(async b=>(await fetch('/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)})).status,{username,password:'hunter22',display}),200)
@@ -25,100 +26,124 @@ async function account(username,display){
   return p
 }
 const api=(p,url,body)=>p.evaluate(async([url,body])=>(await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json(),[url,body])
-const A=await account(`na_${uniq}`,'小明'),B=await account(`nb_${uniq}`,'小红'),C=await account(`nc_${uniq}`,'小刚')
+const A=await account(`na_${uniq}`,'Ming'),B=await account(`nb_${uniq}`,'Hong'),C=await account(`nc_${uniq}`,'Gang')
 const r1=(await api(A,'/api/dm',{username:`nb_${uniq}`})).room,r2=(await api(A,'/api/dm',{username:`nc_${uniq}`})).room
-await api(C,'/api/messages',{room:r2.id,type:'text',text:'周末去爬山吗'})
-await api(B,'/api/messages',{room:r1.id,type:'text',text:'我到杭州了'})
+await api(C,'/api/messages',{room:r2.id,type:'text',text:'Hiking this weekend?'})
+await api(B,'/api/messages',{room:r1.id,type:'text',text:'Landed in Hangzhou'})
 const peer=r=>({id:r.peer.id,display:r.peer.display,avatar:''})
 const now=Date.now()
-const INSIGHT={
-  city:'杭州',
-  upcoming:[{what:'快递送到',at:now+90*MIN,ref:null}],
-  ride:{stage:'等车',plate:'浙A·12345',car:'白色比亚迪',pickup:now+8*MIN,dropoff:null,to:'西湖',ref:null},
-  home:{state:'出门',at:now-20*MIN,ref:null},
-  meetup:{place:'星巴克（西湖店）',at:now+150*MIN,ref:null},
-  mood:{label:'疲惫',note:'说今天加班好累',ref:null},
-  photos:[{ref:'p1',url:PHOTO,at:now-30*MIN,place:'海边',reading:'日落时分的沙滩'}],
-  summary:'她到杭州了，约你下午在星巴克见',
-  ongoing:[{what:'经期',since:now-DAY,until:null,note:'前天说的',ref:null}],
-  likes:['火锅','猫'],dislikes:['香菜'],hobbies:['摄影']
+const TIMELY={
+  city:'Hangzhou',
+  upcoming:[{what:'Parcel arrives',at:now+90*MIN,ref:null}],
+  ride:{stage:'waiting',plate:'ZA·12345',car:'White BYD',pickup:now+8*MIN,dropoff:null,to:'West Lake',ref:null},
+  home:{state:'out',at:now-20*MIN,ref:null},
+  meetup:{place:'Starbucks West Lake',at:now+150*MIN,ref:null},
+  mood:{label:'tired',note:'Long day at work',ref:null},
+  photos:[{ref:'p1',url:PHOTO,at:now-30*MIN,place:'The beach',reading:'Sand at sunset'}],
+  summary:'She is in Hangzhou and wants to meet this afternoon',
+  ongoing:[],
+  likes:['hotpot','cats'],dislikes:['coriander'],hobbies:['photography']
 }
-const WEATHER={temp:24,unit:'c',text:'晴',symbol:'sun',isDay:true,high:25,low:15,next:{kind:'sunset',time:'17:28'},place:'杭州',who:'小红',room:r1.id}
-let refreshed=0
-// Workers AI's part, stood in for: 小红's conversation has been read; 小刚's has something new.
+// Nothing pressing: what they like and a recap only.
+const QUIET={city:'',upcoming:[],ride:null,home:null,meetup:null,mood:null,photos:[],summary:'Talked about books',ongoing:[],likes:['books'],dislikes:[],hobbies:[]}
+const WEATHER={temp:24,unit:'c',text:'Clear',symbol:'sun',isDay:true,high:25,low:15,next:{kind:'sunset',time:'17:28'},place:'Hangzhou',who:'Hong',room:r1.id}
+let insight=QUIET,gang=null,refreshed=0,asked=0
+// Workers AI's part, stood in for: Hong's conversation has been read; Gang's has something new.
 await A.route('**/api/insights**',async route=>{
   const url=new URL(route.request().url())
-  if(url.pathname==='/api/insights/refresh'){refreshed++;await sleep(500);return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,room:r2.id,peer:peer(r2),stale:false,at:Date.now(),insight:{city:'',upcoming:[],ride:null,home:null,meetup:null,mood:{label:'开心',note:'说周末终于放晴了',ref:null},photos:[],summary:'约你周末去爬山',ongoing:[],likes:['爬山'],dislikes:[],hobbies:['徒步']}})})}
+  if(url.pathname==='/api/insights/refresh'){refreshed++;await sleep(300);gang={...QUIET,mood:{label:'happy',note:'Sun is out for the weekend',ref:null},summary:'Asked you to go hiking this weekend',likes:['hiking']};return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,room:r2.id,peer:peer(r2),stale:false,at:Date.now(),insight:gang})})}
+  asked++
   const only=url.searchParams.get('room')
-  await sleep(350)
-  const rooms=[{room:r1.id,peer:peer(r1),stale:false,at:now,insight:INSIGHT},{room:r2.id,peer:peer(r2),stale:refreshed===0,at:0,insight:null}]
+  await sleep(200)
+  const rooms=[{room:r1.id,peer:peer(r1),stale:false,at:now,insight},{room:r2.id,peer:peer(r2),stale:!gang,at:gang?now:0,insight:gang}]
   return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,enabled:true,rooms:only?rooms.filter(r=>r.room===only):rooms,weather:only?null:WEATHER})})
 })
+const setAssist=on=>A.evaluate(async on=>{const{state}=await import('/js/store.js');state.assist=on;window.dispatchEvent(new Event('insights-pref'))},on)
+const panel=A.locator('.pane-list .ip')
 await A.reload();await A.waitForSelector('.row')
 
-// 1. Where the server can't read (no Workers AI), no way in; where it can, the sparkles at the top of the list.
-const offer=on=>A.evaluate(async on=>{const{state}=await import('/js/store.js');state.assist=on;window.dispatchEvent(new Event('insights-pref'))},on)
-await offer(false);assert.equal(await A.locator('.list-insights').isVisible(),false,'not offered without the server reading')
-await offer(true);assert.equal(await A.locator('.list-insights').isVisible(),true)
-await A.locator('.list-insights').click()
+// 1. No entry button anywhere, and no panel where the server can't read.
+assert.equal(await A.locator('.list-insights').count(),0,'no way in: it comes by itself')
+await setAssist(false);await sleep(400)
+assert.equal(await panel.isVisible(),false,'not without the server reading')
+// 2. Nothing timely (a recap, what they like): asked, read the conversation that moved on, still nothing shown.
+await setAssist(true)
+await sleep(1200)
+assert.ok(asked>=1,'asked what is known');assert.equal(refreshed,1,'the conversation that moved on was read')
+assert.equal(await panel.isVisible(),false,'nothing timely: no panel')
+await A.screenshot({path:path.join(OUT,'65-insights-quiet.png')})
 
-// 2. Shapes while it loads, then the three most pressing stand, the rest stacked beneath.
-await A.locator('.sheet .ins-skeleton').first().waitFor()
-await A.locator('.sheet .ins-card[data-kind]').first().waitFor()
-const standing=()=>A.evaluate(()=>[...document.querySelectorAll('.sheet .ins-list > .ins-card')].map(c=>c.dataset.kind))
-assert.deepEqual(await standing(),['ride','meetup','upcoming'],'a ride, then the plan, then what happens soonest')
-assert.ok(await A.locator('.sheet .ins-more').count(),'the rest stacked')
-// 3. 小刚's conversation has something new: read now, while you look.
-assert.match(await A.locator('.sheet .ins-status').textContent(),/正在读最近的 1 个聊天/)
-await A.locator('.sheet .ins-status').waitFor({state:'hidden'})
-assert.equal(refreshed,1)
-// A card's sentence as read (a picture's initial isn't part of it).
-const words=(sel,root='.sheet')=>A.evaluate(sel=>[...document.querySelectorAll(sel)].map(n=>{const c=n.cloneNode(true);c.querySelectorAll('.avatar').forEach(a=>a.remove());return c.textContent}),`${root} ${sel}`)
-const line=async kind=>(await words(`.ins-card[data-kind="${kind}"] .ins-line`))[0]
-assert.match(await line('ride'),/^接车 小红 的车 浙A·12345 · 白色比亚迪 · 约 \d\d:\d\d 到上车点$/)
-assert.match(await line('meetup'),/^赴约 今天 \d\d:\d\d 在 星巴克（西湖店） 见 小红$/)
-assert.match(await A.locator('.sheet .ins-card[data-kind="meetup"] .ins-sub').textContent(),/^还有 (2|3) 小时$/)
-// 4. The weather where she is.
-assert.equal(await A.locator('.sheet .ins-weather-head').textContent(),'杭州 · 小红那边')
-assert.deepEqual(await A.locator('.sheet .ins-tile').allTextContents(),['晴24°C','日落17:28'])
-await sleep(300);await A.screenshot({path:path.join(OUT,'65-insights-stack.png')})
+// 3. Something timely: the panel comes to the top of the list, the most pressing kind leading.
+insight=TIMELY
+await A.evaluate(async()=>(await import('/js/views/insights.js')).setInsightsPref(true))
+await panel.waitFor()
+assert.equal(await A.locator('.ip-title').textContent(),'For you')
+const chips=()=>A.evaluate(()=>[...document.querySelectorAll('.pane-list .ip-chip')].map(c=>`${c.textContent}${c.getAttribute('aria-selected')==='true'?'*':''}`))
+assert.deepEqual(await chips(),['Plans*','People','Photos','Weather'])
+const kinds=()=>A.evaluate(()=>[...document.querySelectorAll('.pane-list .ip-cards > .ip-card')].map(c=>c.dataset.kind))
+assert.deepEqual(await kinds(),['ride','meetup','upcoming','home'],'a ride, then the plan, then what happens soonest, then out')
+// Above the chats, under the notes.
+const order=await A.evaluate(()=>{const s=document.querySelector('.pane-list .list-scroll');const i=el=>[...s.children].indexOf(el);return [i(s.querySelector('.notes')),i(s.querySelector('.ip')),i(s.querySelector('.list-section'))]})
+assert.ok(order[0]<order[1]&&order[1]<order[2],`order ${order}`)
+// A card: what and when on top, rows between dashed rules, one action.
+const card=A.locator('.ip-card[data-kind="ride"]')
+assert.equal(await card.locator('.ip-state').textContent(),'Ride')
+assert.match(await card.locator('.ip-when').textContent(),/^in [78] min$/)
+assert.deepEqual(await card.locator('.ip-label').allTextContents(),['Hong','To West Lake'])
+assert.equal((await card.locator('.ip-value').allTextContents())[0],'ZA·12345')
+assert.equal(await card.locator('.ip-act').textContent(),'Open chat')
+assert.equal(await card.locator('.ip-rows').evaluate(e=>getComputedStyle(e).borderTopStyle),'dashed')
+assert.equal(await A.locator('.ip-card[data-kind="meetup"] .ip-act').textContent(),'Directions')
+assert.equal(await A.locator('.ip-card[data-kind="home"] .ip-act').textContent(),'Say hi')
+// The cards sit side by side and scroll sideways; the page doesn't.
+const geo=await A.evaluate(()=>{const c=document.querySelector('.pane-list .ip-cards');return{sw:c.scrollWidth,cw:c.clientWidth,doc:document.documentElement.scrollWidth,vw:innerWidth}})
+assert.ok(geo.sw>geo.cw,'cards scroll sideways');assert.ok(geo.doc<=geo.vw,'no page overflow')
+await sleep(500);await A.screenshot({path:path.join(OUT,'66-insights-panel.png')})
 
-// 5. The stack opens into the whole list — every kind — and closes again.
-await A.locator('.sheet .ins-more').click();await sleep(500)
-assert.equal(await A.locator('.sheet .ins-head').textContent(),'现在')
-const kinds=await A.evaluate(()=>[...document.querySelectorAll('.sheet .ins-list > .ins-card')].map(c=>c.dataset.kind))
-assert.deepEqual(kinds,['ride','meetup','upcoming','home','mood','mood','ongoing','photo','summary','summary','likes','likes'])
-assert.deepEqual([...new Set(kinds)].length+1,10,'nine kinds of card and the weather')
-for(const [kind,re] of [['home',/^出门 小红 \d\d:\d\d 出门了$/],['upcoming',/^提醒 快递送到 · 今天 \d\d:\d\d$/],['mood',/^关心 小红 似乎有些累$/],['ongoing',/^留意 小红 经期 · 第 2 天$/],['photo',/^看看 小红 的照片像是在 海边$/],['summary',/^回顾 小红：她到杭州了，约你下午在星巴克见$/],['likes',/^记住 小红 喜欢 火锅、猫；不喜欢 香菜$/]])assert.match(await line(kind),re,kind)
-assert.ok((await words('.ins-card[data-kind="mood"] .ins-line')).includes('关心 小刚 心情不错'),'小刚\'s, once read')
-assert.equal(await A.locator('.sheet .ins-thumb').getAttribute('src'),PHOTO)
-await A.screenshot({path:path.join(OUT,'66-insights-open.png'),fullPage:false})
-await A.locator('.sheet .ins-thumb').scrollIntoViewIfNeeded();await sleep(200);await A.screenshot({path:path.join(OUT,'67-insights-open-lower.png')})
-await A.locator('.sheet .ins-fold').scrollIntoViewIfNeeded();await A.locator('.sheet .ins-fold').click();await sleep(300)
-assert.deepEqual(await standing(),['ride','meetup','upcoming'],'closed again')
+// 4. Chips choose the kind: People (Gang's, read), Photos, Weather.
+await A.locator('.ip-chip[data-group="people"]').click()
+assert.deepEqual(await chips(),['Plans','People*','Photos','Weather'])
+assert.deepEqual(await kinds(),['mood','mood','summary','summary','likes','likes'])
+assert.ok((await A.locator('.ip-card[data-kind="mood"] .ip-label').allTextContents()).includes('In a good mood'),'Gang\'s, once read')
+await A.locator('.ip-chip[data-group="photos"]').click()
+assert.equal(await A.locator('.ip-card[data-kind="photo"] .ip-thumb').getAttribute('src'),PHOTO)
+assert.equal(await A.locator('.ip-card[data-kind="photo"] .ip-act').textContent(),'View photo')
+await A.locator('.ip-chip[data-group="weather"]').click()
+assert.equal(await A.locator('.ip-weather .ip-state').textContent(),'Hangzhou')
+assert.deepEqual(await A.locator('.ip-weather .ip-value').allTextContents(),['24°C','17:28'])
+assert.equal(await A.locator('.ip-weather .ip-act').count(),0)
+await sleep(400);await A.screenshot({path:path.join(OUT,'67-insights-weather.png')})
 
-// 6. Dark.
-await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setTheme('dark'));await sleep(400)
+// 5. Dark.
+await A.locator('.ip-chip[data-group="plans"]').click()
+await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setTheme('dark'));await sleep(500)
 await A.screenshot({path:path.join(OUT,'68-insights-dark.png')})
 await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setTheme('light'));await sleep(200)
 
-// 7. A card opens its conversation.
-await A.locator('.sheet .ins-card[data-kind="meetup"]').click()
-await A.waitForFunction(id=>import('/js/store.js').then(({state})=>state.open===id),r1.id)
-await A.waitForSelector('.thread:not([hidden]) .msgs .m');await A.locator('.sheet').waitFor({state:'detached'})
+// 6. Searching keeps to its results.
+await A.locator('.search-pill input').focus();await sleep(300)
+assert.equal(await panel.isVisible(),false,'hidden while searching')
+await A.locator('.search-cancel').click();await sleep(300)
+assert.equal(await panel.isVisible(),true,'back after searching')
 
-// 8. Its details show its own cards.
-await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.art-body .ins-section .ins-card[data-kind]').first().waitFor()
-const own=await A.evaluate(()=>[...document.querySelectorAll('.art-body .ins-section .ins-card')].map(c=>c.dataset.kind))
-assert.deepEqual(own,['ride','meetup','upcoming','home','mood','ongoing','photo','summary','likes'],'only 小红\'s')
+// 7. A card opens its conversation.
+await A.locator('.ip-card[data-kind="ride"] .ip-act').click()
+await A.waitForFunction(id=>import('/js/store.js').then(({state})=>state.open===id),r1.id)
+await A.waitForSelector('.thread:not([hidden]) .msgs .m')
+
+// 8. Its details show its own cards, without "Open chat".
+await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.art-body .ins-section .ip-card[data-kind]').first().waitFor()
+const own=await A.evaluate(()=>[...document.querySelectorAll('.art-body .ins-section .ip-card')].map(c=>c.dataset.kind))
+assert.deepEqual(own,['ride','meetup','upcoming','home','mood','photo','summary','likes'],'only Hong\'s')
+assert.ok(!(await A.locator('.art-body .ins-section .ip-act').allTextContents()).includes('Open chat'))
 await sleep(300);await A.screenshot({path:path.join(OUT,'69-insights-details.png')})
 
-// 9. Switched off in Settings: no way in, nothing in the details.
+// 9. Switched off in Settings: gone.
 await A.evaluate(async()=>(await import('/js/views/insights.js')).setInsightsPref(false))
 await A.reload();await A.waitForSelector('.row')
-await offer(true)
-assert.equal(await A.locator('.list-insights').isVisible(),false)
+await setAssist(true);await sleep(800)
+assert.equal(await panel.isVisible(),false)
 
 assert.deepEqual(errors,[])
-console.log('PASS: smart notifications: the sparkles at the top of the list (only where the server can read); shapes while loading; ride, plan and what happens soonest stand, the rest stacked; a conversation with something new read while you look; the weather where she is; the stack opens into all ten kinds (现在) and closes; dark; a card opens its conversation; its details show only its cards; off in Settings, no way in')
+console.log('PASS: smart panels: no entry button; not without the server reading; nothing timely, no panel (the conversation that moved on still read); timely, at the top of the list under the notes with the most pressing kind leading; a card\'s state, time, dashed rows and action; cards scroll sideways; chips choose People, Photos, Weather; dark; hidden while searching; a card opens its conversation; its details show only its cards without Open chat; off in Settings, gone')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)})

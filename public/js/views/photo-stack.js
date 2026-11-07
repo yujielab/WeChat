@@ -1,5 +1,6 @@
 // Adjacent, completed photos can share one visual album without changing
 // their message identities. The thread decides which messages may group.
+import { reveal } from '../ui/reveal.js'
 import { h, icon } from '../ui/dom.js'
 import { mediaSize } from './bubbles.js'
 import { openViewer } from './viewer.js'
@@ -29,7 +30,8 @@ export function renderPhotoStack(messages, ctx = {}, { onExpand, sender } = {}) 
   const cover = h('img', { src: first.url, alt: first.name || 'Photo album cover', decoding: 'async', draggable: false, width, height })
   const fallback = h('span', { class: 'photo-stack-fallback', hidden: true, 'aria-hidden': 'true' }, icon('photo'))
   cover.addEventListener('error', () => { cover.hidden = true; fallback.hidden = false }, { once: true })
-  cover.addEventListener('load', () => cover.classList.add('loaded'), { once: true })
+  // Arriving, it opens out of its frame (ui/reveal.js), once the frame is in the page.
+  queueMicrotask(() => cover.parentElement && reveal(cover, cover.parentElement))
   const layers = photos.slice(1, 3).reverse().map((photo, i, list) => {
     const depth = list.length - i
     return h('span', { class: 'photo-stack-layer', style: { '--depth': depth }, 'aria-hidden': 'true' },

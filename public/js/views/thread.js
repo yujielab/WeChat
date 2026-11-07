@@ -3,6 +3,7 @@
 import { h, icon, clear, reducedMotion, announce, edge, storage } from '../ui/dom.js'
 import { ghost, filler } from '../ui/skeleton.js'
 import { tip } from '../ui/guides.js'
+import { setProgress } from '../ui/reveal.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { threadTime, callSummary, sendState, groupState } from '../ui/format.js'
 import { haptic } from '../ui/haptics.js'
@@ -1161,18 +1162,35 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     for (const k of ['room', 'name', 'w', 'h', 'dur', 'localId']) if (info[k]) qs.set(k, info[k])
     let res
     try {
-      res = await fetch(`/api/media/upload?${qs}`, {
-        method: 'POST', credentials: 'same-origin', signal: info.signal,
-        headers: { 'content-type': file.type || 'application/octet-stream' }, body: file
-      })
+      res = await sendFile(`/api/media/upload?${qs}`, file, { signal: info.signal, onProgress: info.progressId ? p => setProgress(info.progressId, p) : null })
     } catch (err) {
       // No network, or it took too long: the outbox waits this out.
       if (err?.name === 'AbortError' || err?.name === 'TimeoutError') throw Object.assign(new Error('Upload timed out'), { name: 'AbortError' })
       throw new ApiError('Network connection unavailable', 0)
     }
-    const data = await res.json().catch(() => ({}))
+    const data = res.data || {}
     if (!res.ok || !data.ok) throw new ApiError(data.error || 'Upload failed', res.status, data)
     return data
+  }
+  // A file to the server, saying how far it has got (fetch can't): { ok, status, data }.
+  function sendFile(url, file, { signal, onProgress } = {}) {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest()
+      x.open('POST', url)
+      x.withCredentials = true
+      x.setRequestHeader('content-type', file.type || 'application/octet-stream')
+      x.responseType = 'json'
+      if (onProgress) x.upload.addEventListener('progress', e => { if (e.lengthComputable) onProgress(e.loaded / e.total) })
+      x.addEventListener('load', () => resolve({ ok: x.status >= 200 && x.status < 300, status: x.status, data: x.response }))
+      x.addEventListener('error', () => reject(new TypeError('Network error')))
+      x.addEventListener('timeout', () => reject(Object.assign(new Error('Timed out'), { name: 'TimeoutError' })))
+      x.addEventListener('abort', () => reject(Object.assign(new Error('Aborted'), { name: signal?.reason?.name === 'TimeoutError' ? 'TimeoutError' : 'AbortError' })))
+      if (signal) {
+        if (signal.aborted) return x.abort()
+        signal.addEventListener('abort', () => x.abort(), { once: true })
+      }
+      x.send(file)
+    })
   }
 
   /** A reply's own record of what it answers, until the server's comes back. */
@@ -1216,11 +1234,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   outbox.connect({
     post: body => api.post('/api/messages', body, { signal: AbortSignal.timeout?.(15000) }),
     blob: cid => files.get(fileKey(cid)),
-    upload: (e, file) => uploadMedia('image', file, { room: e.chat, name: e.media.name, w: e.media.w, h: e.media.h, localId: e.media.key || e.cid, signal: AbortSignal.timeout?.(60000) }),
+    upload: (e, file) => uploadMedia('image', file, { room: e.chat, name: e.media.name, w: e.media.w, h: e.media.h, localId: e.media.key || e.cid, progressId: e.cid, signal: AbortSignal.timeout?.(60000) }),
     forget: cid => { files.del(fileKey(cid)) },
     onLanded: (e, r) => {
       retrying.delete(`local:${e.cid}`)
       retryFiles.delete(e.cid)
+      setProgress(e.cid, null)
       if (!r?.msg) return
       const m = normMsg(r.msg)
       replaceMessage(`local:${e.cid}`, m)
@@ -1228,6 +1247,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       if (state.chats.get(e.chat)?.last?.id === `local:${e.cid}`) bumpList(m)
     },
     onFailed: (e, err) => {
+      setProgress(e.cid, null, { sent: false })
       const t = thread(e.chat)
       const m = t.byId.get(`local:${e.cid}`) || (e.local && { ...e.local })
       retrying.delete(`local:${e.cid}`)
@@ -1507,7 +1527,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
           fullSrc: preview || m.url,
           w: m.w,
           h: m.h,
-          findThumb: () => nodes.get(m.id)?.querySelector('.bubble img')
+          findThumb: () => nodes.get(m.id)?.querySelector('.bubble img'),
+          ...photoActions(m)
         })
         break
       }
@@ -1544,6 +1565,21 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   })
 
   let lastTap = {}
+
+  // In the viewer, a chat's photo can be answered (a reply quoting it, from a
+  // field under it) and loved, with how many have — like holding it would.
+  function photoActions(m) {
+    const now = () => thread(m.chat).byId.get(m.id) || m
+    if (!reactable(now())) return {}
+    const hearts = () => (now().reactions || []).find(g => g.emoji === '❤️')
+    return {
+      actions: [
+        { id: 'reply', icon: 'bubble', label: 'Reply', onSelect: v => v.focusReply() },
+        { id: 'like', icon: 'heart', label: 'Love', read: () => ({ count: hearts()?.users.length || 0, on: Boolean(hearts()?.users.includes(state.me?.id)) }), onSelect: () => react(now(), '❤️') }
+      ],
+      reply: { placeholder: 'Reply to this photo', sent: 'Replied', onSend: text => sendText(text, m.chat, m.id) }
+    }
+  }
 
   async function react(m, emoji, { burst = false } = {}) {
     const chat = m.chat

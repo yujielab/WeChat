@@ -20,6 +20,7 @@
 // everyone. On your own, a round button at the foot shares a new one.
 
 import { ghost, filler } from '../ui/skeleton.js'
+import { reveal } from '../ui/reveal.js'
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { api } from '../api.js'
 import { state, upsertRoom } from '../store.js'
@@ -355,7 +356,7 @@ function openProfile({ userId, tab, origin, back, page: asPage = false, swap = f
       const ratio = x.w && x.h ? Math.min(1.5, Math.max(0.66, x.w / x.h)) : 1
       const card = h('button', { class: 'mo-card', type: 'button', dataset: { id: m.id }, 'aria-label': m.text || 'Moment' },
         h('span', { class: ['mo-card-pic', x.type === 'video' && 'video'], style: { aspectRatio: String(ratio) } },
-          x.type === 'video' ? h('video', { src: x.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' }) : h('img', { src: x.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
+          x.type === 'video' ? h('video', { src: x.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' }) : revealed(h('img', { src: x.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false })),
           x.type === 'video' ? h('span', { class: 'mo-play' }, icon('play')) : m.media.length > 1 ? h('span', { class: 'mo-count' }, `${m.media.length}`) : null),
         m.text ? h('span', { class: 'mo-card-text' }, m.text) : null,
         h('span', { class: 'mo-card-foot' }, avatar(m.user.avatar, m.user.display, { size: 20 }), h('span', { class: 'mo-card-name' }, nameOf(m.user)), h('span', { class: 'mo-card-likes' }, icon('heart'), m.likes.length ? String(m.likes.length) : '')))
@@ -471,7 +472,19 @@ function card(moment, { owner }) {
 
   // ------------------------------------------------------------ what was shared
   const burst = h('span', { class: 'mo-burst', 'aria-hidden': 'true' }, icon('heart'))
-  const pictures = m.media.length ? mediaEl(m, { burst, onDouble: () => { pop(burst); setLike(true) } }) : null
+  // In the viewer: comment on it from a field under the photo, and like it, with the counts.
+  const viewerExtras = () => ({
+    actions: [
+      ...(m.canComment ? [{ id: 'comment', icon: 'bubble', label: 'Comment', read: () => ({ count: m.comments.length }), onSelect: v => v.focusReply() }] : []),
+      { id: 'like', icon: 'heart', label: 'Like', read: () => ({ count: m.likes.length, on: m.liked }), onSelect: () => setLike(!m.liked) }
+    ],
+    reply: m.canComment ? {
+      placeholder: 'Add a comment…',
+      sent: 'Comment posted',
+      onSend: async text => everywhere('apply', (await api.post(`/api/moments/${m.id}/comments`, { text })).moment)
+    } : null
+  })
+  const pictures = m.media.length ? mediaEl(m, { burst, onDouble: () => { pop(burst); setLike(true) }, extras: viewerExtras }) : null
   const words = !pictures && m.text ? clamped(h('p', { class: 'mo-words' }, m.text)) : null
 
   // ------------------------------------------------------------ what it gathered
@@ -618,7 +631,7 @@ async function shareMoment(m) {
 // and below (dots). A tap opens a photo; a double tap likes it.
 const ratioOf = x => (x?.w && x?.h ? Math.min(1.91, Math.max(0.8, x.w / x.h)) : 1)
 
-function mediaEl(m, { burst, onDouble }) {
+function mediaEl(m, { burst, onDouble, extras }) {
   const n = m.media.length
   const box = h('div', { class: ['mo-media', n > 1 && 'many'], style: { '--ratio': String(ratioOf(m.media[0])) } })
   let pips = null
@@ -664,7 +677,7 @@ function mediaEl(m, { burst, onDouble }) {
   })
   function single(target, i) {
     const x = m.media[i]
-    if (x.type !== 'video') return show(m, i, target)
+    if (x.type !== 'video') return show(m, i, target, extras?.())
     // A video: a tap plays it if it's still, else turns the sound on or off.
     const v = target.querySelector('video')
     if (v.paused) v.play().catch(() => {})
@@ -689,8 +702,8 @@ function slide(m, x, i) {
   }
   const label = `${n > 1 ? `Photo ${i + 1} of ${n}` : 'Photo'}${x.alt ? `: ${x.alt}` : ''}`
   return h('div', { class: 'mo-slide', dataset: { i: String(i) } },
-    h('button', { class: 'mo-photo', type: 'button', 'aria-label': label },
-      h('img', { src: x.url, alt: x.alt || '', loading: 'lazy', decoding: 'async', draggable: false })),
+    revealedIn(h('button', { class: 'mo-photo', type: 'button', 'aria-label': label },
+      h('img', { src: x.url, alt: x.alt || '', loading: 'lazy', decoding: 'async', draggable: false }))),
     // Its description, for anyone who wants to read it.
     x.alt ? h('button', { class: 'mo-alt', type: 'button', 'aria-label': 'Read the description' }, 'ALT') : null)
 }
@@ -700,14 +713,15 @@ function showAlt(x, origin) {
   sheet.el.classList.add('mo-alt-sheet')
 }
 
-function show(m, i, from) {
+function show(m, i, from, extras = {}) {
   const x = m.media[i]
-  if (x.type === 'video') return openViewer({ kind: 'video', fullSrc: x.url, src: x.url, w: x.w, h: x.h, label: 'Video' })
+  if (x.type === 'video') return openViewer({ kind: 'video', fullSrc: x.url, src: x.url, w: x.w, h: x.h, label: 'Video', ...extras })
   const photos = m.media.filter(y => y.type === 'image')
   openViewer({
     thumb: from.querySelector('img'),
     images: photos.map((y, k) => ({ src: y.url, fullSrc: y.url, w: y.w, h: y.h, label: y.alt || `Photo ${k + 1} of ${photos.length}` })),
-    index: photos.indexOf(x)
+    index: photos.indexOf(x),
+    ...extras
   })
 }
 
@@ -761,4 +775,16 @@ export function agoLong(ts, now = Date.now()) {
 /** The editor (views/moments-editor.js); what it shares goes to the top of every page open. */
 export function openMomentComposer({ origin, onPosted } = {}) {
   return openMomentEditor({ origin, onPosted: m => { everywhere('posted', m); onPosted?.(m) } })
+}
+
+// A picture arriving opens out of its frame (ui/reveal.js): the frame is the
+// element around it once it is in the page.
+function revealed(img) {
+  queueMicrotask(() => img.parentElement && reveal(img, img.parentElement))
+  return img
+}
+function revealedIn(frame) {
+  const img = frame.querySelector('img')
+  if (img) reveal(img, frame)
+  return frame
 }

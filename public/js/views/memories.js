@@ -9,6 +9,7 @@
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { ghost, filler } from '../ui/skeleton.js'
 import { tip } from '../ui/guides.js'
+import { reveal } from '../ui/reveal.js'
 import { api } from '../api.js'
 import { openSheet, openMenu } from './overlay.js'
 import { openViewer } from './viewer.js'
@@ -154,10 +155,14 @@ export function openMemories({ origin, page = false, swap = false } = {}) {
       m.type === 'video' ? h('video', { src: m.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' }) : h('img', { src: m.url, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
       m.type === 'video' ? h('span', { class: 'mem-dur tabular' }, m.dur ? duration(m.dur) : icon('play')) : null,
       m.type === 'drawing' ? h('span', { class: 'mem-badge' }, icon('brush')) : null)
+    const pic = b.querySelector('img')
+    if (pic) reveal(pic, b)
+    // In the viewer: back to the chat it was shared in.
+    const toChat = { actions: [{ id: 'chat', icon: 'bubble', label: 'Open chat', onSelect: v => { v.close(); sheet.close(); window.dispatchEvent(new CustomEvent('open-chat', { detail: m.room })) } }] }
     b.addEventListener('click', () => {
-      if (m.type === 'video') return openViewer({ kind: 'video', fullSrc: m.url, src: m.url, w: m.w, h: m.h, label: label(m) })
+      if (m.type === 'video') return openViewer({ kind: 'video', fullSrc: m.url, src: m.url, w: m.w, h: m.h, label: label(m), ...toChat })
       const pics = group.filter(x => x.type !== 'video')
-      openViewer({ thumb: b.querySelector('img'), images: pics.map(x => ({ src: x.url, fullSrc: x.url, w: x.w, h: x.h, label: label(x) })), index: pics.indexOf(m) })
+      openViewer({ thumb: b.querySelector('img'), images: pics.map(x => ({ src: x.url, fullSrc: x.url, w: x.w, h: x.h, label: label(x) })), index: pics.indexOf(m), ...toChat })
     })
     if (!reducedMotion()) b.style.setProperty('--d', `${Math.min(i, 16) * 18}ms`)
     return b

@@ -31,7 +31,7 @@ await A.reload();await A.waitForSelector('.row');await sleep(800)
 
 // 1. From the pages' capsule: the heading, search, tabs, the recap, this month and its grid.
 await A.locator('.page-item[data-page="memories"]').click();await A.locator('.memories-page .mem-tile').first().waitFor();await sleep(700)
-const view=await A.evaluate(()=>{const q=s=>document.querySelector('.memories-page '+s);return{title:q('.mem-title').textContent,tabs:[...document.querySelectorAll('.memories-page .mem-tab')].map(b=>b.textContent),selected:q('.mem-tab[aria-selected="true"]').textContent,recap:q('.mem-recap b')?.textContent,months:[...document.querySelectorAll('.memories-page .mem-month-name')].map(m=>m.textContent),tiles:[...document.querySelectorAll('.memories-page .mem-tile')].map(t=>t.className.replace('mem-tile ',''))}})
+const view=await A.evaluate(()=>{const q=s=>document.querySelector('.memories-page '+s);return{title:q('.mem-title').textContent,tabs:[...document.querySelectorAll('.memories-page .mem-tab')].map(b=>b.textContent),selected:q('.mem-tab[aria-selected="true"]').textContent,recap:q('.mem-recap b')?.textContent,months:[...document.querySelectorAll('.memories-page .mem-month-name')].map(m=>m.textContent),tiles:[...document.querySelectorAll('.memories-page .mem-tile')].map(t=>t.className.match(/\bis-\w+/)?.[0])}})
 const month=new Date().toLocaleString('en-US',{month:'long'})
 assert.equal(view.title,'Memories');assert.deepEqual(view.tabs,['All','Photos','Videos','Drawings']);assert.equal(view.selected,'All')
 assert.equal(view.recap,`My ${month} recap`);assert.deepEqual(view.months,[`${month}4`])
@@ -60,7 +60,7 @@ assert.equal(await A.locator('.memories-page').count(),1,'still on Memories')
 // 4. Oldest first; one withdrawn is gone next time.
 await A.locator('.memories-page .mem-more').click();await A.locator('.menu .menu-item:has-text("Oldest first")').click()
 await A.waitForFunction(()=>document.querySelectorAll('.memories-page .mem-recap').length===0)
-assert.equal(await A.locator('.memories-page .mem-tile').first().getAttribute('class'),'mem-tile is-photo')
+assert.equal(await A.locator('.memories-page .mem-tile').first().evaluate(t=>t.className.match(/\bis-\w+/)?.[0]),'is-photo')
 assert.equal(await A.locator('.memories-page .mem-recap').count(),0,'no recap out of order')
 await api(A,'/api/revoke',{id:p1.id,room})
 await A.locator('.page-item[data-page="chats"]').click();await A.locator('.memories-page').waitFor({state:'detached'});await sleep(400)

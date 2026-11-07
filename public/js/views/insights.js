@@ -1,25 +1,28 @@
-// Smart notifications: cards made from what your recent one-to-one
-// conversations say about the other person (src/insights.js) — a ride
-// they're in, getting home or heading out, a plan you made, things they said
-// will happen, how they seem, something going on for them, where their
-// photos look to be taken, what was said lately, what they like — and the
-// weather where they are. Each conversation makes only the cards it has
-// something for. Read only for you, only when you look; it can be switched
-// off in Settings.
+// Smart panels: cards made from what your recent one-to-one conversations
+// say about the other person (src/insights.js) — a ride they're in, getting
+// home or heading out, a plan you made, things they said will happen, how
+// they seem, something going on for them, where their photos look to be
+// taken, what was said lately, what they like — and the weather where they
+// are. Read only for you; it can be switched off in Settings.
 //
-// The newest few cards stand at the top and the rest stack under them; the
-// stack opens into the whole list ("Now") and closes again.
+// No button opens them and no sheet holds them: they come to the top of the
+// chat list by themselves when something is timely (a ride under way, a
+// plan in the next hours, someone just home) and are gone when nothing is.
+// After the reference: a title, chips for the kinds there are, and cards
+// side by side — what and when along the top, dashed rules around the rows
+// that say it, and one full-width action at the foot.
 
 import { h, icon, storage, reducedMotion } from '../ui/dom.js'
 import { api } from '../api.js'
 import { state } from '../store.js'
 import { avatar } from './avatar.js'
-import { openSheet } from './overlay.js'
+import { openViewer } from './viewer.js'
 
 const MIN = 60 * 1000
 const HOUR = 60 * MIN
 const DAY = 24 * HOUR
-const SHOWN = 3 // cards above the stack
+// What makes the panel come: a card at least this pressing (allPanels' priorities).
+const TIMELY = 50
 
 export const insightsOn = () => Boolean(state.assist) && storage('ui:insights') !== 'off'
 export function setInsightsPref(on) {
@@ -43,7 +46,6 @@ function dayWord(ts, now) {
   const d = new Date(ts)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })
 }
-const when = (ts, now) => `${dayWord(ts, now)} ${hm(ts)}`
 function relative(ts, now) {
   const d = ts - now
   const a = Math.abs(d)
@@ -71,7 +73,8 @@ export function panelsOf(entry, now = Date.now()) {
     if (i.meetup && Math.abs(u.at - i.meetup.at) < 10 * MIN) continue
     add('upcoming', u.at - now < 2 * HOUR ? 90 : u.at - now < DAY ? 65 : 35, { upcoming: u })
   }
-  if (i.mood && i.mood.label !== 'calm') add('mood', 60, { mood: i.mood })
+  // A low mood is a moment to check in; a good one can wait for the details.
+  if (i.mood && i.mood.label !== 'calm') add('mood', ['happy', 'excited'].includes(i.mood.label) ? 40 : 60, { mood: i.mood })
   for (const e of i.ongoing || []) if (e.until === null || e.until >= now) add('ongoing', 55, { ongoing: e })
   for (const p of (i.photos || []).slice(0, 2)) add('photo', now - p.at < DAY ? 45 : 25, { photo: p })
   if (i.summary) add('summary', 30, { summary: i.summary })
@@ -85,110 +88,105 @@ export function allPanels(rooms, now = Date.now()) {
 }
 
 // ------------------------------------------------------------ cards
-const MOODS = { happy: 'in a good mood', excited: 'seems excited', tired: 'seems a bit tired', down: 'seems a bit down', anxious: 'seems a little anxious', angry: 'seems a little annoyed', sad: 'seems a bit sad' }
-const HOME = { home: 'got home', out: 'headed out', 'on the way': 'on the way' }
-const HOME_CHIP = { home: 'Home', out: 'Out', 'on the way': 'On the way' }
+const MOODS = { happy: 'In a good mood', excited: 'Excited', tired: 'A bit tired', down: 'A bit down', anxious: 'A little anxious', angry: 'A little annoyed', sad: 'A bit sad' }
+const HOME = { home: 'Got home', out: 'Headed out', 'on the way': 'On the way' }
 const RIDE = { waiting: 'Ride', riding: 'On the trip', arrived: 'Arrived' }
+// The chips: which kinds of card go under each.
+const GROUPS = [
+  { id: 'plans', label: 'Plans', icon: 'calendar', kinds: ['ride', 'meetup', 'home', 'upcoming'] },
+  { id: 'people', label: 'People', icon: 'people', kinds: ['mood', 'ongoing', 'summary', 'likes'] },
+  { id: 'photos', label: 'Photos', icon: 'photo', kinds: ['photo'] },
+  { id: 'weather', label: 'Weather', icon: 'sun', kinds: ['weather'] }
+]
+const groupOf = kind => GROUPS.find(g => g.kinds.includes(kind))?.id
 
-/** One card: an action word in a chip, then a sentence with the person in it. */
+/**
+ * One card, after the reference: what it is and when along the top, dashed
+ * rules around the rows that say it (each: a picture or symbol, a word or
+ * two, a value at the end), one action across the foot.
+ */
 export function panelCard(p, { now = Date.now(), onOpen } = {}) {
   const name = p.peer?.display || 'them'
-  const who = () => h('span', { class: 'ins-who' }, avatar(p.peer?.avatar, name, { size: 24 }), h('b', {}, name))
-  const strong = t => h('b', {}, t)
-  let chip = ''
-  let line = []
-  let sub = null
-  let art = null
+  const face = () => avatar(p.peer?.avatar, name, { size: 30 })
+  const sym = n => h('span', { class: 'ip-sym' }, icon(n))
+  const row = (lead, label, value = '') => h('div', { class: 'ip-row' }, lead, h('span', { class: 'ip-label' }, label), h('span', { class: 'ip-value tabular' }, value))
+  const chat = { label: 'Open chat', icon: 'bubble', run: () => onOpen?.(p.room) }
+  let what = '', when = '', rows = [], act = chat
   switch (p.kind) {
     case 'ride': {
       const r = p.ride
-      chip = RIDE[r.stage]
-      if (r.stage === 'waiting') {
-        line = [who(), "'s ride", r.plate ? [' ', strong(r.plate)] : '', r.car ? ` · ${r.car}` : '', r.pickup ? ` · pickup ~${hm(r.pickup)}` : '']
-        sub = r.pickup ? relative(r.pickup, now) : null
-      } else if (r.stage === 'riding') {
-        line = [who(), ' on the trip', r.to ? [' · to ', strong(r.to)] : '', r.dropoff ? ` · ~${hm(r.dropoff)} arrival` : '']
-        sub = r.plate ? `Plate ${r.plate}${r.car ? ` · ${r.car}` : ''}` : null
-      } else {
-        line = [who(), r.dropoff ? ` ${hm(r.dropoff)}` : '', ' arrived', r.to ? [' · ', strong(r.to)] : '']
-      }
-      art = icon('car', 'ins-glyph')
+      what = RIDE[r.stage]
+      when = r.stage === 'waiting' && r.pickup ? relative(r.pickup, now) : r.dropoff ? relative(r.dropoff, now) : ''
+      rows = [row(face(), name, r.plate || ''), row(sym('car'), r.to ? `To ${r.to}` : r.car || 'Ride', r.stage === 'waiting' && r.pickup ? hm(r.pickup) : r.dropoff ? hm(r.dropoff) : '')]
       break
     }
     case 'meetup':
-      chip = 'Meetup'
-      line = ['Meet ', who(), ' at ', strong(p.meetup.place), ` · ${when(p.meetup.at, now)}`]
-      sub = relative(p.meetup.at, now)
-      art = icon('mappin', 'ins-glyph')
+      what = 'Meetup'
+      when = dayWord(p.meetup.at, now)
+      rows = [row(face(), name, hm(p.meetup.at)), row(sym('mappin'), p.meetup.place, relative(p.meetup.at, now))]
+      act = { label: 'Directions', icon: 'mappin', run: () => window.open(`https://maps.apple.com/?q=${encodeURIComponent(p.meetup.place)}`, '_blank', 'noopener') }
       break
     case 'home':
-      chip = HOME_CHIP[p.home.state] || p.home.state
-      line = [who(), ` ${HOME[p.home.state]} ${hm(p.home.at)}`]
-      sub = `${dayWord(p.home.at, now)} · ${relative(p.home.at, now)}`
-      art = icon('house', 'ins-glyph')
+      what = HOME[p.home.state] || p.home.state
+      when = dayWord(p.home.at, now)
+      rows = [row(face(), name, hm(p.home.at)), row(sym('house'), HOME[p.home.state] || p.home.state, relative(p.home.at, now))]
+      act = { label: 'Say hi', icon: 'bubble', run: chat.run }
       break
     case 'upcoming':
-      chip = 'Reminder'
-      line = [strong(p.upcoming.what), ` · ${when(p.upcoming.at, now)}`]
-      sub = `From ${name} · ${relative(p.upcoming.at, now)}`
-      art = icon('clock', 'ins-glyph')
+      what = 'Reminder'
+      when = dayWord(p.upcoming.at, now)
+      rows = [row(sym('clock'), p.upcoming.what, hm(p.upcoming.at)), row(face(), `From ${name}`, relative(p.upcoming.at, now))]
       break
     case 'mood':
-      chip = 'Checking in'
-      line = [who(), ` ${MOODS[p.mood.label] || p.mood.label}`]
-      sub = p.mood.note || null
-      art = icon('heart', 'ins-glyph')
+      what = 'Checking in'
+      when = 'Now'
+      rows = [row(face(), name, ''), row(sym('heart'), MOODS[p.mood.label] || p.mood.label, '')]
+      act = { label: 'Say hi', icon: 'bubble', run: chat.run }
       break
     case 'ongoing': {
       const e = p.ongoing
       const day = e.since ? Math.floor((dayStart(now) - dayStart(e.since)) / DAY) + 1 : 0
-      chip = 'Heads up'
-      line = [who(), ' ', strong(e.what), day > 0 ? ` · day ${day}` : '', e.until ? ` · until ${dayWord(e.until, now)}` : '']
-      sub = e.note || null
-      art = icon('calendar', 'ins-glyph')
+      what = 'Heads up'
+      when = day > 0 ? `Day ${day}` : ''
+      rows = [row(face(), name, ''), row(sym('calendar'), e.what, e.until ? `Until ${dayWord(e.until, now)}` : '')]
       break
     }
     case 'photo':
-      chip = 'Take a look'
-      line = [who(), "'s photo looks like it's in ", strong(p.photo.place || 'somewhere')]
-      sub = p.photo.reading || null
-      art = h('img', { class: 'ins-thumb', src: p.photo.url, alt: '', loading: 'lazy', decoding: 'async' })
+      what = 'Take a look'
+      when = relative(p.photo.at, now)
+      rows = [row(h('img', { class: 'ip-thumb', src: p.photo.url, alt: '', loading: 'lazy', decoding: 'async' }), p.photo.place || 'Somewhere', ''), row(face(), name, '')]
+      act = { label: 'View photo', icon: 'photo', run: () => openViewer({ src: p.photo.url, fullSrc: p.photo.url, label: p.photo.place || 'Photo' }) }
       break
     case 'summary':
-      chip = 'Recap'
-      line = [who(), `: ${p.summary}`]
-      art = icon('bubble', 'ins-glyph')
+      what = 'Recap'
+      rows = [row(face(), name, ''), row(sym('bubble'), p.summary, '')]
       break
     case 'likes':
-      chip = 'Good to know'
-      line = [who(), p.likes.length ? [' likes ', strong(p.likes.join(', '))] : '', p.dislikes.length ? [p.likes.length ? '; ' : ' ', 'dislikes ', strong(p.dislikes.join(', '))] : '']
-      sub = p.hobbies.length ? `Hobbies: ${p.hobbies.join(', ')}` : null
-      art = icon('sparkles', 'ins-glyph')
+      what = 'Good to know'
+      rows = [row(face(), name, ''),
+        p.likes.length ? row(sym('heart'), `Likes ${p.likes.join(', ')}`, '') : null,
+        p.dislikes.length ? row(sym('xmark'), `Not ${p.dislikes.join(', ')}`, '') : null,
+        !p.likes.length && p.hobbies.length ? row(sym('sparkles'), p.hobbies.join(', '), '') : null].filter(Boolean)
       break
   }
-  const tag = onOpen ? 'button' : 'div'
-  const el = h(tag, { class: ['ins-card', `ins-${p.kind}`], type: onOpen ? 'button' : undefined, dataset: { kind: p.kind, room: p.room } },
-    h('span', { class: 'ins-text' },
-      h('span', { class: 'ins-line' }, h('span', { class: 'ins-chip' }, chip), ' ', ...line.flat()),
-      sub ? h('span', { class: 'ins-sub' }, ...[sub].flat()) : null),
-    art ? h('span', { class: 'ins-art', 'aria-hidden': 'true' }, art) : null)
-  if (onOpen) el.addEventListener('click', () => onOpen(p.room))
-  return el
+  const button = h('button', { class: 'ip-act', type: 'button' }, icon(act.icon), act.label)
+  button.addEventListener('click', () => act.run())
+  return h('article', { class: ['ip-card', `ip-${p.kind}`], dataset: { kind: p.kind, room: p.room }, 'aria-label': `${what}, ${name}` },
+    h('header', { class: 'ip-head' }, h('span', { class: 'ip-state' }, what), h('span', { class: 'ip-when' }, when)),
+    h('div', { class: 'ip-rows' }, ...rows),
+    button)
 }
 
-/** The weather where they are (or here): what it's like, and the next sunrise or sunset. */
+/** The weather where they are (or here), as a card: what it's like, and the next sunrise or sunset. */
 export function weatherCard(w) {
-  const where = w.who ? `${w.place} · ${w.who}'s area` : (w.place || 'Here')
-  return h('section', { class: 'ins-weather', 'aria-label': `Weather in ${where}` },
-    h('div', { class: 'ins-weather-head' }, icon(w.symbol || 'sun'), h('span', {}, where)),
-    h('div', { class: 'ins-tiles' },
-      h('div', { class: 'ins-tile' }, h('span', { class: 'ins-tile-label' }, w.text || 'Weather'), h('span', { class: 'ins-tile-value' }, `${w.temp}°${w.unit === 'f' ? 'F' : 'C'}`)),
-      w.next ? h('div', { class: 'ins-tile' }, h('span', { class: 'ins-tile-label' }, w.next.kind === 'sunset' ? 'Sunset' : 'Sunrise'), h('span', { class: 'ins-tile-value' }, w.next.time)) : null))
-}
-
-function skeleton(n = 3) {
-  return Array.from({ length: n }, (_, i) => h('div', { class: 'ins-card ins-skeleton', 'aria-hidden': 'true' },
-    h('span', { class: 'ins-text' }, h('span', { class: 'sk sk-line', style: { width: `${[78, 64, 70][i % 3]}%` } }), h('span', { class: 'sk sk-line', style: { width: `${[46, 58, 40][i % 3]}%` } }))))
+  const where = w.who ? `${w.who}'s area` : 'Here'
+  const sym = n => h('span', { class: 'ip-sym' }, icon(n))
+  const row = (lead, label, value) => h('div', { class: 'ip-row' }, lead, h('span', { class: 'ip-label' }, label), h('span', { class: 'ip-value tabular' }, value))
+  return h('article', { class: 'ip-card ip-weather', dataset: { kind: 'weather' }, 'aria-label': `Weather in ${w.place || where}` },
+    h('header', { class: 'ip-head' }, h('span', { class: 'ip-state' }, w.place || 'Weather'), h('span', { class: 'ip-when' }, where)),
+    h('div', { class: 'ip-rows' },
+      row(sym(w.symbol || 'sun'), w.text || 'Weather', `${w.temp}°${w.unit === 'f' ? 'F' : 'C'}`),
+      w.next ? row(sym(w.next.kind === 'sunset' ? 'moon' : 'sun'), w.next.kind === 'sunset' ? 'Sunset' : 'Sunrise', w.next.time) : null))
 }
 
 // Run fn over items, a few at a time.
@@ -199,96 +197,97 @@ async function inTurn(items, n, fn) {
   }))
 }
 
-// ------------------------------------------------------------ the center
-export function openInsights({ origin, onOpen } = {}) {
-  const status = h('p', { class: 'ins-status', role: 'status' })
-  const list = h('div', { class: 'ins-list' })
-  const weatherSlot = h('div', { class: 'ins-weather-slot' })
-  const body = h('div', { class: 'ins' }, status, list, weatherSlot)
+// ------------------------------------------------------------ on the chat list
+const LOOK_AGAIN = 10 * MIN // what's there is asked again at most this often
+const READ_AGAIN = 30 * MIN // conversations that moved on are read again at most this often
+
+/**
+ * The panel at the top of the chat list: there only while something is
+ * timely. onOpen(roomId) opens a conversation. Returns { el, refresh }.
+ */
+export function createInsightsPanel({ onOpen }) {
+  const title = h('h2', { class: 'ip-title' }, 'For you')
+  const chips = h('div', { class: 'ip-chips', role: 'tablist', 'aria-label': 'Kinds' })
+  const cards = h('div', { class: 'ip-cards', role: 'tabpanel' })
+  const el = h('section', { class: 'ip', 'aria-label': 'For you', hidden: true }, title, chips, cards)
   let data = null
-  let expanded = false
-  const reading = new Set()
-  const sheet = openSheet({ title: 'Insights', content: body, tall: true, origin, side: 'list' })
-  const open = id => {
-    sheet.close()
-    onOpen?.(id)
-  }
+  let chosen = null
+  let asked = 0
+  let read = 0
+  let busy = false
 
-  function render({ fresh = false } = {}) {
-    if (sheet.closed) return
-    status.replaceChildren(...(reading.size ? [h('span', { class: 'spinner' }), `Reading your ${reading.size} most recent chats…`] : []))
-    status.hidden = !reading.size
-    if (!data) {
-      list.replaceChildren(...skeleton())
-      return
-    }
+  let shown = null // the kind on screen: cards slide in only when it changes
+  function paint() {
     const now = Date.now()
-    const cards = allPanels(data.rooms, now).map(p => panelCard(p, { now, onOpen: open }))
-    if (!cards.length) {
-      list.replaceChildren(...(reading.size ? skeleton(2) : [h('div', { class: 'ins-empty' }, icon('sparkles'), h('p', {}, data.failed ? "Can't connect right now, check back later" : 'Nothing to flag in recent chats yet'))]))
-    } else {
-      list.replaceChildren(...stack(cards, { fresh }))
+    const panels = data ? allPanels(data.rooms, now) : []
+    const timely = panels.some(p => p.priority >= TIMELY)
+    el.hidden = !insightsOn() || !timely
+    if (el.hidden) { shown = null; return }
+    const byGroup = new Map()
+    for (const p of panels) {
+      const g = groupOf(p.kind)
+      if (!byGroup.has(g)) byGroup.set(g, [])
+      byGroup.get(g).push(panelCard(p, { now, onOpen }))
     }
-    weatherSlot.replaceChildren(...(data.weather ? [weatherCard(data.weather)] : []))
+    if (data.weather) byGroup.set('weather', [weatherCard(data.weather)])
+    const present = GROUPS.filter(g => byGroup.has(g.id))
+    // The most pressing kind leads, unless one was chosen.
+    if (!chosen || !byGroup.has(chosen)) chosen = groupOf(panels.find(p => p.priority >= TIMELY)?.kind) || present[0]?.id
+    chips.replaceChildren(...present.map(g => {
+      const b = h('button', { class: 'ip-chip', type: 'button', role: 'tab', 'aria-selected': String(g.id === chosen), dataset: { group: g.id } },
+        icon(g.id === 'weather' ? data.weather?.symbol || 'sun' : g.icon), g.label)
+      b.addEventListener('click', () => { chosen = g.id; paint(); cards.scrollTo({ left: 0, behavior: reducedMotion() ? 'auto' : 'smooth' }) })
+      return b
+    }))
+    const left = cards.scrollLeft
+    cards.replaceChildren(...(byGroup.get(chosen) || []))
+    if (shown === chosen) cards.scrollLeft = left
+    // Repainted each minute for the times: the cards stay still unless the kind changed.
+    if (shown !== chosen) {
+      cards.dataset.enter = ''
+      clearTimeout(paint.t)
+      paint.t = setTimeout(() => delete cards.dataset.enter, 500)
+    }
+    shown = chosen
   }
 
-  // The first few stand at the top and the rest stack under them; tapped,
-  // the stack opens into the whole list, with Now and a way to close it.
-  function stack(cards, { fresh }) {
-    const out = []
-    if (expanded) {
-      const fold = h('button', { class: 'ins-fold glass-btn', type: 'button', 'aria-label': 'Collapse' }, icon('collapse'))
-      fold.addEventListener('click', () => { expanded = false; render() })
-      out.push(h('div', { class: 'ins-head' }, h('span', {}, 'Now'), fold))
-      cards.forEach((c, i) => { if (fresh && !reducedMotion()) { c.style.setProperty('--i', String(Math.max(0, i - SHOWN))); if (i >= SHOWN) c.classList.add('ins-in') } })
-      out.push(...cards)
-      return out
-    }
-    out.push(...cards.slice(0, SHOWN))
-    const rest = cards.length - SHOWN
-    if (rest > 0) {
-      const more = h('button', { class: 'ins-more', type: 'button', 'aria-label': `${rest} more, expand` },
-        h('span', { class: 'ins-plate' }), rest > 1 ? h('span', { class: 'ins-plate second' }) : null)
-      more.addEventListener('click', () => { expanded = true; render({ fresh: true }) })
-      out.push(more)
-    }
-    return out
-  }
-
-  async function load() {
-    render()
+  /** Ask for what is known (cheap), and now and then read conversations that moved on (Workers AI). */
+  async function refresh({ force = false } = {}) {
+    if (!insightsOn()) return paint()
+    const now = Date.now()
+    // Called on every change to the chats: most calls have nothing to do.
+    if (busy || (!force && now - asked < LOOK_AGAIN)) return
+    busy = true
+    asked = now
     try {
       data = await api.get(`/api/insights?unit=${unit()}`)
+      paint()
+      const stale = data.rooms.filter(r => r.stale).slice(0, 3)
+      if (stale.length && now - read > READ_AGAIN) {
+        read = now
+        await inTurn(stale, 2, async r => {
+          try { Object.assign(r, await api.post('/api/insights/refresh', { room: r.room, tz: tzOffset() })) } catch {}
+        })
+        try { data.weather = (await api.get(`/api/insights?unit=${unit()}`)).weather || data.weather } catch {}
+        paint()
+      }
     } catch {
-      data = { rooms: [], weather: null, failed: true }
-    }
-    render()
-    // Conversations with something new since they were last read are read now.
-    const stale = data.rooms.filter(r => r.stale)
-    if (!stale.length) return
-    for (const r of stale) reading.add(r.room)
-    render()
-    await inTurn(stale, 3, async r => {
-      try {
-        Object.assign(r, await api.post('/api/insights/refresh', { room: r.room, tz: tzOffset() }))
-      } catch {}
-      reading.delete(r.room)
-      render()
-    })
-    // Now it may be known where they are.
-    try {
-      data.weather = (await api.get(`/api/insights?unit=${unit()}`)).weather || data.weather
-    } catch {}
-    render()
+      // Nothing to show: the panel simply stays away.
+    } finally { busy = false }
   }
-  load()
-  return sheet
+
+  window.addEventListener('insights-pref', () => refresh({ force: true }))
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh() })
+  setInterval(() => { if (!document.hidden) refresh() }, LOOK_AGAIN)
+  // A minute's change in time can make a card timely or let one go.
+  setInterval(() => { if (data && !document.hidden) paint() }, MIN)
+  return { el, refresh }
 }
 
-/** One conversation's cards, for its details: read again if it has moved on. */
+/** One conversation's cards, for its details, side by side: read again if it has moved on. */
 export function insightsSection(roomId) {
-  const list = h('div', { class: 'ins-list ins-plain' }, ...skeleton(2))
-  const section = h('section', { class: 'ins-section', 'aria-label': 'Insights' }, h('div', { class: 'group-title' }, 'Insights'), list)
+  const row = h('div', { class: 'ip-cards ip-inline' })
+  const section = h('section', { class: 'ins-section', 'aria-label': 'Insights' }, h('div', { class: 'group-title' }, 'Insights'), row)
   ;(async () => {
     let entry = null
     try {
@@ -296,8 +295,10 @@ export function insightsSection(roomId) {
       if (entry?.stale) Object.assign(entry, await api.post('/api/insights/refresh', { room: roomId, tz: tzOffset() }))
     } catch {}
     const now = Date.now()
-    const cards = entry ? panelsOf(entry, now).sort((a, b) => b.priority - a.priority).map(p => panelCard(p, { now })) : []
-    if (cards.length) list.replaceChildren(...cards)
+    const cards = entry ? panelsOf(entry, now).sort((a, b) => b.priority - a.priority).map(p => panelCard(p, { now, onOpen: () => {} })) : []
+    // In the details the conversation is already open: no "Open chat" there.
+    for (const c of cards) { const a = c.querySelector('.ip-act'); if (a?.textContent === 'Open chat') a.remove() }
+    if (cards.length) row.replaceChildren(...cards)
     else section.remove()
   })()
   return section

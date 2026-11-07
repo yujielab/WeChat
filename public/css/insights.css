@@ -1,100 +1,172 @@
-/* Smart notifications (views/insights.js): frosted cards on a soft sky, an
-   action word in a chip leading each sentence, the person's picture inline
-   like an app's icon; the first few stand, the rest stack beneath; the
-   weather sits at the foot as a widget with two tiles. */
+/* Smart panels (js/views/insights.js), at the top of the chat list while
+   something is timely. After the reference: a bold title, chips for the
+   kinds there are (the chosen one in ink), and cards side by side — what and
+   when along the top, dashed rules around the rows that say it, one
+   full-width ink action at the foot. In the list's own paper and ink, so
+   light and dark follow the tokens. */
 
-.ins {
-  --ins-card: color-mix(in srgb, #fff 78%, transparent);
-  --ins-chip: color-mix(in srgb, #fff 86%, var(--fill-4));
-  --ins-ink: #0b0b0d;
-  --ins-ink-2: rgb(11 11 13 / 0.56);
-  min-height: 100%;
-  margin: -4px 0 0;
-  padding: 14px 14px 28px;
-  border-radius: var(--r-xl);
-  background: linear-gradient(180deg, #4d6c99 0%, #7f9cc3 34%, #b9cce3 68%, #dce6f1 100%);
-  color: var(--ins-ink);
+.ip {
+  --ip-inset: var(--list-inset, 16px);
+  --ip-card: color-mix(in srgb, var(--label) 5%, var(--bg));
+  margin: 10px 0 4px;
+  animation: ip-in 360ms var(--ease-out) both;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .ins { --ins-card: color-mix(in srgb, #1c1f26 76%, transparent); --ins-chip: rgb(255 255 255 / 0.1); --ins-ink: #f2f3f5; --ins-ink-2: rgb(242 243 245 / 0.58); background: linear-gradient(180deg, #101827 0%, #1b2a44 45%, #23324c 100%); }
+.ip[hidden] { display: none; }
+/* Searching keeps to its results. */
+.pane-list.searching .ip { display: none; }
+@keyframes ip-in { from { opacity: 0; transform: translateY(-6px); } }
+
+.ip-title {
+  margin: 0 calc(var(--ip-inset) + var(--safe-right, 0px)) 10px calc(var(--ip-inset) + var(--safe-left, 0px));
+  font-family: var(--font-display);
+  font-size: var(--t-title-3);
+  font-weight: var(--w-bold);
+  letter-spacing: -.02em;
 }
-:root[data-theme="dark"] .ins { --ins-card: color-mix(in srgb, #1c1f26 76%, transparent); --ins-chip: rgb(255 255 255 / 0.1); --ins-ink: #f2f3f5; --ins-ink-2: rgb(242 243 245 / 0.58); background: linear-gradient(180deg, #101827 0%, #1b2a44 45%, #23324c 100%); }
 
-.ins-status { display: flex; align-items: center; gap: 8px; margin: 0 6px 10px; font-size: var(--t-caption); color: rgb(255 255 255 / 0.9); }
-.ins-status .spinner { width: 13px; height: 13px; border-color: rgb(255 255 255 / 0.4); border-top-color: #fff; }
-.ins-list { position: relative; display: flex; flex-direction: column; gap: 10px; }
+/* ---------------------------------------------------------------- chips */
+.ip-chips,
+.ip-cards {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-inline: calc(var(--ip-inset) + var(--safe-left, 0px)) calc(var(--ip-inset) + var(--safe-right, 0px));
+  scroll-padding-inline: var(--ip-inset);
+}
+.ip-chips::-webkit-scrollbar,
+.ip-cards::-webkit-scrollbar { display: none; }
+.ip-chips { gap: 8px; padding-block: 2px 12px; }
+.ip-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  color: var(--label);
+  background: var(--fill-3);
+  font-size: var(--t-subhead);
+  font-weight: var(--w-semibold);
+  transition: background-color 200ms ease-out, color 200ms ease-out, transform var(--press-out, 160ms) var(--ease-out);
+}
+/* 36pt to see, 44pt to touch. */
+.ip-chip { position: relative; }
+.ip-chip::before { content: ""; position: absolute; inset: -4px -2px; }
+.ip-chip .icon { width: 17px; height: 17px; }
+.ip-chip[aria-selected="true"] { color: var(--on-ink); background: var(--ink); }
+.ip-chip:active { transform: scale(.96); }
+.ip-chip:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+/* One kind only: nothing to choose between. */
+.ip-chips:has(> .ip-chip:only-child) { display: none; }
 
-.ins-card {
-  position: relative;
-  z-index: 1;
+/* ---------------------------------------------------------------- cards */
+.ip-cards {
+  gap: 12px;
+  padding-block: 0 6px;
+  scroll-snap-type: x mandatory;
+}
+.ip-card {
+  flex: none;
+  scroll-snap-align: start;
+  width: min(268px, calc(100% - 2 * var(--ip-inset) - 28px));
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 14px;
+  border-radius: 24px;
+  background: var(--ip-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label) 4%, transparent);
+}
+/* The only card stretches across. */
+.ip-cards > .ip-card:only-child { width: 100%; max-width: 420px; }
+.ip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: var(--t-footnote);
+}
+.ip-state { font-weight: var(--w-semibold); color: var(--label); }
+.ip-when { color: var(--label-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ip-rows {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 0;
+  border-block: 1.5px dashed color-mix(in srgb, var(--label) 16%, transparent);
+}
+.ip-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+.ip-row .avatar { --size: 30px; font-size: 12px; }
+.ip-label {
+  min-width: 0;
+  font-size: var(--t-subhead);
+  font-weight: var(--w-medium);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.ip-value {
+  font-size: var(--t-headline);
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+.ip-value:empty { display: none; }
+.ip-sym {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--label);
+  background: var(--fill-3);
+}
+.ip-sym .icon { width: 16px; height: 16px; }
+.ip-thumb { width: 30px; height: 30px; border-radius: 9px; object-fit: cover; background: var(--fill-3); }
+.ip-act {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 84px;
-  padding: 16px 18px;
-  border-radius: var(--r-xl);
-  text-align: left;
-  color: var(--ins-ink);
-  background: var(--ins-card);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  backdrop-filter: blur(24px) saturate(1.4);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 8px 24px -16px rgb(20 40 80 / 0.45);
-  transition: transform var(--press-out) var(--ease-out);
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  height: 46px;
+  /* Cards side by side keep their actions on one line, whatever their rows. */
+  margin-top: auto;
+  border-radius: 999px;
+  color: var(--on-ink);
+  background: var(--ink);
+  font-size: var(--t-subhead);
+  font-weight: var(--w-semibold);
+  transition: transform var(--press-out, 160ms) var(--ease-out), opacity 160ms ease-out;
 }
-button.ins-card.is-pressed { transform: scale(0.98); transition-duration: var(--press-dur); }
-.ins-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.ins-line { font-size: 1.06rem; line-height: 1.75; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-.ins-line b { font-weight: var(--w-semibold); }
-.ins-sub { font-size: var(--t-footnote); line-height: 1.4; color: var(--ins-ink-2); overflow-wrap: anywhere; }
-.ins-chip { display: inline-block; margin-right: 2px; padding: 1px 9px; border-radius: var(--r-xs); font-weight: var(--w-medium); background: var(--ins-chip); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.04); line-height: 1.6; }
-/* The person, inline like an app's icon: picture on the line's middle, name on its baseline. */
-.ins-who { white-space: nowrap; }
-.ins-who .avatar { --size: 24px; display: inline-grid; margin: 0 5px 0 1px; vertical-align: -5px; font-size: 11px; box-shadow: 0 0 0 1.5px var(--ins-card); }
-.ins-art { flex: none; display: grid; place-items: center; }
-.ins-glyph { width: 22px; height: 22px; color: var(--ins-ink-2); }
-.ins-thumb { width: 56px; height: 56px; border-radius: var(--r-s); object-fit: cover; background: var(--fill-4); }
-
-/* The stack: plates under the last standing card, as if more lay beneath. */
-.ins-more { position: relative; display: block; height: 22px; margin-top: -18px; }
-.ins-plate { position: absolute; left: 4.5%; right: 4.5%; top: 0; height: 22px; border-radius: 0 0 24px 24px; background: color-mix(in srgb, var(--ins-card) 82%, transparent); box-shadow: 0 6px 16px -12px rgb(20 40 80 / 0.5); }
-.ins-plate.second { left: 9%; right: 9%; top: 9px; height: 20px; opacity: 0.75; }
-.ins-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 2px 8px; color: rgb(255 255 255 / 0.85); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
-.ins-fold { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgb(255 255 255 / 0.18); }
-.ins-fold .icon { width: 17px; height: 17px; }
-.ins-in { animation: ins-in 300ms var(--ease-out) calc(var(--i, 0) * 35ms) backwards; }
-@keyframes ins-in { from { opacity: 0; transform: translateY(-14px) scale(0.97); } }
-
-.ins-empty { display: grid; justify-items: center; gap: 8px; padding: 40px 20px; color: rgb(255 255 255 / 0.92); text-align: center; }
-.ins-empty .icon { width: 30px; height: 30px; }
-.ins-empty p { margin: 0; font-size: var(--t-subhead); }
-.ins-skeleton { min-height: 84px; }
-.ins-skeleton .ins-text { gap: 10px; }
-
-/* Weather: a widget with the place, and two tiles. */
-.ins-weather { margin-top: 18px; padding: 18px; border-radius: var(--r-sheet); background: var(--ins-card); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 24px -16px rgb(20 40 80 / 0.45); }
-.ins-weather-head { display: flex; align-items: center; gap: 10px; margin: 0 4px 14px; font-size: 1.06rem; }
-.ins-weather-head .icon { width: 26px; height: 26px; }
-.ins-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.ins-tile { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--r-m); background: color-mix(in srgb, #fff 55%, transparent); }
-:root[data-theme="dark"] .ins-tile { background: rgb(255 255 255 / 0.06); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ins-tile { background: rgb(255 255 255 / 0.06); } }
-.ins-tile-label { font-size: var(--t-subhead); color: var(--ins-ink-2); }
-.ins-tile-value { font-size: 2rem; font-weight: var(--w-semibold); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ip-act .icon { width: 17px; height: 17px; }
+.ip-act:active { transform: scale(.97); opacity: .9; }
+.ip-act:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
+/* Nothing to do (the weather; in the details, the conversation already open): the rows reach the foot. */
+.ip-card:not(:has(> .ip-act)) .ip-rows { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.ip-cards[data-enter] > .ip-card { animation: ip-card-in 320ms var(--ease-out) both; }
+.ip-cards[data-enter] > .ip-card:nth-child(2) { animation-delay: 40ms; }
+.ip-cards[data-enter] > .ip-card:nth-child(n + 3) { animation-delay: 80ms; }
+@keyframes ip-card-in { from { opacity: 0; transform: translateX(10px); } }
 
 /* In a conversation's details: the same cards, on the page itself. */
 .ins-section { margin: 0 0 6px; }
-.ins-plain { margin: 0 20px; }
-.ins-plain .ins-card { --ins-card: var(--bg-elevated); --ins-chip: var(--field); --ins-ink: var(--label); --ins-ink-2: var(--label-2); min-height: 0; padding: 14px 16px; border-radius: var(--r-l); box-shadow: 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.ins-plain .ins-line { font-size: var(--t-body); line-height: 1.7; }
+.ip-inline { --ip-inset: 20px; --ip-card: var(--bg-elevated); padding-block: 2px 6px; align-items: flex-start; }
+.ip-inline .ip-card { box-shadow: 0 0 0 1px var(--line); }
 
-/* The way in, at the top of the list. */
-.list-insights { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--label); }
-.list-insights .icon { width: 22px; height: 22px; }
-.list-insights:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
-.list-insights:active { opacity: .7; }
-
+:root[data-motion="reduce"] :is(.ip, .ip-cards[data-enter] > .ip-card) { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) .ins-in { animation: none; }
+  :root:not([data-motion="full"]) :is(.ip, .ip-cards[data-enter] > .ip-card) { animation: none; }
 }
-:root[data-motion="reduce"] .ins-in { animation: none; }

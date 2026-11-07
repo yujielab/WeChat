@@ -26,7 +26,8 @@ import { subscribeTilt } from './tilt.js'
 export const BUTTONS = [
   '.glass-btn', '.bar-item', '.bar-group.capsule', '.page-rail', '.composer .field', '.search-pill', '.seg',
   '.btn', '.solid-press', '.auth-tab', '.prompt-btn', '.jump-pill',
-  '.filter-tab', '.list-requests', '.person-action', '.person-dismiss', '.list-moments', '.list-insights', '.page-item',
+  '.filter-tab', '.list-requests', '.person-action', '.person-dismiss', '.list-moments', '.page-item',
+  '.ip-chip', '.ip-act', '.viewer-round', '.viewer-act', '.viewer-reply-send',
   '.mo-dots', '.mo-act', '.mo-pill', '.mo-compose', '.mo-message', '.mo-sound', '.mo-alt',
   '.me-tool', '.me-cancel', '.me-post', '.me-chip', '.me-card-btn', '.me-card-x',
   '.call-btn', '.call-icon-btn', '.note-reply-send',

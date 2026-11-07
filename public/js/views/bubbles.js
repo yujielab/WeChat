@@ -2,6 +2,7 @@
 // recognized and rebuilt as anchors from the plain string.
 
 import { h, icon } from '../ui/dom.js'
+import { reveal, showProgress, takeJustSent } from '../ui/reveal.js'
 import { duration, fileSize, emojiOnly, callSummary, threadTime, sendState } from '../ui/format.js'
 import { state, nameOf } from '../store.js'
 import { stickerEl } from './stickers.js'
@@ -145,17 +146,27 @@ function imageBubble(m, ctx) {
       h('button', { class: 'text-button', type: 'button', 'aria-label': 'Choose photo again' }, 'Choose again')))
     return el
   }
-  const src = m.url || (m.cid ? state.previews.get(m.cid) : '')
+  // Just sent from here: the picture on the device, already decoded, not the
+  // server's copy loading all over again.
+  const src = (m.cid && state.previews.get(m.cid)) || m.url || ''
   const img = new Image()
   img.alt = m.type === 'drawing' ? 'Drawing' : 'Photo'
   img.decoding = 'async'
   img.draggable = false
   img.width = W
   img.height = H
-  img.addEventListener('load', () => img.classList.add('loaded'))
   img.addEventListener('error', () => img.replaceWith(h('div', { class: 'ph' }, icon('photo'))))
-  if (src) img.src = src
   el.append(img)
+  if (src) img.src = src
+  // Arriving: the frame ripples until the picture is there, then it opens out
+  // of the middle (ui/reveal.js). Going: how far it has gone, over the
+  // dimmed preview; once it has gone, it opens the same way.
+  if (m.status === 'sending' && m.cid) {
+    el.classList.add('rv')
+    el.append(h('span', { class: 'rv-send', 'aria-hidden': 'true' }, h('span', { class: 'rv-dial' }, h('span', { class: 'rv-count' }, '0%'))))
+    showProgress(el, m.cid)
+    img.classList.add('loaded')
+  } else if (src) reveal(img, el, { play: Boolean(m.cid) && takeJustSent(m.cid) })
   return el
 }
 
