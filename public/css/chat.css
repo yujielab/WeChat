@@ -74,10 +74,12 @@
 .thread[data-bars="vertical"] .thread-nav { grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr); }
 
 /* ---------------------------------------------------------------- bubbles */
-.thread { --bubble-out: var(--ink); --bubble-out-text: var(--on-ink); --link-out: var(--on-ink); }
-.thread .m.out .bubble > .m-meta { color: color-mix(in srgb, var(--on-ink) 62%, transparent); }
-.thread .m.out .bubble > .m-meta.read .icon { color: color-mix(in srgb, var(--blue) 70%, var(--on-ink)); }
-.thread .m.out .bubble .quote { background: color-mix(in srgb, var(--on-ink) 12%, transparent); color: inherit; }
+/* Your messages in Facebook blue with white words, light or dark. */
+.thread { --bubble-out: var(--fb-blue); --bubble-out-text: #ffffff; --link-out: #ffffff; }
+.thread .m.out .bubble > .m-meta { color: rgb(255 255 255 / .72); }
+/* Read: the ticks turn fully white (blue on blue would vanish). */
+.thread .m.out .bubble > .m-meta.read .icon { color: #ffffff; }
+.thread .m.out .bubble .quote { background: rgb(255 255 255 / .16); color: inherit; }
 /* No notch at a run's head: a tail at its foot instead. */
 .thread .m.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost) { border-top-left-radius: var(--r-bubble); border-top-right-radius: var(--r-bubble); }
 .thread .m.first .bubble:not(.jumbo):not(.media):not(.call-log):not(.sticker):not(.card):not(.ghost)::after { content: none; }

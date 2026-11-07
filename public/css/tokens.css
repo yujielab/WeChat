@@ -56,6 +56,9 @@
   --wallpaper-doodle: #ece0d1;
   --notice-bg: #ffefd1;
   --tick-read: #007dff;         /* an icon: 3.5:1 on the outgoing bubble, over the 3:1 for graphics */
+  /* Facebook blue: your sent messages and the list's "Messages" title. */
+  --fb-blue: #1877f2;
+  --fb-blue-title: #1877f2;
   --chip-bg: #ffffff;
   --chip-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13);
   --chip-accent: var(--blue-text);
@@ -277,6 +280,7 @@
     --wallpaper-doodle: #232323;
     --notice-bg: #232626;
     --tick-read: #27a8ff;
+    --fb-blue-title: #2d88ff;
     --chip-bg: #232626;
     --chip-shadow: none;
     --chip-accent: #27a8ff;
@@ -362,6 +366,7 @@
   --wallpaper-doodle: #232323;
   --notice-bg: #232626;
   --tick-read: #27a8ff;
+  --fb-blue-title: #2d88ff;
   --chip-bg: #232626;
   --chip-shadow: none;
   --chip-accent: #27a8ff;
