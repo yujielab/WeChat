@@ -48,8 +48,8 @@ const open=async p=>{await p.locator('.row .row-inner').first().click();await p.
 // 1. The Duo, full screen: the list's rail, and its rows stop at the column.
 assert.equal(await D.evaluate(()=>document.documentElement.dataset.wide),'outer');assert.equal(await axis(D),'vertical')
 let r=await rail(D,'.pane-list > .duo-rail');assert.ok(r,'the list has a rail')
-// The pages' capsule takes the column's foot (ui/pages.js, tools/e2e/pages.cjs): Back, Search and New Chat head the rail.
-assert.deepEqual(ids(r),['back','search','compose'])
+// The pages' capsule takes the column's foot (ui/pages.js, tools/e2e/pages.cjs): Back heads the rail; Search is beside the title.
+assert.deepEqual(ids(r),['back'])
 for(const i of r.items){assert.ok(i.x>=376&&i.x+i.w<=466,'in the system column '+i.id+' '+JSON.stringify(i));assert.ok(i.w>=44&&i.h>=44,'44pt '+i.id)}
 // Centred under the status bar's clock, 49pt in from the edge as measured on device — whatever inset the outer
 // display reports (~91pt; the rail stood 9pt left of the clock when it was taken from the inset).
@@ -58,23 +58,25 @@ for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,`under the cloc
 await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-right','91px'));await sleep(200)
 for(const i of (await rail(D,'.pane-list > .duo-rail')).items)assert.ok(Math.abs(i.x+i.w/2-(466-49))<=1,'still under the clock with a 91pt inset '+JSON.stringify(i))
 assert.ok(r.items[0].y>=170-.5,'below the camera and status bar, clear of the signal ring with Silent mode on (158pt)')
-assert.ok(r.items[0].y+r.items[0].h<r.items[1].y&&r.items[1].y<r.items[2].y,'Back above, then Search and New Chat')
-// …and the pages' capsule below them, at the column's foot, clear of them.
+// Search stands beside the title instead (blue glass, as tall as it), New chat in Home's rail.
+const find=await D.evaluate(()=>{const s=document.querySelector('.pane-list .list-search').getBoundingClientRect(),t=document.querySelector('.pane-list .large-title').getBoundingClientRect();return{h:Math.round(s.height),th:Math.round(t.height),top:Math.round(s.top-t.top)}})
+assert.deepEqual(find,{h:find.th,th:find.th,top:0},'Search beside the title, as tall as it')
+// …and the pages' capsule below the rail, at the column's foot, clear of it.
 const pagesTop=await D.evaluate(()=>document.querySelector('.page-rail').getBoundingClientRect().top)
-assert.ok(r.items[2].y+r.items[2].h<pagesTop,'the pages below '+pagesTop)
+assert.ok(r.items[0].y+r.items[0].h<pagesTop,'the pages below '+pagesTop)
 assert.equal(await D.locator('.pane-list .list-bottombar .bar-item').count(),0,'nothing in the bar at the foot')
 const rowsRight=await D.evaluate(()=>Math.max(...[...document.querySelectorAll('.pane-list .row-inner')].map(e=>e.getBoundingClientRect().right)))
 assert.ok(rowsRight<=376+.5,'rows stop at the column: '+rowsRight)
 await D.screenshot({path:path.join(OUT,'76-rail-list.png')})
 
 // 2. Search is a button; the field opens above the list, Cancel takes the head of the rail.
-await D.locator('.pane-list .duo-rail [data-item="search"]').tap();await sleep(500)
+await D.locator('.pane-list .list-search').tap();await sleep(500)
 assert.equal(await D.evaluate(()=>document.activeElement===document.querySelector('.pane-list .search-pill input')),true,'the field has focus')
 assert.ok((await D.locator('.pane-list .search-pill').boundingBox()).y<100,'the field is above the list')
 r=await rail(D,'.pane-list > .duo-rail');assert.deepEqual(ids(r),['cancel'])
 await D.screenshot({path:path.join(OUT,'77-rail-search.png')})
 await D.locator('.pane-list .duo-rail [data-item="cancel"]').tap();await sleep(500)
-assert.deepEqual(ids(await rail(D,'.pane-list > .duo-rail')),['back','search','compose'],'back to the rail it was')
+assert.deepEqual(ids(await rail(D,'.pane-list > .duo-rail')),['back'],'back to the rail it was')
 assert.equal(await D.locator('.pane-list').evaluate(e=>e.classList.contains('searching')||e.classList.contains('search-open')),false)
 
 // 3. The conversation: Back, the calls, the details; the field and the heading keep to the content.
@@ -148,5 +150,5 @@ await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-ri
 assert.equal(await axis(D),'vertical');assert.ok(await rail(D,'.pane-sidebar > .duo-rail'),'and the column is back')
 
 assert.deepEqual(errors,[])
-console.log('PASS: with the system column on the right edge (the Duo full screen) the controls stand in it as a rail — list: Back, Search, New Chat (search opens its field above the list, Cancel at the head); conversation: Back, calls, details, with the heading and the field stopping at the column; details: Back; drawing board: Close, Send, Undo and Clear; sidebar: Search and New Chat — and rows and content stop at the column; an ordinary phone has no rail, the bars stay at the foot; unfolded, the leading column keeps its bar and the trailing one has the rail; they follow the column as it goes and returns, focus kept')
+console.log('PASS: with the system column on the right edge (the Duo full screen) the controls stand in it as a rail — list: Back, with Search beside the title (it opens its field above the list, Cancel at the head); conversation: Back, calls, details, with the heading and the field stopping at the column; details: Back; drawing board: Close, Send, Undo and Clear; sidebar: Search and New Chat — and rows and content stop at the column; an ordinary phone has no rail, the bars stay at the foot; unfolded, the leading column keeps its bar and the trailing one has the rail; they follow the column as it goes and returns, focus kept')
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)})

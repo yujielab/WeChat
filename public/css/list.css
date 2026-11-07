@@ -21,6 +21,31 @@
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 /* Unfolded: you, and settings, at the end of the heading (the sidebar is
    the folded screen's). */
+/* Search beside the title where the list has the rail: blue frosted glass,
+   a circle exactly as tall as the title's line (and the same size steps). */
+.list-search { display: none; }
+.pane-list[data-bars="vertical"]:not(.search-open) .list-search {
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  align-self: center;
+  /* the title's own size and line height (1.17), so it is exactly as tall */
+  font-size: var(--t-large-title);
+  width: 1.17em;
+  height: 1.17em;
+  border-radius: 50%;
+  color: #fff;
+  background: color-mix(in srgb, var(--fb-blue) 80%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 0.5px rgb(255 255 255 / 0.22), 0 6px 16px -8px color-mix(in srgb, var(--fb-blue) 70%, transparent);
+}
+.list-search .icon { width: 46%; height: 46%; }
+.pane-list[data-layout="leading"] .list-search { font-size: var(--t-title-1); }
+@media (max-height: 560px) { .list-search { font-size: var(--t-title-1); } }
+.list-search:active { transform: scale(.94); }
+.list-search:focus-visible { outline: 2px solid var(--fb-blue); outline-offset: 2px; }
 .list-me { flex: none; margin-left: auto; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; }
 .list-me:focus-visible { outline: 2px solid var(--label-2); outline-offset: 2px; }
 .list-me:active { opacity: .7; }

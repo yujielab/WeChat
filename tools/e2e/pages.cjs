@@ -24,13 +24,13 @@ const room=(await api(A,'/api/dm',{username:`gb_${uniq}`})).room.id
 await api(A,'/api/messages',{room,type:'text',text:'Morning!'});await api(B,'/api/messages',{room,type:'text',text:'Hey there'})
 await A.reload();await A.waitForSelector('.row');await sleep(900)
 
-// 1. The rail: the five places, Chats current; the list's own rail above it (Back at its head, Search and New chat at its foot).
+// 1. The rail: the five places, Chats current; the list's own rail above it (Back at its head; Search beside the title).
 let r=await rail(A)
 assert.equal(r.shown,true,'a rail on the Duo');assert.deepEqual(r.items,['chats','moments','memories','requests','you','menu'])
 assert.equal(await A.evaluate(()=>getComputedStyle(document.querySelector('.list-moments')).display),'none','no second Moments beside the title: it is in the capsule')
 assert.equal(r.current,'chats');assert.equal(r.aria,'page')
 const listRail=await A.evaluate(()=>{const top=document.querySelector('.pane-list .duo-rail');const pr=document.querySelector('.page-rail').getBoundingClientRect();const items=[...document.querySelectorAll('.pane-list .duo-rail .bar-item:not([hidden])')].map(b=>({id:b.dataset.item,bottom:b.getBoundingClientRect().bottom}));return{inTop:[...top.querySelectorAll('.bar-item')].map(b=>b.dataset.item),clear:items.every(i=>i.bottom<=pr.top)}})
-assert.deepEqual(listRail.inTop,['back','search','compose'],'Back where every column has it; Search and New chat just above the pages');assert.ok(listRail.clear,'clear of the pages')
+assert.deepEqual(listRail.inTop,['back'],'Back where every column has it; Search beside the title');assert.ok(listRail.clear,'clear of the pages')
 await A.screenshot({path:path.join(OUT,'1-chats.png')})
 
 // 2. Moments: a page, the rail still there over it, Moments current.

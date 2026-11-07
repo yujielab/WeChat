@@ -53,7 +53,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     moments.setAttribute('aria-label', e?.detail ? 'Moments, new from friends' : 'Moments')
   }
   window.addEventListener('moments-new', paintMomentsDot)
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, me))
+  // Where the list has the rail (the Duo), Search stands at the end of the
+  // heading, as tall as the title, in blue frosted glass (list.css).
+  const find = h('button', { class: 'list-search', type: 'button', 'aria-label': 'Search' }, icon('search'))
+  find.addEventListener('click', () => openSearch())
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, me, find))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': 'Filter chats' }, filterThumb)
   const filterButtons = new Map()
@@ -125,7 +129,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     arrange: axis => {
       if (axis === 'vertical') {
         if (searching) return { top: [['cancel']], bottom: [] }
-        return { top: pane.dataset.layout === 'single' ? [['back']] : [], bottom: [['search'], ['compose']] }
+        // Search is at the end of the heading; New chat is in Home's rail.
+        return { top: pane.dataset.layout === 'single' ? [['back']] : [], bottom: [] }
       }
       // While searching the bar keeps its items; they fold away (list.css)
       // so the field can grow over their room and give it back on Cancel.
