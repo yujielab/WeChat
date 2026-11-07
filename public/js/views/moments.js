@@ -472,7 +472,19 @@ function card(moment, { owner }) {
 
   // ------------------------------------------------------------ what was shared
   const burst = h('span', { class: 'mo-burst', 'aria-hidden': 'true' }, icon('heart'))
-  const pictures = m.media.length ? mediaEl(m, { burst, onDouble: () => { pop(burst); setLike(true) } }) : null
+  // In the viewer: comment on it from a field under the photo, and like it, with the counts.
+  const viewerExtras = () => ({
+    actions: [
+      ...(m.canComment ? [{ id: 'comment', icon: 'bubble', label: 'Comment', read: () => ({ count: m.comments.length }), onSelect: v => v.focusReply() }] : []),
+      { id: 'like', icon: 'heart', label: 'Like', read: () => ({ count: m.likes.length, on: m.liked }), onSelect: () => setLike(!m.liked) }
+    ],
+    reply: m.canComment ? {
+      placeholder: 'Add a comment…',
+      sent: 'Comment posted',
+      onSend: async text => everywhere('apply', (await api.post(`/api/moments/${m.id}/comments`, { text })).moment)
+    } : null
+  })
+  const pictures = m.media.length ? mediaEl(m, { burst, onDouble: () => { pop(burst); setLike(true) }, extras: viewerExtras }) : null
   const words = !pictures && m.text ? clamped(h('p', { class: 'mo-words' }, m.text)) : null
 
   // ------------------------------------------------------------ what it gathered
@@ -619,7 +631,7 @@ async function shareMoment(m) {
 // and below (dots). A tap opens a photo; a double tap likes it.
 const ratioOf = x => (x?.w && x?.h ? Math.min(1.91, Math.max(0.8, x.w / x.h)) : 1)
 
-function mediaEl(m, { burst, onDouble }) {
+function mediaEl(m, { burst, onDouble, extras }) {
   const n = m.media.length
   const box = h('div', { class: ['mo-media', n > 1 && 'many'], style: { '--ratio': String(ratioOf(m.media[0])) } })
   let pips = null
@@ -665,7 +677,7 @@ function mediaEl(m, { burst, onDouble }) {
   })
   function single(target, i) {
     const x = m.media[i]
-    if (x.type !== 'video') return show(m, i, target)
+    if (x.type !== 'video') return show(m, i, target, extras?.())
     // A video: a tap plays it if it's still, else turns the sound on or off.
     const v = target.querySelector('video')
     if (v.paused) v.play().catch(() => {})
@@ -701,14 +713,15 @@ function showAlt(x, origin) {
   sheet.el.classList.add('mo-alt-sheet')
 }
 
-function show(m, i, from) {
+function show(m, i, from, extras = {}) {
   const x = m.media[i]
-  if (x.type === 'video') return openViewer({ kind: 'video', fullSrc: x.url, src: x.url, w: x.w, h: x.h, label: 'Video' })
+  if (x.type === 'video') return openViewer({ kind: 'video', fullSrc: x.url, src: x.url, w: x.w, h: x.h, label: 'Video', ...extras })
   const photos = m.media.filter(y => y.type === 'image')
   openViewer({
     thumb: from.querySelector('img'),
     images: photos.map((y, k) => ({ src: y.url, fullSrc: y.url, w: y.w, h: y.h, label: y.alt || `Photo ${k + 1} of ${photos.length}` })),
-    index: photos.indexOf(x)
+    index: photos.indexOf(x),
+    ...extras
   })
 }
 

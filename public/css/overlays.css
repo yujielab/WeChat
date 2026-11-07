@@ -506,7 +506,96 @@ button.cell.is-pressed, a.cell.is-pressed { background: var(--fill-3); }
 }
 .viewer-bar.top { top: calc(var(--safe-top) + 6px); }
 .viewer-bar.bottom { bottom: calc(max(var(--safe-bottom), 12px) + 6px); justify-content: center; }
-.viewer.chrome-off .viewer-bar { opacity: 0; pointer-events: none; }
+.viewer.chrome-off .viewer-bar,
+.viewer.chrome-off .viewer-shade { opacity: 0 !important; pointer-events: none; }
+
+/* After the reference: round glass Back and "…" at the top; at the foot,
+   dots for the photos, dark glass capsules for what can be done (the
+   caller's, then Save and Share as rounds) and a field to answer the photo,
+   over a soft shade so they read on any photo. */
+.viewer-bar.top { top: calc(var(--safe-top) + 10px); align-items: center; }
+.viewer-round {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(120 120 128 / .34);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: inset 0 0 0 .5px rgb(255 255 255 / .18);
+}
+.viewer-round .icon { width: 22px; height: 22px; }
+.viewer-shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 280px;
+  background: linear-gradient(to top, rgb(0 0 0 / .66), rgb(0 0 0 / .28) 55%, transparent);
+  pointer-events: none;
+  opacity: var(--shade, 1);
+  transition: opacity 200ms ease-out;
+}
+.viewer-dock {
+  bottom: calc(max(var(--safe-bottom), 12px) + 8px);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  max-width: 600px;
+  margin-inline: auto;
+}
+.viewer-dots { align-self: center; display: flex; align-items: center; gap: 8px; }
+.viewer-dot { position: relative; width: 7px; height: 7px; padding: 0; border-radius: 50%; background: rgb(255 255 255 / .42); transition: transform 200ms var(--ease-out), background-color 200ms ease-out; }
+.viewer-dot::after { content: ""; position: absolute; inset: -10px; }
+.viewer-dot.on { background: #fff; transform: scale(1.35); }
+.viewer-acts { display: flex; justify-content: flex-end; gap: 10px; }
+.viewer-act {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(40 40 44 / .78);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 0 0 .5px rgb(255 255 255 / .12);
+  font-size: var(--t-body);
+  transition: transform 160ms var(--ease-out);
+}
+.viewer-act.round { flex: none; width: 52px; }
+.viewer-act .icon { width: 24px; height: 24px; }
+.viewer-act:active { transform: scale(.95); }
+.viewer-act.on { color: #ff4d6d; }
+.viewer-act.on .icon :is(path, circle) { fill: currentColor; }
+.viewer-act-count:empty { display: none; }
+.viewer-act-count { color: rgb(255 255 255 / .9); }
+.viewer-reply {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 54px;
+  padding: 0 6px 0 22px;
+  border-radius: 999px;
+  background: rgb(40 40 44 / .78);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 0 0 .5px rgb(255 255 255 / .12);
+}
+.viewer-reply-input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: #fff; font: inherit; font-size: var(--t-body); }
+.viewer-reply-input::placeholder { color: rgb(255 255 255 / .5); }
+.viewer-reply-send { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #000; }
+.viewer-reply-send[hidden] { display: none; }
+.viewer-reply-send .icon { width: 20px; height: 20px; }
+/* A video keeps its own controls: it stands between the top bar and the dock. */
+.viewer[data-kind="video"] .viewer-stage { top: calc(var(--safe-top) + 66px); bottom: calc(max(var(--safe-bottom), 12px) + 84px); }
+.viewer[data-kind="video"]:has(.viewer-reply) .viewer-stage { bottom: calc(max(var(--safe-bottom), 12px) + 152px); }
+:root[data-glass="solid"] :is(.viewer-round, .viewer-act, .viewer-reply) { background: #2c2c30; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .viewer video { background: #000; }
 
 /* ---------------------------------------------------------------- toasts */

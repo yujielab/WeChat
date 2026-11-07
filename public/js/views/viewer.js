@@ -4,10 +4,16 @@
 
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { spring, velocityTracker, project, rubberband } from '../ui/spring.js'
-import { toast, lockApp, unlockApp } from './overlay.js'
+import { toast, lockApp, unlockApp, openMenu } from './overlay.js'
 import { placeOnSide, foldSide } from '../ui/fold.js'
 
-export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = 'Photo', images, index = 0 }) {
+/**
+ * actions: [{ id, icon, label, read?() → { count, on }, onSelect(viewer) }] — capsules along the foot, before
+ * Save and Share (a chat's photo: Reply and Like; a moment's: Comment and Like; a memory: its chat).
+ * reply: { placeholder, onSend(text), sent } — a field under them that answers the photo (a reply in the
+ * chat, a comment on the moment).
+ */
+export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh = 0, findThumb, label = 'Photo', images, index = 0, actions = [], reply = null }) {
   const previousFocus = document.activeElement
   const entries = kind === 'image' && Array.isArray(images) ? images.filter(image => image.src || image.fullSrc) : []
   const gallery = entries.length > 1 ? entries : []
@@ -20,26 +26,73 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     ? h('video', { class: 'viewer-media', src: fullSrc, controls: true, playsInline: true, autoplay: true, preload: 'metadata' })
     : h('img', { class: 'viewer-media', alt: label, draggable: false, src })
   const stage = h('div', { class: 'viewer-stage' }, media)
-  const closeBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Close' }, icon('xmark'))
-  const shareBtn = h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Share or save' }, icon('share'))
-  const counter = gallery.length ? h('span', { class: 'viewer-gallery-count', 'aria-live': 'polite' }) : null
-  // Close leads and Share follows; on the outer display and the inner
-  // display in landscape they run down the trailing edge (duo-layout.css).
-  const top = h('div', { class: 'viewer-bar top' }, closeBtn, shareBtn)
-  const root = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1' }, bg, stage, top, counter)
-  const previous = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Previous photo' }, icon('chevron-left')) : null
-  const next = gallery.length ? h('button', { class: 'glass glass-clear glass-btn', type: 'button', 'aria-label': 'Next photo' }, icon('chevron-right')) : null
-  const thumbnailBar = gallery.length ? h('div', { class: 'viewer-gallery-thumbnails', role: 'group', 'aria-label': 'Photos' }) : null
-  const thumbnailButtons = gallery.map((image, i) => {
-    const button = h('button', { class: 'viewer-gallery-thumb', type: 'button', 'aria-label': `View photo ${i + 1}`, 'aria-pressed': String(i === selected) },
-      h('img', { src: image.src || image.fullSrc, alt: '', loading: 'lazy', decoding: 'async', draggable: false }))
-    button.addEventListener('click', () => select(i))
-    thumbnailBar.append(button)
-    return button
+  // Back at the top's leading corner, everything else about the photo in "…" at the other.
+  const closeBtn = h('button', { class: 'viewer-round', type: 'button', 'aria-label': 'Close' }, icon('arrow-left'))
+  const moreBtn = h('button', { class: 'viewer-round', type: 'button', 'aria-label': 'More', 'aria-haspopup': 'menu' }, icon('ellipsis'))
+  const counter = gallery.length ? h('span', { class: 'viewer-gallery-count sr-only', 'aria-live': 'polite' }) : null
+  const top = h('div', { class: 'viewer-bar top' }, closeBtn, moreBtn)
+  const shade = h('div', { class: 'viewer-shade', 'aria-hidden': 'true' })
+  const root = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1', dataset: { kind } }, bg, stage, shade, top, counter)
+  // Along the foot: which photo of how many (a dot each), what can be done with it — the caller's
+  // capsules, then Save and Share — and, where it can be answered, a field to answer it.
+  const dots = gallery.length ? h('div', { class: 'viewer-dots', role: 'group', 'aria-label': 'Photos' }) : null
+  const dotButtons = gallery.map((image, i) => {
+    const b = h('button', { class: 'viewer-dot', type: 'button', 'aria-label': `View photo ${i + 1}`, 'aria-pressed': String(i === selected) })
+    b.addEventListener('click', () => select(i))
+    dots.append(b)
+    return b
   })
-  if (gallery.length) root.append(
-    h('div', { class: 'viewer-bar viewer-gallery-navigation' }, previous, next),
-    h('div', { class: 'viewer-bar bottom viewer-gallery-bottom' }, thumbnailBar))
+  const viewerApi = { close: () => close(), focusReply: () => replyInput?.focus() }
+  const capsules = actions.map(a => {
+    const count = h('span', { class: 'viewer-act-count tabular' })
+    const b = h('button', { class: 'viewer-act', type: 'button', dataset: { act: a.id }, 'aria-label': a.label }, icon(a.icon), count)
+    const paint = () => {
+      const r = a.read?.() || {}
+      count.textContent = r.count ? String(r.count) : ''
+      b.classList.toggle('on', Boolean(r.on))
+      if (r.on !== undefined) b.setAttribute('aria-pressed', String(Boolean(r.on)))
+      b.setAttribute('aria-label', r.count ? `${a.label}, ${r.count}` : a.label)
+    }
+    b.addEventListener('click', async () => {
+      await a.onSelect?.(viewerApi)
+      paint()
+      setTimeout(paint, 700) // and again once the server has answered
+    })
+    b.addEventListener('repaint', paint)
+    paint()
+    return b
+  })
+  const saveBtn = h('button', { class: 'viewer-act round', type: 'button', 'aria-label': 'Save' }, icon('download'))
+  const shareBtn = h('button', { class: 'viewer-act round', type: 'button', 'aria-label': 'Share' }, icon('share'))
+  const actRow = h('div', { class: 'viewer-acts' }, ...capsules, saveBtn, shareBtn)
+  let replyInput = null
+  let replyForm = null
+  if (reply) {
+    replyInput = h('input', { class: 'viewer-reply-input', type: 'text', enterkeyhint: 'send', autocomplete: 'off', placeholder: reply.placeholder || 'Reply', 'aria-label': reply.placeholder || 'Reply' })
+    const send = h('button', { class: 'viewer-reply-send', type: 'submit', 'aria-label': 'Send', hidden: true }, icon('arrow-up'))
+    replyForm = h('form', { class: 'viewer-reply' }, replyInput, send)
+    replyInput.addEventListener('input', () => { send.hidden = !replyInput.value.trim() })
+    replyForm.addEventListener('submit', async e => {
+      e.preventDefault()
+      const text = replyInput.value.trim()
+      if (!text || send.disabled) return
+      send.disabled = true
+      try {
+        await reply.onSend(text)
+        replyInput.value = ''
+        send.hidden = true
+        replyInput.blur()
+        toast(reply.sent || 'Sent', { type: 'ok' })
+        for (const c of capsules) c.dispatchEvent(new Event('repaint'))
+      } catch (err) {
+        toast(err?.message || "Couldn't send", { type: 'error' })
+      } finally { send.disabled = false }
+    })
+  }
+  const dock = h('div', { class: 'viewer-bar bottom viewer-dock' }, dots, actRow, replyForm)
+  root.append(dock)
+  // The controls fade together (while the photo is dragged away, and as it closes).
+  const chrome = v => { for (const el of [top, dock, shade]) el.style.opacity = v }
   layer.append(root)
   placeOnSide(root, foldSide(thumb))
   // The app behind can't be reached while the photo is up (held by the
@@ -154,10 +207,10 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   function updateGallery() {
     if (!gallery.length) return
     counter.textContent = `${selected + 1} / ${gallery.length}`
-    previous.disabled = selected === 0
-    next.disabled = selected === gallery.length - 1
-    thumbnailButtons.forEach((button, i) => button.setAttribute('aria-pressed', String(i === selected)))
-    thumbnailButtons[selected]?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    dotButtons.forEach((button, i) => {
+      button.setAttribute('aria-pressed', String(i === selected))
+      button.classList.toggle('on', i === selected)
+    })
   }
   function fitMedia() {
     W = stage.clientWidth || root.clientWidth
@@ -186,14 +239,12 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     media.alt = label
     root.setAttribute('aria-label', label)
     root.classList.remove('chrome-off')
-    top.style.opacity = ''
+    chrome('')
     fitMedia()
     updateGallery()
     loadFull()
     if (!reducedMotion()) media.animate?.([{ opacity: .45 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' })
   }
-  previous?.addEventListener('click', () => select(selected - 1))
-  next?.addEventListener('click', () => select(selected + 1))
   updateGallery()
   const onResize = () => {
     if (!closing && ((stage.clientWidth || root.clientWidth) !== W || (stage.clientHeight || root.clientHeight) !== H)) {
@@ -224,7 +275,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     const target = navigated ? null : thumbRect(findThumb?.() || thumb)
     if (target && !reducedMotion()) {
       const start = { ...s }
-      top.style.opacity = '0'
+      chrome('0')
       await animate({
         from: 0,
         to: 1,
@@ -257,12 +308,17 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
 
   const onKey = e => {
     if (e.defaultPrevented) return
+    // Typing an answer: Escape leaves the field first, and the arrows move in the text.
+    if (e.target === replyInput) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); replyInput.blur() }
+      return
+    }
     if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close() }
     else if (gallery.length && ['ArrowLeft', 'ArrowRight'].includes(e.key)) {
       e.preventDefault()
       select(selected + (e.key === 'ArrowLeft' ? -1 : 1))
     } else if (kind === 'image' && e.key === 'Tab') {
-      const buttons = [...root.querySelectorAll('button:not(:disabled)')].filter(button => button.getClientRects().length && !button.closest('[hidden]'))
+      const buttons = [...root.querySelectorAll('button:not(:disabled), input')].filter(button => button.getClientRects().length && !button.closest('[hidden]'))
       const first = buttons[0], last = buttons.at(-1)
       if (e.shiftKey && (document.activeElement === first || !buttons.includes(document.activeElement))) { e.preventDefault(); last?.focus() }
       else if (!e.shiftKey && (document.activeElement === last || !buttons.includes(document.activeElement))) { e.preventDefault(); first?.focus() }
@@ -270,20 +326,54 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
   }
   document.addEventListener('keydown', onKey)
   closeBtn.addEventListener('click', () => close())
-  shareBtn.addEventListener('click', async () => {
+  // The photo as a file: to share (the share sheet, where Save Image lives on iPhone) or to keep.
+  async function asFile() {
     const source = fullSrc || src
+    const res = await fetch(source)
+    if (!res.ok) throw new Error('Media unavailable')
+    const blob = await res.blob()
+    const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace('svg+xml', 'svg')
+    return new File([blob], `${kind === 'video' ? 'VID' : 'IMG'}_${Date.now()}.${ext}`, { type: blob.type })
+  }
+  async function share() {
     try {
-      const res = await fetch(source)
-      if (!res.ok) throw new Error('Media unavailable')
-      const blob = await res.blob()
-      const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace('svg+xml', 'svg')
-      const file = new File([blob], `${kind === 'video' ? 'VID' : 'IMG'}_${Date.now()}.${ext}`, { type: blob.type })
+      const file = await asFile()
       if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] })
-      else window.open(source, '_blank', 'noopener')
+      else window.open(fullSrc || src, '_blank', 'noopener')
     } catch (err) {
-      if (err?.name !== 'AbortError') toast("Couldn't share this photo", { type: 'error' })
+      if (err?.name !== 'AbortError') toast(`Couldn't share this ${kind === 'video' ? 'video' : 'photo'}`, { type: 'error' })
     }
-  })
+  }
+  async function save() {
+    try {
+      const file = await asFile()
+      // iPhone keeps pictures through the share sheet (Save Image); elsewhere, a download.
+      if (/iPhone|iPad/.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) return void await navigator.share({ files: [file] })
+      const url = URL.createObjectURL(file)
+      const a = h('a', { href: url, download: file.name })
+      document.body.append(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      toast('Saved', { type: 'ok' })
+    } catch (err) {
+      if (err?.name !== 'AbortError') toast(`Couldn't save this ${kind === 'video' ? 'video' : 'photo'}`, { type: 'error' })
+    }
+  }
+  async function copyPhoto() {
+    try {
+      const file = await asFile()
+      await navigator.clipboard.write([new ClipboardItem({ [file.type]: file })])
+      toast('Copied', { type: 'ok' })
+    } catch { toast("Couldn't copy this photo", { type: 'error' }) }
+  }
+  shareBtn.addEventListener('click', share)
+  saveBtn.addEventListener('click', save)
+  moreBtn.addEventListener('click', () => openMenu(moreBtn, [[
+    { label: 'Save', icon: 'download', onSelect: save },
+    { label: 'Share', icon: 'share', onSelect: share },
+    ...(kind === 'image' && window.ClipboardItem ? [{ label: 'Copy', icon: 'copy', onSelect: copyPhoto }] : [])
+  ]]))
 
   if (kind === 'video') return { close }
 
@@ -395,7 +485,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
       s.tx = rest.tx + dx + (fw * (1 - shrink)) / 2
       s.ty = rest.ty + dy + (fh * (1 - shrink)) / 2
       s.bg = Math.max(0, 1 - Math.abs(dy) / (H * 0.5))
-      top.style.opacity = String(s.bg)
+      chrome(String(s.bg))
       apply()
     }
   })
@@ -417,7 +507,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
     g = null
     const v = vt.velocity()
     if (e.type === 'pointercancel') {
-      top.style.opacity = ''
+      chrome('')
       clampRest()
     } else if (mode === 'navigate') {
       const displacement = s.tx - rest.tx
@@ -438,7 +528,7 @@ export function openViewer({ kind = 'image', thumb, src, fullSrc, w = 0, h: hh =
       const dy = s.ty - rest.ty
       if (Math.abs(dy + project(v.y)) > H * 0.22 || Math.abs(v.y) > 900) close(v.y)
       else {
-        top.style.opacity = ''
+        chrome('')
         clampRest(v)
       }
     } else if (mode === 'pan') {

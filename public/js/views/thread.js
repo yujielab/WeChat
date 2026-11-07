@@ -1532,7 +1532,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
           fullSrc: preview || m.url,
           w: m.w,
           h: m.h,
-          findThumb: () => nodes.get(m.id)?.querySelector('.bubble img')
+          findThumb: () => nodes.get(m.id)?.querySelector('.bubble img'),
+          ...photoActions(m)
         })
         break
       }
@@ -1569,6 +1570,21 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   })
 
   let lastTap = {}
+
+  // In the viewer, a chat's photo can be answered (a reply quoting it, from a
+  // field under it) and loved, with how many have — like holding it would.
+  function photoActions(m) {
+    const now = () => thread(m.chat).byId.get(m.id) || m
+    if (!reactable(now())) return {}
+    const hearts = () => (now().reactions || []).find(g => g.emoji === '❤️')
+    return {
+      actions: [
+        { id: 'reply', icon: 'bubble', label: 'Reply', onSelect: v => v.focusReply() },
+        { id: 'like', icon: 'heart', label: 'Love', read: () => ({ count: hearts()?.users.length || 0, on: Boolean(hearts()?.users.includes(state.me?.id)) }), onSelect: () => react(now(), '❤️') }
+      ],
+      reply: { placeholder: 'Reply to this photo', sent: 'Replied', onSend: text => sendText(text, m.chat, m.id) }
+    }
+  }
 
   async function react(m, emoji, { burst = false } = {}) {
     const chat = m.chat
