@@ -47,6 +47,7 @@
   font-weight: 800;
   letter-spacing: -0.035em;
   line-height: 1;
+  color: var(--sky-title);
 }
 .mo-head-actions { flex: none; display: flex; align-items: center; gap: 8px; }
 .mo-head-btn { width: 44px; height: 44px; }
