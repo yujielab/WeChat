@@ -81,7 +81,7 @@ assert.equal(await D.locator('.pane-list').evaluate(e=>e.classList.contains('sea
 
 // 3. The conversation: Back, the calls, the details; the field and the heading keep to the content.
 await open(D)
-r=await rail(D,'.thread:not([hidden]) > .duo-rail');assert.deepEqual(ids(r),['back','audio','video','info'])
+r=await rail(D,'.thread:not([hidden]) > .duo-rail');assert.deepEqual(ids(r),['back','audio','video'])
 for(const i of r.items){assert.ok(i.x>=376&&i.x+i.w<=466,'in the column '+i.id);assert.ok(i.w>=44&&i.h>=44)}
 for(let i=1;i<r.items.length;i++)assert.ok(r.items[i].y>=r.items[i-1].y+r.items[i-1].h-.5,r.items[i].id+' under '+r.items[i-1].id)
 const geo=await D.evaluate(()=>{const q=s=>document.querySelector('.thread:not([hidden]) '+s).getBoundingClientRect();return{field:q('.composer .field').right,action:q('.composer-action').right,title:q('.thread-title').right,nav:q('.thread-nav').right}})
@@ -128,7 +128,7 @@ assert.equal(await axis(U),'vertical')
 await open(U)
 assert.equal(await rail(U,'.pane-list > .duo-rail'),null,'the leading list keeps its bar')
 assert.ok(await U.locator('.pane-list .list-bottombar .bar-item').count()>=1)
-r=await rail(U,'.thread:not([hidden]) > .duo-rail');assert.ok(r);assert.deepEqual(ids(r),['audio','video','info'],'no Back beside the list')
+r=await rail(U,'.thread:not([hidden]) > .duo-rail');assert.ok(r);assert.deepEqual(ids(r),['audio','video'],'no Back beside the list')
 for(const i of r.items)assert.ok(Math.abs(i.x+i.w/2-(890-49))<=1,'open, under the clock too '+JSON.stringify(i))
 for(const i of r.items)assert.ok(i.x>=890-84-.5,'in the system column '+i.id)
 await U.screenshot({path:path.join(OUT,'83-rail-unfolded.png')})

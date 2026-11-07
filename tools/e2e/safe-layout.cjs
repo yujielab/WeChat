@@ -1,5 +1,5 @@
 // Where the system keeps its column down the right edge (a right inset of 64pt or more) the controls
-// stand in it as a rail — Back, the calls, the details, one under the other, centred under the status bar,
+// stand in it as a rail — Back and the calls, one under the other, centred under the status bar,
 // the field stopping at the column — except in the leading column of a split view, which keeps its bar.
 // Everywhere else, the bars below:
 // iPhone Duo bars and safe regions: every control inside the safe region at
@@ -22,7 +22,7 @@ for(const c of [
  {w:466,h:678,kb:380,right:84,bottom:52,name:'21-safe-keyboard'},
  {w:320,h:568,right:84,bottom:52},
  {w:320,h:568,right:59,bottom:0,overflow:true},
- {w:466,h:260,right:84,bottom:0,railOverflow:true},
+ {w:466,h:200,right:84,bottom:0,railOverflow:true},
  {w:445,h:320,right:0,bottom:0},
  {w:678,h:466,right:0,bottom:20,name:'22-outer-landscape'},
  {w:393,h:852,right:0,bottom:34},
@@ -53,14 +53,14 @@ if(railed){
  // Send sits inside the end of the field (css/chat.css): a 44pt circle within the field's own box.
  assert.ok(d.action.w>=43.5&&d.action.h>=43.5,'the field\'s button is 44pt');assert.ok(d.action.x>=d.field.x-.5&&d.action.x+d.action.w<=d.field.right+.5&&d.action.y>=d.field.y-.5&&d.action.y+d.action.h<=d.field.bottom+.5,'Send inside the field '+JSON.stringify({a:d.action,f:d.field}))
  // Back leads the rail, then the calls, then the details; none beside the list.
- const order=['back','audio','video','info'].filter(id=>item(id));if(c.split)assert.ok(!item('back'),'no Back beside the list');else assert.ok(item('back'),'Back never overflows')
+ const order=['back','audio','video'].filter(id=>item(id));if(c.split)assert.ok(!item('back'),'no Back beside the list');else assert.ok(item('back'),'Back never overflows')
  if(!c.railOverflow){assert.deepEqual(ids,order,'one under the other');for(let i=1;i<order.length;i++)assert.ok(item(order[i]).y>=item(order[i-1]).bottom-.5,order[i]+' under '+order[i-1])}
  if(c.railOverflow){
   assert.ok(ids.includes('more'),'overflow button');assert.ok(item('back'),'Back stays');assert.ok(item('more').y>=item('back').bottom-.5,'the menu button follows Back')
   await p.click('.thread .bar-more');await p.locator('.menu.on').waitFor();await p.waitForTimeout(200);const b=await p.locator('.menu').boundingBox(),m=await p.locator('.thread .bar-more').boundingBox()
   assert.ok(b.x>=9&&b.y>=9&&b.y+b.height<=H-B-9,'menu safe region');assert.ok(b.x+b.width<=m.x+.5,'the menu opens beside the rail, not over it '+JSON.stringify({b,m}))
-  const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('聊天信息'),'overflowed items in the menu '+labels)
-  await p.getByRole('menuitemcheckbox',{name:'聊天信息',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'info:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
+  const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('Video call'),'overflowed items in the menu '+labels)
+  await p.getByRole('menuitem',{name:'Video call',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'video:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
  }
 }else{
 for(const b of[...d.items,d.field,{id:'action',...d.action}]){const limit=Math.min(c.w-c.right,d.thread.right),start=Math.max(d.thread.x,c.split?0:c.left||0);assert.ok(b.x>=start-.5&&b.right<=limit+.5,'safe horizontal '+b.id+' '+JSON.stringify({x:b.x,right:b.right,start,limit}));assert.ok(b.y>=-.5&&b.bottom<=H-B+.5,'safe vertical '+b.id)}
@@ -69,8 +69,7 @@ assert.ok(d.action.w>=43.5&&d.action.h>=43.5,'the field\'s button is 44pt');asse
 const ids=d.items.map(i=>i.id),item=id=>d.items.find(i=>i.id===id)
 // The heading (css/chat.css): the calls before the name, in the middle; the details after it.
 for(const id of['audio','video'])if(item(id))assert.ok(item(id).right<=d.title.x+.5,id+' before the name '+JSON.stringify({b:item(id),title:d.title}))
-if(item('info'))assert.ok(item('info').x>=d.title.right-.5,'info after the name')
-for(const id of['audio','video','info'])if(item(id))assert.ok(item(id).y>=d.header.y-.5&&item(id).bottom<=d.header.bottom+.5,id+' in the heading')
+for(const id of['audio','video'])if(item(id))assert.ok(item(id).y>=d.header.y-.5&&item(id).bottom<=d.header.bottom+.5,id+' in the heading')
 // The bar at the foot: Back leads it, before the field; drawing and photos follow the field; one row.
 // A field grown taller (long text, large type) keeps the bar on its bottom edge.
 const onRow=i=>i.bottom<=d.field.bottom+.5&&i.bottom>=d.field.bottom-7
@@ -84,8 +83,8 @@ if(c.overflow){
  assert.ok(ids.includes('more'),'overflow button');assert.ok(item('more').x>=d.title.right-.5,'menu button in the heading')
  await p.click('.thread .bar-more');await p.locator('.menu.on').waitFor();await p.waitForTimeout(200);const b=await p.locator('.menu').boundingBox();assert.ok(b.x>=9&&b.x+b.width<=c.w-c.right-9&&b.y>=9&&b.y+b.height<=H-B-9,'menu safe region')
  const m=await p.locator('.thread .bar-more').boundingBox();assert.ok(b.y>=m.y+m.height,'menu below its control '+JSON.stringify({b,m}))
- const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('聊天信息'),'overflowed items in the menu '+labels)
- await p.getByRole('menuitemcheckbox',{name:'聊天信息',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'info:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
+ const labels=await p.locator('.menu .menu-item .label').allTextContents();assert.ok(labels.includes('Video call'),'overflowed items in the menu '+labels)
+ await p.getByRole('menuitem',{name:'Video call',exact:true}).click();await p.waitForTimeout(250);assert.equal(await p.evaluate(()=>actions.at(-1)),'video:r');assert.equal(await p.locator('.thread .bar-more').evaluate(e=>e===document.activeElement),true)
 }else assert.ok(!ids.includes('more'),'nothing overflows '+ids)
 }
 // At the newest message, it and its status stay fully readable above the floating bar, also once
