@@ -132,7 +132,7 @@ await A.waitForFunction(id=>import('/js/store.js').then(({state})=>state.open===
 await A.waitForSelector('.thread:not([hidden]) .msgs .m')
 
 // 8. Its details show its own cards, without "Open chat".
-await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.art-body .ins-section .ip-card[data-kind]').first().waitFor()
+await A.locator('.thread:not([hidden]) [data-item="info"]').first().dispatchEvent('click');await A.locator('.art-body .ins-section .ip-card[data-kind]').first().waitFor()
 const own=await A.evaluate(()=>[...document.querySelectorAll('.art-body .ins-section .ip-card')].map(c=>c.dataset.kind))
 assert.deepEqual(own,['ride','meetup','upcoming','home','mood','photo','summary','likes'],'only Hong\'s')
 assert.ok(!(await A.locator('.art-body .ins-section .ip-act').allTextContents()).includes('Open chat'))

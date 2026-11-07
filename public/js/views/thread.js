@@ -482,7 +482,15 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const empty = h('div', { class: 'thread-empty' })
   pane.append(empty, root)
 
-  titleBtn.addEventListener('click', () => current && onInfo(current))
+  // The name at the top: in a chat with one person, their page (views/moments.js);
+  // a group's details otherwise. (Chat info has the details either way.)
+  titleBtn.addEventListener('click', async () => {
+    if (!current) return
+    const c = chatInfo(current)
+    const peer = c?.kind !== 'group' && c?.peer?.id
+    if (!peer) return onInfo(current)
+    ;(await import('./moments.js')).openMoments({ userId: peer, origin: titleBtn })
+  })
   jump.addEventListener('click', () => scrollToBottom(true))
 
   let lastWidth = 0, lastHeight = 0
@@ -1188,7 +1196,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
     if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} members` : '') : (c.online ? 'Online' : '')
-    titleBtn.setAttribute('aria-label', `${c.name}, view chat info`)
+    titleBtn.setAttribute('aria-label', room || !c.peer?.id ? `${c.name}, view chat info` : `${c.name}, view profile`)
     // The unread badge on Back is status: it changes what overflows first.
     bars.refresh()
     arrangeBars()

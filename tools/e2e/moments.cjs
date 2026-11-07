@@ -158,9 +158,16 @@ await A.locator('.moments-home .mo-fresh').click();await sleep(800)
 assert.equal(await A.locator('.moments-home .mo-item').first().locator('.mo-words').textContent(),'Back at the trailhead','newest first')
 await A.locator('.moments-home .mo-head-actions [aria-label="Close"]').click();await A.locator('.moments-page').waitFor({state:'detached'})
 
-// 11. A friend's page, from the chat's details: Message leads back to the chat.
+// 11. A friend's page, from their name at the top of the chat, and from the chat's details: Message leads back to the chat.
 await A.locator('.row:has-text("Coisini") .row-inner').click();await A.waitForSelector('.thread:not([hidden]) .msgs .m');await sleep(500)
-await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.art-body .cell:has-text("Moments")').waitFor();await sleep(300)
+assert.equal(await A.locator('.thread:not([hidden]) .thread-title').getAttribute('aria-label'),'Coisini, view profile')
+await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.moments-profile .mo-item').first().waitFor();await sleep(500)
+assert.equal(await A.locator('.moments-profile .mo-name').textContent(),'Coisini','her page, straight from her name')
+assert.equal(await A.locator('.art-body .cell:has-text("Moments")').count(),0,'not the details')
+await A.screenshot({path:path.join(OUT,'5b-profile-from-title.png')})
+await A.locator('.moments-profile .mo-pill:has-text("Message")').click();await A.locator('.moments-page').waitFor({state:'detached'});await sleep(500)
+assert.equal(await A.locator('.thread:not([hidden])').count(),1)
+await A.locator('.thread:not([hidden]) [data-item="info"]').first().dispatchEvent('click');await A.locator('.art-body .cell:has-text("Moments")').waitFor();await sleep(300)
 await A.locator('.art-body .cell:has-text("Moments")').click();await A.locator('.moments-profile .mo-item').first().waitFor();await sleep(500)
 assert.equal(await A.locator('.moments-profile .mo-name').textContent(),'Coisini')
 assert.equal(await A.locator('.moments-profile .mo-counts').textContent(),'3 PostsFriends')

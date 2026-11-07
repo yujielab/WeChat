@@ -79,7 +79,7 @@ await vp('emulatePosture',null);await sleep(900)
 // 5. Open flat, the details come in narrow and the conversation slides over at its own width — not one line reflows.
 const bubble=()=>A.evaluate(()=>[...document.querySelectorAll('.thread:not([hidden]) .bubble')].map(b=>Math.round(b.getBoundingClientRect().height)).join(','))
 const shape=await bubble()
-const widths=await A.evaluate(async()=>{const pane=document.querySelector('.pane[data-col="thread"]');const out=[];document.querySelector('.thread:not([hidden]) .thread-title').click();const t0=performance.now();await new Promise(done=>{const tick=()=>{out.push(Math.round(pane.getBoundingClientRect().width));if(performance.now()-t0<700)requestAnimationFrame(tick);else done()};requestAnimationFrame(tick)});return out})
+const widths=await A.evaluate(async()=>{const pane=document.querySelector('.pane[data-col="thread"]');const out=[];document.querySelector('.thread:not([hidden]) [data-item="info"]').click();const t0=performance.now();await new Promise(done=>{const tick=()=>{out.push(Math.round(pane.getBoundingClientRect().width));if(performance.now()-t0<700)requestAnimationFrame(tick);else done()};requestAnimationFrame(tick)});return out})
 assert.ok(widths.every(w=>w===609),'the conversation stays 609 wide the whole way '+[...new Set(widths)])
 c=await cols();assert.deepEqual(c.thread,{x:0,w:609});assert.deepEqual(c.artifact,{x:609,w:342})
 assert.equal(await bubble(),shape,'no message changed shape')
