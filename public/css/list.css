@@ -31,7 +31,8 @@
 .conn-status.warn { color: var(--orange-text); }
 
 /* The capsule follows the actual button geometry instead of assuming equal labels. */
-.list-filters { position: relative; display: flex; align-items: center; width: max-content; max-width: calc(100% - var(--list-inset) * 2); gap: 3px; margin: 15px var(--list-inset) 14px; padding: 0; min-height: 44px; isolation: isolate; overflow-x: auto; scrollbar-width: none; }
+/* Inside the list's section (people.css), which scrolls them with Requests. */
+.list-filters { position: relative; display: flex; align-items: center; width: max-content; gap: 3px; padding: 0; min-height: 44px; isolation: isolate; }
 .list-filters::-webkit-scrollbar { display: none; }
 .filter-thumb { position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 999px; background: var(--ink); opacity: 0; }
 .list-filters.ready .filter-thumb { opacity: 1; transition: transform 220ms var(--ease-out), width 220ms var(--ease-out), opacity var(--dur-quick) ease-out; }
@@ -159,7 +160,7 @@ mark { background: none; color: var(--blue-text); }
 @media (max-height: 560px) {
   .list-head { padding-top: calc(var(--safe-top) + 24px); }
   .large-title { font-size: var(--t-title-1); }
-  .list-filters { margin-top: 12px; margin-bottom: 12px; }
+  .list-section { margin-top: 4px; margin-bottom: 4px; }
   .list-empty { padding-top: 16px; }
   .empty-art .icon { width: 36px; height: 36px; }
 }
@@ -205,7 +206,7 @@ mark { background: none; color: var(--blue-text); }
    space; row text remains two clear lines with a generous action target. */
 @media (max-height: 760px) {
   .pane-list:not([data-layout="leading"]) { --row-avatar: 46px; }
-  .pane-list:not([data-layout="leading"]) .list-filters { margin-top: 10px; margin-bottom: 12px; }
+  .pane-list:not([data-layout="leading"]) .list-section { margin-top: 2px; margin-bottom: 4px; }
   .pane-list:not([data-layout="leading"]) .row-inner { min-height: 66px; padding-block: 10px; }
   .pane-list:not([data-layout="leading"]) .row { margin-bottom: 3px; }
 }
@@ -214,7 +215,7 @@ mark { background: none; color: var(--blue-text); }
   .pane-list:not([data-layout="leading"]) .large-title { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .pane-list:not([data-layout="leading"]) .list-inline-title { max-width: 10em; opacity: 1; }
   .pane-list:not([data-layout="leading"]) .list-heading { justify-content: flex-end; }
-  .pane-list:not([data-layout="leading"]) .list-filters { margin-top: 0; margin-bottom: 8px; }
+  .pane-list:not([data-layout="leading"]) .list-section { margin-top: -8px; margin-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .row-highlight,

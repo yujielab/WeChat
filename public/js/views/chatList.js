@@ -89,6 +89,16 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
   const panel = createInsightsPanel({ onOpen: id => onOpen(id) })
   const requests = createRequestsLink()
   const section = h('div', { class: 'list-section' }, filterTabs, requests)
+  // Where the strip scrolls, its edges fade on the side there's more.
+  const sectionEdges = () => {
+    const max = section.scrollWidth - section.clientWidth
+    const more = [section.scrollLeft > 2 && 'start', section.scrollLeft < max - 2 && 'end'].filter(Boolean).join(' ')
+    if (more) section.dataset.more = more
+    else delete section.dataset.more
+  }
+  section.addEventListener('scroll', sectionEdges, { passive: true })
+  new ResizeObserver(sectionEdges).observe(section)
+  new ResizeObserver(sectionEdges).observe(filterTabs)
   const people = createPeople({ onOpen: id => onOpen(id) })
   const scroll = h('div', { class: 'scroll list-scroll' }, head, notes.el, panel.el, section, filterNote, pinLabel, pinned, rows, capsule, empty, people.el, results)
 
@@ -191,6 +201,8 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     state.filter = key
     render()
     onFilter?.(key)
+    // On a narrow column the strip scrolls: the chosen tab comes into view.
+    filterButtons.get(key)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' })
   }
 
   function positionFilterThumb() {

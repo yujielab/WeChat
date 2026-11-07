@@ -90,6 +90,10 @@
    field opens above the list while searching, and Cancel takes the head of
    the rail until the search ends. */
 .pane-list[data-bars="vertical"] .list-scroll { padding-right: calc(var(--content-right) - 10px); padding-bottom: calc(var(--safe-bottom) + 28px); }
+/* The scroll already stops short of the system column and the rail: what is
+   inside it (notes, the panel, the filters and Requests) doesn't keep that
+   room a second time. */
+.pane-list[data-bars="vertical"] .list-scroll { --safe-right: 0px; }
 .pane-list[data-bars="vertical"] .list-head { padding-right: calc(var(--safe-left) + 12px); }
 .pane-list[data-bars="vertical"] > .edge-bottom { display: none; }
 .pane-list[data-bars="vertical"] .list-bottombar { top: calc(var(--safe-top) + 12px); bottom: auto; right: var(--content-right); }

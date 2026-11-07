@@ -109,14 +109,32 @@
 .sheet.note-sheet .note-share:disabled { opacity: .35; }
 
 /* ---------------------------------------------------------------- the filters, and Requests */
-.list-section { display: flex; align-items: center; gap: 8px; }
-.list-section > .list-filters { flex: 0 1 auto; min-width: 0; margin-right: 0; }
+/* One strip: where the column is too narrow for every tab and Requests (the
+   Duo's outer screen beside the system column), the whole row scrolls
+   sideways, so no tab is ever cut off inside it; where they fit, Requests
+   keeps to the end. Room above and below for each glass pill's shadow. */
+.list-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 6px;
+  padding: 8px calc(var(--list-inset) + var(--safe-right)) 8px calc(var(--list-inset) + var(--safe-left));
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--list-inset);
+  scrollbar-width: none;
+}
+.list-section::-webkit-scrollbar { display: none; }
+.list-section[data-more="end"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent calc(100% - 2px)); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent calc(100% - 2px)); }
+.list-section[data-more="start"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent calc(100% - 2px)); mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent calc(100% - 2px)); }
+.list-section[data-more="start end"] { -webkit-mask-image: linear-gradient(to right, transparent 2px, #000 40px, #000 calc(100% - 40px), transparent calc(100% - 2px)); mask-image: linear-gradient(to right, transparent 2px, #000 40px, #000 calc(100% - 40px), transparent calc(100% - 2px)); }
+.list-section > .list-filters { flex: none; max-width: none; margin: 0; overflow: visible; }
 .list-requests {
   flex: none;
   margin-left: auto;
-  margin-right: calc(var(--list-inset) - 10px + var(--safe-right));
   height: 44px;
-  padding: 0 10px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -132,7 +150,7 @@
 .requests-count { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--red); color: #fff; font-size: var(--t-caption-2); font-weight: var(--w-bold); }
 .requests-count[hidden] { display: none; }
 /* Unfolded, the filters are a menu: Requests keeps to the end of the heading's row. */
-.pane-list[data-layout="leading"] .list-section, .pane-list[data-layout="trailing"] .list-section { min-height: 44px; margin: 4px 0 6px; }
+.pane-list[data-layout="leading"] .list-section, .pane-list[data-layout="trailing"] .list-section { min-height: 44px; margin: 4px 0 6px; padding-block: 0; }
 
 /* ---------------------------------------------------------------- no chats yet */
 .list-empty.starting { padding: 10px calc(var(--list-inset) + var(--safe-right)) 6px calc(var(--list-inset) + var(--safe-left)); text-align: left; }
