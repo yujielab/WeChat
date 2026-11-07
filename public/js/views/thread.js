@@ -24,6 +24,8 @@ import { createBars, railed } from '../ui/bars.js'
 import { onBars } from '../ui/viewport.js'
 import { backdropLayer, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
 import { chatBackdrop } from './backdrops.js'
+import { attachPick, attachSelectionPill } from './explain-pick.js'
+import { openExplain } from './explain.js'
 
 // A mouse or trackpad drag-selects text already (thread.css); touch asks for it from the menu.
 const finePointer = matchMedia('(hover: hover) and (pointer: fine)')
@@ -1449,7 +1451,9 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     if (!bub) return
     switch (bub.dataset.kind) {
       case 'text': {
-        // Double-tap a message to love it (or take the heart back).
+        // Double-tap a message to love it (or take the heart back) — where a
+        // double-tap doesn't pick words to explain instead (below).
+        if (explainable(bub, node)) break
         const now = performance.now()
         if (lastTap.id === m.id && now - lastTap.at < 340) {
           lastTap = {}
@@ -1617,6 +1621,20 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     // From the keyboard (the menu key) the first action takes focus.
     messageMenu(node, m, { touch: e.button === 2 || e.pointerType === 'mouse' || e.pointerType === 'touch' })
   })
+
+  // Double-tap a message, yours or theirs, and slide to pick words; let go
+  // to search the web and explain them (views/explain-pick.js, explain.js).
+  // With a mouse, or Select Text, an Explain button stands by the selection.
+  const explainable = (bub, node) => {
+    const m = msgOf(node)
+    return Boolean(state.assist) && m?.type === 'text' && m.status !== 'revoked' && bub.classList.contains('text')
+  }
+  const explain = ({ text, context, bub, clear }) => {
+    suppressClick = true
+    openExplain({ text, context, origin: bub, onClose: clear })
+  }
+  attachPick(scroller, { enabled: explainable, onStart: () => { cancelLong(); swipe = null }, onPick: explain })
+  attachSelectionPill(scroller, { enabled: explainable, onPick: explain })
 
   // Long-press: the conversation blurs away, the message lifts out as it is
   // (same size, same lines), the reactions stand above it and the actions in
