@@ -46,9 +46,9 @@
 
 /* Pinned people stay airy and distinct from the conversation rows. The grid
    keeps an even number of columns so it divides cleanly at the fold. */
-.pinned-label { margin: 2px var(--list-inset) 9px; color: var(--label-2); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
+.pinned-label { margin: 2px calc(var(--list-inset) + var(--safe-right)) 9px calc(var(--list-inset) + var(--safe-left)); color: var(--label-2); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
 .pinned-label .icon { width: 12px; height: 12px; }
-.pinned { display: grid; grid-template-columns: repeat(var(--pin-cols, 4), 1fr); gap: 10px 5px; margin: 0 14px 15px; padding: 4px 0 15px; border-bottom: 1px solid var(--line); }
+.pinned { display: grid; grid-template-columns: repeat(var(--pin-cols, 4), 1fr); gap: 10px 5px; margin: 0 calc(14px + var(--safe-right)) 15px calc(14px + var(--safe-left)); padding: 4px 0 15px; border-bottom: 1px solid var(--line); }
 .pin { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 6px 3px; border-radius: var(--r-m); min-width: 0; transition: transform var(--spring-snappy-dur) var(--spring-snappy), background 180ms ease; }
 .pin.is-pressed { transform: scale(.94); background: var(--paper, var(--field)); transition-duration: var(--press-dur); }
 .pin .avatar { --size: 54px; border-radius: var(--r-m); }
@@ -58,7 +58,9 @@
 .pin.selected .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4.5px var(--label-3); }
 
 /* Quiet inset rows, with blue reserved for unread/live information. */
-.rows { list-style: none; margin: 0; padding: 0 10px; }
+/* The rows keep clear of the screen's sides where the system has them (an
+   iPhone on its side: the Dynamic Island and the corners). */
+.rows { list-style: none; margin: 0; padding: 0 calc(10px + var(--safe-right)) 0 calc(10px + var(--safe-left)); }
 .row { position: relative; overflow: hidden; contain: layout paint; margin-bottom: 3px; border-radius: var(--r-m); }
 .row-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px 13px; border-radius: inherit; background: var(--bg); transition: background-color var(--dur-quick) ease-out, box-shadow var(--dur-quick) ease-out; }
 .row.swiping .row-inner { will-change: transform; }
@@ -98,7 +100,7 @@
 .row.moving { z-index: 2; transition: transform 240ms var(--ease-out); }
 
 /* A useful first screen, not a blank account. */
-.list-empty { padding: 36px 26px 30px; text-align: center; color: var(--label-2); font-size: var(--t-subhead); }
+.list-empty { padding: 36px calc(26px + var(--safe-right)) 30px calc(26px + var(--safe-left)); text-align: center; color: var(--label-2); font-size: var(--t-subhead); }
 .empty-art { margin: 0 auto 14px; color: var(--label-3); }
 .empty-art .icon { width: 44px; height: 44px; margin: 0 auto; }
 .list-empty h2 { margin: 0; color: var(--label); font-size: var(--t-title-3); line-height: 1.4; letter-spacing: -.5px; font-weight: 650; }
@@ -127,7 +129,7 @@
 .pane-list.searching .search-cancel { opacity: 1; transform: none; pointer-events: auto; width: 56px; margin-left: 0; transition-timing-function: ease-out, var(--spring-snappy), var(--ease-out), var(--ease-out); }
 .search-results { padding-top: calc(var(--safe-top) + 30px); }
 .section-title { margin: 19px var(--list-inset) 8px; color: var(--label-2); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
-.contact-row { width: calc(100% - 20px); margin: 2px 10px; display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 13px; border-radius: var(--r-m); text-align: left; }
+.contact-row { width: calc(100% - 20px - var(--safe-left) - var(--safe-right)); margin: 2px calc(10px + var(--safe-right)) 2px calc(10px + var(--safe-left)); display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 13px; border-radius: var(--r-m); text-align: left; }
 .contact-row .avatar { --size: 42px; border-radius: var(--r-m); }
 .contact-row .grow { flex: 1; min-width: 0; }
 .contact-row .name { font-size: var(--t-subhead); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -186,12 +188,12 @@ mark { background: none; color: var(--blue-text); }
 .pane-list[data-layout="leading"] .list-head { padding-top: calc(var(--safe-top) + 24px); margin-bottom: 8px; }
 .pane-list[data-layout="leading"] .large-title { font-size: var(--t-title-1); }
 .pane-list[data-layout="leading"] .conn-status { max-width: 100%; }
-.pane-list[data-layout="leading"] .rows { padding: 6px 10px 0; }
+.pane-list[data-layout="leading"] .rows { padding: 6px calc(10px + var(--safe-right)) 0 calc(10px + var(--safe-left)); }
 .pane-list[data-layout="leading"] .row { margin-bottom: 2px; border-radius: var(--r-m); }
 .pane-list[data-layout="leading"] .row-inner { min-height: 66px; padding: 10px 11px; gap: 11px; }
 .pane-list[data-layout="leading"] .row-main { gap: 5px; }
 /* One capsule marks the open conversation and glides between rows. */
-.row-highlight { position: absolute; z-index: 2; top: 0; left: 10px; right: 10px; height: 0; border-radius: var(--r-m); pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--label) 5%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
+.row-highlight { position: absolute; z-index: 2; top: 0; left: calc(10px + var(--safe-left)); right: calc(10px + var(--safe-right)); height: 0; border-radius: var(--r-m); pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--label) 5%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
 .row-highlight.on { opacity: 1; }
 .row-highlight.ready { transition: transform 220ms var(--ease-out), height 200ms var(--ease-out), opacity var(--dur-quick) ease-out; }
 .rows:has(.row.selected.swiping) + .row-highlight { opacity: 0; }
