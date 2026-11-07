@@ -4,7 +4,8 @@
 // 12px when the other speaks. Swipe left and every message on screen shows when it was sent, springing
 // back on release; the long-press menu has the full time (and when it was edited); scrolling back floats
 // the day you're reading, which fades after you stop; a jump to a quoted message shows its day. Settings:
-// 12/24-hour, every message's time, and read receipts (kept on the server). Fixtures in the page, plus a
+// 12/24-hour, every message's time, and read receipts (kept on the server). The floating day stands over the
+// messages' middle; the field, the mic and jump-to-latest are frosted glass. Fixtures in the page, plus a
 // real account for the receipts setting. npm run dev:e2e; node tools/e2e/chat-time.cjs [outdir]
 const { chromium } = require('playwright'), assert = require('node:assert/strict'), fs = require('fs'), path = require('path')
 const BASE = process.env.BASE || 'http://127.0.0.1:8787', OUT = process.argv[2] || path.join(process.cwd(), 'screenshots-chat-time')
@@ -182,6 +183,13 @@ const statusLine = p => p.evaluate(() => [...document.querySelectorAll('.m-statu
     assert.equal(await d.locator('.history-date').innerText(), expect, 'the day of the topmost message on screen')
     const glass = await d.evaluate(() => { const cs = getComputedStyle(document.querySelector('.history-date')); return [cs.height, cs.borderRadius, cs.backdropFilter || cs.webkitBackdropFilter] })
     assert.equal(glass[0], '30px'); assert.equal(glass[1], '15px'); assert.match(glass[2], /blur\(16px\)/)
+    const centred = await d.evaluate(() => { const a = document.querySelector('.history-date').getBoundingClientRect(), m = document.querySelector('.msgs').getBoundingClientRect(), n = document.querySelector('.thread-nav').getBoundingClientRect(); return { off: Math.abs(a.left + a.width / 2 - (m.left + m.width / 2)), below: Math.round(a.top - n.bottom) } })
+    assert.ok(centred.off < 1.5, 'over the middle of the messages ' + JSON.stringify(centred))
+    assert.equal(centred.below, 8, 'just under the heading')
+    // the message field and jump-to-latest: frosted glass, not the shader
+    const frost = await d.evaluate(() => ['.composer .field', '.jump', '.composer-mic'].map(sel => { const el = document.querySelector(`.thread:not([hidden]) ${sel}`), cs = getComputedStyle(el); return [el.dataset.lg || '', Boolean(el.querySelector(':scope > .lg-btn')), cs.backdropFilter || cs.webkitBackdropFilter] }))
+    assert.ok(frost.every(([lg, canvas, bf]) => !lg && !canvas && /blur\(24px\)/.test(bf)), 'frosted ' + JSON.stringify(frost))
+    assert.equal(await d.evaluate(() => document.querySelector('.thread:not([hidden]) .composer-action').dataset.lg), 'gl', 'the + keeps its liquid glass')
     await d.screenshot({ path: path.join(OUT, '6-history-date.png') })
     await sleep(1500)
     assert.equal(await d.locator('.history-date.on').count(), 0, 'fades 1.2s after scrolling stops')

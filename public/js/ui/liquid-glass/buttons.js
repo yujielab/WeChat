@@ -33,7 +33,9 @@ export const BUTTONS = [
   '.call-btn', '.call-icon-btn', '.note-reply-send',
   '.explain-pill', '.xp-chip', '.xp-send', '.xp-retry'
 ].join(', ')
-const NOT = '.thread-title, .switch, .lg-btn'
+// …but not these: the conversation's message field, its mic and its
+// jump-to-latest button are frosted glass instead (css/liquid.css, Frosted).
+const NOT = '.thread-title, .switch, .lg-btn, .composer .field, .composer-mic, .thread .jump'
 
 // The demo's glass (src/Controls.tsx, with App.tsx's transforms), tuned to
 // the app's target: a milky, clean glass — a thinner lens, no colour

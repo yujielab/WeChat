@@ -932,6 +932,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   function floatDate(ts, ms = 1200) {
     const text = historyDate(ts)
     if (dateFloat.textContent !== text) dateFloat.textContent = text
+    // over the middle of the messages (not of the pane, which may hold the
+    // rail too), just under the heading
+    const box = root.getBoundingClientRect()
+    const col = msgs.getBoundingClientRect()
+    dateFloat.style.left = `${Math.round(col.left + col.width / 2 - box.left)}px`
+    dateFloat.style.top = `${Math.round(nav.getBoundingClientRect().bottom - box.top + 8)}px`
     dateFloat.classList.add('on')
     clearTimeout(dateTimer)
     dateTimer = setTimeout(() => dateFloat.classList.remove('on'), ms)
