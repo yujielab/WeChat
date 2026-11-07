@@ -1,65 +1,53 @@
-/* Pictures arriving (js/ui/reveal.js).
-   Waiting: the frame keeps a soft tone, slow rings spread out of its middle
-   and a light drifts across, so it reads as on its way rather than missing.
-   Arrived: the picture opens out of the middle through a circle with a soft,
-   feathered edge. Sending: the dimmed preview, the same rings, a ring that
+/* Pictures arriving (js/ui/reveal.js), like a lens finding focus.
+   Waiting: the frame holds a soft tone and an out-of-focus light that
+   breathes in its middle, so it reads as on its way rather than missing.
+   Arrived: the picture fades in from a deep blur and a bright highlight,
+   and settles sharp — depth of field coming into focus.
+   Sending: the dimmed preview under the same soft light, with a ring that
    fills and a count of how far it has gone. */
 
-@property --rv-ph { syntax: '<length>'; inherits: false; initial-value: 0px; }
-@property --rv-r { syntax: '<percentage>'; inherits: false; initial-value: 160%; }
 /* How far a send has gone, 0…1, set on the bubble (js/ui/reveal.js); registered so the ring fills smoothly. */
 @property --rv-p { syntax: '<number>'; inherits: true; initial-value: 0; }
 
 /* Zero specificity: a frame or picture that is already placed keeps its own
    position (an absolutely placed tile, an album cover); one that isn't
-   becomes the rings' containing block. */
+   becomes the light's containing block. */
 :where(.rv) { position: relative; isolation: isolate; }
 
 /* ---------------------------------------------------------------- waiting */
 .rv.rv-wait,
 .bubble.media.sending.rv { background-color: color-mix(in srgb, var(--label) 6%, var(--bg-elevated)); }
 .rv.rv-wait > img { opacity: 0 !important; }
+/* the out-of-focus light: a soft bright bloom, breathing slowly */
 .rv.rv-wait::before,
 .bubble.media.sending.rv::before {
   content: "";
   position: absolute;
   z-index: 1;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
-  /* Rings a fixed distance apart, moved outward by --rv-ph so they spread
-     without ever jumping (one period, then the same picture again). */
-  background: repeating-radial-gradient(circle at 50% 50%,
-    transparent calc(var(--rv-ph) + 0px),
-    transparent calc(var(--rv-ph) + 15px),
-    color-mix(in srgb, var(--label) 9%, transparent) calc(var(--rv-ph) + 18px),
-    transparent calc(var(--rv-ph) + 22px),
-    transparent calc(var(--rv-ph) + 34px));
-  -webkit-mask-image: radial-gradient(closest-side, #000 30%, transparent);
-  mask-image: radial-gradient(closest-side, #000 30%, transparent);
-  animation: rv-ripple 1.7s linear infinite;
+  /* soft-edged blooms (wide falloffs, no filter: nothing spills past the frame) */
+  background:
+    radial-gradient(46% 40% at var(--rv-x, 42%) var(--rv-y, 40%), rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.35) 45%, transparent 100%),
+    radial-gradient(36% 32% at 66% 64%, color-mix(in srgb, var(--fb-blue, #1877f2) 26%, rgb(255 255 255 / 0.55)), transparent 100%);
+  opacity: 0.7;
+  animation: rv-breathe 2.4s ease-in-out infinite alternate;
 }
-.rv.rv-wait::after,
-.bubble.media.sending.rv::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: -30%;
-  pointer-events: none;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--bg-elevated) 70%, transparent), transparent);
-  opacity: .8;
-  animation: rv-drift 3.2s ease-in-out infinite alternate;
+@property --rv-x { syntax: '<percentage>'; inherits: false; initial-value: 42%; }
+@property --rv-y { syntax: '<percentage>'; inherits: false; initial-value: 40%; }
+@keyframes rv-breathe {
+  from { opacity: 0.45; --rv-x: 36%; --rv-y: 36%; }
+  to { opacity: 0.95; --rv-x: 52%; --rv-y: 46%; }
 }
-@keyframes rv-ripple { to { --rv-ph: 34px; } }
-@keyframes rv-drift { from { transform: translate(-22%, -14%) scale(.8); } to { transform: translate(20%, 16%) scale(1.05); } }
 
 /* ---------------------------------------------------------------- arrived */
-.rv.rv-in > img { transition: none; opacity: 1; }
-.rv.rv-in > img {
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 calc(var(--rv-r) - 26%), transparent var(--rv-r));
-  mask-image: radial-gradient(circle at 50% 50%, #000 calc(var(--rv-r) - 26%), transparent var(--rv-r));
-  animation: rv-open 760ms cubic-bezier(.22, .8, .2, 1) both;
+.rv.rv-in > img { transition: none; opacity: 1; animation: rv-focus 720ms cubic-bezier(.2, .8, .2, 1) both; clip-path: inset(0); }
+@keyframes rv-focus {
+  0% { opacity: 0; filter: blur(22px) brightness(1.45) saturate(1.25); }
+  45% { opacity: 1; filter: blur(8px) brightness(1.18) saturate(1.1); }
+  100% { opacity: 1; filter: blur(0) brightness(1) saturate(1); }
 }
-@keyframes rv-open { from { --rv-r: 0%; filter: blur(6px) saturate(.7); } to { --rv-r: 160%; filter: none; } }
 
 /* ---------------------------------------------------------------- sending */
 .bubble.media.sending.rv > img { filter: brightness(.8) saturate(.85) blur(1.5px); }
@@ -89,11 +77,10 @@
 .rv-count { line-height: 1.2; color: #fff; font-size: var(--t-caption); font-weight: var(--w-semibold); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .bubble.media:not(.sending) .rv-send { display: none; }
 
-:root[data-motion="reduce"] .rv::before,
-:root[data-motion="reduce"] .rv::after,
-:root[data-motion="reduce"] .rv.rv-in > img { animation: none; }
+:root[data-motion="reduce"] .rv::before { animation: none; }
+:root[data-motion="reduce"] .rv.rv-in > img { animation: rv-fade 200ms linear both; }
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) .rv::before,
-  :root:not([data-motion="full"]) .rv::after,
-  :root:not([data-motion="full"]) .rv.rv-in > img { animation: none; }
+  :root:not([data-motion="full"]) .rv::before { animation: none; }
+  :root:not([data-motion="full"]) .rv.rv-in > img { animation: rv-fade 200ms linear both; }
 }
+@keyframes rv-fade { from { opacity: 0; } }

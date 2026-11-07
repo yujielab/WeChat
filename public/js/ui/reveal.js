@@ -1,12 +1,11 @@
-// Pictures arriving (css/reveal.css). Until a picture is there its frame is
-// alive — slow rings spread from its middle under a drifting light — and when
-// it has decoded it opens out of that middle through a soft-edged circle
-// rather than popping in. A picture being sent shows how far it has gone (a
-// ring and a count) over its dimmed preview, and opens the same way once it
-// has gone.
+// Pictures arriving (css/reveal.css), like a lens finding focus. Until a
+// picture is there its frame holds a soft, out-of-focus light; when it has
+// decoded it fades in from a deep blur, a little bright, and settles sharp.
+// A picture being sent shows how far it has gone (a ring and a count) over
+// its dimmed preview, and comes into focus the same way once it has gone.
 //
 // A picture already shown this session (scrolling back, a list redrawn) is
-// simply there: the frame never plays twice for the same picture.
+// simply there: it never plays twice for the same picture.
 
 import { reducedMotion } from './dom.js'
 
@@ -42,9 +41,8 @@ export function reveal(img, frame, { play = false } = {}) {
     remember(img.currentSrc || img.src)
     img.classList.add('loaded')
     frame.classList.remove('rv-wait')
-    if (reducedMotion()) return
     frame.classList.add('rv-in')
-    setTimeout(() => frame.classList.remove('rv-in'), 900)
+    setTimeout(() => frame.classList.remove('rv-in'), reducedMotion() ? 260 : 800)
   }
   const decoded = () => (img.decode ? img.decode().then(open, open) : open())
   if (ready) decoded()

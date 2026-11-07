@@ -5,7 +5,7 @@ import { h, icon, storage } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
 import { getPrefs, setTheme, setGlass, setGlassTint, setGlassEngine, setMotion, setHaptics, setGlow } from '../ui/appearance.js'
 import { liquidGlassSupported } from '../ui/liquid-glass/index.js'
-import { isStandalone, getPostureReadings } from '../ui/viewport.js'
+import { isStandalone } from '../ui/viewport.js'
 import { pushSupported, currentSubscription, enablePush, disablePush } from '../ui/push.js'
 import { hapticsAvailable } from '../ui/haptics.js'
 import { assistPrefs, setAssistPref } from './predict.js'
@@ -31,33 +31,6 @@ function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) 
   h('span', { class: 'grow' }, label, sub ? h('span', { class: 'sub' }, sub) : null),
   right ?? null)
   if (onClick) el.addEventListener('click', onClick)
-  return el
-}
-/**
- * Screen posture: what the screen is taken to be (Closed / Half open / Open) and what the
- * device reports that from — the viewport's segments, its posture, or
- * neither — kept current while it shows, so folding the screen with
- * Settings open shows whether the browser tells the page. Only where the
- * browser reports anything.
- */
-const POSES = { closed: 'Closed', half: 'Half open', open: 'Open' }
-const SOURCES = { segments: 'Viewport segments', posture: 'Device posture', emulated: 'Emulated', none: 'Screen width' }
-function postureCell() {
-  const first = getPostureReadings()
-  if (first.segments === null && first.posture === null && first.source !== 'emulated') return null
-  const value = h('span', { class: 'value' })
-  const sub = h('span', { class: 'sub' })
-  const el = cell('Screen posture', value)
-  el.querySelector('.grow').append(sub)
-  const paint = () => {
-    const r = getPostureReadings()
-    const seg = r.segments === null ? 'Unsupported' : r.segments.length < 2 ? '1 segment' : `2 segments, hinge ${r.fold.axis === 'none' ? '—' : `${r.fold.start}–${r.fold.end}`}`
-    const pos = r.posture === null ? 'Unsupported' : r.posture === 'folded' ? 'Folded' : 'Flat'
-    value.textContent = `${POSES[r.pose] || r.pose} · ${SOURCES[r.source] || r.source}`
-    sub.textContent = `Viewport segments: ${seg} · Device posture: ${pos}`
-  }
-  paint()
-  const timer = setInterval(() => (el.isConnected ? paint() : clearInterval(timer)), 300)
   return el
 }
 
@@ -201,8 +174,7 @@ export function openSettings({ onLogout, origin }) {
       cell('Reduce motion', toggle(document.documentElement.dataset.motion === 'reduce', on => setMotion(on ? 'reduce' : 'system'), 'Reduce motion')),
       // Only offered where the device can play it (iPhone), so it never
       // claims to be on when nothing would happen.
-      hapticsAvailable ? cell('Haptic feedback', toggle(prefs.haptics, on => setHaptics(on), 'Haptic feedback')) : null,
-      postureCell()
+      hapticsAvailable ? cell('Haptic feedback', toggle(prefs.haptics, on => setHaptics(on), 'Haptic feedback')) : null
     ),
     // Time in conversations (ui/chat-time.js): the clock, and whether every
     // message shows its own time; and whether friends see when you've read

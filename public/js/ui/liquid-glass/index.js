@@ -1,7 +1,7 @@
 // The real Liquid Glass — the liquid-glass-studio shader (MIT) on every button
 // in the app. buttons.js finds the buttons and keeps them drawn; engine.js is
 // the one shared WebGL2 context; paint.js paints what is behind each button;
-// tone.js picks clear, dim or tinted glass; tilt.js moves the edge light.
+// tone.js picks clear, dim or tinted glass.
 
 import { storage } from '../dom.js'
 import { glassEngine } from './engine.js'

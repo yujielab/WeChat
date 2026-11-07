@@ -34,11 +34,25 @@
 /* Inside the list's section (people.css), which scrolls them with Requests. */
 .list-filters { position: relative; display: flex; align-items: center; width: max-content; gap: 3px; padding: 0; min-height: 44px; isolation: isolate; }
 .list-filters::-webkit-scrollbar { display: none; }
-/* The chosen filter: a light grey under the glass, as in the pages' rail. */
-.filter-thumb { position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 999px; background: var(--fill); opacity: 0; }
-.list-filters.ready .filter-thumb { opacity: 1; transition: transform 220ms var(--ease-out), width 220ms var(--ease-out), opacity var(--dur-quick) ease-out; }
-.filter-tab { position: relative; flex: none; height: 44px; padding: 0 16px; border-radius: 999px; color: var(--label-2); font-size: var(--t-subhead); font-weight: 550; white-space: nowrap; transition: color var(--dur-quick) ease-out; }
-.filter-tab[aria-pressed="true"] { color: var(--label); font-weight: 650; }
+/* The chips have no fill of their own; the chosen one sits on blue glass —
+   80% of the app's blue, a frosted rim — that fades in from a blur where it's
+   chosen (chatList.js adds .enter). */
+.filter-thumb {
+  position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 999px;
+  background: color-mix(in srgb, var(--fb-blue) 80%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 0.5px rgb(255 255 255 / 0.22), 0 6px 16px -8px color-mix(in srgb, var(--fb-blue) 70%, transparent);
+  transform: translateX(var(--x, 0px));
+  opacity: 0;
+}
+.list-filters.ready .filter-thumb { opacity: 1; }
+.filter-thumb.enter { animation: filter-thumb-in 260ms var(--ease-out) both; }
+@keyframes filter-thumb-in {
+  from { opacity: 0; filter: blur(10px); transform: translateX(var(--x, 0px)) scale(0.92); }
+}
+.filter-tab { position: relative; flex: none; height: 44px; padding: 0 16px; border-radius: 999px; background: none; color: var(--label-2); font-size: var(--t-subhead); font-weight: 550; white-space: nowrap; transition: color var(--dur-quick) ease-out; }
+.filter-tab[aria-pressed="true"] { color: #fff; font-weight: 650; }
 .filter-tab:focus-visible { outline: 2px solid var(--label-2); outline-offset: -1px; }
 .filter-tab:active { opacity: .65; }
 .filter-note { margin: 0 var(--list-inset) 10px; font-size: var(--t-footnote); color: var(--label-2); }
@@ -222,6 +236,7 @@ mark { background: none; color: var(--blue-text); }
 }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .row-highlight,
+  :root:not([data-motion="full"]) .filter-thumb.enter { animation: none; }
   :root:not([data-motion="full"]) .filter-thumb,
   :root:not([data-motion="full"]) .list-inline-title,
   :root:not([data-motion="full"]) .search-cancel { transition: none; }
@@ -230,6 +245,7 @@ mark { background: none; color: var(--blue-text); }
   :root:not([data-motion="full"]) .offline-banner { animation: fade-in 120ms linear backwards !important; }
 }
 :root[data-motion="reduce"] .row-highlight,
+:root[data-motion="reduce"] .filter-thumb.enter { animation: none; }
 :root[data-motion="reduce"] .filter-thumb,
 :root[data-motion="reduce"] .list-inline-title,
 :root[data-motion="reduce"] .search-cancel { transition: none; }

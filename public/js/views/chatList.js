@@ -205,11 +205,21 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     filterButtons.get(key)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' })
   }
 
+  // The chosen filter: blue glass that fades in from a blur where it's chosen
+  // (css/list.css), not a thumb sliding along.
+  let thumbKey = null
   function positionFilterThumb() {
-    const current = filterButtons.get(state.filter) || filterButtons.get('all')
+    const key = filterButtons.has(state.filter) ? state.filter : 'all'
+    const current = filterButtons.get(key)
     if (!current || !filterTabs.offsetWidth) return
     filterThumb.style.width = `${current.offsetWidth}px`
-    filterThumb.style.transform = `translateX(${current.offsetLeft}px)`
+    filterThumb.style.setProperty('--x', `${current.offsetLeft}px`)
+    if (thumbKey !== null && thumbKey !== key && !reducedMotion()) {
+      filterThumb.classList.remove('enter')
+      void filterThumb.offsetWidth
+      filterThumb.classList.add('enter')
+    }
+    thumbKey = key
     filterTabs.classList.add('ready')
   }
 
