@@ -67,9 +67,13 @@ await p.locator('.thread:not([hidden]) [data-item="back"]').tap();await p.waitFo
 // 5. Left behind by anything else: the touch that finds it puts it right — a column left unreachable answers
 // from the next touch on (a touch stays with what it first landed on); a stray scrim is gone at once.
 const pinned=`.pin[data-id="${room}"]`
-await p.evaluate(()=>{document.querySelector('.pane[data-col="list"]').inert=true})
-assert.equal(await reachable(pinned),false,'(made unreachable)')
+// Made unreachable and looked at in one go: the app may well put it right on its own within a frame (a
+// re-layout sets each column's reachability from its role), which only helps.
+assert.equal(await p.evaluate(sel=>{document.querySelector('.pane[data-col="list"]').inert=true;const el=document.querySelector(sel);const r=el.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return Boolean(hit&&el.contains(hit))&&!el.closest('[inert]')},pinned),false,'(made unreachable)')
 await p.tap(pinned,{force:true});await sleep(300)
+// Either that touch put the column right, or the app already had and the touch did what it was for (the pinned
+// chat opened). In both, nothing stays stuck: back at the list, it answers.
+if(await p.evaluate(()=>document.querySelector('.shell').dataset.focus==='thread')){await p.locator('.thread:not([hidden]) [data-item="back"]').tap();await p.waitForFunction(()=>document.querySelector('.shell').dataset.focus==='list');await sleep(400)}
 assert.equal(await reachable(pinned),true,'a column left unreachable answers again')
 await p.evaluate(()=>{const s=document.createElement('div');s.className='scrim on';document.getElementById('overlays').append(s)})
 assert.equal(await reachable(pinned),false,'(covered)')

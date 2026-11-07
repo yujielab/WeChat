@@ -19,6 +19,7 @@
 // as a wall. From someone you've not talked to, only what they shared for
 // everyone. On your own, a round button at the foot shares a new one.
 
+import { ghost, filler } from '../ui/skeleton.js'
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { api } from '../api.js'
 import { state, upsertRoom } from '../store.js'
@@ -391,9 +392,15 @@ function openProfile({ userId, tab, origin, back, page: asPage = false, swap = f
   return sheet
 }
 
+// The feed's skeleton: two of its own cards with placeholder words (ui/skeleton.js), so it is
+// whatever a card is.
 function skeleton() {
-  return h('div', { class: 'mo-skeleton', 'aria-hidden': 'true' }, [0, 1].map(() => h('div', { class: 'mo-skel-card' },
-    h('div', { class: 'mo-skel-head' }, h('i', { class: 'a' }), h('i', { class: 'l1' })), h('i', { class: 'm' }), h('i', { class: 'l2' }))))
+  const fake = i => ({
+    id: `sk-${i}`, user: { id: `sk-u${i}`, display: filler(2, i), username: filler(1, i + 2), avatar: null, friend: true },
+    mine: false, media: [], text: filler(14, i), created: Date.now(), audience: 'everyone',
+    likes: [], comments: [], liked: false, canComment: true, commenting: 'everyone', tags: []
+  })
+  return h('div', { class: 'mo-ghost' }, ...ghost([0, 1].map(i => card(fake(i), { owner: null }).el)))
 }
 
 // ---------------------------------------------------------------- the cards

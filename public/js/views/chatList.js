@@ -3,6 +3,7 @@
 // chat with or add under them (views/people.js), and live search (names,
 // remarks and pinyin), with its bars arranged for the display (see ui/bars.js).
 
+import { ghost, filler } from '../ui/skeleton.js'
 import { h, icon, clear, reducedMotion, edge, stagger } from '../ui/dom.js'
 import { symbolEffect } from '../ui/symbols.js'
 import { listTime } from '../ui/format.js'
@@ -565,18 +566,18 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     })
   }
 
-  // Placeholder rows built from the real row classes, so they always match
-  // the list's geometry.
+  // Placeholder rows built by the real row builder (ui/skeleton.js), so they
+  // follow the list's geometry whatever it becomes.
   function skeleton() {
-    const widths = [[34, 78], [46, 62], [28, 84], [40, 54], [32, 70], [44, 66]]
-    return h('ul', { class: 'rows', 'aria-hidden': 'true' }, widths.map(([a, b]) =>
-      h('li', { class: 'row sk-row' },
-        h('div', { class: 'row-inner' },
-          h('span', { class: 'row-dot' }),
-          h('span', { class: 'avatar sk' }),
-          h('div', { class: 'row-main' },
-            h('span', { class: 'sk sk-line', style: { width: `${a}%` } }),
-            h('span', { class: 'sk sk-line', style: { width: `${b}%` } }))))))
+    const rows = [0, 1, 2, 3, 4, 5].map(i => {
+      const li = buildRow({ id: `sk-${i}`, name: filler(2, i), avatar: null })
+      li.classList.add('sk-row')
+      li._r.name.textContent = filler(i % 2 ? 2 : 1, i)
+      li._r.time.textContent = '00:00'
+      li._r.preview.textContent = filler(3 + (i % 3), i + 3)
+      return li
+    })
+    return h('ul', { class: 'rows' }, ghost(rows))
   }
 
   // ------------------------------------------------------------ swipe to delete

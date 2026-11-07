@@ -181,6 +181,8 @@ function mountShell() {
   window.addEventListener('open-chat', e => { if (e.detail) shell?.openChat(e.detail) })
   // Whether friends have shared something since the last look, once the app has settled.
   setTimeout(() => import('./views/moments.js').then(m => m.checkNewMoments()).catch(() => {}), 2500)
+  // The first time: a short welcome to the app's places (ui/guides.js); tips follow as each is met.
+  setTimeout(() => import('./ui/guides.js').then(g => g.welcome()).catch(() => {}), 1200)
 }
 
 // ---------------------------------------------------------------- realtime events

@@ -119,5 +119,9 @@ export async function saveBackdrops(patch) {
   }
 }
 
-/** The backdrop a conversation shows: its own, or the one for all. */
-export const chatBackdrop = id => state.prefs.rooms[id] || state.prefs.chat
+/**
+ * The backdrop a conversation shows: always the app's own paper. Chat
+ * backgrounds can no longer be chosen, and one chosen before isn't shown
+ * (there would be no way left to take it off).
+ */
+export const chatBackdrop = () => ''

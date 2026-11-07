@@ -16,8 +16,7 @@
 * { touch-action: pan-x pan-y; }
 
 html {
-  font-family: "Clarinetta", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
-    "Hiragino Sans GB", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-family: var(--font-text);
   font-size: 106.25%; /* 17px, the iOS body size */
   line-height: 1.3;
   -webkit-text-size-adjust: 100%;
@@ -32,9 +31,11 @@ html {
   overscroll-behavior: none;
 }
 
-/* Follow the iPhone's Dynamic Type setting. */
+/* Follow the iPhone's Dynamic Type setting. The shorthand sets the system's
+   size and its family too: on iPhone the whole app fell back to SF and only a
+   few titles showed Clarinetta. The size stays, the family is ours again. */
 @supports (font: -apple-system-body) {
-  html { font: -apple-system-body; line-height: 1.3; }
+  html { font: -apple-system-body; font-family: var(--font-text); line-height: 1.3; }
 }
 
 body {

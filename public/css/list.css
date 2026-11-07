@@ -147,9 +147,6 @@ mark { background: none; color: var(--blue-text); }
 .sk { display: block; position: relative; overflow: hidden; background: var(--fill-4); border-radius: var(--r-xs); }
 .sk::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg) 65%, transparent), transparent); animation: sk-shine 1.5s ease-in-out infinite; }
 @keyframes sk-shine { to { transform: translateX(100%); } }
-.sk-row .avatar.sk { --size: var(--row-avatar); border-radius: 50%; }
-.sk-row .avatar.sk::after { box-shadow: none; }
-.sk-row .row-main { gap: 9px; }
 .sk-line { height: 10px; }
 .sk-line:first-child { height: 13px; }
 .av-wrap { position: relative; flex: none; }

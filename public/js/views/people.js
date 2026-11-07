@@ -6,6 +6,7 @@
 // of your friends, people sharing moments, newcomers) to add or set aside,
 // with a card to invite friends (src/hub.js: /api/notes, /api/people).
 
+import { tip } from '../ui/guides.js'
 import { h, icon, reducedMotion } from '../ui/dom.js'
 import { api } from '../api.js'
 import { state, on, upsertRoom, setContacts } from '../store.js'
@@ -58,6 +59,7 @@ export function createNotes({ onOpen }) {
   }
   function paint() {
     const you = noteItem({ user: state.me, text: mine?.text || '', label: 'Your note', mine: true })
+    if (!mine?.text) tip('notes', '.notes .note-mine', { title: 'Share a note', text: 'One line for your friends to see at the top of their chats, for a day.' })
     you.addEventListener('click', () => openNoteEditor({ origin: you, mine, onSaved: next => { mine = next; paint() } }))
     const others = notes.map(n => {
       const b = noteItem({ user: n.user, text: n.text, label: nameOf(n.user), at: n.created })

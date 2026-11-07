@@ -89,7 +89,10 @@ export function createComposer({ onSend, onImages, onHeight, onType, mentionable
   // a VoiceBeam glow along the field's bottom edge (ui/voice-beam.js) and sends
   // the clip to Whisper (/api/ai/transcribe). Only shown where it can work.
   const mic = h('button', { class: 'composer-mic glass glass-btn', type: 'button', 'aria-label': 'Dictate', title: 'Dictate', hidden: true }, icon('mic'))
-  const form = h('form', { class: 'composer', autocomplete: 'off' }, field, mic, action, panel)
+  // The light behind the field (Settings › Composer glow; css/thread.css): soft lights drifting slowly
+  // past one another, clipped to the conversation. Nothing to read or touch.
+  const glow = h('div', { class: 'composer-glow', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'))
+  const form = h('form', { class: 'composer', autocomplete: 'off' }, glow, field, mic, action, panel)
 
   let draftTimer = 0
   let readonly = false

@@ -18,6 +18,7 @@ import { avatar } from './avatar.js'
 import { openSheet, openMenu, confirmAction, toast } from './overlay.js'
 import { backdropLayer, backdropLabel, paintBackdrop, readBackdrop } from '../ui/backdrops.js'
 import { openBackdropPicker, saveBackdrops } from './backdrops.js'
+import { ghost, filler } from '../ui/skeleton.js'
 
 // ---------------------------------------------------------------- shared bits
 function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) {
@@ -185,11 +186,16 @@ export function openSettings({ onLogout, origin }) {
       hapticsAvailable ? cell('Haptic feedback', toggle(prefs.haptics, on => setHaptics(on), 'Haptic feedback')) : null,
       postureCell()
     ),
-    // Backdrops, the same on each of your devices (each conversation can
-    // also have its own, in its details).
+    // The welcome and the tips (ui/guides.js), shown again from the start.
+    groupTitle('Help'),
+    group(cell('Show tips again', null, { icon: 'sparkles', onClick: async () => {
+      (await import('../ui/guides.js')).resetGuides()
+      toast('Tips will show again as you go')
+    } })),
+    // The call screen's backdrop, the same on each of your devices.
+    // Conversations keep the app's own paper: no chat background to choose.
     groupTitle('Backgrounds'),
     group(
-      backdropCell('Chat background', 'bubble', () => state.prefs.chat, { look: 'chat', save: v => saveBackdrops({ chat: v }) }),
       backdropCell('Call background', 'phone', () => state.prefs.call, { look: 'call', save: v => saveBackdrops({ call: v }) })
     ),
     // Writing help, only where the server has Workers AI.
@@ -417,12 +423,23 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
   if (!c) return
   const isGroup = c.kind === 'group'
 
+  // While the room loads, its details' skeleton, made from the same profile
+  // card and cells (ui/skeleton.js).
+  // (only when it is slow to come: a quick one simply appears).
+  const slow = body.childElementCount ? 0 : setTimeout(() => body.isConnected && !body.childElementCount && body.replaceChildren(...ghost([
+      h('div', { class: 'profile' }, avatar(null, '', { size: 84 }), h('h3', {}, filler(2, 1)), h('p', {}, filler(1, 4))),
+      group(cell(filler(1, 2), chev(), { icon: 'photo' })),
+      group(cell(filler(1, 5), null, { icon: 'bell-slash' }), cell(filler(2, 7), null, { icon: 'pin' })),
+      h('div', { style: { height: '14px' } }),
+      group(cell(filler(2, 3), null, { destructive: true }))
+    ])), 250)
   let room = c, members = []
   try {
     const r = await api.get(`/api/room/${roomId}`)
     room = r.room || c
     members = r.members || []
   } catch {}
+  clearTimeout(slow)
 
   const header = isGroup
     ? h('div', { class: 'profile' }, avatar(room.avatar, room.name, { size: 84, room: true }), h('h3', {}, room.name), h('p', {}, `${members.length} members`))
@@ -430,12 +447,7 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
 
   const flags = group(
     cell('Mute', toggle(c.muted, on => setFlag(roomId, { muted: on ? 1 : 0 }), 'Mute'), { icon: 'bell-slash' }),
-    cell('Pin chat', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), 'Pin'), { icon: 'pin' }),
-    // This conversation's own backdrop, or the one for all of them.
-    backdropCell('Chat background', 'photo', () => state.prefs.rooms[roomId] || '', {
-      none: 'Use default', fallback: state.prefs.chat, look: 'chat',
-      save: v => saveBackdrops({ rooms: { [roomId]: v } })
-    })
+    cell('Pin chat', toggle(c.pinned, on => setFlag(roomId, { pinned: on ? 1 : 0 }), 'Pin'), { icon: 'pin' })
   )
 
   // Their moments: what they share with friends (views/moments.js).

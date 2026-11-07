@@ -93,12 +93,9 @@
 .mem-empty { display: grid; justify-items: center; gap: 6px; padding: 56px 28px; text-align: center; color: var(--label-2); font-size: var(--t-subhead); line-height: 1.45; }
 .mem-empty .icon { width: 34px; height: 34px; color: var(--label-3); margin-bottom: 6px; }
 .mem-empty b { color: var(--label); font-size: var(--t-headline); }
-.mem-skeleton i { display: block; background: var(--fill-2); animation: mem-shimmer 1.2s ease-in-out infinite alternate; }
-.mem-skeleton .r { height: 220px; margin: 14px; border-radius: 22px; }
-.mem-skeleton .m { width: 30%; height: 14px; margin: 18px 16px 10px; border-radius: 7px; }
-.mem-skeleton .mem-grid i { aspect-ratio: 1; }
-@keyframes mem-shimmer { to { opacity: .5; } }
+/* Its skeleton is made of these same parts (ui/skeleton.js, css/skeleton.css). */
+.mem-ghost .mem-tile { animation: none; }
 .mem-foot { height: 8px; }
 
-:root[data-motion="reduce"] :is(.mem-tile, .mem-skeleton i) { animation: none; }
+:root[data-motion="reduce"] .mem-tile { animation: none; }
 :root[data-motion="reduce"] :is(.mem-tab-line, .mem-recap) { transition: none; }
