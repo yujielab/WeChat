@@ -245,6 +245,21 @@ button.mo-who:active { opacity: .7; }
 .mo-words { margin: 0; padding: 4px 18px 6px; font-size: var(--t-title-3); line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-line-clamp: 8; }
 
 .mo-bar { position: relative; display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 2px 8px 0; }
+/* With a picture: the row rests on the picture's lower edge, saving its own
+   line — frosted buttons over the photo; the space between them still the
+   photo's (swipe, double-tap). */
+.mo-bar.over { z-index: 3; box-sizing: border-box; height: 54px; min-height: 0; margin-top: -54px; padding: 0 10px 10px; align-items: flex-end; pointer-events: none; }
+.mo-bar.over .mo-pips { align-self: center; padding-top: 0; }
+/* what follows starts just under the picture, with a little room */
+.mo-bar.over + * { margin-top: 10px; }
+.mo-bar.over > * { pointer-events: auto; }
+.mo-bar.over .mo-pips { pointer-events: none; }
+.mo-bar.over .mo-pips i { background: rgb(255 255 255 / .55); box-shadow: 0 0 3px rgb(0 0 0 / .35); }
+.mo-bar.over .mo-pips i.on { background: #fff; }
+/* a photo's ALT badge goes to its top-left (the counter's mirror), clear of the row */
+.mo-item:has(.mo-bar.over) .mo-alt { top: 12px; bottom: auto; }
+/* a video's sound button steps up, clear of the row's dots */
+.mo-item:has(.mo-bar.over .mo-pips) .mo-sound { bottom: 64px; }
 .mo-act { height: 44px; min-width: 44px; padding: 0 12px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; color: var(--label); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
 /* Like, comment and share: frosted glass, no edge. */
 .mo-bar .mo-act {

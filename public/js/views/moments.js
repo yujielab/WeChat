@@ -498,7 +498,8 @@ function card(moment, { owner }) {
   const talk = h('button', { class: 'mo-act mo-talk', type: 'button', 'aria-label': 'Comment' }, icon('bubble'), talkCount)
   const send = h('button', { class: 'mo-act mo-share', type: 'button', 'aria-label': 'Share' }, icon('paperplane'))
   send.addEventListener('click', () => shareMoment(m))
-  const bar = h('div', { class: 'mo-bar' }, like, talk, send, pictures?.pips || null)
+  // Over the picture's lower edge when there is one (css/moments.css), under the words otherwise.
+  const bar = h('div', { class: ['mo-bar', pictures && 'over'] }, like, talk, send, pictures?.pips || null)
 
   const caption = pictures && m.text ? clamped(h('p', { class: 'mo-caption' }, h('b', {}, nameOf(u)), ' ', m.text)) : null
   const talkBox = h('div', { class: 'mo-talkbox' })
