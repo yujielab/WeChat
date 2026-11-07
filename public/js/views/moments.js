@@ -103,12 +103,14 @@ function openHome({ origin, page: asPage = false, swap = false } = {}) {
   let loading = false
   let done = false
 
-  const add = h('button', { class: 'glass glass-btn mo-head-btn', type: 'button', 'aria-label': 'New moment' }, icon('plus'))
+  // New moment floats at the foot of the page, over everything in it.
+  const add = h('button', { class: 'glass glass-btn mo-add', type: 'button', 'aria-label': 'New moment' }, icon('plus'))
+  // Your page — where the pages' capsule has You, that is the way in (css/moments.css).
   const mine = h('button', { class: 'mo-me', type: 'button', 'aria-label': 'Your moments' }, avatar(state.me?.avatar, nameOf(state.me), { size: 32 }))
   const close = h('button', { class: 'glass glass-btn mo-head-btn', type: 'button', 'aria-label': 'Close' }, icon('xmark'))
   const head = h('header', { class: 'mo-home-head' },
     h('h1', { class: 'mo-wordmark' }, 'Moments'),
-    h('div', { class: 'mo-head-actions' }, add, mine, close))
+    h('div', { class: 'mo-head-actions' }, mine, close))
   const people = h('ul', { class: 'mo-people', 'aria-label': 'People' })
   const fresher = h('button', { class: 'mo-fresh', type: 'button', hidden: true }, icon('arrow-up'), 'New moments')
   const panel = h('div', { class: 'mo-feed' })
@@ -117,6 +119,7 @@ function openHome({ origin, page: asPage = false, swap = false } = {}) {
 
   const sheet = openSheet({ label: 'Moments', content, tall: true, origin, page: asPage, swap, onClose: () => { pages.delete(page); quiet(sheet.el) } })
   sheet.el.classList.add('moments-page', 'moments-home')
+  sheet.el.append(add)
   const list = cards(panel, { owner: null, empty: emptyEl })
   close.addEventListener('click', () => sheet.close())
   add.addEventListener('click', () => openMomentComposer({ origin: add }))
@@ -167,7 +170,7 @@ function openHome({ origin, page: asPage = false, swap = false } = {}) {
   function emptyEl() {
     const go = h('button', { class: 'mo-pill solid', type: 'button' }, 'Share a moment')
     go.addEventListener('click', () => openMomentComposer({ origin: go }))
-    return h('div', { class: 'mo-empty' }, h('b', {}, 'Nothing here yet'), h('span', {}, 'What you, your friends and everyone else share shows up here.'), go)
+    return h('div', { class: 'mo-empty' }, h('b', {}, 'Nothing here yet'), h('span', {}, 'Moments you and others share appear here.'), go)
   }
 
   const page = {
@@ -495,7 +498,8 @@ function card(moment, { owner }) {
   const talk = h('button', { class: 'mo-act mo-talk', type: 'button', 'aria-label': 'Comment' }, icon('bubble'), talkCount)
   const send = h('button', { class: 'mo-act mo-share', type: 'button', 'aria-label': 'Share' }, icon('paperplane'))
   send.addEventListener('click', () => shareMoment(m))
-  const bar = h('div', { class: 'mo-bar' }, like, talk, send, pictures?.pips || null)
+  // Over the picture's lower edge when there is one (css/moments.css), under the words otherwise.
+  const bar = h('div', { class: ['mo-bar', pictures && 'over'] }, like, talk, send, pictures?.pips || null)
 
   const caption = pictures && m.text ? clamped(h('p', { class: 'mo-caption' }, h('b', {}, nameOf(u)), ' ', m.text)) : null
   const talkBox = h('div', { class: 'mo-talkbox' })

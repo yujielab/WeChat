@@ -25,10 +25,10 @@ const enabled = () => {
 
 // ------------------------------------------------------------ welcome
 const STEPS = [
-  { icon: 'bubble', title: 'Your chats', text: 'Messages, calls and drawings with the people you know. Share a note at the top for friends to see for a day.' },
-  { icon: 'people', title: 'Moments', text: 'Photos, videos and words for your friends or for everyone. Choose who can see and comment before you post.' },
-  { icon: 'photo-stack', title: 'Memories', text: 'Every photo, video and drawing from your chats is kept here by month, without saving anything.' },
-  { icon: 'house', title: 'Always in reach', text: 'On iPhone Duo the capsule at the foot of the right edge switches between Chats, Moments, Memories, Requests and You.' }
+  { icon: 'bubble', title: 'Your chats', text: 'Chat, call and draw with friends. A note up top lasts a day.' },
+  { icon: 'people', title: 'Moments', text: 'Share photos and videos. You choose who sees them.' },
+  { icon: 'photo-stack', title: 'Memories', text: 'Every photo and video from your chats, by month.' },
+  { icon: 'house', title: 'Always in reach', text: 'On iPhone Duo, the capsule at the bottom right switches pages.' }
 ]
 let welcoming = false
 

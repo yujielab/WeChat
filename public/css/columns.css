@@ -5,11 +5,11 @@
 /* ---------------------------------------------------------------- sidebar */
 .pane-sidebar { --side-inset: 22px; --content-right: calc(var(--safe-right) + var(--side-inset)); background: var(--paper); }
 /* Content clears the bar at the foot (56pt and its margin). */
-.side-scroll { padding: calc(var(--safe-top) + 26px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 80px) calc(var(--safe-left) + var(--side-inset)); }
+.side-scroll { padding: calc(var(--safe-top) + 30px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 80px) calc(var(--safe-left) + var(--side-inset)); }
 .pane-sidebar .side-bottombar { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); }
 .side-head { margin-bottom: 18px; }
-/* The app's name, set as on the sign-in screen: tracked DIN caps. */
-.side-title { font-family: var(--font-display); font-size: 1.412rem; line-height: 1.2; letter-spacing: var(--track-wordmark); text-transform: uppercase; }
+/* The sidebar's heading, Home, is the list's large title as it is (list.css
+   .large-title), at the same height as Messages so switching doesn't move it. */
 
 .side-me {
   width: 100%;
@@ -65,6 +65,12 @@
 .art-body[data-kind="info"] { --content-right: calc(var(--safe-right) + var(--margin)); }
 /* No heading: the profile leads, and Close (or Back) is the bar at the foot. */
 .art-scroll { top: calc(var(--safe-top) + 12px); padding: 8px calc(var(--content-right) - var(--margin)) calc(max(var(--safe-bottom), 16px) + 80px) var(--safe-left); }
+/* The details: one even rhythm — the profile, then each card 16px below the
+   last, what can't be undone 28px apart — and the icons in the app's blue. */
+.art-content > .profile { margin-bottom: 0; }
+.art-content > * + .group { margin-top: 16px; }
+.art-content > .group-danger { margin-top: 28px; }
+.art-content .cell-icon { color: var(--fb-blue); }
 
 /* The drawing board takes the whole column, with its own bars. */
 .pane-artifact .draw { position: absolute; inset: 0; z-index: auto; opacity: 1; transform: none; transition: none; }

@@ -21,14 +21,16 @@ const talk=async(x,y,yid,text='Hey there, long time!')=>{const room=(await api(x
 const A=await account(`ia_${uniq}`,'Tokio')
 // 1. No chats yet: a line with Start (to a new chat), your note to share, Requests with nothing waiting.
 await A.locator('.list-start').waitFor();await sleep(500)
-assert.equal(await A.locator('.list-start').textContent(),'Chats show up here once you send or receive a message. Start')
+assert.equal(await A.locator('.list-start').textContent(),'Your chats appear here. Start')
 assert.deepEqual(await A.locator('.notes .note').evaluateAll(n=>n.map(b=>b.getAttribute('aria-label'))),['Share a note'])
 assert.equal(await A.locator('.note-mine .note-text').textContent(),'Share a thought…')
 assert.equal(await A.locator('.list-requests').getAttribute('aria-label'),'Requests');assert.equal(await A.locator('.requests-count').isHidden(),true)
 await A.screenshot({path:path.join(OUT,'1-start.png')})
-await A.locator('.list-start-link').click();await A.locator('.sheet:has-text("New chat")').waitFor();await sleep(400)
-assert.equal(await A.locator('.sheet .cell:has-text("Invite friends")').count(),1,'Invite friends in New chat too')
-await A.keyboard.press('Escape');await A.locator('.sheet:has-text("New chat")').waitFor({state:'detached'})
+await A.locator('.list-start-link').click();await A.locator('.requests-sheet').waitFor();await sleep(400)
+assert.equal(await A.locator('.requests-sheet h2').textContent(),'Friends','Start opens Friends, where starting a chat now is')
+assert.equal(await A.locator('.sheet .cell:has-text("Invite friends")').count(),1,'Invite friends in Friends too')
+assert.equal(await A.locator('[data-item="compose"]').count(),0,'no New chat button anywhere')
+await A.keyboard.press('Escape');await A.locator('.requests-sheet').waitFor({state:'detached'})
 
 // People: B a friend with a note; C and E friends of B's; D asks to add A; F a contact of A's with no chat.
 const B=await account(`ib_${uniq}`,'Coisini'),C=await account(`ic_${uniq}`,'Mira'),D=await account(`id_${uniq}`,'Alani'),E=await account(`ie_${uniq}`,'Yueee'),F=await account(`if_${uniq}`,'Sofie')

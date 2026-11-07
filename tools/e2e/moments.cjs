@@ -50,7 +50,7 @@ const home=await A.evaluate(ours=>{const q=s=>document.querySelector('.moments-h
   word:q('.mo-wordmark').textContent,buttons:all('.mo-head-actions button').map(b=>b.getAttribute('aria-label')),
   people:our('.mo-person').map(b=>({label:b.querySelector('.mo-person-name').textContent,ring:b.querySelector('.mo-ring').classList.contains('fresh'),badge:b.querySelector('.mo-badge')?.className.replace('mo-badge ','')||null})),
   cards:our('.mo-item').map(c=>({id:c.dataset.id,by:c.querySelector('.mo-by').textContent,sub:c.querySelector('.mo-sub').textContent,pill:!!c.querySelector('.mo-message')}))}},ours)
-assert.equal(home.word,'Moments');assert.deepEqual(home.buttons,['New moment','Your moments','Close'])
+assert.equal(home.word,'Moments');assert.deepEqual(home.buttons,['Your moments','Close'])
 assert.deepEqual(home.people,[{label:'Your moment',ring:false,badge:'mo-badge-plus'},{label:'Coisini',ring:true,badge:null},{label:'Mira',ring:true,badge:'mo-badge-person-plus'}],'you, then who has something new')
 assert.deepEqual(home.cards.map(c=>c.id),[sunrise.id,clip.id,trip.id],'newest first; Mira\'s moment for friends is not here')
 assert.deepEqual(home.cards[0],{id:sunrise.id,by:'Coisini',sub:`@mb_${uniq}`,pill:false})
@@ -115,7 +115,7 @@ await A.locator('.thread:not([hidden]) [data-item="back"]').click();await sleep(
 
 // 8. A new one, for Friends (the editor: views/moments-editor.js): who can see it is Everyone until you say.
 await A.locator('.list-moments').click();await A.locator('.moments-home .mo-item').first().waitFor();await sleep(400)
-await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(400)
+await A.locator('.moments-home .mo-add').click();await A.locator('.moments-editor').waitFor();await sleep(400)
 assert.equal(await A.locator('.me-who-label').textContent(),'Everyone can see and comment')
 await A.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can see it")').click()
 // The choice is made once the menu has gone (views/overlay.js), so wait for it rather than a fixed time.
@@ -158,9 +158,16 @@ await A.locator('.moments-home .mo-fresh').click();await sleep(800)
 assert.equal(await A.locator('.moments-home .mo-item').first().locator('.mo-words').textContent(),'Back at the trailhead','newest first')
 await A.locator('.moments-home .mo-head-actions [aria-label="Close"]').click();await A.locator('.moments-page').waitFor({state:'detached'})
 
-// 11. A friend's page, from the chat's details: Message leads back to the chat.
+// 11. A friend's page, from their name at the top of the chat, and from the chat's details: Message leads back to the chat.
 await A.locator('.row:has-text("Coisini") .row-inner').click();await A.waitForSelector('.thread:not([hidden]) .msgs .m');await sleep(500)
-await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.art-body .cell:has-text("Moments")').waitFor();await sleep(300)
+assert.equal(await A.locator('.thread:not([hidden]) .thread-who').getAttribute('aria-label'),'Coisini, view profile')
+await A.locator('.thread:not([hidden]) .thread-title').click();await A.locator('.moments-profile .mo-item').first().waitFor();await sleep(500)
+assert.equal(await A.locator('.moments-profile .mo-name').textContent(),'Coisini','her page, straight from her name')
+assert.equal(await A.locator('.art-body .cell:has-text("Moments")').count(),0,'not the details')
+await A.screenshot({path:path.join(OUT,'5b-profile-from-title.png')})
+await A.locator('.moments-profile .mo-pill:has-text("Message")').click();await A.locator('.moments-page').waitFor({state:'detached'});await sleep(500)
+assert.equal(await A.locator('.thread:not([hidden])').count(),1)
+await A.locator('.thread:not([hidden]) .thread-info').click();await A.locator('.art-body .cell:has-text("Moments")').waitFor();await sleep(300)
 await A.locator('.art-body .cell:has-text("Moments")').click();await A.locator('.moments-profile .mo-item').first().waitFor();await sleep(500)
 assert.equal(await A.locator('.moments-profile .mo-name').textContent(),'Coisini')
 assert.equal(await A.locator('.moments-profile .mo-counts').textContent(),'3 PostsFriends')

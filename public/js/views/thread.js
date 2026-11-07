@@ -206,7 +206,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // Once: holding a message is where reacting, replying and editing are (ui/guides.js).
   function tipHold() {
     if (!msgs.querySelector('.m.in')) return
-    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply or copy it — and to edit or unsend your own.' })
+    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply, copy, edit or unsend.' })
   }
   function hideGhost() {
     clearTimeout(ghostTimer)
@@ -217,11 +217,15 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   }
 
   // The conversation's heading is content: it stays with the messages on
-  // every display, and opens the chat's details.
+  // every display. Their photo and name open their page; the (i) at the end
+  // of the name's pill, plain and blue, opens the chat's details.
   const titleName = h('span', { class: 'name' })
   const titleSub = h('span', { class: 'sub' })
+  // (The photo is the name's twin for a finger: not a stop of its own for keys.)
   const titleAvatar = h('span', { class: 'thread-person' })
-  const titleBtn = h('button', { class: 'glass glass-pill thread-title', type: 'button' }, titleAvatar, h('span', { class: 't' }, titleName, titleSub))
+  const titleWho = h('button', { class: 'thread-who', type: 'button' }, titleName, titleSub)
+  const titleInfo = h('button', { class: 'thread-info', type: 'button', title: 'Chat info', 'aria-label': 'Chat info', 'aria-pressed': 'false' }, icon('info'))
+  const titleBtn = h('div', { class: 'glass glass-pill thread-title' }, titleAvatar, h('span', { class: 't' }, titleWho, titleInfo))
   const nav = h('header', { class: 'thread-nav' }, titleBtn)
 
   // The calls and the details sit in the heading, after the name; Back
@@ -244,13 +248,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       { id: 'back', icon: 'chevron-left', title: 'Back to chats', primary: true, badge: unreadBadge, onSelect: () => onBack() },
       { id: 'audio', icon: 'phone', title: 'Voice call', priority: 6, onSelect: () => current && onCall?.(current, 'audio') },
       { id: 'video', icon: 'video', title: 'Video call', priority: 5, onSelect: () => current && onCall?.(current, 'video') },
-      { id: 'info', icon: 'info', title: 'Chat info', priority: 2, toggle: true, onSelect: () => current && onInfo(current) },
     ],
     arrange: axis => {
       // Calls only where the server can carry them.
       const calls = state.calls?.enabled ? [['audio', 'video']] : []
       const back = pane.dataset.layout === 'single' ? [['back']] : []
-      return axis === 'vertical' ? { top: [...back, ...calls, ['info']], bottom: [] } : { top: [...calls, ['info']], bottom: back }
+      return axis === 'vertical' ? { top: [...back, ...calls], bottom: [] } : { top: calls, bottom: back }
     }
   })
   const rail = h('nav', { class: 'duo-rail thread-rail', 'aria-label': 'Chat actions' })
@@ -482,7 +485,18 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   const empty = h('div', { class: 'thread-empty' })
   pane.append(empty, root)
 
-  titleBtn.addEventListener('click', () => current && onInfo(current))
+  // Their photo and name: in a chat with one person, their page
+  // (views/moments.js); a group's details otherwise. The (i): the details.
+  const openPerson = async () => {
+    if (!current) return
+    const c = chatInfo(current)
+    const peer = c?.kind !== 'group' && c?.peer?.id
+    if (!peer) return onInfo(current)
+    ;(await import('./moments.js')).openMoments({ userId: peer, origin: titleBtn })
+  }
+  titleAvatar.addEventListener('click', openPerson)
+  titleWho.addEventListener('click', openPerson)
+  titleInfo.addEventListener('click', () => current && onInfo(current))
   jump.addEventListener('click', () => scrollToBottom(true))
 
   let lastWidth = 0, lastHeight = 0
@@ -932,6 +946,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   function floatDate(ts, ms = 1200) {
     const text = historyDate(ts)
     if (dateFloat.textContent !== text) dateFloat.textContent = text
+    // over the middle of the messages (not of the pane, which may hold the
+    // rail too), just under the heading
+    const box = root.getBoundingClientRect()
+    const col = msgs.getBoundingClientRect()
+    dateFloat.style.left = `${Math.round(col.left + col.width / 2 - box.left)}px`
+    dateFloat.style.top = `${Math.round(nav.getBoundingClientRect().bottom - box.top + 8)}px`
     dateFloat.classList.add('on')
     clearTimeout(dateTimer)
     dateTimer = setTimeout(() => dateFloat.classList.remove('on'), ms)
@@ -1182,7 +1202,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     titleName.textContent = c.name
     titleBtn.classList.toggle('is-online', !room && Boolean(c.online))
     if (!typingTimer) titleSub.textContent = room ? (c.count ? `${c.count} members` : '') : (c.online ? 'Online' : '')
-    titleBtn.setAttribute('aria-label', `${c.name}, view chat info`)
+    titleWho.setAttribute('aria-label', room || !c.peer?.id ? `${c.name}, view chat info` : `${c.name}, view profile`)
     // The unread badge on Back is status: it changes what overflows first.
     bars.refresh()
     arrangeBars()
@@ -1564,14 +1584,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // stays after a reload (store.js keeps the ids deleted here).
   async function deleteLocal(m, anchor) {
     const ok = await confirmAction(anchor?.isConnected ? anchor : nodes.get(m.id)?.querySelector('.bubble') || scroller, {
-      title: 'Delete from this device?',
-      message: 'They can still see this message.',
+      title: 'Delete for me?',
+      message: 'They’ll still see it.',
       confirm: 'Delete'
     })
     if (!ok) return
     // Still queued: it won't go. Already on its way: it can't be stopped here.
     // Failed (kept by the outbox, with its file): it goes, file and all.
-    if (m.cid && outbox.has(m.cid) && !outbox.drop(m.cid)) return toast('Still sending, delete it in a moment')
+    if (m.cid && outbox.has(m.cid) && !outbox.drop(m.cid)) return toast('Still sending, try again shortly')
     if (m.cid && outbox.isFailed(m.cid)) outbox.drop(m.cid)
     if (m.cid) retryFiles.delete(m.cid)
     retrying.delete(m.id)
@@ -1877,7 +1897,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const canRevoke = !photos && m.out && !String(m.id).startsWith('local:') && Date.now() - m.ts < 2 * 60 * 1000
     const danger = []
     if (canRevoke) danger.push({ label: 'Unsend', icon: 'undo', onSelect: () => revoke(m) })
-    if (!photos) danger.push({ label: 'Delete from this device', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m, bub) })
+    if (!photos) danger.push({ label: 'Delete for me', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m, bub) })
     items.push(danger)
 
     const header = !photos && reactable(m) ? choose => {
@@ -2293,7 +2313,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     },
     bars,
     setTool: (id, active) => composer.setTool(id, active),
+    /** Whether the details are open beside it: the (i) says so. */
+    setInfoOpen: open => titleInfo.setAttribute('aria-pressed', String(Boolean(open))),
     sendDrawing: (blob, size) => sendDrawing(blob, size),
+    /** A text to any conversation, open or not (an answer from views/banner.js). */
+    sendText: (text, chat) => sendText(text, chat),
     focusComposer() {
       composer.focus()
     },

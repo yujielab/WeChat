@@ -50,13 +50,14 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   // On the Duo the controls move into the rail once the system's column is measured, a moment after the list shows.
   await A.waitForFunction(()=>[...document.querySelectorAll('.pane-list .bar-item[data-item="back"]')].some(b=>b.getClientRects().length&&getComputedStyle(b).visibility!=='hidden'));await sleep(200)
   let e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the list has Back');at.list=e[0]
-  const listCompose=await A.evaluate(()=>{const b=document.querySelector('.pane-list [data-item="compose"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
+  // The bar's end: the search field, now that New chat is in Friends.
+  const listCompose=await A.evaluate(()=>{const b=document.querySelector('.pane-list .list-bottombar .search-pill').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
   // Conversation.
   await open(A);e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the conversation has Back');at.thread=e[0]
   // The field's button now sits inside the field's end (css/chat.css): the field (or the microphone after it) ends where New Chat does.
   const action=await A.evaluate(()=>{const c=document.querySelector('.thread:not([hidden]) .composer');const ends=[...c.querySelectorAll(':scope > .field, :scope > .composer-mic:not([hidden])')].map(e=>e.getBoundingClientRect().right);return{right:Math.max(...ends)}})
   // Details.
-  await A.locator('.thread:not([hidden]) .thread-title').tap();await sleep(900);e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the details have Back');at.details=e[0]
+  await A.locator('.thread:not([hidden]) .thread-info').click();await sleep(900);e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the details have Back');at.details=e[0]
   await A.locator('.art-body [data-item="back"]').tap();await sleep(800)
   // Drawing board.
   await A.locator('.thread:not([hidden]) .composer .composer-action').tap();await sleep(500)
@@ -65,11 +66,11 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   await A.locator('.draw-close').tap();await sleep(700)
   for(const k of['thread','details','draw']){assert.ok(Math.abs(at[k].x-at.list.x)<=0.5&&Math.abs(at[k].y-at.list.y)<=0.5&&Math.abs(at[k].w-at.list.w)<=0.5,`${label}: ${k} is where the list's Back is `+JSON.stringify({list:at.list,[k]:at[k]}))}
   if(opts===phone){
-    // The right-hand ends of the bars line up: New Chat in the list, the field (with its button inside) in the conversation.
-    assert.ok(Math.abs(listCompose.right-action.right)<=0.5,'New Chat and the field share an edge '+JSON.stringify({listCompose,action}))
+    // The right-hand ends of the bars line up: the search field in the list, the field (with its button inside) in the conversation.
+    assert.ok(Math.abs(listCompose.right-action.right)<=0.5,'the search field and the message field share an edge '+JSON.stringify({listCompose,action}))
     await A.locator('.thread:not([hidden]) [data-item="back"]').tap();await sleep(800)
     await A.locator('.pane-list [data-item="back"]').tap();await sleep(800)
-    const side=await A.evaluate(()=>{const b=document.querySelector('.pane-sidebar [data-item="compose"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
+    const side=await A.evaluate(()=>{const b=document.querySelector('.pane-sidebar [data-item="search"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
     assert.ok(Math.abs(side.right-listCompose.right)<=0.5&&Math.abs(side.bottom-listCompose.bottom)<=0.5,'and so does the sidebar\'s '+JSON.stringify({side,listCompose}))
   }
   await A.context().close()
@@ -90,7 +91,7 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   }
   await run('conversation → list',()=>A.locator('.thread:not([hidden]) [data-item="back"]').tap())
   await run('list → conversation',()=>A.locator('.row .row-inner').first().tap())
-  await run('conversation → details',()=>A.locator('.thread:not([hidden]) .thread-title').tap())
+  await run('conversation → details',()=>A.locator('.thread:not([hidden]) .thread-info').click())
   await run('details → conversation',()=>A.locator('.art-body [data-item="back"]').first().tap())
 
   // A finger held half way through the swipe back: the same.
@@ -113,7 +114,7 @@ for(const [label,init] of [['unfolded',null],['unfolded on the Duo',safeRight84]
   const A=await seeded(label,inner,init,200+label.length)
   await open(A)
   assert.deepEqual((await exits(A)).map(x=>x.what+'@'+x.col),[],label+': beside the list there is no Back')
-  await A.locator('.thread:not([hidden]) .thread-title').tap();await sleep(900)
+  await A.locator('.thread:not([hidden]) .thread-info').click();await sleep(900)
   assert.deepEqual((await exits(A)).map(x=>x.what+'@'+x.col),['close@artifact'],label+': beside the details, their Close is the one way out')
   assert.equal(await A.evaluate(()=>[...document.querySelectorAll('.thread:not([hidden]) .bar-item[data-item="back"]')].filter(e=>e.getClientRects().length).length),0,label+': the conversation has no Back of its own')
   await A.screenshot({path:path.join(OUT,`86-one-way-out-${label.includes('Duo')?'duo':'plain'}.png`)})

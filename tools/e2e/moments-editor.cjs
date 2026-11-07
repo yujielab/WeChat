@@ -24,7 +24,7 @@ const bId=(await api(B,'/api/bootstrap')).me.id
 // 1. The editor, from the Moments home: Cancel, Post (nothing to post yet), the words, the foot.
 await A.reload();await A.waitForSelector('.shell')
 await A.locator('.list-moments').click();await A.locator('.moments-home').waitFor();await sleep(500)
-await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(500)
+await A.locator('.moments-home .mo-add').click();await A.locator('.moments-editor').waitFor();await sleep(500)
 const ed=A.locator('.moments-editor')
 assert.equal(await ed.locator('.me-post').isDisabled(),true);assert.equal(await ed.locator('.me-post').textContent(),'Post')
 assert.equal(await ed.locator('.me-text').getAttribute('placeholder'),"What's new?")
@@ -107,7 +107,7 @@ const forD=(await api(D,`/api/moments/${posted.id}`)).moment;assert.equal(forD.c
 assert.equal((await api(B,`/api/moments/${posted.id}`)).moment.canComment,true)
 
 // 9. Scheduled: tomorrow at 9; the Post pill says Schedule; only its author sees it, marked.
-await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(400)
+await A.locator('.moments-home .mo-add').click();await A.locator('.moments-editor').waitFor();await sleep(400)
 await ed.locator('.me-text').fill('Good morning, future me')
 await ed.locator('.me-tool[aria-label="Schedule"]').click();await A.locator('.me-scheduling').waitFor();await sleep(300)
 await A.locator('.me-chip:has-text("Tomorrow, 9:00")').click();assert.match(await A.locator('.me-when-summary').textContent(),/^Shares Tomorrow 9:00$/)
@@ -128,7 +128,7 @@ assert.equal(await D.locator(`.mo-item[data-id="${posted.id}"] .mo-reply`).count
 // 11. The open screen, dark: the editor in the middle.
 await A.evaluate(async()=>(await import('/js/ui/appearance.js')).setTheme('dark'))
 await A.setViewportSize(INNER);await sleep(800)
-await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(600)
+await A.locator('.moments-home .mo-add').click();await A.locator('.moments-editor').waitFor();await sleep(600)
 await ed.locator('.me-text').fill('Dark and wide');await ed.locator('.me-dock input[type=file]:not([capture])').setInputFiles([{name:'c.png',mimeType:'image/png',buffer:await draw(A,[1600,900],['#2b5876','#4e4376'])}]);await A.waitForFunction(()=>document.querySelectorAll('.me-card').length===1);await sleep(500)
 const box=await A.locator('.moments-editor').boundingBox();assert.ok(Math.abs(box.x+box.width/2-INNER.width/2)<=1,'in the middle '+JSON.stringify(box))
 await A.screenshot({path:path.join(OUT,'7-open-dark.png')})

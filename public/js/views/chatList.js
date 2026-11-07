@@ -53,7 +53,11 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     moments.setAttribute('aria-label', e?.detail ? 'Moments, new from friends' : 'Moments')
   }
   window.addEventListener('moments-new', paintMomentsDot)
-  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, me))
+  // Where the list has the rail (the Duo), Search stands at the end of the
+  // heading, as tall as the title, in blue frosted glass (list.css).
+  const find = h('button', { class: 'list-search', type: 'button', 'aria-label': 'Search' }, icon('search'))
+  find.addEventListener('click', () => openSearch())
+  const head = h('header', { class: 'list-head' }, h('div', { class: 'list-heading' }, title, status, moments, me, find))
   const filterThumb = h('span', { class: 'filter-thumb', 'aria-hidden': 'true' })
   const filterTabs = h('div', { class: 'list-filters', role: 'group', 'aria-label': 'Filter chats' }, filterThumb)
   const filterButtons = new Map()
@@ -107,38 +111,39 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
 
   // One bar of capsules at the foot of the list, in reach of the thumb:
   // folded, Back to the sidebar leads; unfolded, the sidebar's scopes are
-  // the filter menu instead. The search field takes the middle, New Chat
-  // ends it. While searching, the field and Cancel have the bar to
-  // themselves. Where the system keeps its column on the right edge (the
-  // Duo) they stand in a rail there instead: Back at its head, search and New
-  // Chat at its foot; Search is a button, the field opens above the list, and
-  // Cancel takes the head of the rail until the search ends.
+  // the filter menu instead; the search field takes the rest. (Starting a
+  // chat is in Friends, views/people.js.) While searching, the field and
+  // Cancel have the bar to themselves. Where the system keeps its column on
+  // the right edge (the Duo) Back stands in a rail there instead, Search
+  // beside the title; the field opens above the list, and Cancel takes the
+  // head of the rail until the search ends.
   const bars = createBars({
     label: 'Chat list actions',
     items: [
       { id: 'cancel', icon: 'xmark', title: 'Cancel search', primary: true, onSelect: () => exitSearch() },
       { id: 'back', icon: 'chevron-left', title: 'Sidebar', primary: true, onSelect: () => onBack() },
       { id: 'filter', icon: 'filter', title: 'Filter', priority: 3, menu: true, onSelect: anchor => openFilterMenu(anchor) },
-      { id: 'search', icon: 'search', title: 'Search', priority: 6, onSelect: () => openSearch() },
-      { id: 'compose', icon: 'compose', title: 'New chat', priority: 9, prominent: true, onSelect: () => onCompose() }
+      { id: 'search', icon: 'search', title: 'Search', priority: 6, onSelect: () => openSearch() }
     ],
     arrange: axis => {
       if (axis === 'vertical') {
         if (searching) return { top: [['cancel']], bottom: [] }
-        return { top: pane.dataset.layout === 'single' ? [['back']] : [], bottom: [['search'], ['compose']] }
+        // Search is at the end of the heading; New chat is in Friends.
+        return { top: pane.dataset.layout === 'single' ? [['back']] : [], bottom: [] }
       }
       // While searching the bar keeps its items; they fold away (list.css)
       // so the field can grow over their room and give it back on Cancel.
       // Folded, the filter tabs show and Back leads to the sidebar;
       // unfolded, the filter is a menu.
       const nav = pane.dataset.layout === 'single' ? ['back'] : ['filter']
-      return { top: [], bottom: [...(nav.length ? [nav] : []), ['compose']] }
+      // New chat is in Friends now (views/people.js): no button of its own.
+      return { top: [], bottom: nav.length ? [nav] : [] }
     }
   })
 
   const input = h('input', {
     type: 'search',
-    placeholder: 'Search chats and contacts',
+    placeholder: 'Search',
     'aria-label': 'Search chats and contacts',
     enterkeyhint: 'search',
     autocomplete: 'off',
@@ -205,11 +210,21 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
     filterButtons.get(key)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' })
   }
 
+  // The chosen filter: blue glass that fades in from a blur where it's chosen
+  // (css/list.css), not a thumb sliding along.
+  let thumbKey = null
   function positionFilterThumb() {
-    const current = filterButtons.get(state.filter) || filterButtons.get('all')
+    const key = filterButtons.has(state.filter) ? state.filter : 'all'
+    const current = filterButtons.get(key)
     if (!current || !filterTabs.offsetWidth) return
     filterThumb.style.width = `${current.offsetWidth}px`
-    filterThumb.style.transform = `translateX(${current.offsetLeft}px)`
+    filterThumb.style.setProperty('--x', `${current.offsetLeft}px`)
+    if (thumbKey !== null && thumbKey !== key && !reducedMotion()) {
+      filterThumb.classList.remove('enter')
+      void filterThumb.offsetWidth
+      filterThumb.classList.add('enter')
+    }
+    thumbKey = key
     filterTabs.classList.add('ready')
   }
 
@@ -533,9 +548,9 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       // No chats yet: a line, with Start, and the people under it to begin with.
       const start = h('button', { class: 'list-start-link', type: 'button' }, 'Start')
       start.addEventListener('click', () => onCompose())
-      empty.replaceChildren(h('p', { class: 'list-start' }, 'Chats show up here once you send or receive a message. ', start))
+      empty.replaceChildren(h('p', { class: 'list-start' }, 'Your chats appear here. ', start))
     } else if (noChats) {
-      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? 'New chat' : 'Show all')
+      const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? 'Find friends' : 'Show all')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))
       const emptyTitle = state.filter === 'all' ? 'No chats' : state.filter === 'unread' ? 'No unread messages' : `No ${filter.label}`
       empty.replaceChildren(h('div', { class: 'empty-art', 'aria-hidden': 'true' }, icon('bubble')), h('h2', {}, emptyTitle), action)

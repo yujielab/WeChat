@@ -37,23 +37,23 @@ await sleep(300);await shot('24-strip-closed-chat')
 await p.setViewportSize({width:890,height:626});await p.waitForFunction(()=>document.querySelector('.pane-list').dataset.enter==='leading');await unposed();await sleep(400)
 s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'thread');assert.ok(Math.abs(s.boxes.list.width-narrow(890))<1&&Math.abs(s.boxes.list.right-s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.width-(890-narrow(890)))<1,'narrow list, wide conversation, adjacent '+JSON.stringify(s.boxes))
 assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['audio','video','info'],'trailing conversation: no Back')
-// The list's bar at its foot: the search field, then the filter and New Chat (folded, Back to the sidebar leads);
+// The list's bar at its foot: the search field, then the filter (folded, Back to the sidebar leads; New chat is in Friends);
 // settings sits at the end of the list's heading.
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-item, .list-bottombar .search-pill')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item||'search')),['filter','compose','search'],'list bar items')
-const lb=await p.evaluate(()=>{const r=e=>e.getBoundingClientRect(),q=s=>r(document.querySelector(s));return{back:q('.list-bottombar [data-item="filter"]'),pill:q('.list-bottombar .search-pill'),compose:q('.list-bottombar [data-item="compose"]'),pane:q('.pane-list'),me:q('.list-me')}})
-assert.ok(lb.pill.right<=lb.back.left&&lb.back.right<=lb.compose.left&&lb.compose.bottom>=lb.pane.bottom-80,'search, then the filter and New Chat along the foot '+JSON.stringify(lb))
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.list-bottombar .bar-item, .list-bottombar .search-pill')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item||'search')),['filter','search'],'list bar items')
+const lb=await p.evaluate(()=>{const r=e=>e.getBoundingClientRect(),q=s=>r(document.querySelector(s));return{back:q('.list-bottombar [data-item="filter"]'),pill:q('.list-bottombar .search-pill'),pane:q('.pane-list'),me:q('.list-me')}})
+assert.ok(lb.pill.right<=lb.back.left&&lb.back.bottom>=lb.pane.bottom-80,'search, then the filter along the foot '+JSON.stringify(lb))
 assert.ok(lb.me.width>=44&&lb.me.right<=lb.pane.right&&lb.me.top<lb.pane.top+120,'settings at the end of the heading')
 await shot('25-strip-open-list-chat')
 
 // Details slide the window one column along: the list leaves on the left, details arrive on the right.
-await p.click('.thread [data-item="info"]');await sleep(120)
+await p.click('.thread .thread-info');await sleep(120)
 const mid=await state();assert.ok(mid.boxes.thread.x>1&&mid.boxes.thread.x<444,'the strip is mid-slide '+mid.boxes.thread.x);assert.ok(mid.shown.includes('list')&&mid.shown.includes('artifact'),'both outgoing and incoming columns drawn while sliding')
 await settled('artifact');await p.locator('.art-content .profile').waitFor();s=await state()
 assert.deepEqual(s.roles,['hidden','hidden','leading','trailing']);assert.ok(Math.abs(s.boxes.thread.x)<1&&Math.abs(s.boxes.thread.right-s.boxes.artifact.x)<1)
 // The conversation leads now, with no Back of its own — the details' Close beside it does the same, so there is
 // one way out and it is in the column being left; details is pressed.
-const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread [data-item="info"]').getAttribute('aria-pressed')}))
-assert.deepEqual(lead,{items:['audio','video','info'],info:'true'})
+const lead=await p.evaluate(()=>({items:[...document.querySelectorAll('.thread .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item),info:document.querySelector('.thread .thread-info').getAttribute('aria-pressed')}))
+assert.deepEqual(lead,{items:['audio','video'],info:'true'})
 assert.equal(await p.locator('.art-body [data-item="close"]').isVisible(),true,'details close beside the conversation')
 await sleep(200);await shot('26-strip-open-chat-details')
 
@@ -87,7 +87,7 @@ await p.click('.pane-list [data-item="back"]');await settled('sidebar')
 // are the list's filter menu there, and settings is in the list's heading. The filter carries over.
 await p.setViewportSize({width:890,height:626});await unposed();await sleep(400)
 s=await state();assert.deepEqual(s.roles,['hidden','leading','trailing','hidden']);assert.equal(s.focus,'list')
-assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.pane-list .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['filter','compose']);assert.equal(await p.locator('.pane-list .list-filters').isVisible(),false);assert.equal(await p.locator('.list-me').isVisible(),true)
+assert.deepEqual(await p.evaluate(()=>[...document.querySelectorAll('.pane-list .bar-item')].filter(e=>e.getClientRects().length).map(e=>e.dataset.item)),['filter']);assert.equal(await p.locator('.pane-list .list-filters').isVisible(),false);assert.equal(await p.locator('.list-me').isVisible(),true)
 await p.click('.list-bottombar [data-item="filter"]');await p.locator('.menu.on .menu-item:has-text("私聊")').waitFor();await p.locator('.menu.on .menu-item:has-text("全部")').click();await sleep(300)
 await shot('28-strip-unfold-from-sidebar')
 
@@ -99,7 +99,7 @@ await p.setViewportSize({width:466,height:678});await unposed();await sleep(300)
 // Escape closes details from either column; with reduced motion the window moves without sliding.
 await p.setViewportSize({width:890,height:626});await unposed();await sleep(300)
 await p.click('.thread .composer-action');await p.click('.composer-tool[data-tool="draw"]');await settled('artifact');await p.locator('.pane-artifact .draw').waitFor();await p.keyboard.press('Escape');await settled('thread')
-await p.evaluate(()=>{document.documentElement.dataset.motion='reduce'});await p.click('.thread [data-item="info"]');assert.equal(await p.evaluate(()=>document.querySelector('.shell').dataset.anim),undefined);await settled('artifact')
+await p.evaluate(()=>{document.documentElement.dataset.motion='reduce'});await p.click('.thread .thread-info');assert.equal(await p.evaluate(()=>document.querySelector('.shell').dataset.anim),undefined);await settled('artifact')
 await p.click('.art-body [data-item="close"]');await settled('thread')
 await p.evaluate(()=>{delete document.documentElement.dataset.motion})
 
@@ -137,7 +137,7 @@ for(const w of widths){await p.setViewportSize({width:w,height:669});await sleep
 await unposed();await sleep(200);assert.deepEqual((await state()).roles,['hidden','hidden','single','hidden']);assert.equal(await p.evaluate(()=>document.activeElement?.matches('.composer textarea')),true)
 // A sheet opened from the list sits in the middle of the whole screen across the same drag: unfolded and flat
 // there is no crease to keep off (half folded it keeps to one side: duo-layout.cjs).
-await p.setViewportSize({width:951,height:669});await unposed();await p.click('.pane-list [data-item="compose"]');await p.locator('.sheet.on').waitFor()
+await p.setViewportSize({width:951,height:669});await unposed();await p.click('.pane-list .list-requests');await p.locator('.sheet.on').waitFor()
 for(const w of [951,901,851,800,751,700]){await p.setViewportSize({width:w,height:669});await sleep(120);const b=await p.locator('.sheet').boundingBox();assert.ok(Math.abs(b.x+b.width/2-w/2)<=1.5,`sheet centred at ${w} `+JSON.stringify(b))}
 await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detached'})
 
@@ -160,10 +160,10 @@ await p.keyboard.press('Escape');await p.locator('.sheet').waitFor({state:'detac
 await p.evaluate(()=>{document.documentElement.style.removeProperty('--safe-right');dispatchEvent(new Event('resize'))})
 
 // iOS 27.2 can keep that column out of the page altogether (a 376pt page on the 466pt screen): the bar at the
-// foot spans the page, Back to New Chat, and the list runs the full width above it.
+// foot spans the page, Back to the search field's end, and the list runs the full width above it.
 {const c=await browser.newContext({...opts,viewport:{width:376,height:678},isMobile:true,hasTouch:true,storageState:await ac.storageState()});const q=await c.newPage();q.on('pageerror',e=>errors.push(e.message));await q.goto(BASE);await q.locator('.pane-list .row').first().waitFor();await sleep(500)
-const g=await q.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return{back:r('.list-bottombar [data-item="back"]'),compose:r('.list-bottombar [data-item="compose"]'),row:r('.pane-list .row'),pill:r('.list-bottombar .search-pill')}})
-assert.ok(g.back.left>=15.5&&g.compose.right<=376-15.5&&g.compose.right>=376-24&&g.pill.width>=120&&g.row.right>=376-24,'the bar spans the page '+JSON.stringify(g))
+const g=await q.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return{back:r('.list-bottombar [data-item="back"]'),row:r('.pane-list .row'),pill:r('.list-bottombar .search-pill')}})
+assert.ok(g.back.left>=15.5&&g.pill.right<=376-15.5&&g.pill.right>=376-24&&g.pill.width>=120&&g.row.right>=376-24,'the bar spans the page '+JSON.stringify(g))
 await q.screenshot({path:path.join(OUT,'29-outer-page.png')});await c.close()}
 
 assert.deepEqual(errors,[]);console.log('PASS: closed one column / open flat a narrow list beside a wide conversation; slide to details and back; fold keeps the focused column; interactive swipe (commit and spring back); history back/forward; sidebar scopes; unread while out of view, read once back; folding keeps the conversation; Duo matrix 466/678/951/890/669/626/475 with the narrow and wide columns; width drag never reads as keyboard; sheets centred on the open screen; the bar at the foot of every column (list: Back, filter, search, New Chat; conversation: Back, field, drawing and photos), inside the edge column inset and across a 376pt page; sheets clear of the edge column; column in use takes focus; posture entering side; Escape; reduced motion; no page errors')

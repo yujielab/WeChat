@@ -22,7 +22,7 @@ export const PAGES = [
   { id: 'moments', icon: 'people', label: 'Moments' },
   { id: 'memories', icon: 'photo-stack', label: 'Memories' },
   // Requests with the other places; You at the end, beside Menu, where a profile is looked for.
-  { id: 'requests', icon: 'bell', label: 'Requests' },
+  { id: 'requests', icon: 'bell', label: 'Friends' },
   { id: 'you', icon: 'person-circle', label: 'You' },
   { id: 'menu', icon: 'menu', label: 'Menu' }
 ]
@@ -97,7 +97,7 @@ export function createPages({ goColumn }) {
       shown = visible
       rail.hidden = !visible
       document.documentElement.toggleAttribute('data-pages', visible)
-      if (visible) setTimeout(() => tip('pages', rail, { title: 'Your places', text: 'Chats, Moments, Memories, Requests and You — one tap away, whatever is open.', side: 'start' }), 900)
+      if (visible) setTimeout(() => tip('pages', rail, { title: 'Your places', text: 'Every page, one tap away.', side: 'start' }), 900)
     }
     // A page opened or closed while the capsule stays: the app's rails step aside under it, or come back.
     document.documentElement.toggleAttribute('data-page-over', visible && onPage)

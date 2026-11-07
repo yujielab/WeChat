@@ -12,6 +12,7 @@ import { api } from '../api.js'
 import { state, on, upsertRoom, setContacts } from '../store.js'
 import { avatar } from './avatar.js'
 import { openSheet, toast } from './overlay.js'
+import { cell, group, groupTitle, foot, chev, contactCell, openNewGroup } from './sheets.js'
 
 export const NOTE_MAX = 60
 const nameOf = u => u?.display || u?.username || ''
@@ -59,7 +60,7 @@ export function createNotes({ onOpen }) {
   }
   function paint() {
     const you = noteItem({ user: state.me, text: mine?.text || '', label: 'Your note', mine: true })
-    if (!mine?.text) tip('notes', '.notes .note-mine', { title: 'Share a note', text: 'One line for your friends to see at the top of their chats, for a day.' })
+    if (!mine?.text) tip('notes', '.notes .note-mine', { title: 'Share a note', text: 'Friends see it for 24 hours.' })
     you.addEventListener('click', () => openNoteEditor({ origin: you, mine, onSaved: next => { mine = next; paint() } }))
     const others = notes.map(n => {
       const b = noteItem({ user: n.user, text: n.text, label: nameOf(n.user), at: n.created })
@@ -95,7 +96,7 @@ function noteItem({ user, text, label, mine = false, at }) {
     dataset: { user: user?.id || '' },
     'aria-label': mine ? (empty ? 'Share a note' : `Your note: ${text}`) : `${label}'s note: ${text}${at ? `, ${since(at)} ago` : ''}`
   },
-    h('span', { class: ['note-bubble', empty && 'empty'], 'aria-hidden': 'true' }, h('span', { class: 'note-text' }, empty ? 'Share a thought…' : text), h('i', { class: 'note-tail' })),
+    h('span', { class: ['note-bubble', empty && 'empty'], 'aria-hidden': 'true' }, h('span', { class: 'note-text' }, empty ? 'Share a thought…' : text)),
     h('span', { class: 'note-face', 'aria-hidden': 'true' }, avatar(user?.avatar, nameOf(user), { size: 60 }), mine && empty ? h('span', { class: 'note-plus' }, icon('plus')) : null),
     h('span', { class: 'note-name', 'aria-hidden': 'true' }, label))
 }
@@ -109,10 +110,10 @@ export function openNoteEditor({ origin, mine, onSaved } = {}) {
   const remove = mine ? h('button', { class: 'note-remove', type: 'button' }, icon('trash'), 'Delete note') : null
   const content = h('div', { class: 'note-editor' },
     h('div', { class: 'note-preview' },
-      h('label', { class: 'note-bubble big' }, input, h('i', { class: 'note-tail' })),
+      h('label', { class: 'note-bubble big' }, input),
       avatar(state.me?.avatar, nameOf(state.me), { size: 96 })),
     count,
-    h('p', { class: 'note-hint' }, mine ? `Shared ${since(mine.created)} ago. Friends see it above your photo in their Messages for 24 hours.` : 'Friends see it above your photo in their Messages for 24 hours.'),
+    h('p', { class: 'note-hint' }, `${mine ? (since(mine.created) === 'now' ? 'Shared just now. ' : `Shared ${since(mine.created)} ago. `) : ''}Friends see it on your photo for 24 hours.`),
     remove)
   const sheet = openSheet({ title: 'Note', content, start: cancel, end: share, origin })
   sheet.el.classList.add('note-sheet')
@@ -147,7 +148,7 @@ function openNote(n, { origin, onOpen }) {
   const form = h('form', { class: 'note-reply' }, input, send)
   const content = h('div', { class: 'note-editor note-reading' },
     h('div', { class: 'note-preview' },
-      h('span', { class: 'note-bubble big' }, h('span', { class: 'note-text' }, n.text), h('i', { class: 'note-tail' })),
+      h('span', { class: 'note-bubble big' }, h('span', { class: 'note-text' }, n.text)),
       avatar(n.user.avatar, nameOf(n.user), { size: 96 })),
     h('p', { class: 'note-who' }, h('b', {}, nameOf(n.user)), ` · ${since(n.created)}`),
     form)
@@ -189,10 +190,28 @@ export function createRequestsLink() {
 }
 
 /** Who wants to add you (Accept, or ×), and whom you've asked (Cancel). */
+/**
+ * Friends: everything about the people you talk to, in one place (it took
+ * New chat's place). Find someone by username and tap to chat; start a
+ * group or invite friends; answer requests and see those you've sent; and
+ * your contacts, a tap from a chat.
+ */
 export function openRequests({ origin, page = false, swap = false } = {}) {
-  const body = h('div', { class: 'people-sheet' })
-  const sheet = openSheet({ title: 'Requests', content: body, tall: true, origin, side: 'list', page, swap })
+  const search = h('input', { class: 'input', type: 'search', placeholder: 'Find people by username', enterkeyhint: 'search', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, 'aria-label': 'Find people by username' })
+  const results = h('div', { class: 'people-results', hidden: true })
+  const requests = h('div', { class: 'people-sheet' })
+  const contacts = h('div', {})
+  const main = h('div', {},
+    group(
+      cell('New group', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts: async () => { await reloadContacts(); return state.contacts }, onOpen: open }) } }),
+      cell('Invite friends', chev(), { icon: 'person-plus', onClick: () => inviteFriends() })),
+    requests,
+    groupTitle('Contacts'),
+    contacts)
+  const content = h('div', {}, h('div', { class: 'sheet-search' }, h('label', { class: 'glass search-pill' }, icon('search'), search)), results, main)
+  const sheet = openSheet({ title: 'Friends', content, tall: true, origin, side: 'list', page, swap })
   sheet.el.classList.add('requests-sheet')
+
   function paint() {
     const incoming = state.contacts.filter(c => c.state === 'pending_in')
     const sent = state.contacts.filter(c => c.state === 'pending_out')
@@ -212,8 +231,10 @@ export function openRequests({ origin, page = false, swap = false } = {}) {
         action: { label: 'Cancel', run: () => act('/api/contacts/remove', u) }
       })))))
     }
-    if (!parts.length) parts.push(h('div', { class: 'people-empty' }, icon('person-plus'), h('b', {}, 'No requests'), h('span', {}, 'When someone wants to add you, they show up here.')))
-    body.replaceChildren(...parts)
+    if (!parts.length) parts.push(h('div', { class: 'people-empty' }, icon('person-plus'), h('b', {}, 'No requests'), h('span', {}, 'Friend requests appear here.')))
+    requests.replaceChildren(...parts)
+    const mine = state.contacts.filter(c => c.state === 'accepted').sort((a, b) => (a.display || '').localeCompare(b.display || ''))
+    contacts.replaceChildren(mine.length ? group(...mine.map(c => contactCell(c, () => chat(c), c.state))) : foot('No contacts yet. Search a username above.'))
   }
   async function act(path, u, done) {
     try {
@@ -222,8 +243,34 @@ export function openRequests({ origin, page = false, swap = false } = {}) {
       if (done) toast(done, { type: 'ok' })
     } catch (err) { toast(err.message, { type: 'error' }) }
   }
+  // A chat with them: the one there is, or a new one, opened.
+  function open(id) { window.dispatchEvent(new CustomEvent('open-chat', { detail: id })) }
+  async function chat(u) {
+    try {
+      const id = await chatWith(u)
+      sheet.close()
+      open(id)
+    } catch (err) { toast(err.message, { type: 'error' }) }
+  }
+
+  // Searching shows who matches in place of the rest.
+  let seq = 0
+  search.addEventListener('input', async () => {
+    const q = search.value.trim()
+    main.hidden = Boolean(q)
+    results.hidden = !q
+    if (!q) { results.replaceChildren(); return }
+    const n = ++seq
+    try {
+      const r = await api.get(`/api/users/search?q=${encodeURIComponent(q)}`)
+      if (n !== seq) return
+      results.replaceChildren(r.users.length ? group(...r.users.map(u => contactCell(u, () => chat(u), u.state))) : foot(`Nothing found for “${q}”`))
+    } catch {}
+  })
+
   const off = on('contacts', () => { if (sheet.el.isConnected) paint(); else off() })
   paint()
+  reloadContacts()
   return sheet
 }
 
@@ -318,8 +365,8 @@ export function createPeople({ onOpen }) {
     if (safe(() => localStorage.getItem(INVITE_KEY), null)) return null
     const card = h('div', { class: 'person-row invite-card' },
       h('span', { class: 'invite-icon', 'aria-hidden': 'true' }, icon('person-plus')),
-      h('span', { class: 'person-text' }, h('b', { class: 'person-name' }, 'Invite friends'), h('span', { class: 'person-sub' }, 'Share a link so friends can find you on Cuven.')),
-      actionButton({ label: 'Share', solid: true, run: () => inviteFriends() }),
+      h('span', { class: 'person-text' }, h('b', { class: 'person-name' }, 'Invite friends'), h('span', { class: 'person-sub' }, 'Send friends a link to Cuven.')),
+      actionButton({ label: 'Share', cls: 'invite-share', run: () => inviteFriends() }),
       dismissButton({ label: 'Hide invite', run: () => { safe(() => localStorage.setItem(INVITE_KEY, '1')); paint() } }))
     return card
   }
@@ -363,8 +410,8 @@ function personRow(u, { sub, onTap, action, dismiss }) {
     action ? actionButton(action) : null,
     dismiss ? dismissButton(dismiss) : null)
 }
-function actionButton({ label, solid = false, disabled = false, run }) {
-  const b = h('button', { class: ['person-action', solid && 'solid'], type: 'button', disabled }, label)
+function actionButton({ label, solid = false, cls = '', disabled = false, run }) {
+  const b = h('button', { class: ['person-action', solid && 'solid', cls], type: 'button', disabled }, label)
   if (run) b.addEventListener('click', async () => { b.disabled = true; try { await run(b) } finally { if (b.isConnected) b.disabled = false } })
   return b
 }

@@ -166,8 +166,8 @@ assert.ok(swap&&swap.d<=180,'switching side by side is quick '+JSON.stringify(sw
 await sleep(300);await p.click('.composer textarea');await p.keyboard.type('好');
 const sent=await p.evaluate(()=>new Promise(done=>{const n=document.querySelectorAll('.msgs .m').length;document.querySelector('.composer-action').click();requestAnimationFrame(()=>{const m=[...document.querySelectorAll('.msgs .m')].at(-1);const a=m.getAnimations().find(x=>x.animationName==='m-out');done({more:document.querySelectorAll('.msgs .m').length>n,d:a?.effect.getTiming().duration,frames:a?JSON.stringify(a.effect.getKeyframes()):''})})}))
 assert.ok(sent.more&&sent.d<=180&&!/blur|scale/.test(sent.frames),'a sent message is there at once '+JSON.stringify(sent))
-await p.click('.thread [data-item="info"]');await sleep(30)
-assert.equal(await p.evaluate(()=>document.querySelector('.thread [data-item="info"] .icon').getAnimations().length),0,'a toolbar tap answers with its press alone')
+await p.click('.thread .thread-info');await sleep(30)
+assert.equal(await p.evaluate(()=>document.querySelector('.thread .thread-info .icon').getAnimations().length),0,'a toolbar tap answers with its press alone')
 
 // P1-11 / P2-14: settings has one way into the profile, offers haptics only where the device can play them,
 // and scrolls every row fully into view above the sheet's foot, folded and unfolded.

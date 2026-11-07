@@ -18,7 +18,8 @@ import { createShell } from './views/shell.js'
 import { createCalls } from './views/call.js'
 import { syncPush } from './ui/push.js'
 import { prewarmStickers } from './views/stickers.js'
-import { toast, closeAllOverlays } from './views/overlay.js'
+import { toast, closeAllOverlays, frontSheet } from './views/overlay.js'
+import { initBanner, showBanner, dismissBanner } from './views/banner.js'
 
 // The browser says the network is back: the outbox tries again at once.
 window.addEventListener('online', () => outbox.resume())
@@ -177,6 +178,11 @@ function mountShell() {
   })
   shell.setMe(state.me)
   startPerfProbe()
+  // A message from a conversation that isn't on screen drops in from the top (views/banner.js).
+  initBanner({
+    openChat: id => shell?.openChat(id),
+    send: (chat, text) => shell?.thread.sendText(text, chat)
+  })
   // A chat opened from elsewhere (a profile's Message, views/moments.js).
   window.addEventListener('open-chat', e => { if (e.detail) shell?.openChat(e.detail) })
   // Whether friends have shared something since the last look, once the app has settled.
@@ -300,9 +306,25 @@ function bumpRoom(m, raw) {
     })
   } else {
     // A brand-new room (first message of a fresh DM/group) — fetch it in.
-    refresh().catch(() => {})
+    refresh().then(() => alertBanner(m, raw)).catch(() => {})
   }
   if (!m.out && state.open !== m.chat && raw.type !== 'system') shell?.list?.render()
+  if (existing) alertBanner(m, raw)
+}
+
+/**
+ * Someone wrote while their conversation isn't what's on screen (another
+ * page, a sheet over it, another conversation): a banner drops in. Not for
+ * a muted conversation, notices or calls (a call rings for itself), nor
+ * while the app is in the background (the push notification is for that).
+ */
+function alertBanner(m, raw) {
+  if (m.out || raw.type === 'system' || raw.type === 'call' || document.hidden) return
+  const room = state.chats.get(m.chat)
+  if (!room || room.muted) return
+  const reading = state.open === m.chat && !frontSheet() && !document.querySelector('#overlays > .viewer')
+  if (reading) return dismissBanner(m.chat)
+  showBanner({ chat: m.chat, name: room.name, avatar: room.avatar, room: room.room, text: previewText(raw, room) })
 }
 
 

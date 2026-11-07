@@ -1,6 +1,6 @@
 /* People in the Messages list (js/views/people.js), after the Instagram inbox,
-   in the list's own paper and ink: notes along the top — a thought bubble over
-   each photo, yours first; Requests at the end of the filters; under the
+   in the list's own paper and ink: notes along the top — a bubble resting on
+   the top of each photo, yours first; Requests at the end of the filters; under the
    chats, Suggested ("Tap to chat") and People you may know (Add, ×, See all)
    with a card to invite friends. */
 
@@ -22,7 +22,7 @@
 .note {
   position: relative;
   width: 100px;
-  padding: 66px 4px 4px;
+  padding: 50px 4px 4px;
   display: grid;
   justify-items: center;
   gap: 6px;
@@ -49,14 +49,13 @@
 .note-plus .icon { width: 12px; height: 12px; }
 .note-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); font-size: var(--t-caption); }
 .note-mine .note-name { color: var(--label-3); }
-/* The thought bubble: up to two lines, above the photo, with a tail of two
-   dots stepping down from it to the photo's edge — in the gap between them,
-   never over the picture, each the bubble's own surface and rim so it reads
-   on any photo. */
+/* The bubble: up to two lines, resting on the top of the photo — its lower
+   edge 16px over the picture, however many lines it has — in its own surface
+   and rim so it reads on any photo. */
 .note-bubble {
   position: absolute;
   z-index: 1;
-  top: 44px;
+  top: 66px;
   left: 50%;
   transform: translate(-50%, -100%);
   width: max-content;
@@ -73,18 +72,13 @@
 }
 .note-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .note-bubble.empty { color: var(--label-3); }
-.note-tail, .note-tail::after { position: absolute; border-radius: 50%; background: var(--bg-elevated); box-shadow: 0 0 0 1px var(--line), 0 3px 8px -5px rgb(0 0 0 / .35); pointer-events: none; }
-.note-tail { top: calc(100% + 3px); left: 34%; width: 9px; height: 9px; }
-/* The second, smaller dot: further down and on, towards the photo. */
-.note-tail::after { content: ""; top: calc(100% + 3px); left: calc(100% - 1px); width: 6px; height: 6px; }
 
-/* Writing yours, or reading a friend's: large, over the photo. */
+/* Writing yours, or reading a friend's: large, resting on the photo the same way. */
 .note-editor { display: grid; justify-items: center; padding: 8px 20px 18px; text-align: center; }
-.note-preview { position: relative; display: grid; justify-items: center; padding-top: 80px; }
+.note-preview { position: relative; display: grid; justify-items: center; padding-top: 76px; }
 .note-preview > .avatar { --size: 96px; font-size: 36px; }
 .note-bubble.big {
-  top: 0;
-  transform: translateX(-50%);
+  top: 96px;
   max-width: min(300px, 80vw);
   min-width: 160px;
   padding: 12px 18px;
@@ -92,8 +86,6 @@
   font-size: var(--t-body);
 }
 .note-bubble.big .note-text { -webkit-line-clamp: 3; }
-.note-bubble.big .note-tail { top: calc(100% + 4px); left: 36%; width: 12px; height: 12px; }
-.note-bubble.big .note-tail::after { top: calc(100% + 4px); left: calc(100% - 1px); width: 8px; height: 8px; }
 .note-input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: var(--label); font: inherit; text-align: center; }
 .note-input::placeholder { color: var(--label-3); }
 .note-count { margin-top: 12px; color: var(--label-3); font-size: var(--t-caption); }
@@ -204,7 +196,15 @@ button.person-main:active { opacity: .7; }
 .person-dismiss::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
 .person-dismiss .icon { width: 16px; height: 16px; }
 .person-dismiss:active { color: var(--label); }
+/* Friends (views/people.js openRequests): the requests below the first card, with room. */
+.requests-sheet .group + .people-sheet { margin-top: 22px; }
+.requests-sheet .people-empty { padding: 18px 28px 6px; }
 .invite-card { gap: 14px; padding-top: 6px; padding-bottom: 6px; }
+/* Share: white, a black line just inside its edge, blue words (not glass: buttons.js NOT). */
+.invite-card .invite-share,
+.invite-card .invite-share:disabled { background: #fff; color: #0062cc; box-shadow: inset 0 0 0 1px #000; }
+.invite-card .invite-share:disabled { opacity: .6; }
+.invite-card .invite-share:active { background: #f2f2f4; }
 .invite-card .person-text { flex: 1; padding: 10px 0; }
 .invite-icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: var(--fill-2); color: var(--label); }
 .invite-icon .icon { width: 24px; height: 24px; }

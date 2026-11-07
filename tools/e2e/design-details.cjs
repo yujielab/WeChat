@@ -46,7 +46,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
  assert.equal(await a.getAttribute('meta[name="apple-mobile-web-app-status-bar-style"]','content'),'default')
  const themeColor=()=>a.getAttribute('meta[name="theme-color"]','content')
  assert.equal(await themeColor(),'#ffffff')
- await a.click('.pane-list [data-item="compose"]');await a.fill('.sheet-search input',`refb_${uniq}`)
+ await a.click('.pane-list .list-requests');await a.fill('.sheet-search input',`refb_${uniq}`)
  // While the sheet dims the app, the theme colour is the colour at the screen's edge, so the
  // status area beside the page dims with it.
  await a.waitForSelector('.scrim.on');await sleep(700)

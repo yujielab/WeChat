@@ -338,7 +338,7 @@ export function emulateSegments(rects) {
   measure()
 }
 
-/** What the browser reports and what was made of it, for the settings' Screen posture. */
+/** What the browser reports and what was made of it (checked by tools/e2e/postures.cjs). */
 export function getPostureReadings() {
   return { segments: readSegments(), posture: readPosture(), source: fold.source, pose: pose?.pose || 'closed', fold: { ...fold } }
 }

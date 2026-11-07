@@ -11,7 +11,7 @@ import { createSidebar } from './sidebar.js'
 import { createChatList } from './chatList.js'
 import { createThread } from './thread.js'
 import { createArtifact } from './artifact.js'
-import { openSettings, openNewChat, rememberOpen } from './sheets.js'
+import { openSettings, rememberOpen } from './sheets.js'
 import { closeAllOverlays, healOverlays, confirmAction } from './overlay.js'
 import { h } from '../ui/dom.js'
 import { createDiscardGuard } from './draw-guard.js'
@@ -28,7 +28,8 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
   app.replaceChildren(shell)
   const overlays = document.getElementById('overlays')
 
-  const compose = () => openNewChat({ loadContacts, onOpen: id => openChat(id) })
+  // Starting a chat is in Friends (views/people.js): find someone, or a contact.
+  const compose = async () => (await import('./people.js')).openRequests()
   const sidebar = createSidebar(panes[SIDEBAR], {
     onScope: key => {
       list.setFilter(key)
@@ -38,8 +39,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
     onSearch: () => {
       forward(LIST)
       list.openSearch()
-    },
-    onCompose: compose
+    }
   })
   const list = createChatList(panes[LIST], {
     onOpen: id => openChat(id),
@@ -322,7 +322,7 @@ export function createShell(app, { socketSend, loadContacts, onCall, onCallBack 
 
   function syncToggles() {
     const art = strip.focus === ARTIFACT ? artifact.current : null
-    thread.bars.set('info', { state: { active: art?.kind === 'info' } })
+    thread.setInfoOpen(art?.kind === 'info')
     thread.setTool('draw', art?.kind === 'draw')
   }
 

@@ -1,8 +1,8 @@
 /* The conversation, after the reference (loaded after thread.css,
    duo-layout.css and backdrops.css, whose rules it refines):
    - the heading: their photo large in the middle with their name on a white
-     pill over its foot (and how they are, after a dot); the calls at the
-     start of the row, the details at its end;
+     pill over its foot (and how they are, after a dot, then the details' (i)
+     in blue); the calls at the start of the row;
    - bubbles rounder; yours in ink with light text; each run of messages
      ends in a small curved tail at its foot, by their photo or at your side;
    - the field a white pill with Send inside its end;
@@ -28,9 +28,7 @@
 .thread-nav > .bar-section { display: contents; }
 .thread-nav .bar-group:has([data-item="audio"], [data-item="video"]) { grid-column: 1; grid-row: 1; justify-self: start; }
 .thread-nav:has(.bar-group.capsule) { --nav-side: 98px; }
-.thread-nav .bar-group:has([data-item="info"]) { grid-column: 3; grid-row: 1; justify-self: end; }
-/* What overflows goes into the menu at the end of the row (the details go
-   first, so it never shares that end with them). */
+/* What overflows goes into the menu at the end of the row. */
 .thread-nav .bar-group:has(.bar-more) { grid-column: 3; grid-row: 1; justify-self: end; }
 .thread-nav .thread-title {
   grid-column: 2;
@@ -58,17 +56,44 @@
   margin-top: -10px;
   max-width: 100%;
   flex-direction: row;
-  align-items: baseline;
-  gap: 5px;
-  padding: 5px 12px 6px;
+  align-items: center;
+  gap: 0;
+  padding: 0;
   border-radius: 999px;
   background: var(--bg-elevated);
   box-shadow: 0 0 0 1px var(--line), 0 6px 16px -10px rgb(0 0 0 / .35);
 }
+/* The name (and how they are) opens their page; the (i) after it, the
+   details: the app's blue, bare, with a finger's room round it. */
+.thread-title .thread-who {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 4px 6px 12px;
+  border-radius: 999px 0 0 999px;
+  text-align: left;
+}
+.thread-title .thread-info {
+  position: relative;
+  flex: none;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  padding: 0 9px 0 3px;
+  border-radius: 0 999px 999px 0;
+  color: var(--fb-blue);
+  transition: opacity var(--dur-quick) ease-out;
+}
+.thread-title .thread-info::after { content: ""; position: absolute; inset: -8px -6px -8px -2px; }
+.thread-title .thread-info .icon { width: 18px; height: 18px; }
+.thread-title .thread-info:active { opacity: .55; }
+.thread-title :is(.thread-who, .thread-info):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .thread-title .name { min-width: 0; flex: 0 1 auto; font-size: var(--t-subhead); font-weight: var(--w-bold); line-height: 1.2; }
 .thread-title .sub { min-width: 0; flex: 0 3 auto; overflow: hidden; text-overflow: ellipsis; margin-top: 0; font-size: var(--t-caption-2); color: var(--label-2); }
 .thread-title .sub:not(:empty)::before { content: "·"; margin-right: 5px; }
-.thread-title:active .thread-person { transform: scale(.96); }
+.thread-title:has(.thread-person:active, .thread-who:active) .thread-person { transform: scale(.96); }
 .thread-title .thread-person { transition: transform 200ms var(--spring-snappy, var(--ease-out)); }
 /* In the rail, the row is the heading alone: in the middle. */
 .thread[data-bars="vertical"] .thread-nav { grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr); }
@@ -101,6 +126,8 @@
 
 /* ---------------------------------------------------------------- the field: Send inside its end */
 .thread .composer .field { padding-right: 58px; }
+/* Send sits on the bottom line: the reply above it takes that end too. */
+.thread .composer.replying .composer-reply { flex: 0 0 calc(100% + 46px); margin-right: -46px; }
 .thread .composer .composer-mic { order: 3; }
 .thread .composer .composer-action {
   width: 44px;

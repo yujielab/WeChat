@@ -69,11 +69,11 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
   const remove = h('button', { class: 'av-remove', type: 'button', 'aria-label': 'Remove photo' }, h('span', { 'aria-hidden': 'true' }, '−'))
   const custom = h('button', { class: 'av-custom', type: 'button' }, 'Adjust')
   const zoom = h('input', { class: 'av-zoom', type: 'range', min: '1', max: String(MAX_ZOOM), step: '0.01', value: '1', 'aria-label': 'Zoom', hidden: true })
-  const hint = h('p', { class: 'av-hint', hidden: true }, 'Drag to move, pinch or use the slider to zoom.')
+  const hint = h('p', { class: 'av-hint', hidden: true }, 'Drag to move, pinch to zoom.')
   const file = h('input', { type: 'file', accept: 'image/*', hidden: true })
   const pick = h('button', { class: 'av-pick', type: 'button' },
     h('span', { class: 'av-pick-icon', 'aria-hidden': 'true' }, icon('photo')),
-    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, 'Choose photo'), h('span', { class: 'av-pick-sub' }, 'Pick one from your photos, then move and zoom it into place.')))
+    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, 'Choose photo'), h('span', { class: 'av-pick-sub' }, 'Choose a photo, then frame it.')))
   const recentGrid = h('div', { class: 'av-recent', role: 'list' })
   const recentSection = h('section', { class: 'av-section', hidden: true }, h('h3', {}, 'Recent'), recentGrid)
   const avatarPane = h('div', { class: 'av-pane', role: 'tabpanel', dataset: { pane: 'avatar' } },
@@ -91,7 +91,7 @@ export function openAvatarEditor({ tab = 'avatar', origin, onSaved } = {}) {
   const coverFile = h('input', { type: 'file', accept: 'image/*', hidden: true })
   const coverPick = h('button', { class: 'av-pick', type: 'button' },
     h('span', { class: 'av-pick-icon', 'aria-hidden': 'true' }, icon('photo')),
-    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, 'Choose photo'), h('span', { class: 'av-pick-sub' }, 'People who open your profile see it at the top.')))
+    h('span', { class: 'av-pick-text' }, h('span', { class: 'av-pick-title' }, 'Choose photo'), h('span', { class: 'av-pick-sub' }, 'Shown at the top of your profile.')))
   const presetGrid = h('div', { class: 'cv-grid', role: 'radiogroup', 'aria-label': 'Cover style' })
   const presetTiles = [['', 'None'], ...PRESETS.map(p => [`preset:${p.id}`, p.label])].map(([value, label]) => {
     const b = h('button', { class: 'cv-tile', type: 'button', role: 'radio', 'aria-label': label }, backdropLayer(value), h('span', { class: 'cv-name' }, label))

@@ -5,8 +5,8 @@
 // (tone.js: clear, a light dim over media, or tinted for a filled action), and
 // draws it as the liquid-glass-studio glass: a small canvas behind the
 // button's content, painted by one shared WebGL context (engine.js) from
-// exactly what is behind the button (paint.js). The edge light follows the
-// phone's tilt (tilt.js). Without WebGL (or with Settings › Real-time glass
+// exactly what is behind the button (paint.js), its edge light fixed at the
+// top left. Without WebGL (or with Settings › Real-time glass
 // off) the same buttons get one CSS glass material instead; with Reduce
 // Transparency, high contrast or the solid fallback, a solid surface.
 //
@@ -18,7 +18,6 @@ import { storage } from '../dom.js'
 import { glassEngine, onEngine, uploadBackdrop, dropTexture, renderGlass } from './engine.js'
 import { paintBehind, rgba } from './paint.js'
 import { glassTone } from './tone.js'
-import { subscribeTilt } from './tilt.js'
 
 // The controls that are buttons. Tappable things that are content (chat rows,
 // cards, photos, tiles, avatars, settings rows, switches, swatches, plain
@@ -26,14 +25,17 @@ import { subscribeTilt } from './tilt.js'
 export const BUTTONS = [
   '.glass-btn', '.bar-item', '.bar-group.capsule', '.page-rail', '.composer .field', '.search-pill', '.seg',
   '.btn', '.solid-press', '.auth-tab', '.prompt-btn', '.jump-pill',
-  '.filter-tab', '.list-requests', '.person-action', '.person-dismiss', '.list-moments', '.page-item',
+  '.person-action', '.person-dismiss', '.list-moments', '.page-item',
   '.ip-chip', '.ip-act', '.viewer-round', '.viewer-act', '.viewer-reply-send',
-  '.mo-dots', '.mo-act', '.mo-pill', '.mo-compose', '.mo-message', '.mo-sound', '.mo-alt',
+  '.mo-dots', '.mo-pill', '.mo-compose', '.mo-message', '.mo-sound', '.mo-alt',
   '.me-tool', '.me-cancel', '.me-post', '.me-chip', '.me-card-btn', '.me-card-x',
   '.call-btn', '.call-icon-btn', '.note-reply-send',
   '.explain-pill', '.xp-chip', '.xp-send', '.xp-retry'
 ].join(', ')
-const NOT = '.thread-title, .switch, .lg-btn'
+// …but not these: the conversation's message field, its mic and its
+// jump-to-latest button are frosted glass instead (css/liquid.css, Frosted);
+// the invite card's Share is a plain white button (css/people.css).
+const NOT = '.thread-title, .switch, .lg-btn, .composer .field, .composer-mic, .thread .jump, .invite-share'
 
 // The demo's glass (src/Controls.tsx, with App.tsx's transforms), tuned to
 // the app's target: a milky, clean glass — a thinner lens, no colour
@@ -71,8 +73,6 @@ const queue = new Set()
 let mode = '' // 'gl' | 'css' | 'solid'
 let raf = 0
 let fullCheck = false
-let tilt = 0
-let untilt = null
 let scratch = null
 let page = [255, 255, 255, 1]
 
@@ -314,7 +314,7 @@ function draw(e, eng) {
       u_refThickness: LOOK.u_refThickness * s, u_refDistance: LOOK.u_refDistance * s,
       u_refFresnelRange: LOOK.u_refFresnelRange * k, u_glareRange: LOOK.u_glareRange * k,
       ...shadowFor(e),
-      u_tint: e.tint, u_glareAngle: GLARE + tilt, u_dpr: e.dpr, u_viewH: REF_VIEW_H * e.dpr
+      u_tint: e.tint, u_glareAngle: GLARE, u_dpr: e.dpr, u_viewH: REF_VIEW_H * e.dpr
     }
   })
 }
@@ -331,23 +331,6 @@ function shadowFor(e) {
     u_shadowOutOffset: [0, SHADOW.drop * s * fit * e.dpr]
   }
 }
-/** Only the light moved (tilt): redraw every visible glass, no repainting —
- *  at most 30 times a second, which is plenty for a light sliding round a rim. */
-let lit = 0
-let relightTimer = 0
-function relight() {
-  const eng = glassEngine()
-  if (!eng || mode !== 'gl') return
-  const now = performance.now()
-  if (now - lit < 33) {
-    clearTimeout(relightTimer)
-    relightTimer = setTimeout(relight, 33 - (now - lit))
-    return
-  }
-  lit = now
-  for (const e of entries.values()) if (e.visible && e.drawn && ownGlass(e)) draw(e, eng)
-}
-
 // When does a button's picture go stale? When it changes size; and when
 // something it shows from beyond its own scroller (a backdrop, a pane's
 // colour) is no longer where it was, seen from the button. What it shows
@@ -389,8 +372,6 @@ function setMode() {
   // a theme, a glass setting or the engine changed what is behind every
   // button (or how it's drawn): all of them are drawn again
   for (const e of entries.values()) invalidate(e)
-  if (mode === 'gl' && !untilt) untilt = subscribeTilt(rad => { tilt = rad; relight() })
-  if (mode !== 'gl' && untilt) { untilt(); untilt = null; tilt = 0 }
 }
 
 // ---------------------------------------------------------------- watching
