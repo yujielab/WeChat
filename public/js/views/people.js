@@ -319,7 +319,7 @@ export function createPeople({ onOpen }) {
     const card = h('div', { class: 'person-row invite-card' },
       h('span', { class: 'invite-icon', 'aria-hidden': 'true' }, icon('person-plus')),
       h('span', { class: 'person-text' }, h('b', { class: 'person-name' }, 'Invite friends'), h('span', { class: 'person-sub' }, 'Send friends a link to Cuven.')),
-      actionButton({ label: 'Share', solid: true, run: () => inviteFriends() }),
+      actionButton({ label: 'Share', cls: 'invite-share', run: () => inviteFriends() }),
       dismissButton({ label: 'Hide invite', run: () => { safe(() => localStorage.setItem(INVITE_KEY, '1')); paint() } }))
     return card
   }
@@ -363,8 +363,8 @@ function personRow(u, { sub, onTap, action, dismiss }) {
     action ? actionButton(action) : null,
     dismiss ? dismissButton(dismiss) : null)
 }
-function actionButton({ label, solid = false, disabled = false, run }) {
-  const b = h('button', { class: ['person-action', solid && 'solid'], type: 'button', disabled }, label)
+function actionButton({ label, solid = false, cls = '', disabled = false, run }) {
+  const b = h('button', { class: ['person-action', solid && 'solid', cls], type: 'button', disabled }, label)
   if (run) b.addEventListener('click', async () => { b.disabled = true; try { await run(b) } finally { if (b.isConnected) b.disabled = false } })
   return b
 }

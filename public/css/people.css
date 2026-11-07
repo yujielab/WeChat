@@ -197,6 +197,11 @@ button.person-main:active { opacity: .7; }
 .person-dismiss .icon { width: 16px; height: 16px; }
 .person-dismiss:active { color: var(--label); }
 .invite-card { gap: 14px; padding-top: 6px; padding-bottom: 6px; }
+/* Share: white, a black line just inside its edge, blue words (not glass: buttons.js NOT). */
+.invite-card .invite-share,
+.invite-card .invite-share:disabled { background: #fff; color: #0062cc; box-shadow: inset 0 0 0 1px #000; }
+.invite-card .invite-share:disabled { opacity: .6; }
+.invite-card .invite-share:active { background: #f2f2f4; }
 .invite-card .person-text { flex: 1; padding: 10px 0; }
 .invite-icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: var(--fill-2); color: var(--label); }
 .invite-icon .icon { width: 24px; height: 24px; }
