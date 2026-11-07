@@ -263,6 +263,11 @@ function insetRight() {
   return insetProbe.offsetWidth
 }
 
+/** The width of the system's column where it stands inside the page (data-edge-column), else 0. */
+export function getEdgeInset() {
+  return root.dataset.edgeColumn === '' ? insetRight() : 0
+}
+
 function measureBars() {
   // The column stays with the hardware: on the outer display in landscape the
   // camera is at its foot rather than its head (see duo-layout.css).

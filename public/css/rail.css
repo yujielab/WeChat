@@ -19,9 +19,12 @@
   --rail-inset: 10px;
   --rail-gap: 12px;
   /* Camera + status bar at the top of the column on the outer display;
-     status bar alone on the inner display (its camera hides when inactive). */
-  --rail-reserve-outer: 162px;
-  --rail-reserve-inner: 112px;
+     status bar alone on the inner display (its camera hides when inactive).
+     Measured on device with Silent mode on (a bell above the clock pushes the
+     clock and the signal ring down): the ring ends at 158pt outside and 105pt
+     inside, so the rail starts a rail gap (12pt) below it on both. */
+  --rail-reserve-outer: 170px;
+  --rail-reserve-inner: 118px;
 }
 /* Computed per pane and per overlay, so a column on the leading side of the
    fold, which has no inset of its own, keeps the rail inside it. */
@@ -66,7 +69,9 @@
 }
 .duo-rail > * { pointer-events: auto; }
 :is(.thread, .pane-list, .pane-sidebar, .art-body)[data-bars="vertical"] > .duo-rail { display: flex; }
-:root[data-kb="1"] .duo-rail { bottom: 8px; }
+/* With the keyboard up it stands just above it: on the outer display that
+   keeps Back, the calls and the details in it (206pt) without overflowing. */
+:root[data-kb="1"] .duo-rail { bottom: 4px; }
 /* The receding app's controls step aside for a sheet's, so none show
    half-covered in the edge column; they return as the sheet is dragged away. */
 .app .duo-rail { transition: opacity 260ms ease-out; }

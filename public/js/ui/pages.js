@@ -7,7 +7,8 @@
 // glides to the next; going from page to page swaps them in place (the new
 // one fades in over the scrim already there, the old fades away) rather than
 // one sliding down and the next rising. It shows where the column is the
-// list's or the sidebar's, or a page's; a conversation keeps its own rail,
+// list's or the sidebar's, or a page's, and on the open screen whatever
+// trails (but the drawing board); folded, a conversation keeps its own rail,
 // and anything opened over a page (a profile, an editor) has the screen.
 
 import { h, icon, reducedMotion } from './dom.js'
@@ -47,8 +48,10 @@ export function createPages({ goColumn }) {
   const current = () => page?.id || column
   async function show(id, origin) {
     if (id === current()) {
-      // Again: back to its top.
+      // Again: a page back to its top; a column brought back beside what it leads to (Chats beside a
+      // conversation's details brings the list back).
       if (page) page.sheet.body.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' })
+      else goColumn(id)
       return
     }
     const before = page
@@ -92,8 +95,9 @@ export function createPages({ goColumn }) {
       shown = visible
       rail.hidden = !visible
       document.documentElement.toggleAttribute('data-pages', visible)
-      document.documentElement.toggleAttribute('data-page-over', visible && onPage)
     }
+    // A page opened or closed while the capsule stays: the app's rails step aside under it, or come back.
+    document.documentElement.toggleAttribute('data-page-over', visible && onPage)
     const id = current()
     for (const [pid, b] of buttons) {
       const on = pid === id

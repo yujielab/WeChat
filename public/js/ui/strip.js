@@ -14,7 +14,7 @@
 import { reducedMotion } from './dom.js'
 import { spring, velocityTracker, project } from './spring.js'
 import { cancelPress } from './press.js'
-import { isStandalone } from './viewport.js'
+import { isStandalone, getEdgeInset, onBars } from './viewport.js'
 import { openGeometry, mixGeometry, boxesAtPosition } from './columns.js'
 
 export const COLS = ['sidebar', 'list', 'thread', 'artifact']
@@ -52,7 +52,8 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   let glide = null
   let width = 0
   let left = 0
-  const target = s => openGeometry({ ...pose, fold: inShell(pose.fold), width, start: s })
+  let edgeInset = 0
+  const target = s => openGeometry({ ...pose, fold: inShell(pose.fold), width, start: s, end: edgeInset })
   const geo = s => (glide ? mixGeometry(glide.from(s), target(s), glide.t) : target(s))
   // The hinge as the page reports it, from the shell's own edge.
   const inShell = fold => (fold && fold.axis === 'vertical' ? { ...fold, start: fold.start - left, end: fold.end - left } : fold)
@@ -60,6 +61,8 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   function measureShell() {
     width = shell.clientWidth || window.innerWidth
     left = shell.offsetLeft + (shell.offsetParent?.getBoundingClientRect().left || 0)
+    // The system's column at the right edge, where the page runs under it: the trailing column carries it.
+    edgeInset = getEdgeInset()
   }
   const drawn = new Map()
 
@@ -245,10 +248,16 @@ export function createStrip(shell, panes, { onRoles, onSwipeBack, swipeZone }) {
   // The shell changing size (rotation, the posture morph's held width
   // letting go) redraws the columns for it at once.
   new ResizeObserver(() => {
-    const before = width
+    const before = width, beforeEdge = edgeInset
     measureShell()
-    if (Math.abs(before - width) > 0.5) render(pos)
+    if (Math.abs(before - width) > 0.5 || Math.abs(beforeEdge - edgeInset) > 0.5) render(pos)
   }).observe(shell)
+  // The system's column joining or leaving the page (its inset can settle after launch).
+  onBars(() => {
+    const beforeEdge = edgeInset
+    measureShell()
+    if (Math.abs(beforeEdge - edgeInset) > 0.5) render(pos)
+  })
 
   // ---------------------------------------------------------- interactive back
   let g = null
