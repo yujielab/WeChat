@@ -2300,6 +2300,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     bars,
     setTool: (id, active) => composer.setTool(id, active),
     sendDrawing: (blob, size) => sendDrawing(blob, size),
+    /** A text to any conversation, open or not (an answer from views/banner.js). */
+    sendText: (text, chat) => sendText(text, chat),
     focusComposer() {
       composer.focus()
     },
