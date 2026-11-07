@@ -199,7 +199,9 @@ button.person-main:active { opacity: .7; }
 .person-action.solid { background: var(--ink); color: var(--on-ink); }
 .person-action:active { opacity: .8; }
 .person-action:disabled { opacity: 1; background: var(--fill-2); color: var(--label-2); }
-.person-dismiss { flex: none; width: 36px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--label-2); }
+.person-dismiss { position: relative; flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; color: var(--label-2); }
+/* a round 36px button, touched over 44px */
+.person-dismiss::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
 .person-dismiss .icon { width: 16px; height: 16px; }
 .person-dismiss:active { color: var(--label); }
 .invite-card { gap: 14px; padding-top: 6px; padding-bottom: 6px; }
