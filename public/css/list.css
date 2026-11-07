@@ -34,10 +34,11 @@
 /* Inside the list's section (people.css), which scrolls them with Requests. */
 .list-filters { position: relative; display: flex; align-items: center; width: max-content; gap: 3px; padding: 0; min-height: 44px; isolation: isolate; }
 .list-filters::-webkit-scrollbar { display: none; }
-.filter-thumb { position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 999px; background: var(--ink); opacity: 0; }
+/* The chosen filter: a light grey under the glass, as in the pages' rail. */
+.filter-thumb { position: absolute; z-index: -1; left: 0; top: 4px; height: 36px; border-radius: 999px; background: var(--fill); opacity: 0; }
 .list-filters.ready .filter-thumb { opacity: 1; transition: transform 220ms var(--ease-out), width 220ms var(--ease-out), opacity var(--dur-quick) ease-out; }
 .filter-tab { position: relative; flex: none; height: 44px; padding: 0 16px; border-radius: 999px; color: var(--label-2); font-size: var(--t-subhead); font-weight: 550; white-space: nowrap; transition: color var(--dur-quick) ease-out; }
-.filter-tab[aria-pressed="true"] { color: var(--on-ink); font-weight: 650; }
+.filter-tab[aria-pressed="true"] { color: var(--label); font-weight: 650; }
 .filter-tab:focus-visible { outline: 2px solid var(--label-2); outline-offset: -1px; }
 .filter-tab:active { opacity: .65; }
 .filter-note { margin: 0 var(--list-inset) 10px; font-size: var(--t-footnote); color: var(--label-2); }

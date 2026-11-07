@@ -136,6 +136,7 @@ uniform float u_glareConvergence;
 uniform float u_glareOppositeFactor;
 uniform float u_glareFactor;
 uniform float u_glareHardness;
+uniform float u_glareChroma; // how much colour the rim light adds (the demo's 30; 0: white light)
 uniform float u_glareAngle;
 uniform int u_blurEdge;
 out vec4 fragColor;
@@ -189,7 +190,7 @@ void main(){
       glareAngleFactor = clamp(pow(glareAngleFactor, 0.1 + u_glareConvergence * 2.0), 0.0, 1.0);
       vec3 glareTintLCH = SRGB_TO_LCH(mix(blurredPixel.rgb, vec3(u_tint.r, u_tint.g, u_tint.b), u_tint.a * 0.5));
       glareTintLCH.x += 150.0 * glareAngleFactor * glareGeoFactor;
-      glareTintLCH.y += 30.0 * glareAngleFactor * glareGeoFactor;
+      glareTintLCH.y += u_glareChroma * glareAngleFactor * glareGeoFactor;
       glareTintLCH.x = clamp(glareTintLCH.x, 0.0, 120.0);
       outColor = mix(outColor, vec4(LCH_TO_SRGB(glareTintLCH), 1.0), glareAngleFactor * glareGeoFactor * length(normal));
     }
