@@ -243,17 +243,17 @@ export const hasTail = m => m.type === 'text' && !emojiOnly(m.text)
  * state glyph(s) and the state said aloud in .sr-only. Over a picture,
  * video or sticker it is a .media-badge on the corner instead.
  */
-export function bubbleMeta(m, read = false, dm = true) {
+/** The corner's time (and ticks, unless `state: false`); `time` as it is to read. */
+export function bubbleMeta(m, read = false, dm = true, { state, time } = {}) {
   const el = h('span', { class: 'm-meta' })
-  fillMeta(el, m, read, sendState(m, read, dm))
+  fillMeta(el, m, read, state === false ? null : sendState(m, read, dm), time)
   return el
 }
 
-export function fillMeta(el, m, read = false, s = sendState(m, read)) {
+export function fillMeta(el, m, read = false, s = sendState(m, read), time = threadTime(m.ts)[1]) {
   const overlay = m.type === 'image-stack' || m.type === 'image' || m.type === 'drawing' || m.type === 'video' || m.type === 'sticker'
   el.className = ['m-meta', overlay && 'media-badge', s?.state].filter(Boolean).join(' ')
-  el.metaSig = `${s?.state || ''}|${m.ts}`
-  const time = threadTime(m.ts)[1]
+  el.metaSig = `${s?.state || ''}|${m.ts}|${time}`
   const glyph = !s ? [] : s.state === 'sending' ? [icon('clock')] : s.state === 'failed' ? [icon('exclaim')]
     : s.state === 'sent' ? [icon('check')] : [icon('check'), icon('check')]
   el.replaceChildren(

@@ -12,7 +12,7 @@ import { assistPrefs, setAssistPref } from './predict.js'
 import { insightsOn, setInsightsPref, insightsSection } from './insights.js'
 import { openMemorySheet } from './memory.js'
 import { openAvatarEditor } from './avatar-editor.js'
-import { state, setMe, upsertRoom, patchRoom, setContacts } from '../store.js'
+import { state, setMe, setPrefs, upsertRoom, patchRoom, setContacts } from '../store.js'
 import { api } from '../api.js'
 import { avatar } from './avatar.js'
 import { openSheet, openMenu, confirmAction, toast } from './overlay.js'
@@ -59,6 +59,24 @@ function postureCell() {
   paint()
   const timer = setInterval(() => (el.isConnected ? paint() : clearInterval(timer)), 300)
   return el
+}
+
+// Settings › Messages: open conversations redraw their times at once (views/thread.js).
+function setChatTime(key, value) {
+  storage(key, value)
+  dispatchEvent(new Event('chat-times'))
+}
+async function setReceipts(on) {
+  const before = state.prefs
+  setPrefs({ ...before, receipts: on })
+  try {
+    setPrefs((await api.post('/api/prefs', { receipts: on })).prefs)
+    return true
+  } catch (err) {
+    setPrefs(before)
+    toast(err.message || "Couldn't change read receipts", { type: 'error' })
+    return false
+  }
 }
 
 function toggle(checked, onChange, label) {
@@ -186,6 +204,23 @@ export function openSettings({ onLogout, origin }) {
       hapticsAvailable ? cell('Haptic feedback', toggle(prefs.haptics, on => setHaptics(on), 'Haptic feedback')) : null,
       postureCell()
     ),
+    // Time in conversations (ui/chat-time.js): the clock, and whether every
+    // message shows its own time; and whether friends see when you've read
+    // theirs (kept on the server, so a receipt turned off is never sent).
+    groupTitle('Messages'),
+    group(
+      cell('Time format', segmented([
+        { label: 'System', value: 'system' },
+        { label: '12-hour', value: '12' },
+        { label: '24-hour', value: '24' }
+      ], storage('ui:time-format') || 'system', v => setChatTime('ui:time-format', v === 'system' ? null : v), 'Time format')),
+      cell('Message times', segmented([
+        { label: 'Smart', value: 'smart' },
+        { label: 'Always', value: 'always' }
+      ], storage('ui:msg-times') === 'always' ? 'always' : 'smart', v => setChatTime('ui:msg-times', v === 'smart' ? null : v), 'Message times')),
+      cell('Read receipts', toggle(state.prefs.receipts !== false, on => setReceipts(on), 'Read receipts'))
+    ),
+    foot('Smart shows the time when a conversation picks up after a pause. Swipe left in a conversation to see when each message was sent. With read receipts off, friends don’t see when you’ve read their messages.'),
     // The welcome and the tips (ui/guides.js), shown again from the start.
     groupTitle('Help'),
     group(cell('Show tips again', null, { icon: 'sparkles', onClick: async () => {

@@ -15,7 +15,7 @@ import {
   readStyle, writeStyle, mergeStyle, styleOf, styleText, confidence, styleKey, digestKey,
   readDigest, writeDigest, digestPrompt, readDigestAnswer
 } from './memory.js'
-import { backdrop, readPrefs, patchPrefs } from './prefs.js'
+import { backdrop, readPrefs, patchPrefs, sharesReceipts } from './prefs.js'
 import { routineKey, emptyRoutine, record, setLearning, summarizeRoutine, routineText, clampTz, localParts } from './routine.js'
 import { insightRooms, analyze, photosToRead, describePhoto, allowRefresh } from './insights.js'
 import { geocode, weatherAt } from './weather.js'
@@ -262,8 +262,8 @@ export class Hub {
         prefs: readPrefs(this.store.kvGet(`prefs:${user.id}`))
       })
     }
-    // Backdrops for conversations and calls (src/prefs.js), the same on each
-    // of this account's devices.
+    // Backdrops for conversations and calls, and read receipts (src/prefs.js),
+    // the same on each of this account's devices.
     if (path === '/api/prefs' && method === 'POST') {
       const r = patchPrefs(this.store.kvGet(`prefs:${user.id}`), body, { uid: user.id, isMember: id => this.store.isMember(id, user.id) })
       if (r.error) return json({ ok: false, error: r.error }, 400)
@@ -1124,11 +1124,13 @@ export class Hub {
 
   markRead(roomId, uid, ts) {
     this.store.markRead(roomId, uid, ts)
-    // Let the other DM side show a read receipt.
+    // Let the other DM side show a read receipt, and when it was read —
+    // unless this person keeps that to themselves (Settings, src/prefs.js).
     const room = this.store.getRoom(roomId)
-    if (room?.kind === 'dm') {
+    if (room?.kind === 'dm' && sharesReceipts(this.store.kvGet(`prefs:${uid}`))) {
       const peer = this.store.roomMembers(roomId).find(u => u !== uid)
-      if (peer) this.sendToUser(peer, { t: 'read', room: roomId, by: uid, ts })
+      const mine = this.store.membership(roomId, uid)
+      if (peer) this.sendToUser(peer, { t: 'read', room: roomId, by: uid, ts: mine?.last_read || ts, at: mine?.read_at || 0 })
     }
   }
 

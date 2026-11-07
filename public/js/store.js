@@ -32,8 +32,9 @@ export const state = {
   calls: { enabled: false },
   stickers: false,
   assist: false,
-  // Backdrops (views/backdrops.js): for every conversation, each one's own, and calls.
-  prefs: { chat: '', call: '', rooms: {} },
+  // Backdrops (views/backdrops.js): for every conversation, each one's own, and calls;
+  // and whether friends see when you've read their messages (Settings › Messages).
+  prefs: { chat: '', call: '', rooms: {}, receipts: true },
   vapid: null,
   previews: new Map(),    // localId -> object URL for just-sent media
   restored: false         // painted from the cached bootstrap at launch
@@ -45,7 +46,7 @@ export function setMe(me) {
 }
 export function setPrefs(prefs) {
   const p = prefs && typeof prefs === 'object' ? prefs : {}
-  state.prefs = { chat: p.chat || '', call: p.call || '', rooms: { ...p.rooms } }
+  state.prefs = { chat: p.chat || '', call: p.call || '', rooms: { ...p.rooms }, receipts: p.receipts !== false }
   emit('prefs', state.prefs)
 }
 
@@ -61,6 +62,7 @@ export function normRoom(r) {
     avatar: r.avatar || '',
     peer: r.peer || null,
     peerRead: r.peerRead || 0,
+    peerReadAt: r.peerReadAt || 0, // when they read it (0: not known, or not shared)
     unread: r.unread || 0,
     lastRead: r.lastRead || 0,
     marked: Boolean(r.marked),

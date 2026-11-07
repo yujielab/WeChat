@@ -220,7 +220,7 @@ function handle(msg) {
     case 'read':
       // Peer read our messages in this DM.
       markThreadRead(msg.room, msg.by)
-      if (msg.ts > (state.chats.get(msg.room)?.peerRead || 0)) patchRoom(msg.room, { peerRead: msg.ts })
+      if (msg.ts > (state.chats.get(msg.room)?.peerRead || 0)) patchRoom(msg.room, { peerRead: msg.ts, peerReadAt: msg.at || 0 })
       break
     case 'keys': {
       // A sent message's key words, a moment after it: shown in place.

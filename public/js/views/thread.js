@@ -6,6 +6,8 @@ import { tip } from '../ui/guides.js'
 import { setProgress } from '../ui/reveal.js'
 import { symbolEffect, replaceSymbol } from '../ui/symbols.js'
 import { threadTime, callSummary, sendState, groupState } from '../ui/format.js'
+import { GAP, marksBefore, opensDay, markText, clock, statusText, fullTime, briefly, historyDate, uses12h } from '../ui/chat-time.js'
+import { attachTimeReveal, attachTimeHover } from './time-reveal.js'
 import { haptic } from '../ui/haptics.js'
 import { cancelPress } from '../ui/press.js'
 import {
@@ -34,7 +36,14 @@ import { openExplain } from './explain.js'
 const finePointer = matchMedia('(hover: hover) and (pointer: fine)')
 
 const TS_GAP = 5 * 60 * 1000
-const RUN_GAP = 3 * 60 * 1000
+// One person's messages within five minutes of each other, with no time mark
+// between, read as one run (ui/chat-time.js).
+const RUN_GAP = GAP
+
+// How times show (Settings › Messages): the clock, and whether each message
+// carries its own time ('always') or only the marks do ('smart', the default).
+const h12 = () => uses12h(storage('ui:time-format') || 'system')
+const alwaysTimes = () => storage('ui:msg-times') === 'always'
 const PAGE = 60
 
 /** Links in messages come from other people: only ever open http(s). */
@@ -167,7 +176,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   // ------------------------------------------------------------ skeleton
   const olderEl = h('div', { class: 'load-older', 'aria-live': 'polite' })
-  const meta = h('div', { class: 'm-meta' })
+  // The line under your latest message: Sending…, Delivered, Read 10:28 (placeMeta).
+  const meta = h('div', { class: 'm-status' })
   const msgs = h('div', { class: 'msgs' }, olderEl)
   // Room for the floating bar is a real element at the foot of the log, not
   // the scroller's padding: Safari leaves a column-reverse scroller's bottom
@@ -436,7 +446,10 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       if (!reducedMotion()) offlineEffect = symbolEffect(offline.querySelector('.icon'), 'variable-color')
     }, 1000)
   }
-  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, rail, composer.el, jump, downPill, mentionPill, offline)
+  // The day you're reading, floating under the heading while you scroll back
+  // (and for a moment after a jump): the topmost message's on screen.
+  const dateFloat = h('div', { class: 'history-date', 'aria-hidden': 'true' })
+  const root = h('div', { class: 'thread', hidden: true }, backdrop, scroller, edgeTop, nav, rail, composer.el, jump, downPill, mentionPill, offline, dateFloat)
   composer.el.classList.add('dock')
 
   // Bars follow the window: the rail where the system's column is, else the
@@ -503,12 +516,19 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
 
   // ------------------------------------------------------------ rendering
-  function sepFor(m) {
+  // A time mark in the middle of the conversation: the day and time for a
+  // day's first, the time alone after (ui/chat-time.js).
+  function sepFor(m, opens) {
+    const { text } = markText(m.ts, { opens, h12: h12() })
     let el = seps.get(m.id)
     if (!el) {
-      const [day, time] = threadTime(m.ts)
-      el = h('div', { class: 'ts', role: 'separator', 'aria-label': `${day} ${time}` }, h('b', {}, day), ` ${time}`)
+      el = h('div', { class: 'ts mark is-new', role: 'separator' })
+      el.addEventListener('animationend', () => el.classList.remove('is-new'), { once: true })
       seps.set(m.id, el)
+    }
+    if (el.textContent !== text) {
+      el.textContent = text
+      el.setAttribute('aria-label', text)
     }
     return el
   }
@@ -538,9 +558,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const quote = quoteBlock(m)
     const inside = quote && bub.classList.contains('text')
     if (inside) bub.prepend(quote)
-    // Time and ticks live in the bubble's corner (a lost picture's cell too:
-    // CSS keeps it clear of Choose again).
-    bub.append(bubbleMeta(m, isRead(m), isDm()))
+    // Its own time: in the bubble's corner when every message shows it
+    // (a lost picture's cell too: CSS keeps it clear of Choose again);
+    // otherwise for screen readers only — the marks, a swipe and the menu
+    // show it. Where it stands is said once, under your latest message.
+    bub.append(timeOf(m))
     const el = h('div', {
       class: ['m', 'has-avatar', m.out ? 'out' : 'in', room ? (m.out ? 'room-out' : 'room-in') : 'dm'],
       dataset: { id: m.id }
@@ -549,6 +571,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     el.bodySig = bodySig(m)
     el.reactSig = reactSig(m)
     return el
+  }
+
+  function timeOf(m, kind = m.type) {
+    const time = clock(m.ts, h12())
+    if (alwaysTimes()) return bubbleMeta({ ...m, type: kind }, false, isDm(), { state: false, time })
+    return h('span', { class: 'sr-only m-when' }, time)
   }
 
   /** The message a reply answers: who, and its first line; tapped, it scrolls there. */
@@ -639,7 +667,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
         label: `${who} · ${threadTime(photos[0].ts)[1]}`
       }
       const stack = renderPhotoStack(photos, ctx, { onExpand: expandPhotos, sender })
-      stack.append(bubbleMeta({ ...last, type: 'image-stack' }, false, isDm()))
+      stack.append(timeOf(last, 'image-stack'))
       fresh.querySelector('.bubble').replaceWith(stack)
       fresh.classList.add('has-stack')
       fresh.photoSignature = signature
@@ -690,7 +718,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       'aria-label': `${latest.label}, ${calls.length} calls${open ? '' : ', tap to expand'}`
     }, glyph(latest), h('span', { class: 't', 'aria-hidden': 'true' }, latest.text),
     h('span', { class: 'call-count tabular', 'aria-hidden': 'true' }, `${calls.length}`), icon('chevron-down', 'call-chevron'))
-    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle, bubbleMeta(calls[calls.length - 1], false, isDm()))
+    const group = h('div', { class: ['bubble call-log call-group', open && 'open', latest.missed && 'missed'], dataset: { kind: 'call-group' } }, items, toggle, timeOf(calls[calls.length - 1]))
     toggle.addEventListener('click', () => {
       const on = !group.classList.contains('open')
       group.classList.toggle('open', on)
@@ -709,8 +737,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       if (!el || isSys(m)) continue
       const prev = list[i - 1]
       const next = list[i + 1]
-      const sepBefore = !prev || m.ts - prev.ts > TS_GAP
-      const sepAfter = !next || next.ts - m.ts > TS_GAP
+      const sepBefore = marksBefore(prev, m)
+      const sepAfter = !next || marksBefore(m, next)
       const first = sepBefore || !sameRun(prev, m)
       const last = sepAfter || !sameRun(m, next)
       el.classList.toggle('first', first)
@@ -732,31 +760,44 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return m.status === 'read' || Boolean(c.peerRead && m.ts <= c.peerRead && !String(m.id).startsWith('local:') && m.status !== 'sending' && m.status !== 'failed')
   }
 
-  // Every bubble's corner follows its message (read receipts don't rebuild
-  // a node); the Not sent line sits under the newest outgoing message's bubble,
-  // in its column, so it lines up with the bubble's right edge.
+  // Where your latest message stands, said once, under it: Sending…,
+  // Delivered, Read 10:28, Not sent (ui/chat-time.js). Shown while it's the
+  // last word in the conversation — a reply says the rest — and always while
+  // it's still going or has failed. With every message's time showing, each
+  // corner follows its own time.
   function placeMeta(list) {
     const t = thread(current)
-    for (const [id, node] of nodes) {
-      const m = t.byId.get(id)
-      const corner = m && node.querySelector(':scope > .m-col > .bubble > .m-meta')
-      if (!corner) continue
-      // A folded group shows its last message's time and its weakest state.
-      const dm = isDm()
-      const group = photoGroups.get(id) || node.callIds?.map(x => t.byId.get(x)).filter(Boolean)
-      const s = group ? groupState(group.map(x => sendState(x, isRead(x), dm))) : sendState(m, isRead(m), dm)
-      const shown = photoGroups.has(id) ? { ...m, type: 'image-stack' } : m
-      if (corner.metaSig !== `${s?.state || ''}|${m.ts}`) fillMeta(corner, shown, false, s)
+    const dm = isDm()
+    if (alwaysTimes()) {
+      const time = m => clock(m.ts, h12())
+      for (const [id, node] of nodes) {
+        const m = t.byId.get(id)
+        const corner = m && node.querySelector(':scope > .m-col > .bubble > .m-meta')
+        if (!corner) continue
+        const shown = photoGroups.has(id) ? { ...m, type: 'image-stack' } : m
+        if (corner.metaSig !== `|${m.ts}|${time(m)}`) fillMeta(corner, shown, false, null, time(m))
+      }
     }
-    const lastOut = [...list].reverse().find(m => m.out && !isSys(m))
-    if (!lastOut || lastOut.status !== 'failed') {
+    const said = [...list].reverse().filter(m => !isSys(m))
+    const lastOut = said.find(m => m.out)
+    const nodeOf = m => nodes.get(m.id) || [...nodes.values()].find(n => n.callIds?.includes(m.id))
+    const node = lastOut && nodeOf(lastOut)
+    const group = node && (photoGroups.get(node.dataset.id) || node.callIds?.map(x => t.byId.get(x)).filter(Boolean))
+    const s = !lastOut ? null : group ? groupState(group.map(x => sendState(x, isRead(x), dm))) : sendState(lastOut, isRead(lastOut), dm)
+    const going = s && (s.state === 'sending' || s.state === 'failed')
+    if (!node || !s || (!going && said[0] !== lastOut)) {
       meta.remove()
       return
     }
-    meta.className = 'm-meta failed'
-    meta.textContent = 'Not sent'
-    meta.setAttribute('aria-hidden', 'true')
-    const col = nodes.get(lastOut.id)?.querySelector(':scope > .m-col')
+    const c = chatInfo(current)
+    const text = statusText(s.state, { readAt: s.state === 'read' ? c?.peerReadAt || 0 : 0, h12: h12() })
+    if (meta.dataset.state !== s.state || meta.dataset.text !== text) {
+      meta.className = `m-status ${s.state}`
+      meta.dataset.state = s.state
+      meta.dataset.text = text
+      meta.replaceChildren(...(s.state === 'sending' ? [h('span', { class: 'spinner', 'aria-hidden': 'true' })] : s.state === 'failed' ? [icon('exclaim')] : []), h('span', {}, text))
+    }
+    const col = node.querySelector(':scope > .m-col')
     if (col && meta.parentNode !== col) col.append(meta)
   }
 
@@ -792,7 +833,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       const run = calls.length > 1 ? calls : photos
       const last = run[run.length - 1]
       const message = run.length > 1 ? { ...last, ts: first.ts } : first
-      if (!prev || first.ts - prev.ts > TS_GAP) want.push(sepFor(message))
+      if (marksBefore(prev, first)) want.push(sepFor(message, opensDay(prev, first)))
       if (dividerAt && run.some(x => x.id === dividerAt)) want.push(unreadDivider)
       want.push(calls.length > 1 ? callGroupNode(calls) : photos.length > 1 ? photoNode(photos) : nodeFor(message))
       visible.push(message)
@@ -883,12 +924,38 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     return wasBottom
   }
 
+  // Only the reader's own scrolling brings the floating date, not the
+  // conversation moving by itself (new messages, older ones loading).
+  let readerScrolled = 0
+  for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown']) scroller.addEventListener(type, () => { readerScrolled = performance.now() }, { passive: true })
+  let dateTimer = 0
+  function floatDate(ts, ms = 1200) {
+    const text = historyDate(ts)
+    if (dateFloat.textContent !== text) dateFloat.textContent = text
+    dateFloat.classList.add('on')
+    clearTimeout(dateTimer)
+    dateTimer = setTimeout(() => dateFloat.classList.remove('on'), ms)
+  }
+  // The message at the top of what's on screen, below the heading.
+  function topMessage() {
+    const top = nav.getBoundingClientRect().bottom
+    for (const el of msgs.children) {
+      if (!el.classList.contains('m') || el.getBoundingClientRect().bottom <= top) continue
+      return thread(current).byId.get(el.dataset.id) || null
+    }
+    return null
+  }
+
   let ticking = false
   scroller.addEventListener('scroll', () => {
     if (ticking) return
     ticking = true
     requestAnimationFrame(() => {
       ticking = false
+      if (current && !atBottom() && performance.now() - readerScrolled < 1000) {
+        const m = topMessage()
+        if (m) floatDate(m.ts)
+      } else if (atBottom()) dateFloat.classList.remove('on')
       rememberReadingAnchor()
       edgeTop.classList.toggle('on', distTop() > 2)
       jump.classList.toggle('on', scroller.scrollTop < -320)
@@ -935,6 +1002,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     composer.flushDraft()
     stopVoice()
     current = id
+    dateFloat.classList.remove('on')
     clearTimeout(typingTimer)
     typingTimer = 0
     titleSub.classList.remove('typing')
@@ -1078,7 +1146,32 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && current) markReadSoon()
+    if (document.visibilityState === 'visible') checkTimes()
   })
+
+  // The marks name days from today, in the device's time zone and clock:
+  // redrawn when the day turns, the zone changes, or Settings › Messages
+  // does (the messages themselves too, then: their times are read aloud).
+  const timeKey = () => [new Date().toDateString(), new Date().getTimezoneOffset(), Intl.DateTimeFormat().resolvedOptions().timeZone, storage('ui:time-format') || '', storage('ui:msg-times') || '']
+  let shownKey = timeKey()
+  function checkTimes() {
+    const key = timeKey()
+    if (key.join('|') === shownKey.join('|')) return
+    const onlyDay = key.slice(1).join('|') === shownKey.slice(1).join('|')
+    shownKey = key
+    if (!current) return
+    if (!onlyDay) {
+      for (const el of nodes.values()) el.remove()
+      nodes.clear()
+    }
+    for (const el of seps.values()) el.remove()
+    seps.clear()
+    delete meta.dataset.text
+    keepPosition(reconcile)
+  }
+  setInterval(checkTimes, 60000)
+  addEventListener('focus', checkTimes)
+  addEventListener('chat-times', checkTimes)
 
   let typingTimer = 0
   function renderHeader() {
@@ -1709,6 +1802,23 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   attachPick(scroller, { enabled: explainable, onStart: () => { cancelLong(); swipe = null }, onPick: explain })
   attachSelectionPill(scroller, { enabled: explainable, onPick: explain })
 
+  // Each message's own time (views/time-reveal.js): drag the conversation
+  // to the left to see them all; with a mouse, rest on one.
+  const rowFor = node => {
+    const m = current && thread(current).byId.get(node.dataset.id)
+    const el = m && !isSys(m) && node.querySelector(':scope > .m-col > .bubble')
+    return el ? { el, time: clock(m.ts, h12()), out: m.out } : null
+  }
+  attachTimeReveal(scroller, {
+    content: msgs,
+    host: root,
+    rows: () => [...nodes.values()].map(rowFor).filter(Boolean),
+    enabled: e => Boolean(current) && !e.target.closest?.('.bubble.is-picking, .bubble.is-pick-armed, .bubble[data-selecting]'),
+    onStart: () => { cancelLong(); swipe = null },
+    onEnd: () => { suppressClick = true }
+  })
+  attachTimeHover(scroller, { host: root, rowOf: rowFor })
+
   // Long-press: the conversation blurs away, the message lifts out as it is
   // (same size, same lines), the reactions stand above it and the actions in
   // a card below it, all moved just enough to fit the screen.
@@ -1732,9 +1842,13 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       'aria-hidden': 'true', inert: true,
       style: { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${ht}px` }
     }, liftedCopy(bub, w, ht))
-    layer.append(backdrop, preview)
+    // When it was sent, in full, at the top (and when it was last rewritten).
+    const editedAt = m.edited && !isSys(m) ? m.meta?.editedAt : 0
+    const when = h('div', { class: 'ctx-time', 'aria-hidden': 'true' },
+      fullTime(m.ts, { h12: h12() }) + (editedAt ? ` · Edited ${briefly(editedAt, { h12: h12() })}` : ''))
+    layer.append(backdrop, preview, when)
     bub.style.visibility = 'hidden'
-    requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('on')))
+    requestAnimationFrame(() => requestAnimationFrame(() => { backdrop.classList.add('on'); when.classList.add('on') }))
 
     const items = []
     const main = []
@@ -1793,7 +1907,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const RAISE = 8
     const place = ({ width: mw, height: mh, frame }) => {
       const bar = layer.querySelector('.ctx-reactions')
-      const above = bar ? bar.offsetHeight + RAISE : 0
+      const timeRoom = when.offsetHeight + RAISE
+      const above = (bar ? bar.offsetHeight + RAISE : 0) + timeRoom
       const shown = Math.max(44, Math.min(ht, frame.bottom - frame.top - above - GAP - mh))
       const top = Math.max(frame.top + above, Math.min(y, frame.bottom - mh - GAP - shown))
       preview.style.height = `${shown}px`
@@ -1801,9 +1916,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       preview.style.transform = `translateY(${Math.round(top - y)}px)`
       // Everything lines up with the message's own side.
       const side = (width, at) => Math.max(frame.left, Math.min(m.out ? at + w - width : at, frame.right - width))
+      when.style.left = `${Math.round(frame.left)}px`
+      when.style.width = `${Math.round(frame.right - frame.left)}px`
+      when.style.top = `${Math.round(top - above)}px`
       if (bar) {
         bar.style.left = `${Math.round(side(bar.offsetWidth, x))}px`
-        bar.style.top = `${Math.round(top - above)}px`
+        bar.style.top = `${Math.round(top - above + timeRoom)}px`
         bar.style.setProperty('--ox', m.out ? '100%' : '0%')
         // The conversation column's width, for the row's own sizing in CSS.
         bar.style.setProperty('--ctx-col-w', `${Math.round(msgs.getBoundingClientRect().width)}px`)
@@ -1819,10 +1937,12 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       focusFirst: !touch,
       onClose: () => {
         backdrop.classList.remove('on')
+        when.classList.remove('on')
         preview.style.transform = ''
         setTimeout(() => {
           backdrop.remove()
           preview.remove()
+          when.remove()
           bub.style.visibility = ''
         }, 220)
       }
@@ -1844,7 +1964,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
       bub.focus({ preventScroll: true })
       const range = document.createRange()
       range.selectNodeContents(bub)
-      const meta = bub.querySelector(':scope > .m-meta')
+      const meta = bub.querySelector(':scope > .m-meta, :scope > .m-when')
       if (meta) range.setEndBefore(meta)
       const sel = getSelection()
       sel.removeAllRanges()
@@ -1919,6 +2039,8 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const rect = node.getBoundingClientRect()
     const want = top + Math.max(0, Math.min(room / 3, room - rect.height))
     scroller.scrollBy({ top: rect.top - want, behavior: instant || reducedMotion() ? 'auto' : 'smooth' })
+    // where it landed: that day, for a moment
+    if (flash && t.byId.get(id)) floatDate(t.byId.get(id).ts, 1600)
     if (flash) {
       node.classList.remove('is-flash', 'flash')
       void node.offsetWidth
@@ -2125,7 +2247,11 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     reconcile()
   })
 
-  on('chats', () => renderHeader())
+  on('chats', ids => {
+    renderHeader()
+    // a read receipt (and when it was read) arrives on the chat itself
+    if (current && (!ids || ids.includes(current))) placeMeta(thread(current).list)
+  })
   on('prefs', () => applyBackdrop())
   function applyBackdrop() {
     if (!current) return
