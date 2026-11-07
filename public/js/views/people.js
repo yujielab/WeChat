@@ -95,7 +95,7 @@ function noteItem({ user, text, label, mine = false, at }) {
     dataset: { user: user?.id || '' },
     'aria-label': mine ? (empty ? 'Share a note' : `Your note: ${text}`) : `${label}'s note: ${text}${at ? `, ${since(at)} ago` : ''}`
   },
-    h('span', { class: ['note-bubble', empty && 'empty'], 'aria-hidden': 'true' }, h('span', { class: 'note-text' }, empty ? 'Share a thought…' : text), h('i', { class: 'note-tail' })),
+    h('span', { class: ['note-bubble', empty && 'empty'], 'aria-hidden': 'true' }, h('span', { class: 'note-text' }, empty ? 'Share a thought…' : text)),
     h('span', { class: 'note-face', 'aria-hidden': 'true' }, avatar(user?.avatar, nameOf(user), { size: 60 }), mine && empty ? h('span', { class: 'note-plus' }, icon('plus')) : null),
     h('span', { class: 'note-name', 'aria-hidden': 'true' }, label))
 }
@@ -109,10 +109,10 @@ export function openNoteEditor({ origin, mine, onSaved } = {}) {
   const remove = mine ? h('button', { class: 'note-remove', type: 'button' }, icon('trash'), 'Delete note') : null
   const content = h('div', { class: 'note-editor' },
     h('div', { class: 'note-preview' },
-      h('label', { class: 'note-bubble big' }, input, h('i', { class: 'note-tail' })),
+      h('label', { class: 'note-bubble big' }, input),
       avatar(state.me?.avatar, nameOf(state.me), { size: 96 })),
     count,
-    h('p', { class: 'note-hint' }, mine ? `Shared ${since(mine.created)} ago. Friends see it above your photo in their Messages for 24 hours.` : 'Friends see it above your photo in their Messages for 24 hours.'),
+    h('p', { class: 'note-hint' }, `${mine ? (since(mine.created) === 'now' ? 'Shared just now. ' : `Shared ${since(mine.created)} ago. `) : ''}Friends see it on your photo for 24 hours.`),
     remove)
   const sheet = openSheet({ title: 'Note', content, start: cancel, end: share, origin })
   sheet.el.classList.add('note-sheet')
@@ -147,7 +147,7 @@ function openNote(n, { origin, onOpen }) {
   const form = h('form', { class: 'note-reply' }, input, send)
   const content = h('div', { class: 'note-editor note-reading' },
     h('div', { class: 'note-preview' },
-      h('span', { class: 'note-bubble big' }, h('span', { class: 'note-text' }, n.text), h('i', { class: 'note-tail' })),
+      h('span', { class: 'note-bubble big' }, h('span', { class: 'note-text' }, n.text)),
       avatar(n.user.avatar, nameOf(n.user), { size: 96 })),
     h('p', { class: 'note-who' }, h('b', {}, nameOf(n.user)), ` · ${since(n.created)}`),
     form)
