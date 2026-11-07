@@ -178,6 +178,6 @@ export function openMemories({ origin, page = false, swap = false } = {}) {
 
   placeLine()
   reload()
-  setTimeout(() => tip('memories', tabBar, { title: 'Kept for you', text: 'Photos, videos and drawings from your chats gather here by month, without saving anything.', side: 'below' }), 900)
+  setTimeout(() => tip('memories', tabBar, { title: 'Kept for you', text: 'Photos and videos from your chats appear here, by month.', side: 'below' }), 900)
   return sheet
 }

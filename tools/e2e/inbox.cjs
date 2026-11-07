@@ -21,7 +21,7 @@ const talk=async(x,y,yid,text='Hey there, long time!')=>{const room=(await api(x
 const A=await account(`ia_${uniq}`,'Tokio')
 // 1. No chats yet: a line with Start (to a new chat), your note to share, Requests with nothing waiting.
 await A.locator('.list-start').waitFor();await sleep(500)
-assert.equal(await A.locator('.list-start').textContent(),'Chats show up here once you send or receive a message. Start')
+assert.equal(await A.locator('.list-start').textContent(),'Your chats appear here. Start')
 assert.deepEqual(await A.locator('.notes .note').evaluateAll(n=>n.map(b=>b.getAttribute('aria-label'))),['Share a note'])
 assert.equal(await A.locator('.note-mine .note-text').textContent(),'Share a thought…')
 assert.equal(await A.locator('.list-requests').getAttribute('aria-label'),'Requests');assert.equal(await A.locator('.requests-count').isHidden(),true)

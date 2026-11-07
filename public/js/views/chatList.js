@@ -138,7 +138,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
 
   const input = h('input', {
     type: 'search',
-    placeholder: 'Search chats and contacts',
+    placeholder: 'Search',
     'aria-label': 'Search chats and contacts',
     enterkeyhint: 'search',
     autocomplete: 'off',
@@ -543,7 +543,7 @@ export function createChatList(pane, { onOpen, onBack, onFilter, onCompose, onSe
       // No chats yet: a line, with Start, and the people under it to begin with.
       const start = h('button', { class: 'list-start-link', type: 'button' }, 'Start')
       start.addEventListener('click', () => onCompose())
-      empty.replaceChildren(h('p', { class: 'list-start' }, 'Chats show up here once you send or receive a message. ', start))
+      empty.replaceChildren(h('p', { class: 'list-start' }, 'Your chats appear here. ', start))
     } else if (noChats) {
       const action = h('button', { class: 'empty-compose solid-press', type: 'button' }, state.filter === 'all' ? 'New chat' : 'Show all')
       action.addEventListener('click', () => state.filter === 'all' ? onCompose() : selectFilter('all'))

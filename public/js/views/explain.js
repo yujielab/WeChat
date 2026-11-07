@@ -124,7 +124,7 @@ export function openExplain({ text, context = '', origin, onClose } = {}) {
     turns,
     follow,
     form,
-    h('p', { class: 'xp-foot' }, 'Only these words and their message are sent to search.'))
+    h('p', { class: 'xp-foot' }, 'Only these words and their message are sent.'))
 
   const history = []
   let busy = null

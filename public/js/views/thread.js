@@ -206,7 +206,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // Once: holding a message is where reacting, replying and editing are (ui/guides.js).
   function tipHold() {
     if (!msgs.querySelector('.m.in')) return
-    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply or copy it — and to edit or unsend your own.' })
+    tip('hold', '.thread:not([hidden]) .msgs .m.in:last-of-type .bubble', { title: 'Hold a message', text: 'To react, reply, copy, edit or unsend.' })
   }
   function hideGhost() {
     clearTimeout(ghostTimer)
@@ -1570,14 +1570,14 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
   // stays after a reload (store.js keeps the ids deleted here).
   async function deleteLocal(m, anchor) {
     const ok = await confirmAction(anchor?.isConnected ? anchor : nodes.get(m.id)?.querySelector('.bubble') || scroller, {
-      title: 'Delete from this device?',
-      message: 'They can still see this message.',
+      title: 'Delete for me?',
+      message: 'They’ll still see it.',
       confirm: 'Delete'
     })
     if (!ok) return
     // Still queued: it won't go. Already on its way: it can't be stopped here.
     // Failed (kept by the outbox, with its file): it goes, file and all.
-    if (m.cid && outbox.has(m.cid) && !outbox.drop(m.cid)) return toast('Still sending, delete it in a moment')
+    if (m.cid && outbox.has(m.cid) && !outbox.drop(m.cid)) return toast('Still sending, try again shortly')
     if (m.cid && outbox.isFailed(m.cid)) outbox.drop(m.cid)
     if (m.cid) retryFiles.delete(m.cid)
     retrying.delete(m.id)
@@ -1883,7 +1883,7 @@ export function createThread(pane, { onBack, onInfo, onDraw, onCall, socketSend 
     const canRevoke = !photos && m.out && !String(m.id).startsWith('local:') && Date.now() - m.ts < 2 * 60 * 1000
     const danger = []
     if (canRevoke) danger.push({ label: 'Unsend', icon: 'undo', onSelect: () => revoke(m) })
-    if (!photos) danger.push({ label: 'Delete from this device', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m, bub) })
+    if (!photos) danger.push({ label: 'Delete for me', icon: 'trash', destructive: true, onSelect: () => deleteLocal(m, bub) })
     items.push(danger)
 
     const header = !photos && reactable(m) ? choose => {

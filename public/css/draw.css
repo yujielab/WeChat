@@ -163,10 +163,13 @@
   border-radius: 34px;
   overflow: visible;
 }
-.draw-nibs { display: flex; align-items: flex-end; gap: 2px; height: 82px; padding: 0 2px; overflow: hidden; }
+/* The pens narrow (to 26px each) where the bar is short of room, so all five
+   always show; they never slide under the colours or out of the tray. */
+.draw-nibs { display: flex; align-items: flex-end; gap: 2px; height: 82px; padding: 0 2px; overflow: hidden; flex: 0 1 auto; min-width: 0; }
 .draw-nib {
   position: relative;
-  flex: none;
+  flex: 0 1 38px;
+  min-width: 26px;
   width: 38px;
   height: 82px;
   display: flex;

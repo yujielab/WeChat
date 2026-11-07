@@ -59,7 +59,7 @@ export function createNotes({ onOpen }) {
   }
   function paint() {
     const you = noteItem({ user: state.me, text: mine?.text || '', label: 'Your note', mine: true })
-    if (!mine?.text) tip('notes', '.notes .note-mine', { title: 'Share a note', text: 'One line for your friends to see at the top of their chats, for a day.' })
+    if (!mine?.text) tip('notes', '.notes .note-mine', { title: 'Share a note', text: 'Friends see it for 24 hours.' })
     you.addEventListener('click', () => openNoteEditor({ origin: you, mine, onSaved: next => { mine = next; paint() } }))
     const others = notes.map(n => {
       const b = noteItem({ user: n.user, text: n.text, label: nameOf(n.user), at: n.created })
@@ -212,7 +212,7 @@ export function openRequests({ origin, page = false, swap = false } = {}) {
         action: { label: 'Cancel', run: () => act('/api/contacts/remove', u) }
       })))))
     }
-    if (!parts.length) parts.push(h('div', { class: 'people-empty' }, icon('person-plus'), h('b', {}, 'No requests'), h('span', {}, 'When someone wants to add you, they show up here.')))
+    if (!parts.length) parts.push(h('div', { class: 'people-empty' }, icon('person-plus'), h('b', {}, 'No requests'), h('span', {}, 'Friend requests appear here.')))
     body.replaceChildren(...parts)
   }
   async function act(path, u, done) {
@@ -318,7 +318,7 @@ export function createPeople({ onOpen }) {
     if (safe(() => localStorage.getItem(INVITE_KEY), null)) return null
     const card = h('div', { class: 'person-row invite-card' },
       h('span', { class: 'invite-icon', 'aria-hidden': 'true' }, icon('person-plus')),
-      h('span', { class: 'person-text' }, h('b', { class: 'person-name' }, 'Invite friends'), h('span', { class: 'person-sub' }, 'Share a link so friends can find you on Cuven.')),
+      h('span', { class: 'person-text' }, h('b', { class: 'person-name' }, 'Invite friends'), h('span', { class: 'person-sub' }, 'Send friends a link to Cuven.')),
       actionButton({ label: 'Share', solid: true, run: () => inviteFriends() }),
       dismissButton({ label: 'Hide invite', run: () => { safe(() => localStorage.setItem(INVITE_KEY, '1')); paint() } }))
     return card

@@ -101,6 +101,8 @@
 
 /* ---------------------------------------------------------------- the field: Send inside its end */
 .thread .composer .field { padding-right: 58px; }
+/* Send sits on the bottom line: the reply above it takes that end too. */
+.thread .composer.replying .composer-reply { flex: 0 0 calc(100% + 46px); margin-right: -46px; }
 .thread .composer .composer-mic { order: 3; }
 .thread .composer .composer-action {
   width: 44px;

@@ -240,7 +240,7 @@ export function openMomentEditor({ origin, onPosted } = {}) {
       if (!video && !f.type.startsWith('image/')) continue
       if (picks.some(p => p.type === 'video') || picks.length >= PHOTOS_MAX) { toast(`Up to ${PHOTOS_MAX} photos, or 1 video`); break }
       if (video) {
-        if (f.size > VIDEO_MAX_BYTES) { toast('That video is too large (30 MB at most)', { type: 'error' }); continue }
+        if (f.size > VIDEO_MAX_BYTES) { toast('Video too large (30 MB max)', { type: 'error' }); continue }
         const url = URL.createObjectURL(f)
         urls.add(url)
         const [w, hh] = await videoSize(url)
@@ -350,7 +350,7 @@ function openAltEditor(p, { origin }) {
     const content = h('div', { class: 'me-alt' },
       h('img', { class: 'me-alt-photo', src: p.url, alt: '' }),
       area, count,
-      h('p', { class: 'me-hint' }, 'A description helps people who can’t see the photo, and comes up when they use a screen reader.'))
+      h('p', { class: 'me-hint' }, 'Read aloud to people who use a screen reader.'))
     const sheet = openSheet({ title: 'Description', content, start: cancel, end: done, origin, onClose: () => resolve(result) })
     sheet.el.classList.add('me-small-sheet')
     const paint = () => { count.textContent = `${Array.from(area.value).length}/${ALT_MAX}` }
@@ -427,7 +427,7 @@ function openSchedulePicker({ origin, at }) {
     const set = h('button', { class: 'glass glass-btn me-alt-done', type: 'button', 'aria-label': 'Schedule' }, icon('check'))
     const cancel = h('button', { class: 'glass glass-btn', type: 'button', 'aria-label': 'Cancel' }, icon('xmark'))
     const now = at ? h('button', { class: 'me-when-now', type: 'button' }, 'Share it now instead') : null
-    const content = h('div', { class: 'me-scheduling' }, chips, input, summary, h('p', { class: 'me-hint' }, 'Only you see it until then; friends get it when the time comes. Up to 30 days ahead.'), now)
+    const content = h('div', { class: 'me-scheduling' }, chips, input, summary, h('p', { class: 'me-hint' }, 'Only you see it until then. Up to 30 days ahead.'), now)
     const sheet = openSheet({ title: 'Schedule', content, start: cancel, end: set, origin, onClose: () => resolve(result) })
     sheet.el.classList.add('me-small-sheet')
     const chosen = () => { const t = new Date(input.value).getTime(); return Number.isFinite(t) ? t : NaN }

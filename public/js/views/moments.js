@@ -167,7 +167,7 @@ function openHome({ origin, page: asPage = false, swap = false } = {}) {
   function emptyEl() {
     const go = h('button', { class: 'mo-pill solid', type: 'button' }, 'Share a moment')
     go.addEventListener('click', () => openMomentComposer({ origin: go }))
-    return h('div', { class: 'mo-empty' }, h('b', {}, 'Nothing here yet'), h('span', {}, 'What you, your friends and everyone else share shows up here.'), go)
+    return h('div', { class: 'mo-empty' }, h('b', {}, 'Nothing here yet'), h('span', {}, 'Moments you and others share appear here.'), go)
   }
 
   const page = {

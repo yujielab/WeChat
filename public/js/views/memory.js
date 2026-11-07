@@ -78,13 +78,13 @@ const habit = (label, value) => h('div', { class: 'memory-row' }, h('span', { cl
 
 function routineSection(routine) {
   if (!routine.learning) {
-    return [h('div', { class: 'memory-head' }, h('span', {}, 'Routine and habits')), h('p', { class: 'group-foot' }, 'Learning is off: nothing new is recorded, and nothing learned before is kept.')]
+    return [h('div', { class: 'memory-head' }, h('span', {}, 'Routine and habits')), h('p', { class: 'group-foot' }, 'Learning is off. Nothing is recorded or kept.')]
   }
   const out = [h('div', { class: 'memory-head' },
     h('span', {}, 'Routine'),
     h('span', { class: 'memory-note' }, `${routineConfidenceLabel(routine.confidence)}${routine.days ? ` · ${routine.days} days` : ''}`))]
   if (!routine.days) {
-    out.push(h('p', { class: 'group-foot' }, 'Nothing recorded yet. After a few days, this will show when you usually wake, sleep, and chat most.'))
+    out.push(h('p', { class: 'group-foot' }, 'Nothing yet. In a few days this shows when you usually wake, sleep and chat.'))
     return out
   }
   const sleep = sleepText(routine)
@@ -92,7 +92,7 @@ function routineSection(routine) {
   out.push(hoursChart(routine))
   const notes = [routine.peak ? `Most active ${hoursText(routine.peak)}` : '', routine.quiet ? `Rarely online ${hoursText(routine.quiet)}` : ''].filter(Boolean)
   if (notes.length) out.push(h('p', { class: 'memory-note routine-note' }, notes.join(' · ')))
-  if (routine.days < 2) out.push(h('p', { class: 'memory-note routine-note' }, 'A few more days will make this more accurate.'))
+  if (routine.days < 2) out.push(h('p', { class: 'memory-note routine-note' }, 'Gets more accurate over a few days.'))
 
   const habits = [
     routine.reply !== null ? habit('Replies', replyText(routine.reply)) : null,
@@ -119,7 +119,7 @@ function learningSwitch(routine, onChange) {
   })
   return [
     h('div', { class: 'memory-switch' }, h('span', {}, 'Learn routine and habits'), sw),
-    h('p', { class: 'memory-note memory-switch-foot' }, 'Only from your own use: when you send, open Cuven and read messages, what type you send, how long, and which emoji — never the content. Turning it off forgets what was learned.')
+    h('p', { class: 'memory-note memory-switch-foot' }, 'Only when and how you use Cuven — never what you write. Turning it off forgets it all.')
   ]
 }
 

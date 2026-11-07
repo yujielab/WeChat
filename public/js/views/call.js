@@ -52,11 +52,11 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     if (active) {
       // The call under way: its own conversation's call button brings it back.
       if (active.room === roomId) return active.ui.expand()
-      return toast('Already on a call, end it first', { type: 'error' })
+      return toast('You’re already on a call', { type: 'error' })
     }
     if (!state.calls?.enabled) return toast("Calls aren't available right now", { type: 'error' })
     // The invitation travels on the socket: without it the other side would never ring.
-    if (!connected()) return toast('Connecting, try again in a moment', { type: 'error' })
+    if (!connected()) return toast('Still connecting…', { type: 'error' })
     // Inside the tap: the ringback can sound once the other side rings.
     primeTones()
     const callId = `${Date.now()}${Math.floor(Math.random() * 1000)}`

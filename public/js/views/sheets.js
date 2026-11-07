@@ -192,12 +192,12 @@ export function openSettings({ onLogout, origin }) {
       ], storage('ui:msg-times') === 'always' ? 'always' : 'smart', v => setChatTime('ui:msg-times', v === 'smart' ? null : v), 'Message times')),
       cell('Read receipts', toggle(state.prefs.receipts !== false, on => setReceipts(on), 'Read receipts'))
     ),
-    foot('Smart shows the time when a conversation picks up after a pause. Swipe left in a conversation to see when each message was sent. With read receipts off, friends don’t see when you’ve read their messages.'),
+    foot('Swipe left in a chat to see each message’s time. With read receipts off, friends won’t see when you’ve read.'),
     // The welcome and the tips (ui/guides.js), shown again from the start.
     groupTitle('Help'),
     group(cell('Show tips again', null, { icon: 'sparkles', onClick: async () => {
       (await import('../ui/guides.js')).resetGuides()
-      toast('Tips will show again as you go')
+      toast('Tips will show again')
     } })),
     // The call screen's backdrop, the same on each of your devices.
     // Conversations keep the app's own paper: no chat background to choose.
@@ -215,11 +215,11 @@ export function openSettings({ onLogout, origin }) {
       // and only usable where the mic and a secure connection are available.
       cell('Voice to text', toggle(storage('ui:voice') !== 'off', on => { storage('ui:voice', on ? null : 'off'); return true }, 'Voice to text'))
     ) : null,
-    state.assist ? foot('When something in your recent direct chats is timely — a ride, a plan, someone just home — it shows at the top of your chats, just for you.') : null,
+    state.assist ? foot('Timely things from your chats — a plan, a ride — show at the top, just for you.') : null,
     state.assist ? group(
       cell('Memory', chev(), { icon: 'sparkles', onClick: () => openMemorySheet(origin) })
     ) : null,
-    state.assist ? foot('Typing suggestions remember your words, routine and chat habits, only from your own use — you can view, turn off or clear them anytime.') : null,
+    state.assist ? foot('Suggestions learn only from your own use. View or clear them anytime.') : null,
     groupTitle('Notifications'),
     pushSlot,
     h('div', { style: { height: '20px' } }),
@@ -276,7 +276,7 @@ function editProfile(onEdited) {
 
 function changePassword() {
   const cur = input({ type: 'password', placeholder: 'Current password', autocomplete: 'current-password' })
-  const next = input({ type: 'password', placeholder: 'New password (at least 6 characters)', autocomplete: 'new-password' })
+  const next = input({ type: 'password', placeholder: 'New password (6+ characters)', autocomplete: 'new-password' })
   const err = h('div', { class: 'field-error' })
   const save = h('button', { class: 'btn primary solid-press', type: 'button' }, 'Update password')
   save.addEventListener('click', async () => {
@@ -344,7 +344,7 @@ export function openNewChat({ loadContacts, onOpen }) {
     // Your contacts first; those who asked, or whom you asked, after them, saying so.
     const order = { accepted: 0, pending_in: 1, pending_out: 2 }
     const sorted = [...cs].sort((a, b) => (order[a.state] ?? 3) - (order[b.state] ?? 3) || (a.display || '').localeCompare(b.display || ''))
-    list.replaceChildren(sorted.length ? group(...sorted.map(c => contactCell(c, () => openDM(c.id), c.state))) : foot('No contacts yet. Find people by their username above.'))
+    list.replaceChildren(sorted.length ? group(...sorted.map(c => contactCell(c, () => openDM(c.id), c.state))) : foot('No contacts yet. Search a username above.'))
   })
 
   let seq = 0
