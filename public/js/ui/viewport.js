@@ -31,7 +31,8 @@ const root = document.documentElement
 const vv = window.visualViewport
 const SPLIT_MIN = 700
 // A right inset this wide is the system's column, which the rail can share
-// (the rail is 52pt; other iPhones' insets stay under 59pt even in landscape).
+// (the rail is 52pt; other iPhones' insets stay under 64pt even in landscape,
+// the Pro Max's 62 included, and are the same on both sides there).
 const EDGE_COLUMN_MIN = 64
 const listeners = new Set()
 const barListeners = new Set()
@@ -263,6 +264,19 @@ function insetRight() {
   return insetProbe.offsetWidth
 }
 
+// An iPhone on its side insets both sides alike (the Dynamic Island on one,
+// the corners on the other): that is no column of the system's, however wide.
+let leftProbe = null
+function insetLeft() {
+  if (!leftProbe) {
+    leftProbe = document.createElement('div')
+    leftProbe.setAttribute('aria-hidden', 'true')
+    leftProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;height:0;width:var(--safe-left)'
+    document.body.append(leftProbe)
+  }
+  return leftProbe.offsetWidth
+}
+
 /** The width of the system's column where it stands inside the page (data-edge-column), else 0. */
 export function getEdgeInset() {
   return root.dataset.edgeColumn === '' ? insetRight() : 0
@@ -272,7 +286,8 @@ function measureBars() {
   // The column stays with the hardware: on the outer display in landscape the
   // camera is at its foot rather than its head (see duo-layout.css).
   root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
-  const inPage = insetRight() >= EDGE_COLUMN_MIN
+  const right = insetRight()
+  const inPage = right >= EDGE_COLUMN_MIN && Math.abs(right - insetLeft()) > 8
   const beside = !inPage && root.dataset.column === 'beside'
   if (inPage) root.dataset.edgeColumn = ''
   else if (beside) root.dataset.edgeColumn = 'beside'
