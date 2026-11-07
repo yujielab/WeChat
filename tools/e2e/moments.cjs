@@ -50,7 +50,7 @@ const home=await A.evaluate(ours=>{const q=s=>document.querySelector('.moments-h
   word:q('.mo-wordmark').textContent,buttons:all('.mo-head-actions button').map(b=>b.getAttribute('aria-label')),
   people:our('.mo-person').map(b=>({label:b.querySelector('.mo-person-name').textContent,ring:b.querySelector('.mo-ring').classList.contains('fresh'),badge:b.querySelector('.mo-badge')?.className.replace('mo-badge ','')||null})),
   cards:our('.mo-item').map(c=>({id:c.dataset.id,by:c.querySelector('.mo-by').textContent,sub:c.querySelector('.mo-sub').textContent,pill:!!c.querySelector('.mo-message')}))}},ours)
-assert.equal(home.word,'Moments');assert.deepEqual(home.buttons,['New moment','Your moments','Close'])
+assert.equal(home.word,'Moments');assert.deepEqual(home.buttons,['Your moments','Close'])
 assert.deepEqual(home.people,[{label:'Your moment',ring:false,badge:'mo-badge-plus'},{label:'Coisini',ring:true,badge:null},{label:'Mira',ring:true,badge:'mo-badge-person-plus'}],'you, then who has something new')
 assert.deepEqual(home.cards.map(c=>c.id),[sunrise.id,clip.id,trip.id],'newest first; Mira\'s moment for friends is not here')
 assert.deepEqual(home.cards[0],{id:sunrise.id,by:'Coisini',sub:`@mb_${uniq}`,pill:false})
@@ -115,7 +115,7 @@ await A.locator('.thread:not([hidden]) [data-item="back"]').click();await sleep(
 
 // 8. A new one, for Friends (the editor: views/moments-editor.js): who can see it is Everyone until you say.
 await A.locator('.list-moments').click();await A.locator('.moments-home .mo-item').first().waitFor();await sleep(400)
-await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(400)
+await A.locator('.moments-home .mo-add').click();await A.locator('.moments-editor').waitFor();await sleep(400)
 assert.equal(await A.locator('.me-who-label').textContent(),'Everyone can see and comment')
 await A.locator('.me-who').click();await A.locator('.menu .menu-item:has-text("Only friends can see it")').click()
 // The choice is made once the menu has gone (views/overlay.js), so wait for it rather than a fixed time.

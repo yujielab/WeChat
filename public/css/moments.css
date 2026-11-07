@@ -54,6 +54,13 @@
 .mo-me { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; }
 .mo-me .avatar { --size: 32px; box-shadow: 0 0 0 1.5px var(--label); }
 .mo-me:active { opacity: .7; }
+/* The pages' capsule has You: the heading doesn't repeat it. */
+:root[data-pages] .moments-home .mo-me { display: none; }
+/* New moment: a round glass button floating at the page's foot, above all of it. */
+.mo-add { position: absolute; z-index: 6; right: 20px; bottom: calc(max(var(--safe-bottom), 12px) + 16px); width: 56px; height: 56px; }
+.mo-add .icon { width: 26px; height: 26px; }
+/* room under the last card, so the button never sits on it */
+.moments-home .mo-more { height: 88px; }
 
 /* ---------------------------------------------------------------- the home: people */
 .mo-people {
@@ -238,7 +245,15 @@ button.mo-who:active { opacity: .7; }
 .mo-words { margin: 0; padding: 4px 18px 6px; font-size: var(--t-title-3); line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-line-clamp: 8; }
 
 .mo-bar { position: relative; display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 2px 8px 0; }
-.mo-act { height: 44px; min-width: 44px; padding: 0 8px; display: flex; align-items: center; gap: 6px; color: var(--label); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+.mo-act { height: 44px; min-width: 44px; padding: 0 12px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; color: var(--label); font-size: var(--t-subhead); font-weight: var(--w-semibold); }
+/* Like, comment and share: frosted glass, no edge. */
+.mo-bar .mo-act {
+  background: var(--frost);
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  box-shadow: 0 4px 14px -10px rgb(0 0 0 / 0.25);
+}
+:root[data-glass="solid"] .mo-bar .mo-act { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .mo-act .icon { width: 25px; height: 25px; }
 .mo-act:active .icon { transform: scale(.9); }
 .mo-like.on { color: var(--red); }

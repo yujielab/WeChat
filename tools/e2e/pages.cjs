@@ -63,7 +63,7 @@ assert.equal(await A.evaluate(()=>getComputedStyle(document.querySelector('.pane
 
 // 6. Something opened over a page has the screen: no rail; it comes back when that goes.
 await A.locator('.page-item[data-page="moments"]').click();await A.locator('.moments-home').waitFor();await sleep(400)
-await A.locator('.moments-home .mo-head-actions [aria-label="New moment"]').click();await A.locator('.moments-editor').waitFor();await sleep(300)
+await A.locator('.moments-home .mo-add').click();await A.locator('.moments-editor').waitFor();await sleep(300)
 assert.equal((await rail(A)).shown,false,'the editor has the screen')
 await A.locator('.me-cancel').click();await A.locator('.moments-editor').waitFor({state:'detached'});await sleep(300)
 assert.equal((await rail(A)).shown,true)

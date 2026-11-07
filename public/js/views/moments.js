@@ -103,12 +103,14 @@ function openHome({ origin, page: asPage = false, swap = false } = {}) {
   let loading = false
   let done = false
 
-  const add = h('button', { class: 'glass glass-btn mo-head-btn', type: 'button', 'aria-label': 'New moment' }, icon('plus'))
+  // New moment floats at the foot of the page, over everything in it.
+  const add = h('button', { class: 'glass glass-btn mo-add', type: 'button', 'aria-label': 'New moment' }, icon('plus'))
+  // Your page — where the pages' capsule has You, that is the way in (css/moments.css).
   const mine = h('button', { class: 'mo-me', type: 'button', 'aria-label': 'Your moments' }, avatar(state.me?.avatar, nameOf(state.me), { size: 32 }))
   const close = h('button', { class: 'glass glass-btn mo-head-btn', type: 'button', 'aria-label': 'Close' }, icon('xmark'))
   const head = h('header', { class: 'mo-home-head' },
     h('h1', { class: 'mo-wordmark' }, 'Moments'),
-    h('div', { class: 'mo-head-actions' }, add, mine, close))
+    h('div', { class: 'mo-head-actions' }, mine, close))
   const people = h('ul', { class: 'mo-people', 'aria-label': 'People' })
   const fresher = h('button', { class: 'mo-fresh', type: 'button', hidden: true }, icon('arrow-up'), 'New moments')
   const panel = h('div', { class: 'mo-feed' })
@@ -117,6 +119,7 @@ function openHome({ origin, page: asPage = false, swap = false } = {}) {
 
   const sheet = openSheet({ label: 'Moments', content, tall: true, origin, page: asPage, swap, onClose: () => { pages.delete(page); quiet(sheet.el) } })
   sheet.el.classList.add('moments-page', 'moments-home')
+  sheet.el.append(add)
   const list = cards(panel, { owner: null, empty: emptyEl })
   close.addEventListener('click', () => sheet.close())
   add.addEventListener('click', () => openMomentComposer({ origin: add }))
