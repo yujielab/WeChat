@@ -2,7 +2,9 @@
 // and any conversation of its own), their calls, and — shown to everyone —
 // their profile's cover. Each is one of the app's own backdrops
 // ('preset:<name>'), a photo they uploaded themselves, or '' for the default.
-// Kept on the server, so each of their devices shows the same.
+// And whether friends see when they've read a message (read receipts; on
+// unless turned off). Kept on the server, so each of their devices shows the
+// same — and so a receipt turned off is never sent at all.
 
 const PRESET = /^preset:[a-z0-9-]{1,24}$/
 export const MAX_ROOMS = 300 // conversations with a backdrop of their own
@@ -27,16 +29,23 @@ export function readPrefs(stored) {
   for (const [id, v] of Object.entries(p.rooms && typeof p.rooms === 'object' ? p.rooms : {})) {
     if (typeof v === 'string' && v) rooms[id] = v
   }
-  return { chat: typeof p.chat === 'string' ? p.chat : '', call: typeof p.call === 'string' ? p.call : '', rooms }
+  return { chat: typeof p.chat === 'string' ? p.chat : '', call: typeof p.call === 'string' ? p.call : '', rooms, receipts: p.receipts !== false }
 }
 
+/** Do this person's friends see when they've read a message? */
+export const sharesReceipts = stored => readPrefs(stored).receipts
+
 /**
- * Apply a change: { chat?, call?, rooms?: { [roomId]: value } }, '' putting
- * one back to the default. isMember(roomId) says which conversations are
- * theirs. Returns { prefs } or { error }.
+ * Apply a change: { chat?, call?, rooms?: { [roomId]: value }, receipts? },
+ * '' putting a backdrop back to the default. isMember(roomId) says which
+ * conversations are theirs. Returns { prefs } or { error }.
  */
 export function patchPrefs(current, body, { uid, isMember }) {
   const next = readPrefs(current)
+  if (body.receipts !== undefined) {
+    if (typeof body.receipts !== 'boolean') return { error: 'Invalid setting' }
+    next.receipts = body.receipts
+  }
   for (const key of ['chat', 'call']) {
     if (body[key] === undefined) continue
     const v = backdrop(body[key], 'bg', uid)

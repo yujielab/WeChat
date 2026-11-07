@@ -3,6 +3,8 @@
 // as plain objects (empty for writes), so the same class is unit-testable
 // against node:sqlite.
 
+import { sharesReceipts } from './prefs.js'
+
 const now = () => Date.now()
 const parseList = v => { try { const a = JSON.parse(v); return Array.isArray(a) ? a : [] } catch { return [] } }
 export const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 20)
@@ -103,6 +105,8 @@ export class Store {
     // someone marked unread themselves.
     this.#column('users', 'cover', `TEXT NOT NULL DEFAULT ''`)
     this.#column('room_members', 'marked', 'INTEGER NOT NULL DEFAULT 0')
+    // when last_read last moved on: the time a read receipt shows
+    this.#column('room_members', 'read_at', 'INTEGER NOT NULL DEFAULT 0')
     // A client's own id for a message it sent (its localId): a send repeated
     // after a lost answer, or replayed after reconnecting, finds the message
     // that already landed instead of making a copy, even after the hub restarts.
@@ -548,9 +552,10 @@ export class Store {
     this.exec(`UPDATE room_members SET muted=?, pinned=?, hidden=?, marked=? WHERE room=? AND user=?`,
       flags.muted ?? m.muted, flags.pinned ?? m.pinned, flags.hidden ?? m.hidden, flags.marked ?? m.marked, room, user)
   }
-  /** Reading a conversation also clears its own unread mark. */
-  markRead(room, user, ts) {
-    this.exec(`UPDATE room_members SET last_read=MAX(last_read, ?), marked=0 WHERE room=? AND user=?`, ts, room, user)
+  /** Reading a conversation also clears its own unread mark; reading
+   *  further on than before records when (`at`). */
+  markRead(room, user, ts, at = Date.now()) {
+    this.exec(`UPDATE room_members SET read_at=CASE WHEN ? > last_read THEN ? ELSE read_at END, last_read=MAX(last_read, ?), marked=0 WHERE room=? AND user=?`, ts, at, ts, room, user)
   }
 
   /** Conversation list for a user: enriched rooms sorted by latest activity. */
@@ -588,7 +593,10 @@ export class Store {
       if (room.kind === 'dm') {
         const peerId = this.roomMembers(room.id).find(u => u !== user)
         row.peer = this.pub(this.getUser(peerId))
-        row.peerRead = this.membership(room.id, peerId)?.last_read || 0
+        // How far they've read, and when — only if they let friends see it.
+        const theirs = sharesReceipts(this.kvGet(`prefs:${peerId}`)) ? this.membership(room.id, peerId) : null
+        row.peerRead = theirs?.last_read || 0
+        row.peerReadAt = theirs?.read_at || 0
         if (row.peer) {
           row.name = row.peer.display
           row.avatar = row.peer.avatar

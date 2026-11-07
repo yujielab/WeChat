@@ -1,0 +1,162 @@
+/* Time in a conversation (ui/chat-time.js, views/thread.js, views/time-reveal.js):
+   the marks in the middle that say when a stretch of it happened, the line
+   under your latest message that says where it stands, each message's own
+   time when a swipe or a hover asks for it, and the date that floats while
+   you scroll back. One quiet voice for all of them: the system's font, 12px,
+   Medium, grey, on nothing — no capsules. */
+
+:root {
+  --time-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", system-ui, sans-serif;
+  --time-ink: #6B7280;
+}
+:root[data-theme="dark"] { --time-ink: #A1A1AA; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --time-ink: #A1A1AA; }
+}
+
+/* ---- the marks: "Today 09:41", then "10:26" ---- */
+.thread .ts.mark,
+.thread:not(.has-backdrop) .ts.mark,
+.thread.has-backdrop .ts.mark {
+  display: block;
+  align-self: center;
+  width: auto;
+  margin: 24px 0 16px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  text-shadow: none;
+  font-family: var(--time-font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0;
+  color: var(--time-ink);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.thread .ts.mark.is-new { animation: time-in 150ms ease-out; }
+@keyframes time-in { from { opacity: 0; } }
+
+/* ---- space says who is talking: 3px within one person's run, 12px when
+   the other speaks, the mark's own 24 / 16 around a new stretch ---- */
+.thread .m { --gap: 3px; }
+.thread .m.first { --gap: 12px; }
+.thread .ts.mark + .m,
+.thread .ts.mark + .m.first { --gap: 0px; }
+
+/* a message's time, for screen readers, is never part of copied or selected text */
+.bubble > .m-when { -webkit-user-select: none; user-select: none; }
+
+/* ---- where your latest message stands: Sending… · Delivered · Read 10:28 ---- */
+.m-col > .m-status {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 4px 4px 0;
+  font-family: var(--time-font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--time-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: time-in 150ms ease-out;
+}
+.m-col > .m-status.failed { color: var(--red-text); }
+.m-status .spinner { width: 10px; height: 10px; border-width: 1.5px; }
+.m-status .icon { width: 13px; height: 13px; }
+
+/* ---- each message's own time, swiped into view from the right ---- */
+.time-reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+.time-reveal-t {
+  position: absolute;
+  right: 0;
+  font-family: var(--time-font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--time-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* …and, with a mouse, beside the message under it */
+.time-hover {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  font-family: var(--time-font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--time-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.time-hover.on { opacity: 1; }
+
+/* ---- the top of a message's menu: when it was sent, in full ---- */
+.ctx-time {
+  position: absolute;
+  text-align: center;
+  font-family: var(--time-font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.ctx-time.on { opacity: 1; }
+
+/* ---- the date that floats while you scroll back: light glass ---- */
+.history-date {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--safe-top) + var(--thread-top) + 8px);
+  z-index: 4;
+  height: 30px;
+  padding: 0 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--label) 10%, transparent), 0 4px 14px -8px rgb(0 0 0 / 0.25);
+  font-family: var(--time-font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--label-2);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -4px);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+.history-date.on { opacity: 1; transform: translate(-50%, 0); }
+:root[data-glass="solid"] .history-date { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .thread .ts.mark.is-new, .m-col > .m-status { animation: none; }
+  .history-date, .time-hover { transition: none; }
+}
+:root[data-motion="reduce"] .thread .ts.mark.is-new,
+:root[data-motion="reduce"] .m-col > .m-status { animation: none; }
+:root[data-motion="reduce"] .history-date,
+:root[data-motion="reduce"] .time-hover { transition: none; }

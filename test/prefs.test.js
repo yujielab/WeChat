@@ -17,16 +17,16 @@ test('a backdrop is the default, a preset, or a photo of this account\'s own', (
 })
 
 test('prefs read in their current shape whatever was stored', () => {
-  assert.deepEqual(readPrefs(null), { chat: '', call: '', rooms: {} })
-  assert.deepEqual(readPrefs({ chat: 'preset:mint', rooms: { r1: 'preset:sand', r2: '', r3: 7 }, other: 1 }), { chat: 'preset:mint', call: '', rooms: { r1: 'preset:sand' } })
+  assert.deepEqual(readPrefs(null), { chat: '', call: '', rooms: {}, receipts: true })
+  assert.deepEqual(readPrefs({ chat: 'preset:mint', rooms: { r1: 'preset:sand', r2: '', r3: 7 }, other: 1 }), { chat: 'preset:mint', call: '', rooms: { r1: 'preset:sand' }, receipts: true })
 })
 
 test('a change applies only what it names, checks each value and conversation', () => {
   const isMember = id => id === 'r1' || id === 'r2'
   let r = patchPrefs(null, { chat: 'preset:dawn', rooms: { r1: mine } }, { uid, isMember })
-  assert.deepEqual(r.prefs, { chat: 'preset:dawn', call: '', rooms: { r1: mine } })
+  assert.deepEqual(r.prefs, { chat: 'preset:dawn', call: '', rooms: { r1: mine }, receipts: true })
   r = patchPrefs(r.prefs, { call: 'preset:night', rooms: { r1: '' } }, { uid, isMember })
-  assert.deepEqual(r.prefs, { chat: 'preset:dawn', call: 'preset:night', rooms: {} }, '"" puts a conversation back to the default')
+  assert.deepEqual(r.prefs, { chat: 'preset:dawn', call: 'preset:night', rooms: {}, receipts: true }, '"" puts a conversation back to the default')
   assert.ok(patchPrefs(null, { chat: 'https://x.example/a.png' }, { uid, isMember }).error)
   assert.ok(patchPrefs(null, { rooms: { r9: 'preset:dawn' } }, { uid, isMember }).error, 'not their conversation')
   assert.ok(patchPrefs(null, { rooms: ['preset:dawn'] }, { uid, isMember }).error)
