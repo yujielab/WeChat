@@ -78,6 +78,8 @@ function segmented(options, value, onChange, label) {
   return seg
 }
 const group = (...cells) => h('div', { class: 'group' }, ...cells.filter(Boolean))
+// The one that can't be undone, set a little apart from the rest.
+const danger = (...cells) => h('div', { class: 'group group-danger' }, ...cells.filter(Boolean))
 const groupTitle = t => h('div', { class: 'group-title' }, t)
 const foot = t => h('p', { class: 'group-foot' }, t)
 const input = (props) => h('input', { class: 'input', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, ...props })
@@ -437,8 +439,7 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
       h('div', { class: 'profile' }, avatar(null, '', { size: 84 }), h('h3', {}, filler(2, 1)), h('p', {}, filler(1, 4))),
       group(cell(filler(1, 2), chev(), { icon: 'photo' })),
       group(cell(filler(1, 5), null, { icon: 'bell-slash' }), cell(filler(2, 7), null, { icon: 'pin' })),
-      h('div', { style: { height: '14px' } }),
-      group(cell(filler(2, 3), null, { destructive: true }))
+      danger(cell(filler(2, 3), null, { destructive: true }))
     ])), 250)
   let room = c, members = []
   try {
@@ -475,9 +476,9 @@ export async function renderRoomInfo(roomId, { body, host, loadContacts }) {
     addBtn.addEventListener('click', () => addMembers(roomId, members.map(m => m.id), loadContacts))
     grid.append(addBtn)
     blocks.push(groupTitle('Members'), grid)
-    blocks.push(h('div', { style: { height: '14px' } }), group(cell('Leave group', null, { destructive: true, onClick: () => leaveRoom(roomId, host) })))
+    blocks.push(danger(cell('Leave group', null, { destructive: true, onClick: () => leaveRoom(roomId, host) })))
   } else {
-    blocks.push(h('div', { style: { height: '14px' } }), group(cell('Delete chat', null, { destructive: true, onClick: () => { setFlag(roomId, { hidden: 1 }); host.close() } })))
+    blocks.push(danger(cell('Delete chat', null, { destructive: true, onClick: () => { setFlag(roomId, { hidden: 1 }); host.close() } })))
   }
   body.replaceChildren(...blocks)
 

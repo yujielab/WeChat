@@ -65,6 +65,12 @@
 .art-body[data-kind="info"] { --content-right: calc(var(--safe-right) + var(--margin)); }
 /* No heading: the profile leads, and Close (or Back) is the bar at the foot. */
 .art-scroll { top: calc(var(--safe-top) + 12px); padding: 8px calc(var(--content-right) - var(--margin)) calc(max(var(--safe-bottom), 16px) + 80px) var(--safe-left); }
+/* The details: one even rhythm — the profile, then each card 16px below the
+   last, what can't be undone 28px apart — and the icons in the app's blue. */
+.art-content > .profile { margin-bottom: 0; }
+.art-content > * + .group { margin-top: 16px; }
+.art-content > .group-danger { margin-top: 28px; }
+.art-content .cell-icon { color: var(--fb-blue); }
 
 /* The drawing board takes the whole column, with its own bars. */
 .pane-artifact .draw { position: absolute; inset: 0; z-index: auto; opacity: 1; transform: none; transition: none; }
