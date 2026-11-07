@@ -79,7 +79,7 @@ const uniq = Date.now().toString(36)
     }
     const A = await page('A'), B = await page('B')
     await reg(A, `ca_${uniq}`, '甲'); await reg(B, `cb_${uniq}`, '乙')
-    await A.click('.pane-list [data-item="compose"]'); await A.fill('.sheet-search input', `cb_${uniq}`)
+    await A.click('.pane-list .list-requests'); await A.fill('.sheet-search input', `cb_${uniq}`)
     await A.locator(`.sheet .cell:has-text("@cb_${uniq}")`).click(); await A.waitForSelector('.thread:not([hidden])')
     await A.fill('.composer textarea', '在吗'); await A.keyboard.press('Enter')
     await B.locator('.row').first().click(); await B.waitForSelector('.thread:not([hidden])')

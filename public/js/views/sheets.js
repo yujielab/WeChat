@@ -21,7 +21,7 @@ import { openBackdropPicker, saveBackdrops } from './backdrops.js'
 import { ghost, filler } from '../ui/skeleton.js'
 
 // ---------------------------------------------------------------- shared bits
-function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) {
+export function cell(label, right, { icon: ic, sub, onClick, tint, destructive } = {}) {
   const tag = onClick ? 'button' : 'div'
   const el = h(tag, {
     class: ['cell', ic && 'icon-left', tint && 'tint', destructive && 'destructive'],
@@ -77,11 +77,11 @@ function segmented(options, value, onChange, label) {
   })
   return seg
 }
-const group = (...cells) => h('div', { class: 'group' }, ...cells.filter(Boolean))
+export const group = (...cells) => h('div', { class: 'group' }, ...cells.filter(Boolean))
 // The one that can't be undone, set a little apart from the rest.
 const danger = (...cells) => h('div', { class: 'group group-danger' }, ...cells.filter(Boolean))
-const groupTitle = t => h('div', { class: 'group-title' }, t)
-const foot = t => h('p', { class: 'group-foot' }, t)
+export const groupTitle = t => h('div', { class: 'group-title' }, t)
+export const foot = t => h('p', { class: 'group-foot' }, t)
 const input = (props) => h('input', { class: 'input', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, ...props })
 
 /** A profile card's cover, if they chose one, across its top. */
@@ -325,56 +325,8 @@ async function turnOff() {
   } catch (err) { toast(err.message, { type: 'error' }); return false }
 }
 
-// ---------------------------------------------------------------- new chat
-export function openNewChat({ loadContacts, onOpen }) {
-  const search = input({ type: 'search', placeholder: 'Search by username', enterkeyhint: 'search' })
-  const results = h('div', {})
-  const list = h('div', {})
-
-  const content = h('div', {},
-    h('div', { class: 'sheet-search' }, h('label', { class: 'glass search-pill' }, icon('search'), search)),
-    group(
-      cell('New group', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts, onOpen }) } }),
-      cell('Invite friends', chev(), { icon: 'person-plus', onClick: async () => (await import('./people.js')).inviteFriends() })),
-    groupTitle('Contacts'),
-    list,
-    results
-  )
-  const sheet = openSheet({ title: 'New chat', content, tall: true, side: 'list' })
-
-  loadContacts().then(cs => {
-    // Your contacts first; those who asked, or whom you asked, after them, saying so.
-    const order = { accepted: 0, pending_in: 1, pending_out: 2 }
-    const sorted = [...cs].sort((a, b) => (order[a.state] ?? 3) - (order[b.state] ?? 3) || (a.display || '').localeCompare(b.display || ''))
-    list.replaceChildren(sorted.length ? group(...sorted.map(c => contactCell(c, () => openDM(c.id), c.state))) : foot('No contacts yet. Search a username above.'))
-  })
-
-  let seq = 0
-  search.addEventListener('input', async () => {
-    const q = search.value.trim()
-    list.hidden = Boolean(q)
-    if (!q) { results.replaceChildren(); return }
-    const s = ++seq
-    try {
-      const r = await api.get(`/api/users/search?q=${encodeURIComponent(q)}`)
-      if (s !== seq) return
-      results.replaceChildren(r.users.length
-        ? group(...r.users.map(u => contactCell(u, () => openDM(u.id), u.state)))
-        : foot(`Nothing found for “${q}”`))
-    } catch {}
-  })
-
-  async function openDM(userId) {
-    try {
-      const r = await api.post('/api/dm', { user: userId })
-      upsertRoom(r.room)
-      sheet.close()
-      onOpen(r.room.id)
-    } catch (err) { toast(err.message, { type: 'error' }) }
-  }
-}
-
-function contactCell(u, onClick, relState) {
+// ---------------------------------------------------------------- people, as a row (Friends: views/people.js)
+export function contactCell(u, onClick, relState) {
   const sub = relState === 'pending_out' ? 'Request sent' : relState === 'pending_in' ? 'Wants to add you' : '@' + u.username
   const el = cell(u.display, chev(), { onClick, sub })
   el.prepend(avatar(u.avatar, u.display, { size: 40 }))
@@ -519,4 +471,4 @@ async function leaveRoom(roomId, host) {
   catch (err) { toast(err.message, { type: 'error' }) }
 }
 
-function chev() { return h('span', { class: 'chev' }, icon('chevron-right')) }
+export function chev() { return h('span', { class: 'chev' }, icon('chevron-right')) }

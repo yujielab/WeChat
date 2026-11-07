@@ -12,6 +12,7 @@ import { api } from '../api.js'
 import { state, on, upsertRoom, setContacts } from '../store.js'
 import { avatar } from './avatar.js'
 import { openSheet, toast } from './overlay.js'
+import { cell, group, groupTitle, foot, chev, contactCell, openNewGroup } from './sheets.js'
 
 export const NOTE_MAX = 60
 const nameOf = u => u?.display || u?.username || ''
@@ -189,10 +190,28 @@ export function createRequestsLink() {
 }
 
 /** Who wants to add you (Accept, or ×), and whom you've asked (Cancel). */
+/**
+ * Friends: everything about the people you talk to, in one place (it took
+ * New chat's place). Find someone by username and tap to chat; start a
+ * group or invite friends; answer requests and see those you've sent; and
+ * your contacts, a tap from a chat.
+ */
 export function openRequests({ origin, page = false, swap = false } = {}) {
-  const body = h('div', { class: 'people-sheet' })
-  const sheet = openSheet({ title: 'Requests', content: body, tall: true, origin, side: 'list', page, swap })
+  const search = h('input', { class: 'input', type: 'search', placeholder: 'Find people by username', enterkeyhint: 'search', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, 'aria-label': 'Find people by username' })
+  const results = h('div', { class: 'people-results', hidden: true })
+  const requests = h('div', { class: 'people-sheet' })
+  const contacts = h('div', {})
+  const main = h('div', {},
+    group(
+      cell('New group', chev(), { icon: 'people', onClick: () => { sheet.close(); openNewGroup({ loadContacts: async () => { await reloadContacts(); return state.contacts }, onOpen: open }) } }),
+      cell('Invite friends', chev(), { icon: 'person-plus', onClick: () => inviteFriends() })),
+    requests,
+    groupTitle('Contacts'),
+    contacts)
+  const content = h('div', {}, h('div', { class: 'sheet-search' }, h('label', { class: 'glass search-pill' }, icon('search'), search)), results, main)
+  const sheet = openSheet({ title: 'Friends', content, tall: true, origin, side: 'list', page, swap })
   sheet.el.classList.add('requests-sheet')
+
   function paint() {
     const incoming = state.contacts.filter(c => c.state === 'pending_in')
     const sent = state.contacts.filter(c => c.state === 'pending_out')
@@ -213,7 +232,9 @@ export function openRequests({ origin, page = false, swap = false } = {}) {
       })))))
     }
     if (!parts.length) parts.push(h('div', { class: 'people-empty' }, icon('person-plus'), h('b', {}, 'No requests'), h('span', {}, 'Friend requests appear here.')))
-    body.replaceChildren(...parts)
+    requests.replaceChildren(...parts)
+    const mine = state.contacts.filter(c => c.state === 'accepted').sort((a, b) => (a.display || '').localeCompare(b.display || ''))
+    contacts.replaceChildren(mine.length ? group(...mine.map(c => contactCell(c, () => chat(c), c.state))) : foot('No contacts yet. Search a username above.'))
   }
   async function act(path, u, done) {
     try {
@@ -222,8 +243,34 @@ export function openRequests({ origin, page = false, swap = false } = {}) {
       if (done) toast(done, { type: 'ok' })
     } catch (err) { toast(err.message, { type: 'error' }) }
   }
+  // A chat with them: the one there is, or a new one, opened.
+  function open(id) { window.dispatchEvent(new CustomEvent('open-chat', { detail: id })) }
+  async function chat(u) {
+    try {
+      const id = await chatWith(u)
+      sheet.close()
+      open(id)
+    } catch (err) { toast(err.message, { type: 'error' }) }
+  }
+
+  // Searching shows who matches in place of the rest.
+  let seq = 0
+  search.addEventListener('input', async () => {
+    const q = search.value.trim()
+    main.hidden = Boolean(q)
+    results.hidden = !q
+    if (!q) { results.replaceChildren(); return }
+    const n = ++seq
+    try {
+      const r = await api.get(`/api/users/search?q=${encodeURIComponent(q)}`)
+      if (n !== seq) return
+      results.replaceChildren(r.users.length ? group(...r.users.map(u => contactCell(u, () => chat(u), u.state))) : foot(`Nothing found for “${q}”`))
+    } catch {}
+  })
+
   const off = on('contacts', () => { if (sheet.el.isConnected) paint(); else off() })
   paint()
+  reloadContacts()
   return sheet
 }
 

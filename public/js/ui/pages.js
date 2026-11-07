@@ -22,7 +22,7 @@ export const PAGES = [
   { id: 'moments', icon: 'people', label: 'Moments' },
   { id: 'memories', icon: 'photo-stack', label: 'Memories' },
   // Requests with the other places; You at the end, beside Menu, where a profile is looked for.
-  { id: 'requests', icon: 'bell', label: 'Requests' },
+  { id: 'requests', icon: 'bell', label: 'Friends' },
   { id: 'you', icon: 'person-circle', label: 'You' },
   { id: 'menu', icon: 'menu', label: 'Menu' }
 ]

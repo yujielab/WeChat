@@ -61,7 +61,7 @@ const UNFOLDED = { width: 951, height: 669 }
     const calRoom = await A.evaluate(async id => (await (await fetch('/api/dm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ user: id }) })).json()).room.id, calId)
     await C.context().close()
     await A.reload(); await A.waitForSelector('.shell'); await sleep(600)
-    await A.click('.pane-list [data-item="compose"]'); await A.waitForSelector('.sheet'); await sleep(400)
+    await A.click('.pane-list .list-requests'); await A.waitForSelector('.sheet'); await sleep(400)
     await A.fill('.sheet-search input', ben); await sleep(800)
     await A.click(`.sheet .cell:has-text("@${ben}")`); await A.waitForSelector('.thread:not([hidden])'); await sleep(400)
     for (const t of ['第一条', '第二条：要从本设备删除的']) { await A.fill('.composer textarea', t); await A.keyboard.press('Enter'); await sleep(500) }

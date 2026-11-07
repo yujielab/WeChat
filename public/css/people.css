@@ -196,6 +196,9 @@ button.person-main:active { opacity: .7; }
 .person-dismiss::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
 .person-dismiss .icon { width: 16px; height: 16px; }
 .person-dismiss:active { color: var(--label); }
+/* Friends (views/people.js openRequests): the requests below the first card, with room. */
+.requests-sheet .group + .people-sheet { margin-top: 22px; }
+.requests-sheet .people-empty { padding: 18px 28px 6px; }
 .invite-card { gap: 14px; padding-top: 6px; padding-bottom: 6px; }
 /* Share: white, a black line just inside its edge, blue words (not glass: buttons.js NOT). */
 .invite-card .invite-share,

@@ -1,7 +1,6 @@
 // Sidebar: the first column of the strip. Who you are (opens settings), the
-// scopes of the conversation list with their counts, and the actions that
-// start something — search and New Chat — on the bars engine like every
-// other column.
+// scopes of the conversation list with their counts, and Search on the
+// bars engine like every other column.
 
 import { h, icon } from '../ui/dom.js'
 import { state, on, sortedChats } from '../store.js'
@@ -12,7 +11,7 @@ import { FILTERS } from './chatList.js'
 
 const SCOPE_ICONS = { all: 'bubble', unread: 'unread', people: 'person', groups: 'people' }
 
-export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }) {
+export function createSidebar(pane, { onScope, onSettings, onSearch }) {
   pane.classList.add('pane-sidebar')
   pane.setAttribute('aria-label', 'Sidebar')
 
@@ -57,10 +56,9 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
   const bars = createBars({
     label: 'Sidebar actions',
     items: [
-      { id: 'search', icon: 'search', title: 'Search', priority: 6, onSelect: () => onSearch() },
-      { id: 'compose', icon: 'compose', title: 'New chat', priority: 9, prominent: true, onSelect: () => onCompose() }
+      { id: 'search', icon: 'search', title: 'Search', priority: 6, onSelect: () => onSearch() }
     ],
-    arrange: () => (pane.dataset.layout === 'leading' ? { top: [], bottom: [] } : { top: [], bottom: [['search'], ['compose']] })
+    arrange: () => (pane.dataset.layout === 'leading' ? { top: [], bottom: [] } : { top: [], bottom: [['search']] })
   })
   const bottombar = h('nav', { class: 'side-bottombar dock', 'aria-label': 'Sidebar actions' }, bars.bottom)
   const rail = h('nav', { class: 'duo-rail side-rail', 'aria-label': 'Sidebar actions' })

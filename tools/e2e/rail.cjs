@@ -107,10 +107,10 @@ assert.ok(draw.stage.r<=376+.5&&draw.palette.r<=376+.5,'the paper and the colour
 await D.screenshot({path:path.join(OUT,'80-rail-draw.png')})
 await D.locator('.draw-close').tap();await sleep(700)
 
-// 5. The sidebar: Search and New Chat.
+// 5. The sidebar: Search (New chat is in Friends).
 await D.locator('.thread:not([hidden]) .duo-rail [data-item="back"]').tap();await sleep(700)
 await D.locator('.pane-list .duo-rail [data-item="back"]').tap();await sleep(800)
-r=await rail(D,'.pane-sidebar > .duo-rail');assert.ok(r,'the sidebar has a rail');assert.deepEqual(ids(r),['search','compose'])
+r=await rail(D,'.pane-sidebar > .duo-rail');assert.ok(r,'the sidebar has a rail');assert.deepEqual(ids(r),['search'])
 await D.screenshot({path:path.join(OUT,'81-rail-sidebar.png')})
 
 // 6. An ordinary phone: no column, no rail — the bars at the foot of each column.
@@ -140,12 +140,12 @@ await U.screenshot({path:path.join(OUT,'84-rail-unfolded-details.png')})
 
 // 8. They follow the window: the system column goes (as when leaving the Duo's full screen), and the bars are at the foot.
 await D.locator('.pane-sidebar .duo-rail').waitFor({state:'attached'})
-await D.locator('.pane-sidebar .duo-rail [data-item="compose"]').focus()
+await D.locator('.pane-sidebar .duo-rail [data-item="search"]').focus()
 await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-right','0px'));await sleep(500)
 assert.equal(await axis(D),'horizontal','no column, no rail')
 assert.equal(await rail(D,'.pane-sidebar > .duo-rail'),null)
-assert.equal(await D.evaluate(()=>document.activeElement?.dataset?.item),'compose','focus stays on the item as it moves')
-assert.ok(await D.locator('.pane-sidebar .side-bottombar .bar-item').count()>=2,'Search and New Chat at the foot')
+assert.equal(await D.evaluate(()=>document.activeElement?.dataset?.item),'search','focus stays on the item as it moves')
+assert.ok(await D.locator('.pane-sidebar .side-bottombar .bar-item').count()>=1,'Search at the foot')
 await D.evaluate(()=>document.documentElement.style.setProperty('--wide-inset-right','90px'));await sleep(500)
 assert.equal(await axis(D),'vertical');assert.ok(await rail(D,'.pane-sidebar > .duo-rail'),'and the column is back')
 

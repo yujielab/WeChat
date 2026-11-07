@@ -217,7 +217,7 @@ function auditPage() {
       await home()
       await check('chats-search', async () => { await A.locator('.search-pill:visible, [data-item="search"]:visible').first().click(); await sleep(300) })
       await home()
-      await check('new-chat', async () => { await item('compose').click(); await A.locator('.sheet.on').waitFor() })
+      await check('friends', async () => { await A.locator('.list-requests:visible, .page-item[data-page="requests"]:visible').first().click(); await A.locator('.requests-sheet').waitFor() })
       await escape(); await home()
       await check('sidebar', sidebar)
       await check('settings-top', async () => { await A.locator('.side-me:visible').click(); await A.locator('.sheet.on .group-title').first().waitFor() })

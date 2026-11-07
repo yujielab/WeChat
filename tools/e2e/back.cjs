@@ -50,7 +50,8 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   // On the Duo the controls move into the rail once the system's column is measured, a moment after the list shows.
   await A.waitForFunction(()=>[...document.querySelectorAll('.pane-list .bar-item[data-item="back"]')].some(b=>b.getClientRects().length&&getComputedStyle(b).visibility!=='hidden'));await sleep(200)
   let e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the list has Back');at.list=e[0]
-  const listCompose=await A.evaluate(()=>{const b=document.querySelector('.pane-list [data-item="compose"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
+  // The bar's end: the search field, now that New chat is in Friends.
+  const listCompose=await A.evaluate(()=>{const b=document.querySelector('.pane-list .list-bottombar .search-pill').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
   // Conversation.
   await open(A);e=await exits(A);assert.deepEqual(e.map(x=>x.what),['back'],label+': the conversation has Back');at.thread=e[0]
   // The field's button now sits inside the field's end (css/chat.css): the field (or the microphone after it) ends where New Chat does.
@@ -65,11 +66,11 @@ for(const [label,opts] of [['an ordinary phone',phone],['the Duo full screen',du
   await A.locator('.draw-close').tap();await sleep(700)
   for(const k of['thread','details','draw']){assert.ok(Math.abs(at[k].x-at.list.x)<=0.5&&Math.abs(at[k].y-at.list.y)<=0.5&&Math.abs(at[k].w-at.list.w)<=0.5,`${label}: ${k} is where the list's Back is `+JSON.stringify({list:at.list,[k]:at[k]}))}
   if(opts===phone){
-    // The right-hand ends of the bars line up: New Chat in the list, the field (with its button inside) in the conversation.
-    assert.ok(Math.abs(listCompose.right-action.right)<=0.5,'New Chat and the field share an edge '+JSON.stringify({listCompose,action}))
+    // The right-hand ends of the bars line up: the search field in the list, the field (with its button inside) in the conversation.
+    assert.ok(Math.abs(listCompose.right-action.right)<=0.5,'the search field and the message field share an edge '+JSON.stringify({listCompose,action}))
     await A.locator('.thread:not([hidden]) [data-item="back"]').tap();await sleep(800)
     await A.locator('.pane-list [data-item="back"]').tap();await sleep(800)
-    const side=await A.evaluate(()=>{const b=document.querySelector('.pane-sidebar [data-item="compose"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
+    const side=await A.evaluate(()=>{const b=document.querySelector('.pane-sidebar [data-item="search"]').getBoundingClientRect();return{right:b.right,bottom:b.bottom}})
     assert.ok(Math.abs(side.right-listCompose.right)<=0.5&&Math.abs(side.bottom-listCompose.bottom)<=0.5,'and so does the sidebar\'s '+JSON.stringify({side,listCompose}))
   }
   await A.context().close()

@@ -45,7 +45,7 @@ const uniq = Math.random().toString(36).slice(2, 7)
   await A.click('.side-scope[data-scope="all"]'); await A.waitForSelector('.shell[data-focus=list]:not([data-anim])')
 
   // open a DM
-  await A.click('.pane-list [data-item="compose"]'); await A.waitForSelector('.sheet'); await sleep(400)
+  await A.click('.pane-list .list-requests'); await A.waitForSelector('.sheet'); await sleep(400)
   await A.fill('.sheet-search input', ben); await sleep(600); await shot(A, '02-newchat')
   await A.click(`.sheet .cell:has-text("@${ben}")`); await A.waitForSelector('.thread:not([hidden])'); await sleep(400)
   await B.click('.row'); await B.waitForSelector('.thread:not([hidden])'); await sleep(300)
