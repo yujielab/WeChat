@@ -44,7 +44,7 @@ export function createSidebar(pane, { onScope, onSettings, onSearch, onCompose }
   const memories = h('button', { class: 'side-link side-memories', type: 'button' },
     h('span', { class: 'side-scope-icon' }, icon('photo-stack')), h('span', { class: 'side-scope-label' }, 'Memories'))
   memories.addEventListener('click', async () => (await import('./memories.js')).openMemories({ origin: memories }))
-  const title = h('h1', { class: 'large-title side-title' }, 'Cuven')
+  const title = h('h1', { class: 'large-title side-title' }, 'Home')
   const scroll = h('div', { class: 'scroll side-scroll' },
     h('header', { class: 'side-head' }, title),
     me,

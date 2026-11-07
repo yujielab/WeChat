@@ -5,11 +5,11 @@
 /* ---------------------------------------------------------------- sidebar */
 .pane-sidebar { --side-inset: 22px; --content-right: calc(var(--safe-right) + var(--side-inset)); background: var(--paper); }
 /* Content clears the bar at the foot (56pt and its margin). */
-.side-scroll { padding: calc(var(--safe-top) + 26px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 80px) calc(var(--safe-left) + var(--side-inset)); }
+.side-scroll { padding: calc(var(--safe-top) + 30px) var(--content-right) calc(max(var(--safe-bottom), 16px) + 80px) calc(var(--safe-left) + var(--side-inset)); }
 .pane-sidebar .side-bottombar { left: calc(var(--margin) + var(--safe-left)); right: calc(var(--margin) + var(--safe-right)); }
 .side-head { margin-bottom: 18px; }
-/* The app's name, set as on the sign-in screen: tracked DIN caps. */
-.side-title { font-family: var(--font-display); font-size: 1.412rem; line-height: 1.2; letter-spacing: var(--track-wordmark); text-transform: uppercase; }
+/* The sidebar's heading, Home, is the list's large title as it is (list.css
+   .large-title), at the same height as Messages so switching doesn't move it. */
 
 .side-me {
   width: 100%;
