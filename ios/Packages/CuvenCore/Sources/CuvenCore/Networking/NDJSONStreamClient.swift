@@ -149,17 +149,25 @@ public struct NDJSONStreamClient: Sendable {
                     )
 
                     #if canImport(FoundationNetworking)
-                    let (data, response) = try await apiClient.performRawRequest(request)
-                    if response.statusCode >= 400 {
-                        throw CuvenAPIError(message: "Explain failed (\(response.statusCode))", statusCode: response.statusCode)
-                    }
-                    var parser = NDJSONLineParser()
-                    let text = String(decoding: data, as: UTF8.self)
-                    for event in parser.append(text) + parser.flush() {
-                        continuation.yield(event)
-                    }
-                    continuation.finish()
+                    let streamLive = false
                     #else
+                    let streamLive = await apiClient.streamsThroughURLSession
+                    #endif
+                    // An injected transport (tests, a proxy) answers whole: parse it in one go.
+                    if !streamLive {
+                        let (data, response) = try await apiClient.performRawRequest(request)
+                        if response.statusCode >= 400 {
+                            throw CuvenAPIError(message: "Explain failed (\(response.statusCode))", statusCode: response.statusCode)
+                        }
+                        var parser = NDJSONLineParser()
+                        let text = String(decoding: data, as: UTF8.self)
+                        for event in parser.append(text) + parser.flush() {
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                        return
+                    }
+                    #if !canImport(FoundationNetworking)
                     let (bytes, urlResponse) = try await URLSession.shared.bytes(for: request)
                     if let http = urlResponse as? HTTPURLResponse, http.statusCode >= 400 {
                         throw CuvenAPIError(message: "Explain failed (\(http.statusCode))", statusCode: http.statusCode)

@@ -134,21 +134,23 @@ final class PersistenceAndOutboxTests: XCTestCase {
             body: ["room": .string("r1"), "type": .string("image"), "body": .string("Sunrise")],
             media: OutboxMediaDescriptor(kind: "image", contentType: "image/png", fileName: "sun.png")
         )
-        // Enqueue second text message behind it in FIFO order
-        await outbox.enqueue(
-            cid: "cid_text_2",
-            roomID: "r1",
-            body: ["room": .string("r1"), "type": .string("text"), "body": .string("Follow-up")]
-        )
 
+        // The 502 is waited out: the photo stays at the head with a 2 s back-off.
         let waitingAfterFirst = await recorder.waitingCIDs
         let backoffMs = await outbox.lastScheduledBackoffMs
         XCTAssertEqual(waitingAfterFirst, ["cid_photo_1"])
         XCTAssertEqual(backoffMs, 2_000)
         let pendingMid = await outbox.pendingCount
-        XCTAssertEqual(pendingMid, 2)
+        XCTAssertEqual(pendingMid, 1)
 
-        // Resume when WS reconnects -> pumps both in FIFO order WITHOUT re-uploading cid_photo_1!
+        // A new message tries the line again at once (as public/js/outbox.js's add → pump):
+        // the photo goes first WITHOUT being uploaded again, then the text behind it.
+        await outbox.enqueue(
+            cid: "cid_text_2",
+            roomID: "r1",
+            body: ["room": .string("r1"), "type": .string("text"), "body": .string("Follow-up")]
+        )
+        // Reconnecting with nothing left changes nothing.
         await outbox.resume()
 
         let uploads = await recorder.uploadCalls

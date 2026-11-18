@@ -168,6 +168,12 @@ public actor CuvenAPIClient {
         )
     }
 
+    /// Whether requests go straight to URLSession (true unless a transport was injected,
+    /// as tests do): only then can a response be streamed line by line from URLSession.
+    public var streamsThroughURLSession: Bool {
+        transport is URLSessionHTTPTransport
+    }
+
     public func performRawRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await transport.execute(request)
         if let cookieUpdate = CuvenRequestBuilder.extractSessionCookie(from: response) {

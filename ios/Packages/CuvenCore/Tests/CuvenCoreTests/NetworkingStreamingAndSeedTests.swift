@@ -73,7 +73,7 @@ final class NetworkingStreamingAndSeedTests: XCTestCase {
             sessionToken: "tok_abc123",
             timeZone: TimeZone(secondsFromGMT: 8 * 3600)!
         )
-        XCTAssertEqual(wsReq.url?.absoluteString, "wss://wechat.cuven.us/api/ws")
+        XCTAssertEqual(wsReq.url?.absoluteString, "wss://wechat.cuven.us/api/ws?tz=-480")
         XCTAssertEqual(wsReq.value(forHTTPHeaderField: "Origin"), "https://wechat.cuven.us")
         XCTAssertEqual(wsReq.value(forHTTPHeaderField: "Cookie"), "cfm_session=tok_abc123")
 
@@ -87,7 +87,7 @@ final class NetworkingStreamingAndSeedTests: XCTestCase {
         let transport = MockHTTPTransport { request in
             let path = request.url?.path ?? ""
             if path == "/auth/login" {
-                let json = #"{"user":{"id":"u_tokio","username":"tokio","display":"Tokio","bio":"Design"}}"#
+                let json = #"{"ok":true,"me":{"id":"u_tokio","username":"tokio","display":"Tokio","bio":"Design"}}"#
                 let resp = HTTPURLResponse(
                     url: request.url!,
                     statusCode: 200,

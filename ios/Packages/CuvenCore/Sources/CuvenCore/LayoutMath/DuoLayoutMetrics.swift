@@ -425,10 +425,20 @@ public enum CuvenSpringSolver {
         response: Double = 0.35
     ) -> Double {
         guard response > 0, t >= 0 else { return initialVelocity }
-        let dt = 1.0 / 2400.0
-        let p0 = state(at: t, from: from, to: to, velocity: initialVelocity, damping: damping, response: response)
-        let p1 = state(at: t + dt, from: from, to: to, velocity: initialVelocity, damping: damping, response: response)
-        return (p1 - p0) / dt
+        // The exact derivative of `state(at:)` (a finite difference drifts by a few
+        // points per second where the spring accelerates hardest, at the start).
+        let w0 = (2.0 * Double.pi) / response
+        let x0 = from - to
+        let v0 = initialVelocity
+        if damping < 1.0 {
+            let wd = w0 * sqrt(max(1e-9, 1.0 - damping * damping))
+            let env = exp(-damping * w0 * t)
+            let b = (v0 + damping * w0 * x0) / wd
+            let c = cos(wd * t), s = sin(wd * t)
+            return env * (-damping * w0 * (x0 * c + b * s) + wd * (b * c - x0 * s))
+        }
+        let k = v0 + w0 * x0
+        return exp(-w0 * t) * (k - w0 * (x0 + k * t))
     }
 
     /// Apple's Designing Fluid Interfaces momentum projection (`public/js/ui/spring.js:93-95`).
