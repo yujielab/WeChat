@@ -170,28 +170,33 @@ final class DuoLayoutMetricsTests: XCTestCase {
     }
 
     func testDuoColumnMathStripWindowAndOffsets() {
-        let duoOpen = DuoLayoutMetrics.compute(
-            size: CGSize(width: 951, height: 669),
-            safeTop: 16,
-            safeBottom: 20,
-            safeLeft: 0,
-            safeRight: 84,
-            activePairStartsAtThread: false,
-            postureOverride: nil
-        )
-        XCTAssertEqual(DuoColumnMath.windowStart(focusedColumn: 0, visibleColumnCount: 2), 0)
-        XCTAssertEqual(DuoColumnMath.windowStart(focusedColumn: 1, visibleColumnCount: 2), 1)
-        XCTAssertEqual(DuoColumnMath.windowStart(focusedColumn: 2, visibleColumnCount: 2), 1)
-        XCTAssertEqual(DuoColumnMath.windowStart(focusedColumn: 3, visibleColumnCount: 2), 2)
+        // The open Duo (951pt, the system's 84pt column at the right edge): the narrow
+        // column is 342pt, and beside the details the conversation keeps 525pt.
+        XCTAssertEqual(DuoColumnMath.narrowWidth(for: 951), 342)
+        let geo: (Int) -> DuoWindowGeometry = { start in
+            DuoColumnMath.openGeometry(isHalfBook: false, width: 951, startColumn: start, rightSystemColumnWidth: 84)
+        }
+        XCTAssertEqual(geo(1), DuoWindowGeometry(lead: 342, gap: 0))
+        XCTAssertEqual(geo(2), DuoWindowGeometry(lead: 525, gap: 0))
 
-        let widthsAt1 = DuoColumnMath.columnWidths(metrics: duoOpen, windowStart: 1)
-        XCTAssertEqual(widthsAt1, [342, 342, 609, 426])
-        XCTAssertEqual(DuoColumnMath.stripOffsetX(columnWidths: widthsAt1, windowStart: 1), -342)
+        // List + conversation on screen; the sidebar one column off to the left.
+        let at1 = DuoColumnMath.boxes(at: 1, viewportWidth: 951, visibleCount: 2, geometryProvider: geo)
+        XCTAssertEqual(at1.map(\.width), [342, 342, 609, 426])
+        XCTAssertEqual(at1.map(\.x), [-342, 0, 342, 951])
 
-        let widthsAt2 = DuoColumnMath.columnWidths(metrics: duoOpen, windowStart: 2)
-        XCTAssertEqual(widthsAt2, [342, 342, 525, 426])
-        XCTAssertEqual(DuoColumnMath.stripOffsetX(columnWidths: widthsAt2, windowStart: 2), -684)
-        XCTAssertEqual(DuoColumnMath.railRightOffset(for: duoOpen), 23)
+        // Conversation + details on screen; the strip has slid by two narrow columns.
+        let at2 = DuoColumnMath.boxes(at: 2, viewportWidth: 951, visibleCount: 2, geometryProvider: geo)
+        XCTAssertEqual(at2.map(\.width), [342, 342, 525, 426])
+        XCTAssertEqual(at2.map(\.x), [-684, -342, 0, 525])
+
+        // Halfway through the slide, every box is halfway between the two.
+        let mid = DuoColumnMath.boxesAtPosition(1.5, viewportWidth: 951, visibleCount: 2, geometryProvider: geo)
+        XCTAssertEqual(mid[0].x, -513)
+        XCTAssertEqual(mid[2].width, 567)
+
+        // One column at a time: whole screens side by side.
+        let single = DuoColumnMath.boxes(at: 1, viewportWidth: 466, visibleCount: 1, geometryProvider: geo)
+        XCTAssertEqual(single.map(\.x), [-466, 0, 466, 932])
     }
 
     func testSpringSolverAndVelocityProjectorPhysics() {

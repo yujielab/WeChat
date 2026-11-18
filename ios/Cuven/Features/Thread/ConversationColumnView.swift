@@ -728,11 +728,10 @@ public struct ConversationColumnView: View {
                 // Real-time Honk Live Typing Ghost Bubble (`HonkLiveTypingBubble`)
                 if let typing = liveTypingPreview {
                     HonkLiveTypingBubble(
-                        senderDisplay: room?.title ?? "Peer",
-                        senderAvatarURL: dmPeerUser?.avatarURL ?? room?.avatarURL,
-                        showAvatar: room?.kind == .group,
-                        livePreviewText: typing,
-                        maxBubbleWidth: maxBubbleWidth
+                        previewText: typing,
+                        peerName: room?.title ?? "Peer",
+                        peerAvatarURL: dmPeerUser?.avatarURL ?? room?.avatarURL,
+                        showGroupChrome: room?.kind == .group
                     )
                     .padding(.horizontal, 4)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
