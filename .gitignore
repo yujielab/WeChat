@@ -4,3 +4,21 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Teamwork metadata — NEVER commit
+.agents/
+
+# Native iOS / Xcode / SwiftPM build artifacts
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/.build/
+ios/Packages/*/.build/
+DerivedData/
+xcuserdata/
+*.ipa
+*.xcarchive
+*.dSYM.zip
+*.dSYM
+artifacts/
+__pycache__/
+*.py[cod]

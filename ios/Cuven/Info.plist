@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Cuven</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Cuven uses the camera for 1:1 and group video calls, Moments photos and videos, and profile portraits.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cuven uses the microphone for voice and video calls, voice messages, and Whisper voice-to-text dictation.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Cuven saves shared photos, videos, and drawings to your photo library when requested.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Cuven accesses your photo library so you can share photos and videos in chats, Moments, and your profile.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Clarinetta-Light.ttf</string>
+		<string>Clarinetta-LightItalic.ttf</string>
+		<string>Clarinetta-Regular.ttf</string>
+		<string>Clarinetta-Medium.ttf</string>
+		<string>Clarinetta-MediumItalic.ttf</string>
+		<string>Clarinetta-Bold.ttf</string>
+		<string>Clarinetta-BoldItalic.ttf</string>
+		<string>Clarinetta-ExtraBold.ttf</string>
+		<string>Clarinetta-ExtraBoldItalic.ttf</string>
+		<string>Clarinetta-Black.ttf</string>
+		<string>Clarinetta-BlackItalic.ttf</string>
+		<string>Clarinetta-UltraItalic.ttf</string>
+		<string>ClarinettaUnicase-Bold.ttf</string>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict/>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>voip</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiresFullScreen</key>
+	<false/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

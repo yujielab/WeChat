@@ -1,0 +1,315 @@
+name: Cuven iOS 27.2 Native IPA & Duo Simulator CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_simulator_tests:
+        description: "Run XCTest + XCUITest on iPhone Duo (27.2) & standard iPhone (27.2)"
+        required: false
+        type: boolean
+        default: true
+      only_testing:
+        description: "Optional xcodebuild -only-testing filter (empty runs full CuvenTests + CuvenUITests)"
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: ios-ipa-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-ipa:
+    name: Build & Verify ARM64 Cuven.ipa (Xcode 27.2 / iphoneos27.2 SDK)
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Enforce zero .agents / metadata leak
+        run: |
+          if [ -d ".agents" ]; then
+            echo "::error::.agents directory must NEVER be committed to git!"
+            exit 1
+          fi
+          if git ls-files | grep -E '(^|/)(\.agents/|AGENTS\.md$|GEMINI\.md$)'; then
+            echo "::error::Forbidden agent metadata file tracked in git!"
+            exit 1
+          fi
+
+      - name: Probe & Pin Xcode 27.2 (/Applications/Xcode_27.2.app) & Verify iOS 27.2 SDK
+        id: xcode
+        run: |
+          XCODE_27_2=""
+          if [ -d "/Applications/Xcode_27.2.app" ]; then
+            XCODE_27_2="/Applications/Xcode_27.2.app"
+          else
+            XCODE_27_2="$(ls -d /Applications/Xcode_27.2*.app 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$XCODE_27_2" ] || [ ! -d "$XCODE_27_2" ]; then
+            echo "::error::/Applications/Xcode_27.2*.app is missing on runner!"
+            ls -la /Applications/Xcode*
+            exit 1
+          fi
+          echo "xcode_app=$XCODE_27_2" >> "$GITHUB_OUTPUT"
+          sudo xcode-select -s "$XCODE_27_2"
+          xcodebuild -version
+          xcodebuild -showsdks
+          DEFAULT_SDK_VER="$(xcrun --sdk iphoneos --show-sdk-version)"
+          SIM_DEFAULT_VER="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          PINNED_SDK_VER="$(xcrun --sdk iphoneos27.2 --show-sdk-version)"
+          echo "Active SDK versions — iphoneos: $DEFAULT_SDK_VER, iphonesimulator: $SIM_DEFAULT_VER, iphoneos27.2: $PINNED_SDK_VER"
+          test "$DEFAULT_SDK_VER" = "27.2"
+          test "$SIM_DEFAULT_VER" = "27.2"
+          test "$PINNED_SDK_VER" = "27.2"
+
+      - name: Install XcodeGen 2.47.0 & Generate Cuven.xcodeproj
+        working-directory: ios
+        run: |
+          curl -fsSL --retry 3 "https://github.com/yonaskolb/XcodeGen/releases/download/2.47.0/xcodegen.zip" -o "$RUNNER_TEMP/xcodegen.zip"
+          unzip -qo "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen"
+          "$RUNNER_TEMP/xcodegen/xcodegen/bin/xcodegen" generate
+
+      - name: Build, Sign & Verify Cuven.ipa + WeChat.ipa (-sdk iphoneos27.2)
+        env:
+          XCODE_APP: ${{ steps.xcode.outputs.xcode_app }}
+          TARGET_SDK: iphoneos27.2
+          DEPLOYMENT_TARGET: "26.0"
+          XCODEGEN_BIN: ${{ runner.temp }}/xcodegen/xcodegen/bin/xcodegen
+        run: |
+          bash ios/scripts/build-ipa.sh "$RUNNER_TEMP/out"
+
+      - name: Independent CI Gate Check (otool -l, vtool sdk 27.2, ARM64 & Zero WebKit)
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/out/Cuven.ipa"
+          test -s "$RUNNER_TEMP/out/WeChat.ipa"
+          mkdir -p "$RUNNER_TEMP/gate-check"
+          unzip -q "$RUNNER_TEMP/out/Cuven.ipa" -d "$RUNNER_TEMP/gate-check"
+          BIN="$RUNNER_TEMP/gate-check/Payload/Cuven.app/Cuven"
+
+          vtool -show-build "$BIN"
+          vtool -show-build "$BIN" | grep -E "platform IOS$"
+          vtool -show-build "$BIN" | grep -E "sdk 27\.2$"
+          otool -l "$BIN" | grep -A 5 "LC_BUILD_VERSION" | grep -E "^[[:space:]]*sdk 27\.2$"
+          lipo -archs "$BIN" | grep -qx "arm64"
+          otool -L "$BIN" | grep -q "SwiftUI.framework/SwiftUI"
+          otool -L "$BIN" | grep -q "UIKit.framework/UIKit"
+          if otool -L "$BIN" | grep -qi "WebKit"; then
+            echo "::error::Forbidden WebKit linkage detected in $BIN!"
+            otool -L "$BIN"
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/gate-check/Payload/Cuven.app/Assets.car"
+          test ! -e "$RUNNER_TEMP/gate-check/Payload/Cuven.app/Clarinetta-RegularItalic.ttf"
+          rm -rf "$RUNNER_TEMP/gate-check"
+
+      - name: Upload Cuven-ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cuven-ipa
+          path: ${{ runner.temp }}/out/
+          if-no-files-found: error
+
+  simulator-tests:
+    name: Dual Simulator XCTest & XCUITest (iPhone Duo 27.2 + iPhone 27.2)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_simulator_tests }}
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Probe & Pin Xcode 27.2 (/Applications/Xcode_27.2.app) & Verify iphonesimulator27.2 SDK
+        run: |
+          XCODE_27_2=""
+          if [ -d "/Applications/Xcode_27.2.app" ]; then
+            XCODE_27_2="/Applications/Xcode_27.2.app"
+          else
+            XCODE_27_2="$(ls -d /Applications/Xcode_27.2*.app 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$XCODE_27_2" ] || [ ! -d "$XCODE_27_2" ]; then
+            echo "::error::/Applications/Xcode_27.2*.app is missing on runner!"
+            ls -la /Applications/Xcode*
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE_27_2"
+          xcodebuild -version
+          DEV_SDK_VER="$(xcrun --sdk iphoneos --show-sdk-version)"
+          SIM_DEFAULT_VER="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          SIM_SDK_VER="$(xcrun --sdk iphonesimulator27.2 --show-sdk-version)"
+          echo "Active SDK versions — iphoneos: $DEV_SDK_VER, iphonesimulator: $SIM_DEFAULT_VER, iphonesimulator27.2: $SIM_SDK_VER"
+          test "$DEV_SDK_VER" = "27.2"
+          test "$SIM_DEFAULT_VER" = "27.2"
+          test "$SIM_SDK_VER" = "27.2"
+
+      - name: Run CuvenCore Pure Swift Package Tests
+        run: |
+          swift test --package-path ios/Packages/CuvenCore
+
+      - name: Install XcodeGen 2.47.0 & Generate Cuven.xcodeproj
+        working-directory: ios
+        run: |
+          curl -fsSL --retry 3 "https://github.com/yonaskolb/XcodeGen/releases/download/2.47.0/xcodegen.zip" -o "$RUNNER_TEMP/xcodegen.zip"
+          unzip -qo "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen"
+          "$RUNNER_TEMP/xcodegen/xcodegen/bin/xcodegen" generate
+
+      - name: Build for Testing (-sdk iphonesimulator27.2, minos 26.0)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sim-evidence"
+          BUILD_SIM_LOG="$RUNNER_TEMP/sim-evidence/xcodebuild-sim-build.log"
+          set +e
+          xcodebuild build-for-testing \
+            -project ios/Cuven.xcodeproj \
+            -scheme Cuven \
+            -sdk iphonesimulator27.2 \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/dd-sim" \
+            IPHONEOS_DEPLOYMENT_TARGET=26.0 \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" 2>&1 | tee "$BUILD_SIM_LOG" | xcbeautify
+          RC=${PIPESTATUS[0]}
+          set -e
+          if [ "$RC" -ne 0 ]; then
+            echo "::error::build-for-testing failed with exit code $RC"
+            grep -E "(error:|fatal error:)" -C 3 "$BUILD_SIM_LOG" || tail -n 120 "$BUILD_SIM_LOG"
+            exit "$RC"
+          fi
+
+      - name: Boot iPhone Duo (27.2) & Standard iPhone (27.2), Run CuvenTests + CuvenUITests & Capture Screenshots
+        env:
+          ONLY_TESTING_FILTER: ${{ inputs.only_testing || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sim-evidence"
+          XCTESTRUN="$(ls "$RUNNER_TEMP"/dd-sim/Build/Products/*.xctestrun | head -n 1)"
+          SIM_APP="$RUNNER_TEMP/dd-sim/Build/Products/Debug-iphonesimulator/Cuven.app"
+
+          # Verify simulator executable carries LC_BUILD_VERSION sdk 27.2 and zero WebKit linkage
+          vtool -show-build "$SIM_APP/Cuven" | tee "$RUNNER_TEMP/sim-evidence/sim-vtool-build.txt"
+          vtool -show-build "$SIM_APP/Cuven" | grep -E "sdk 27\.2$"
+          if otool -L "$SIM_APP/Cuven" | grep -qi "WebKit"; then
+            echo "::error::Forbidden WebKit linkage detected in Simulator binary!"
+            otool -L "$SIM_APP/Cuven"
+            exit 1
+          fi
+
+          # Select available iOS Simulator runtime <= (27, 2), preferring 27.2 under Xcode 27.2
+          pick_simulator() {
+            python3 - "$1" "$2" <<'PY'
+          import json, subprocess, sys
+          prefixes = [p.strip() for p in sys.argv[1].split("|") if p.strip()]
+          preferred_minor = int(sys.argv[2]) if sys.argv[2] else -1
+          data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "--json"], text=True))
+          for pref in prefixes:
+              candidates = []
+              for rt in data.get("runtimes", []):
+                  if rt.get("platform") != "iOS" or not rt.get("isAvailable"):
+                      continue
+                  ver_parts = [int(x) for x in rt.get("version", "0.0").split(".")[:2]]
+                  while len(ver_parts) < 2:
+                      ver_parts.append(0)
+                  ver_tuple = (ver_parts[0], ver_parts[1])
+                  if ver_tuple > (27, 2):
+                      continue
+                  devs = [
+                      d for d in rt.get("supportedDeviceTypes", [])
+                      if d.get("identifier") == pref or d.get("name") == pref or d.get("name", "").startswith(pref)
+                  ]
+                  if devs:
+                      exact = [d for d in devs if d.get("identifier") == pref or d.get("name") == pref]
+                      chosen = (exact or devs)[0]
+                      exact_rt_bonus = 1 if (preferred_minor >= 0 and ver_tuple == (27, preferred_minor)) else 0
+                      candidates.append((exact_rt_bonus, ver_tuple, rt["identifier"], chosen["identifier"], chosen["name"]))
+              if candidates:
+                  candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+                  _, vt, rt_id, dt_id, dev_name = candidates[0]
+                  sim_name = f"ci-cuven-{dev_name.replace(' ', '-')}-{vt[0]}-{vt[1]}"
+                  udid = subprocess.check_output(["xcrun", "simctl", "create", sim_name, dt_id, rt_id], text=True).strip()
+                  print(f"{udid}|{dev_name}|{rt_id}|{dt_id}")
+                  sys.exit(0)
+          sys.exit(1)
+          PY
+          }
+
+          EXTRA_TEST_ARGS=()
+          if [ -n "$ONLY_TESTING_FILTER" ]; then
+            IFS=',' read -ra FILTERS <<< "$ONLY_TESTING_FILTER"
+            for f in "${FILTERS[@]}"; do
+              EXTRA_TEST_ARGS+=("-only-testing:$f")
+            done
+          fi
+
+          # ------------------------------------------------------------------
+          # 1) iPhone Duo Simulator (com.apple.CoreSimulator.SimDeviceType.iPhone-Duo on SimRuntime.iOS-27-2)
+          # ------------------------------------------------------------------
+          IFS='|' read -r DUO_UDID DUO_NAME DUO_RUNTIME DUO_DEVTYPE <<< "$(pick_simulator 'com.apple.CoreSimulator.SimDeviceType.iPhone-Duo|iPhone Duo' '2')"
+          echo "Selected iPhone Duo simulator: $DUO_NAME ($DUO_DEVTYPE / $DUO_UDID) on $DUO_RUNTIME"
+          xcrun simctl boot "$DUO_UDID"
+          xcrun simctl bootstatus "$DUO_UDID" -b
+
+          set +e
+          xcodebuild test-without-building \
+            -xctestrun "$XCTESTRUN" \
+            -destination "platform=iOS Simulator,id=$DUO_UDID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath "$RUNNER_TEMP/sim-evidence/iPhoneDuo.xcresult" \
+            "${EXTRA_TEST_ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/sim-evidence/test-iphoneduo.log"
+          DUO_TEST_RC=${PIPESTATUS[0]}
+          set -e
+
+          # Launch Cuven in deterministic Demo mode to capture live rendered multi-display Duo screenshots
+          xcrun simctl install "$DUO_UDID" "$SIM_APP" || true
+          xcrun simctl launch "$DUO_UDID" us.cuven.wechat --uitest-demo --uitest-posture=duoOpen || true
+          sleep 3
+          xcrun simctl io "$DUO_UDID" screenshot "$RUNNER_TEMP/sim-evidence/iphoneduo-default.png" || true
+          for disp in 1 2 3; do
+            xcrun simctl io "$DUO_UDID" screenshot --display="$disp" "$RUNNER_TEMP/sim-evidence/iphoneduo-display${disp}.png" 2>/dev/null || true
+          done
+          xcrun simctl shutdown "$DUO_UDID" || true
+
+          # ------------------------------------------------------------------
+          # 2) Standard iPhone Simulator (iPhone 18 Pro / 17 on SimRuntime.iOS-27-2)
+          # ------------------------------------------------------------------
+          IFS='|' read -r IPHONE_UDID IPHONE_NAME IPHONE_RUNTIME IPHONE_DEVTYPE <<< "$(pick_simulator 'iPhone 18 Pro|iPhone 18 Pro Max|iPhone 17 Pro|iPhone 17|iPhone Air' '2')"
+          echo "Selected standard iPhone simulator: $IPHONE_NAME ($IPHONE_DEVTYPE / $IPHONE_UDID) on $IPHONE_RUNTIME"
+          xcrun simctl boot "$IPHONE_UDID"
+          xcrun simctl bootstatus "$IPHONE_UDID" -b
+
+          set +e
+          xcodebuild test-without-building \
+            -xctestrun "$XCTESTRUN" \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath "$RUNNER_TEMP/sim-evidence/iPhoneStandard.xcresult" \
+            "${EXTRA_TEST_ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/sim-evidence/test-iphone-standard.log"
+          IPHONE_TEST_RC=${PIPESTATUS[0]}
+          set -e
+
+          xcrun simctl install "$IPHONE_UDID" "$SIM_APP" || true
+          xcrun simctl launch "$IPHONE_UDID" us.cuven.wechat --uitest-demo || true
+          sleep 3
+          xcrun simctl io "$IPHONE_UDID" screenshot "$RUNNER_TEMP/sim-evidence/iphone-home.png" || true
+          xcrun simctl io "$IPHONE_UDID" screenshot "$RUNNER_TEMP/sim-evidence/iphone-standard-demo.png" || true
+          xcrun simctl shutdown "$IPHONE_UDID" || true
+
+          ls -lh "$RUNNER_TEMP/sim-evidence/"
+          if [ "$DUO_TEST_RC" -ne 0 ] || [ "$IPHONE_TEST_RC" -ne 0 ]; then
+            echo "::error::Simulator test suite failed (iPhoneDuo exit=$DUO_TEST_RC, iPhoneStandard exit=$IPHONE_TEST_RC)"
+            exit 1
+          fi
+
+      - name: Upload Cuven-sim-evidence Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cuven-sim-evidence
+          path: ${{ runner.temp }}/sim-evidence/
+          if-no-files-found: warn

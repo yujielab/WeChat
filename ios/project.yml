@@ -1,0 +1,98 @@
+name: Cuven
+options:
+  bundleIdPrefix: us.cuven
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "27.2"
+  projectFormat: xcode27_0
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  CuvenCore:
+    path: Packages/CuvenCore
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    SDKROOT: iphoneos
+    TARGETED_DEVICE_FAMILY: "1,2"
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Cuven:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Cuven
+        excludes:
+          - Resources
+          - "Resources/**"
+          - Info.plist
+          - "**/*.md"
+      - path: Cuven/Resources/Assets.xcassets
+        buildPhase: resources
+      - path: Cuven/Resources/Fonts
+        type: group
+        buildPhase: resources
+    dependencies:
+      - package: CuvenCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: us.cuven.wechat
+        PRODUCT_NAME: Cuven
+        INFOPLIST_FILE: Cuven/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+      configs:
+        Debug:
+          ENABLE_PREVIEWS: YES
+          ENABLE_TESTABILITY: YES
+        Release:
+          ENABLE_PREVIEWS: NO
+          SWIFT_COMPILATION_MODE: wholemodule
+    scheme:
+      testTargets:
+        - CuvenTests
+        - CuvenUITests
+      gatherCoverageData: false
+
+  CuvenTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CuvenTests
+        optional: true
+        excludes:
+          - "**/*.md"
+    dependencies:
+      - target: Cuven
+      - package: CuvenCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: us.cuven.wechat.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  CuvenUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CuvenUITests
+        optional: true
+        excludes:
+          - "**/*.md"
+    dependencies:
+      - target: Cuven
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: us.cuven.wechat.uitests
+        GENERATE_INFOPLIST_FILE: YES
