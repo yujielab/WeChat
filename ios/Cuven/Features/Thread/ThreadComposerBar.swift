@@ -329,8 +329,10 @@ struct ThreadComposerBar: View {
                 maxSelectionCount: 9,
                 matching: .images
             ) {
-                attachmentPillLabel(symbol: "photo.on.rectangle.angled", title: "Photos")
+                // Built here, not by the view's own helper: the picker calls this off the main actor.
+                Label("Photos", systemImage: "photo.on.rectangle.angled")
             }
+            .labelStyle(AttachmentPillLabelStyle())
             .buttonStyle(.plain)
 
             Button {
@@ -976,5 +978,25 @@ struct ThreadComposerBar: View {
             return (jpeg, "image/jpeg", Int(targetSize.width), Int(targetSize.height))
         }
         return (rawData, "image/jpeg", Int(pixelW), Int(pixelH))
+    }
+}
+
+// MARK: - Attachment pill (the Photos picker's label)
+
+/// The same pill as `attachmentPillLabel(symbol:title:)`, as a label style, so the
+/// Photos picker's label can be a plain `Label` made outside the main actor.
+private struct AttachmentPillLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon
+                .font(.system(size: 14.5, weight: .semibold))
+                .foregroundStyle(CuvenColors.sidebarBlue)
+            configuration.title
+                .font(CuvenFonts.cappedSubheadline(weight: .semibold))
+                .foregroundStyle(CuvenColors.inkPrimary)
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+        .background(CuvenColors.fieldBackground.opacity(0.85), in: Capsule())
     }
 }
