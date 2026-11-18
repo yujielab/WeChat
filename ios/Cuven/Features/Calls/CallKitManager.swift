@@ -48,7 +48,6 @@ public final class CallKitManager: NSObject {
         super.init()
         #if canImport(CallKit) && !targetEnvironment(simulator)
         let config = CXProviderConfiguration()
-        config.localizedName = "Cuven"
         config.supportsVideo = true
         config.maximumCallsPerCallGroup = 1
         config.maximumCallGroups = 1

@@ -309,7 +309,7 @@ public struct RoomDetailsInfoView: View {
                 HStack(spacing: 10) {
                     Button {
                         CuvenHaptics.softImpact()
-                        Task { await store.startCall(roomID: roomID, mode: .audio) }
+                        store.startCall(in: roomID, kind: .audio)
                     } label: {
                         Label("Audio", systemImage: "phone.fill")
                             .font(CuvenFonts.cappedSubheadline(weight: .semibold))
@@ -323,7 +323,7 @@ public struct RoomDetailsInfoView: View {
 
                     Button {
                         CuvenHaptics.softImpact()
-                        Task { await store.startCall(roomID: roomID, mode: .video) }
+                        store.startCall(in: roomID, kind: .video)
                     } label: {
                         Label("Video", systemImage: "video.fill")
                             .font(CuvenFonts.cappedSubheadline(weight: .semibold))

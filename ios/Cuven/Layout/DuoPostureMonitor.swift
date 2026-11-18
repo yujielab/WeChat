@@ -216,7 +216,7 @@ public struct DuoPostureMonitor<Content: View>: View {
             )
             .environment(\.cuvenLayoutMetrics, viewportPlan.metrics)
             .environment(\.cuvenHingeAngleDegrees, hingeAngleDegrees)
-            .environment(\.cuvenHingePartiallyOpen, hingeIsPartiallyOpen)
+            .environment(\.cuvenHingeIsPartiallyOpen, hingeIsPartiallyOpen)
             .environment(\.cuvenKeyboardHeight, keyboardHeight)
             .onChange(of: hostSize.width) { oldWidth, newWidth in
                 // Per `viewport.js:58-64` & `design-qa.md:131`: any width change is a fold, unfold,

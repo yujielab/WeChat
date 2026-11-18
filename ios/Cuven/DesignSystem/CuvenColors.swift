@@ -63,6 +63,9 @@ public enum CuvenColors: Sendable {
     /// Destructive action & missed-call icon fill (`--red`): `#FF3B30` (Light) / `#FF453A` (Dark).
     public static let dangerRed = Color(uiColor: uiDangerRed)
 
+    /// The dot on the Moments button while friends have shared something new.
+    public static let freshMomentsDot = dangerRed
+
     /// Warning & pending state fill (`--orange`): `#FF9500` (Light) / `#FF9F0A` (Dark).
     public static let warningAmber = Color(uiColor: uiWarningAmber)
 

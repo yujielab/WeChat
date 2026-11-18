@@ -136,6 +136,11 @@ public enum CuvenFonts: Sendable {
         scaledSystemFont(baseSize: 15.0, weight: weight, textStyle: .subheadline)
     }
 
+    /// Short name for `cappedSubheadline` (the list's rows and filters use it).
+    public static func cappedSubhead(weight: Font.Weight = .regular) -> Font {
+        cappedSubheadline(weight: weight)
+    }
+
     /// Footnote (`13pt` base -> `16pt` ceiling, `--t-footnote: 0.765rem`).
     public static func cappedFootnote(weight: Font.Weight = .regular) -> Font {
         scaledSystemFont(baseSize: 13.0, weight: weight, textStyle: .footnote)

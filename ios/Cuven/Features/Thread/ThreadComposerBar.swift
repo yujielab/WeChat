@@ -635,7 +635,7 @@ struct ThreadComposerBar: View {
             Text(
                 recorder.isTranscribing
                     ? "Transcribing with Whisper…"
-                    : "Listening · \(ThreadTimeFormatter.formatDuration(recorder.elapsedSeconds))"
+                    : "Listening · \(ThreadTimeFormatter.durationString(seconds: recorder.recordingDuration))"
             )
             .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
             .foregroundStyle(CuvenColors.inkPrimary)

@@ -514,7 +514,7 @@ public struct StripContainerView: View {
 
 // MARK: - Animatable 4-Column Stage (`DuoColumnMath.boxesAtPosition` Frame-Synchronized Pipeline)
 
-private struct AnimatableStripStage: View, Animatable {
+private struct AnimatableStripStage: View, @MainActor Animatable {
     var position: CGFloat
     let store: AppStore
     let metrics: DuoLayoutMetrics

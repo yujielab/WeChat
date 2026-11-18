@@ -68,13 +68,10 @@ public struct CallOverlayContainerView: View {
                     FloatingCallPiPTile(
                         session: call,
                         metrics: metrics,
-                        backdropPreset: store.prefs.callBackdrop,
                         glassMode: store.prefs.glassMode,
                         currentUserName: store.currentUser?.display ?? "You",
                         currentUserAvatarURL: store.currentUser?.avatarURL,
-                        engine: rtcEngine,
                         morphNamespace: callMorphNamespace,
-                        keyboardHeight: keyboardHeight,
                         onExpand: {
                             withAnimation(CuvenSprings.adaptive(CuvenSprings.pipSnap, reduceMotion: reduceMotion)) {
                                 store.setCallMinimizedPiP(false)
@@ -85,6 +82,9 @@ public struct CallOverlayContainerView: View {
                         },
                         onToggleCamera: {
                             store.toggleCallCamera()
+                        },
+                        onToggleSpeaker: {
+                            store.toggleCallSpeaker()
                         },
                         onEndCall: {
                             withAnimation(CuvenSprings.adaptive(CuvenSprings.smooth, reduceMotion: reduceMotion)) {

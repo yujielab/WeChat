@@ -98,7 +98,7 @@ public struct CuvenApp: App {
                        !launchConfig.isDemoMode,
                        !launchConfig.forceLoggedOut {
                         Task {
-                            await store.flushOutbox()
+                            await store.outbox.resume()
                         }
                     }
                 }
@@ -127,7 +127,7 @@ public struct CuvenApp: App {
             return
         }
 
-        await store.bootstrapSession()
+        await store.bootstrap()
         if let launchPosture = launchConfig.postureOverride,
            store.postureOverride == nil {
             store.postureOverride = launchPosture

@@ -182,10 +182,10 @@ public struct ConversationColumnView: View {
         ThreadGroupingEngine.buildDisplayItems(
             messages: messages,
             currentUserID: store.currentUser?.id,
-            isGroupRoom: room?.kind == .group,
-            unreadCountOnOpen: initialUnreadCountSnapshot,
-            expandedPhotoStackIDs: expandedPhotoStackIDs,
-            use24HourTime: store.prefs.use24HourTime
+            roomKind: room?.kind ?? .dm,
+            unreadCount: initialUnreadCountSnapshot,
+            use24HourTime: store.prefs.use24HourTime,
+            expandedPhotoStackIDs: expandedPhotoStackIDs
         )
     }
 
@@ -650,11 +650,12 @@ public struct ConversationColumnView: View {
                     ForEach(displayItems) { item in
                         MessageBubbleView(
                             item: item,
+                            currentUserID: store.currentUser?.id,
                             messagesByID: messagesByID,
                             contactsByUserID: contactsByUserID,
-                            currentUserID: store.currentUser?.id,
                             serverBaseURL: store.serverBaseURL,
                             maxBubbleWidth: maxBubbleWidth,
+                            glassMode: store.prefs.glassMode,
                             use24HourTime: store.prefs.use24HourTime,
                             smartAssistEnabled: store.prefs.smartAssistEnabled,
                             editingMessageID: store.editingMessageByRoom[roomID]?.id,

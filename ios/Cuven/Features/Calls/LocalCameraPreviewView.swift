@@ -254,17 +254,9 @@ struct SimulatedStudioVideoStage: View {
                         )
                     )
 
-                    let orbs: [(dx: Double, dy: Double, radiusRatio: CGFloat, color: Color)] = accentWarm
-                        ? [
-                            (0.32 + 0.16 * cos(t * 0.55), 0.34 + 0.14 * sin(t * 0.42), 0.62, Color(red: 0.96, green: 0.46, blue: 0.36).opacity(0.34)),
-                            (0.70 + 0.14 * sin(t * 0.48), 0.64 + 0.15 * cos(t * 0.37), 0.58, Color(red: 0.56, green: 0.34, blue: 0.92).opacity(0.30)),
-                            (0.48 + 0.12 * sin(t * 0.71), 0.50 + 0.10 * cos(t * 0.63), 0.45, Color(red: 0.24, green: 0.72, blue: 0.88).opacity(0.22))
-                        ]
-                        : [
-                            (0.30 + 0.15 * sin(t * 0.52), 0.32 + 0.14 * cos(t * 0.44), 0.64, Color(red: 0.15, green: 0.56, blue: 0.92).opacity(0.36)),
-                            (0.72 + 0.14 * cos(t * 0.46), 0.66 + 0.16 * sin(t * 0.39), 0.60, Color(red: 0.16, green: 0.78, blue: 0.68).opacity(0.28)),
-                            (0.52 + 0.12 * cos(t * 0.67), 0.46 + 0.12 * sin(t * 0.59), 0.46, Color(red: 0.44, green: 0.38, blue: 0.96).opacity(0.24))
-                        ]
+                    let orbs: [PreviewOrb] = accentWarm
+                        ? PreviewOrb.warm(at: t)
+                        : PreviewOrb.cool(at: t)
 
                     let maxDim = max(size.width, size.height)
                     for orb in orbs {
@@ -341,5 +333,48 @@ struct CallStageAvatarBadge: View {
             size: size,
             isOnline: isOnline
         )
+    }
+}
+
+// MARK: - Drifting colour orbs behind the camera preview
+
+/// One soft orb: where its centre sits (fractions of the canvas), how large, what colour.
+/// Built in small typed steps so the compiler checks it quickly.
+private struct PreviewOrb {
+    let dx: Double
+    let dy: Double
+    let radiusRatio: CGFloat
+    let color: Color
+
+    private static func orb(_ dx: Double, _ dy: Double, _ ratio: CGFloat, _ r: Double, _ g: Double, _ b: Double, _ alpha: Double) -> PreviewOrb {
+        PreviewOrb(dx: dx, dy: dy, radiusRatio: ratio, color: Color(red: r, green: g, blue: b).opacity(alpha))
+    }
+
+    static func warm(at t: Double) -> [PreviewOrb] {
+        let x1: Double = 0.32 + 0.16 * cos(t * 0.55)
+        let y1: Double = 0.34 + 0.14 * sin(t * 0.42)
+        let x2: Double = 0.70 + 0.14 * sin(t * 0.48)
+        let y2: Double = 0.64 + 0.15 * cos(t * 0.37)
+        let x3: Double = 0.48 + 0.12 * sin(t * 0.71)
+        let y3: Double = 0.50 + 0.10 * cos(t * 0.63)
+        return [
+            orb(x1, y1, 0.62, 0.96, 0.46, 0.36, 0.34),
+            orb(x2, y2, 0.58, 0.56, 0.34, 0.92, 0.30),
+            orb(x3, y3, 0.45, 0.24, 0.72, 0.88, 0.22)
+        ]
+    }
+
+    static func cool(at t: Double) -> [PreviewOrb] {
+        let x1: Double = 0.30 + 0.15 * sin(t * 0.52)
+        let y1: Double = 0.32 + 0.14 * cos(t * 0.44)
+        let x2: Double = 0.72 + 0.14 * cos(t * 0.46)
+        let y2: Double = 0.66 + 0.16 * sin(t * 0.39)
+        let x3: Double = 0.52 + 0.12 * cos(t * 0.67)
+        let y3: Double = 0.46 + 0.12 * sin(t * 0.59)
+        return [
+            orb(x1, y1, 0.64, 0.15, 0.56, 0.92, 0.36),
+            orb(x2, y2, 0.60, 0.16, 0.78, 0.68, 0.28),
+            orb(x3, y3, 0.46, 0.44, 0.38, 0.96, 0.24)
+        ]
     }
 }

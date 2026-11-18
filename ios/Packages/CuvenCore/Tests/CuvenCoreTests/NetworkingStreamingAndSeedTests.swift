@@ -12,7 +12,7 @@ private final class MockHTTPTransport: CuvenHTTPTransport, @unchecked Sendable {
         self.handler = handler
     }
 
-    func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    func execute(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         try handler(request)
     }
 }
@@ -59,7 +59,7 @@ final class NetworkingStreamingAndSeedTests: XCTestCase {
             path: "/api/messages",
             baseURL: base,
             sessionToken: "tok_abc123",
-            timezoneMinutesWest: -480,
+            timeZone: TimeZone(secondsFromGMT: 8 * 3600)!,
             contentType: "application/json",
             body: Data("{}".utf8)
         )
@@ -71,7 +71,7 @@ final class NetworkingStreamingAndSeedTests: XCTestCase {
         let wsReq = try CuvenRequestBuilder.makeWebSocketRequest(
             baseURL: base,
             sessionToken: "tok_abc123",
-            timezoneMinutesWest: -480
+            timeZone: TimeZone(secondsFromGMT: 8 * 3600)!
         )
         XCTAssertEqual(wsReq.url?.absoluteString, "wss://wechat.cuven.us/api/ws")
         XCTAssertEqual(wsReq.value(forHTTPHeaderField: "Origin"), "https://wechat.cuven.us")
@@ -113,7 +113,8 @@ final class NetworkingStreamingAndSeedTests: XCTestCase {
             return (Data(#"{"error":"Not found"}"#.utf8), resp)
         }
 
-        let client = CuvenAPIClient(baseURL: base, transport: transport) { token in
+        let client = CuvenAPIClient(baseURL: base, transport: transport)
+        await client.setSessionTokenObserver { token in
             Task { await tokenBox.set(token) }
         }
 

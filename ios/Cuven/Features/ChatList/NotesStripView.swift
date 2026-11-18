@@ -203,7 +203,8 @@ private struct MyNoteFeaturedCell: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .frame(width: cardWidth, minHeight: 86)
+            .frame(width: cardWidth)
+            .frame(minHeight: 86)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(CuvenColors.elevatedSurface)

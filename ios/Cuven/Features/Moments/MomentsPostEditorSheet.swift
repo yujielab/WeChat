@@ -1143,6 +1143,7 @@ public struct MomentsPostEditorSheet: View {
                 let editable = MomentEditableMediaItem(
                     id: itemID,
                     isVideo: true,
+                    originalImageData: nil,
                     mediaURLString: videoURL.absoluteString,
                     originalWidth: videoW,
                     originalHeight: videoH,
