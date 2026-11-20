@@ -1,116 +1,153 @@
 import SwiftUI
 
-/// The first column: who you are (opens Settings), the chat filters (only
-/// Unread carries a number) and the other places — Moments, Memories,
-/// Requests — for devices without the Duo page capsule.
+/// The strip's first column (views/sidebar.js, css/columns.css): Home, who
+/// you are (opens Settings), the scopes of the conversation list — only
+/// Unread carries a number — then Moments and Memories. Search stays in
+/// reach at the foot, or over the page capsule in the Duo's rail.
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
     @Environment(\.column) private var ctx
 
+    private let inset: CGFloat = 22
+
+    private var unreadCount: Int { model.rooms.filter { $0.unread > 0 || $0.marked }.count }
+
     var body: some View {
         ZStack {
             Theme.paper
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text("Home")
                         .font(.largeTitleC)
-                        .foregroundStyle(Theme.blue)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
+                        .tracking(-0.68)
+                        .foregroundStyle(Theme.fbBlueTitle)
+                        .padding(.bottom, 18)
 
-                    Button { nav.settingsOpen = true } label: {
-                        HStack(spacing: 14) {
-                            Avatar(user: model.me, size: 56, online: model.connected)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(model.me?.name ?? "").font(.title3C).foregroundStyle(Theme.label)
-                                Text(model.connected ? "@\(model.me?.username ?? "")" : String(localized: "Connecting…"))
-                                    .font(.footnoteC).foregroundStyle(Theme.label2)
-                                    .contentTransition(.opacity)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.label3)
+                    Button { withAnimation(Motion.move) { nav.settingsOpen = true } } label: {
+                        HStack(spacing: 12) {
+                            Avatar(user: model.me, size: 52)
+                            Text(model.me?.name ?? String(localized: "Me"))
+                                .font(.headlineC)
+                                .tracking(-0.34)
+                                .foregroundStyle(Theme.label)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            SymbolView(.chevronRight, size: 14).foregroundStyle(Theme.label3)
                         }
-                        .padding(14)
-                        .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(minHeight: 72)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     }
-                    .buttonStyle(.press)
-                    .padding(.horizontal, 16)
+                    .buttonStyle(FillPressStyle(radius: 22, fill: Theme.field))
+                    .accessibilityLabel("\(model.me?.name ?? ""), settings")
 
-                    group {
+                    VStack(spacing: 2) {
                         ForEach(ListFilter.allCases) { f in
-                            row(symbol: f.symbol, title: f.title,
-                                count: f == .unread ? model.rooms.filter { $0.unread > 0 || $0.marked }.count : 0,
-                                selected: nav.filter == f && nav.page == .chats && nav.isVisible(.list)) {
+                            let current = nav.filter == f
+                            row(sym: f.sym, title: f.title, count: f == .unread ? unreadCount : 0, current: current) {
                                 nav.toList(filter: f)
                             }
                         }
                     }
+                    .padding(.top, 20)
 
-                    group {
-                        row(symbol: "photo.on.rectangle.angled", title: "Moments", dot: model.momentsDot, selected: nav.page == .moments) {
+                    VStack(spacing: 2) {
+                        row(sym: .photo, title: "Moments", dot: model.momentsDot, current: false) {
                             model.momentsDot = false
                             nav.switchPage(.moments)
                         }
-                        row(symbol: "sparkles.rectangle.stack", title: "Memories", selected: nav.page == .memories) {
+                        row(sym: .photoStack, title: "Memories", current: false) {
                             nav.switchPage(.memories)
                         }
-                        row(symbol: "person.badge.plus", title: "Requests", count: model.requests.count, selected: nav.page == .requests) {
-                            nav.switchPage(.requests)
-                        }
-                        row(symbol: "person.2", title: "Friends", selected: false) {
-                            nav.newChatOpen = true
-                        }
-                        row(symbol: "person.crop.circle", title: "Your profile", selected: nav.page == .me) {
-                            nav.switchPage(.me)
-                        }
                     }
+                    .padding(.top, 20)
                 }
+                .padding(.top, 30)
+                .padding(.leading, inset)
+                .padding(.trailing, ctx.usesRail ? 12 : inset)
                 .padding(.bottom, 20)
             }
             .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
-                                        bottom: ctx.usesRail ? ctx.insets.bottom + 12 : ctx.barClearance, trailing: ctx.insets.trailing))
+                                        bottom: ctx.usesRail ? max(ctx.insets.bottom, 16) + 24 : ctx.barClearance + 20,
+                                        trailing: ctx.usesRail ? railContent : ctx.insets.trailing))
+            .scrollBounceBehavior(.basedOnSize)
 
-            ColumnBar(actions: [
-                BarItem(id: "search", symbol: "magnifyingglass", title: "Search") {
-                    nav.toList()
-                    nav.searching = true
-                },
-                BarItem(id: "new", symbol: "square.and.pencil", title: "New chat") { nav.newChatOpen = true }
-            ])
+            if !(nav.columns == 2 && nav.leading == .sidebar) || ctx.usesRail {
+                ColumnBar(footActions: [
+                    BarItem(id: "search", sym: .search, title: "Search") {
+                        nav.toList()
+                        withAnimation(Motion.ui) { nav.searching = true }
+                    }
+                ])
+            }
         }
     }
 
-    private func group<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        VStack(spacing: 2) { content() }
-            .padding(6)
-            .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .padding(.horizontal, 16)
+    /// Content runs up to the rail and the gap before it.
+    private var railContent: CGFloat {
+        guard let rail = ctx.rail else { return ctx.insets.trailing }
+        return max(ctx.insets.trailing + 16, rail.centerFromEdge + Bar.railWidth / 2 + 12)
     }
 
-    private func row(symbol: String, title: LocalizedStringKey, count: Int = 0, dot: Bool = false, selected: Bool,
+    private func row(sym: Sym, title: LocalizedStringKey, count: Int = 0, dot: Bool = false, current: Bool,
                      action: @escaping () -> Void) -> some View {
         Button {
             Haptics.selection()
             action()
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Theme.blue)
-                    .frame(width: 26)
-                Text(title).font(.bodyC).foregroundStyle(Theme.label)
-                Spacer()
+            HStack(spacing: 12) {
+                SymbolView(sym, size: 19, weight: current ? 2.2 : nil)
+                    .foregroundStyle(Theme.fbBlueTitle)
+                    .frame(width: 24)
+                Text(title)
+                    .font(AppFont.make(17, current ? .semibold : .regular))
+                    .foregroundStyle(Theme.label)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
                 if count > 0 {
-                    Text("\(count)").font(.subheadMediumC.monospacedDigit()).foregroundStyle(Theme.label2)
+                    Text("\(count)")
+                        .font(AppFont.make(12, .semibold).monospacedDigit())
+                        .foregroundStyle(Theme.onBrand)
+                        .padding(.horizontal, 7)
+                        .frame(minWidth: 22, minHeight: 22)
+                        .background(Theme.badge, in: Capsule())
+                        .contentTransition(.numericText())
                 }
-                if dot { Circle().fill(Theme.red).frame(width: 8, height: 8) }
+                if dot {
+                    Circle().fill(Theme.red).frame(width: 9, height: 9).padding(.trailing, 6)
+                }
             }
             .padding(.horizontal, 12)
-            .frame(height: 48)
-            .background(selected ? Theme.fillQuiet : .clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .contentShape(Rectangle())
+            .frame(minHeight: 48)
+            .background {
+                if current {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.fill3)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.press(0.98))
+        .buttonStyle(FillPressStyle(radius: 14, fill: Theme.fill4))
+        .animation(Motion.quick, value: current)
+        .accessibilityAddTraits(current ? .isSelected : [])
+    }
+}
+
+/// The web's :active background on rows and cards (no scale).
+struct FillPressStyle: ButtonStyle {
+    var radius: CGFloat
+    var fill: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(fill)
+                    .opacity(configuration.isPressed ? 1 : 0)
+            }
+            .animation(configuration.isPressed ? nil : Motion.quick, value: configuration.isPressed)
     }
 }

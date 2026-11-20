@@ -33,32 +33,41 @@ struct DrawView: View {
 
     enum Paper: String, CaseIterable { case blank, lined, grid }
 
-    private let swatches: [Color] = [.black, Color(hex: 0x1877f2), Color(hex: 0xff3b30), Color(hex: 0x34c759), Color(hex: 0xff9f0a)]
+    private let swatches: [Color] = [Color(hex: 0x1c1c1e), Color(hex: 0x007aff), Color(hex: 0x34c759), Color(hex: 0xffcc00), Color(hex: 0xff3b30)]
 
     var body: some View {
-        ZStack {
-            Color(hex: 0xf2f2f5)
-            VStack(spacing: 0) {
-                paperView
-                    .padding(.top, ctx.insets.top + 12)
-                    .padding(.leading, ctx.insets.leading + 12)
-                    .padding(.trailing, ctx.insets.trailing + 12)
-                Spacer(minLength: 0)
-            }
-            .padding(.bottom, ctx.usesRail ? ctx.insets.bottom + 12 + 96 : ctx.barClearance + 96)
+        ZStack(alignment: .top) {
+            Color.white
+            PaperPattern(paper: paper)
+            CanvasRepresentable(board: board)
+
+            Text("Drawing board")
+                .font(AppFont.make(20, .bold))
+                .foregroundStyle(Color(hex: 0x0b0b0d))
+                .padding(.top, ctx.insets.top + 10)
+                .padding(.trailing, ctx.insets.trailing)
+                .allowsHitTesting(false)
 
             toolTray
-                .padding(.leading, ctx.insets.leading)
-                .padding(.trailing, ctx.insets.trailing)
-                .padding(.bottom, ctx.usesRail ? ctx.insets.bottom + 12 : ctx.barClearance)
+                .padding(.leading, max(ctx.insets.leading, 20))
+                .padding(.trailing, ctx.usesRail ? railContent : max(ctx.insets.trailing, 20))
+                .padding(.bottom, ctx.usesRail ? max(ctx.insets.bottom, 14) : ctx.barClearance)
                 .frame(maxHeight: .infinity, alignment: .bottom)
 
-            ColumnBar(back: BarItem(id: "close", symbol: "xmark", title: "Close") { close() },
-                      actions: [
-                        BarItem(id: "undo", symbol: "arrow.uturn.backward", title: "Undo") { board.undo() },
-                        BarItem(id: "redo", symbol: "arrow.uturn.forward", title: "Redo") { board.redo() },
-                        BarItem(id: "send", symbol: "arrow.up", title: "Send", tint: Theme.blue, foreground: .white) { send() }
-                      ])
+            if ctx.usesRail {
+                ColumnBar(back: BarItem(id: "close", sym: .xmark, title: "Close") { close() },
+                          actions: [BarItem(id: "send", sym: .arrowUp, title: "Send", tint: board.isEmpty ? nil : Color(hex: 0x000000),
+                                            foreground: board.isEmpty ? Color(hex: 0x8e8e93) : .white) { send() }],
+                          footActions: [BarItem(id: "undo", sym: .undo, title: "Undo") { board.undo() },
+                                        BarItem(id: "redo", sym: .redo, title: "Redo") { board.redo() }])
+            } else {
+                ColumnBar(back: BarItem(id: "close", sym: .xmark, title: "Close") { close() },
+                          actions: [BarItem(id: "undo", sym: .undo, title: "Undo") { board.undo() },
+                                    BarItem(id: "redo", sym: .redo, title: "Redo") { board.redo() },
+                                    BarItem(id: "send", sym: .arrowUp, title: "Send", tint: board.isEmpty ? nil : Color(hex: 0x000000),
+                                            foreground: board.isEmpty ? Color(hex: 0x8e8e93) : .white) { send() }],
+                          groupActions: false)
+            }
         }
         .environment(\.colorScheme, .light)
         .onChange(of: tool) { _, _ in applyTool() }
@@ -73,21 +82,17 @@ struct DrawView: View {
         }
     }
 
-    private var paperView: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.white)
-            PaperPattern(paper: paper)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            CanvasRepresentable(board: board)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
-        .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
+    private var railContent: CGFloat {
+        guard let rail = ctx.rail else { return ctx.insets.trailing }
+        return max(ctx.insets.trailing, rail.centerFromEdge + Bar.railWidth / 2 + 12)
     }
 
+    /// The tools stand in a glass tray: the one in hand taller; a hairline;
+    /// six colours in two rows (the last a wheel); "…" for width and paper.
     private var toolTray: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .bottom, spacing: 14) {
-                ForEach(Tool.allCases) { t in
+        HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .bottom, spacing: 6) {
+                ForEach(Tool.allCases.filter { $0 != .eraser || true }) { t in
                     Button {
                         Haptics.selection()
                         withAnimation(Motion.bouncy) { tool = t }
@@ -99,10 +104,12 @@ struct DrawView: View {
                     .accessibilityAddTraits(tool == t ? .isSelected : [])
                 }
             }
-            .frame(height: 58, alignment: .bottom)
+            .frame(height: 74, alignment: .bottom)
             .clipped()
 
-            HStack(spacing: 10) {
+            Rectangle().fill(Color.black.opacity(0.12)).frame(width: 1, height: 64)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(28), spacing: 8), count: 3), spacing: 8) {
                 ForEach(Array(swatches.enumerated()), id: \.offset) { _, c in
                     Button {
                         Haptics.selection()
@@ -111,36 +118,39 @@ struct DrawView: View {
                     } label: {
                         Circle().fill(c)
                             .frame(width: 26, height: 26)
-                            .overlay(Circle().stroke(.white, lineWidth: 2))
-                            .overlay(Circle().stroke(color == c ? Theme.blue : .clear, lineWidth: 2).padding(-3))
+                            .overlay(Circle().strokeBorder(Color.black, lineWidth: color == c ? 2 : 0).padding(-3))
+                            .overlay(Circle().strokeBorder(.white, lineWidth: color == c ? 2 : 0))
+                            .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.press(0.88))
                 }
-                ColorPicker("", selection: $color, supportsOpacity: false).labelsHidden().frame(width: 30)
-                Menu {
-                    Picker("Width", selection: $width) {
-                        Text("Fine").tag(CGFloat(3))
-                        Text("Medium").tag(CGFloat(6))
-                        Text("Bold").tag(CGFloat(12))
-                        Text("Heavy").tag(CGFloat(22))
-                    }
-                    Picker("Paper", selection: $paper) {
-                        Text("Blank").tag(Paper.blank)
-                        Text("Lined").tag(Paper.lined)
-                        Text("Grid").tag(Paper.grid)
-                    }
-                    Button("Clear", role: .destructive) { board.clear() }
-                } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(Theme.label)
-                        .frame(width: 34, height: 34).background(Theme.fillQuiet, in: Circle())
-                }
+                ColorPicker("", selection: $color, supportsOpacity: false).labelsHidden().frame(width: 28, height: 28)
             }
+            .frame(width: 100)
+
+            Menu {
+                Picker("Width", selection: $width) {
+                    Text("Fine").tag(CGFloat(3))
+                    Text("Medium").tag(CGFloat(6))
+                    Text("Bold").tag(CGFloat(12))
+                    Text("Heavy").tag(CGFloat(22))
+                }
+                Picker("Paper", selection: $paper) {
+                    Text("Blank").tag(Paper.blank)
+                    Text("Lined").tag(Paper.lined)
+                    Text("Grid").tag(Paper.grid)
+                }
+                Button("Clear", role: .destructive) { board.clear() }
+            } label: {
+                SymbolView(.ellipsis, size: 20).foregroundStyle(Color(hex: 0x0b0b0d))
+                    .frame(width: 44, height: 44).glassCircle()
+            }
+            .accessibilityLabel("More")
         }
         .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, 10)
-        .glass(RoundedRectangle(cornerRadius: 26, style: .continuous), interactive: false)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .glass(RoundedRectangle(cornerRadius: 34, style: .continuous), interactive: false)
+        .frame(maxWidth: 560)
     }
 
     private func applyTool() {
@@ -172,12 +182,15 @@ struct DrawView: View {
 
 /// The canvas and its own history (undo / redo that don't depend on the responder chain).
 @MainActor
+@Observable
 final class Board: NSObject, PKCanvasViewDelegate {
-    let canvas = PKCanvasView()
-    private var history: [PKDrawing] = []
-    private var future: [PKDrawing] = []
-    private var last = PKDrawing()
-    private var applying = false
+    @ObservationIgnored let canvas = PKCanvasView()
+    @ObservationIgnored private var history: [PKDrawing] = []
+    @ObservationIgnored private var future: [PKDrawing] = []
+    @ObservationIgnored private var last = PKDrawing()
+    @ObservationIgnored private var applying = false
+    /// Whether anything is drawn (the send button fills with ink once it is).
+    private(set) var empty = true
 
     override init() {
         super.init()
@@ -188,9 +201,11 @@ final class Board: NSObject, PKCanvasViewDelegate {
         canvas.delegate = self
     }
 
-    var isEmpty: Bool { canvas.drawing.strokes.isEmpty }
+    var isEmpty: Bool { empty }
 
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+        let now = canvasView.drawing.strokes.isEmpty
+        if now != empty { empty = now }
         guard !applying else { return }
         history.append(last)
         if history.count > 60 { history.removeFirst() }
@@ -223,6 +238,7 @@ final class Board: NSObject, PKCanvasViewDelegate {
         applying = true
         canvas.drawing = d
         last = d
+        empty = d.strokes.isEmpty
         applying = false
     }
 

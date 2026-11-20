@@ -70,6 +70,11 @@ final class AppModel {
     var composerGlow: String { didSet { UserDefaults.standard.set(composerGlow, forKey: "ui:glow") } }
     var bookLayout: Bool { didSet { UserDefaults.standard.set(bookLayout, forKey: "ui:book") } }
 
+    /// Messages deleted on this device only ("Delete for me").
+    var hiddenMessages: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "hiddenMessages") ?? []) {
+        didSet { UserDefaults.standard.set(Array(hiddenMessages.suffix(2000)), forKey: "hiddenMessages") }
+    }
+
     @ObservationIgnored var drafts: [String: String] = [:]
     @ObservationIgnored var outbox: [OutboxItem] = []
     @ObservationIgnored var outboxRunning = false

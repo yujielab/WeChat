@@ -28,18 +28,22 @@ struct PageSheetLayer: View {
         ZStack(alignment: .topLeading) {
             if let kind {
                 card(kind)
+                    .padding(.top, geo.columns == 1 ? 20 : 0)
                     .frame(width: f.width, height: f.height)
-                    .background(Theme.elevated)
+                    .background(Theme.paper)
                     .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                    .shadow(color: .black.opacity(0.18), radius: 30, y: 10)
-                    .overlay(alignment: .top) { grabber }
+                    .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.22), radius: 32, y: 24)
+                    .overlay(alignment: .top) { if geo.columns == 1 { grabber } }
                     .offset(x: f.minX, y: f.minY + max(0, drag))
                     .environment(\.column, geo.sheetContext)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(geo.columns == 1
+                        ? .offset(y: f.height + 40)
+                        : .opacity.combined(with: .scale(scale: 0.96)).combined(with: .blur(4)))
                     .id(kindKey(kind))
             }
         }
-        .animation(Motion.move, value: kind)
+        .animation(Motion.bouncy, value: kind)
     }
 
     private func kindKey(_ k: Kind) -> String {
@@ -66,7 +70,7 @@ struct PageSheetLayer: View {
     private var grabber: some View {
         ZStack(alignment: .top) {
             Color.clear.frame(height: 28).contentShape(Rectangle())
-            Capsule().fill(Theme.label4).frame(width: 36, height: 5).padding(.top, 7)
+            Capsule().fill(Theme.separatorOpaque).frame(width: 32, height: 4).padding(.top, 8)
         }
         .gesture(
             DragGesture(minimumDistance: 4)
@@ -92,6 +96,22 @@ struct PageSheetLayer: View {
         else if nav.profile != nil { nav.profile = nil }
         else { nav.page = .chats }
     }
+}
+
+extension AnyTransition {
+    /// Comes in from a blur (the unfolded form sheet's materialising).
+    static func blur(_ radius: CGFloat) -> AnyTransition {
+        .modifier(active: BlurTransition(radius: radius), identity: BlurTransition(radius: 0))
+    }
+}
+
+private struct BlurTransition: ViewModifier {
+    let radius: CGFloat
+    func body(content: Content) -> some View { content.blur(radius: radius) }
+}
+
+extension Theme {
+    static let separatorOpaque = Color.token(0xc6c6c8, 0x38383a)
 }
 
 /// A sheet's header as the web draws it: a bold title (or a coloured large

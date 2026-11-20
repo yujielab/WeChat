@@ -54,13 +54,16 @@ struct SymbolView: View {
     var weight: CGFloat? = nil
     var secondary: Double = 1
     var slashed = false
+    /// Fills the outline too (a liked heart: the web's `.on .icon path { fill: currentColor }`).
+    var filled = false
 
-    init(_ sym: Sym, size: CGFloat = 22, weight: CGFloat? = nil, secondary: Double = 1, slashed: Bool = false) {
+    init(_ sym: Sym, size: CGFloat = 22, weight: CGFloat? = nil, secondary: Double = 1, slashed: Bool = false, filled: Bool = false) {
         self.sym = sym
         self.size = size
         self.weight = weight
         self.secondary = secondary
         self.slashed = slashed
+        self.filled = filled
     }
 
     var body: some View {
@@ -75,7 +78,9 @@ struct SymbolView: View {
                 if layer.tier == 2 { c.opacity = secondary }
                 if layer.tier == 3 { c.opacity = secondary * 0.6 }
                 switch layer.kind {
-                case .stroke: c.stroke(layer.path, with: .foreground, style: style)
+                case .stroke:
+                    if filled { c.fill(layer.path, with: .foreground) }
+                    c.stroke(layer.path, with: .foreground, style: style)
                 case .fill: c.fill(layer.path, with: .foreground)
                 }
             }

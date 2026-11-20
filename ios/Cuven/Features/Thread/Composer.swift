@@ -33,38 +33,25 @@ struct Composer: View {
     private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var showBack: Bool { nav.columns == 1 && !ctx.usesRail }
 
+    /// The composer's controls are 56pt (the web's .field and .composer-action).
+    static let control: CGFloat = 56
+    private var margin: CGFloat { ctx.size.width < 400 ? 16 : 20 }
+    private var editingOrReply: Bool { editing != nil || replyTo != nil }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            if plusOpen {
-                PlusPanel(stickers: model.stickersEnabled) { action in
-                    withAnimation(Motion.morph) { plusOpen = false }
-                    switch action {
-                    case .photos: showPhotos = true
-                    case .camera: showCamera = true
-                    case .drawing: nav.show(.draw)
-                    case .stickers: stickersOpen = true
-                    case .file: showFiles = true
-                    }
-                }
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.4, anchor: .bottomTrailing).combined(with: .opacity),
-                    removal: .scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity)))
-            }
-
             if let chips = mentionCandidates, !chips.isEmpty {
-                mentionBar(chips)
+                mentionPicker(chips)
             } else if !suggestion.isEmpty && !recorder.isRecording {
                 suggestionChip
             }
 
-            if let banner = bannerMessage {
-                banner
-            }
-
-            HStack(alignment: .bottom, spacing: Bar.gap) {
+            HStack(alignment: .bottom, spacing: 10) {
                 if showBack {
-                    GlassIconButton(symbol: "chevron.left", title: "Back", badge: otherUnread) { nav.backFromChat() }
-                        .transition(.scale.combined(with: .opacity))
+                    GlassIconButton(sym: .chevronLeft, title: "Back", badge: otherUnread, badgeInk: true, size: Self.control) {
+                        nav.backFromChat()
+                    }
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
                 if recorder.isRecording {
                     recordingBar
@@ -74,9 +61,22 @@ struct Composer: View {
                 }
                 trailingButton
             }
+            .overlay(alignment: .bottomTrailing) {
+                PlusPanel(open: plusOpen, stickers: model.stickersEnabled) { action in
+                    withAnimation(Motion.morph) { plusOpen = false }
+                    switch action {
+                    case .photos: showPhotos = true
+                    case .camera: showCamera = true
+                    case .drawing: nav.show(.draw)
+                    case .stickers: stickersOpen = true
+                    case .file: showFiles = true
+                    }
+                }
+            }
         }
-        .padding(.leading, max(ctx.insets.leading, 14))
-        .padding(.trailing, ctx.usesRail ? ctx.insets.trailing + 8 : max(ctx.insets.trailing, 14))
+        .padding(.top, 12)
+        .padding(.leading, max(ctx.insets.leading, margin))
+        .padding(.trailing, ctx.usesRail ? ctx.insets.trailing + 2 : max(ctx.insets.trailing, margin))
         .background(alignment: .bottom) {
             GlowField(palette: model.composerGlow, intensity: focused ? 1.5 : 0.9)
                 .frame(height: 240)
@@ -85,8 +85,8 @@ struct Composer: View {
         }
         .animation(Motion.morph, value: plusOpen)
         .animation(Motion.ui, value: canSend)
-        .animation(Motion.ui, value: replyTo?.id)
-        .animation(Motion.ui, value: editing?.id)
+        .animation(Motion.move, value: replyTo?.id)
+        .animation(Motion.move, value: editing?.id)
         .animation(Motion.ui, value: suggestion)
         .animation(Motion.ui, value: recorder.isRecording)
         .onAppear {
@@ -132,111 +132,131 @@ struct Composer: View {
 
     // MARK: field
 
+    /// A white pill on a hairline (glass here): the words, then "+" inside its
+    /// trailing end. A reply or an edit adds a strip at its top, and it
+    /// eases into a rounded rectangle.
     private var field: some View {
-        HStack(alignment: .bottom, spacing: 6) {
-            TextField(editing != nil ? "Edit message" : "Message", text: $text, axis: .vertical)
-                .font(.bodyC)
-                .lineLimit(1...5)
-                .focused($focused)
-                .padding(.vertical, 15)
-                .padding(.leading, 18)
-                .onSubmit { send() }
-            if text.isEmpty && editing == nil {
-                Button {
-                    Haptics.press()
-                    recorder.start()
-                } label: {
-                    Image(systemName: "mic")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(Theme.label2)
-                        .frame(width: 44, height: Bar.height)
+        let shape = RoundedRectangle(cornerRadius: editingOrReply ? 23 : Self.control / 2, style: .continuous)
+        return VStack(alignment: .leading, spacing: 0) {
+            if let strip = strip {
+                strip
+                    .padding(.trailing, 2)
+                    .padding(.bottom, 8)
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+                    .padding(.bottom, 4)
+                    .transition(.opacity.combined(with: .offset(y: 4)))
+            }
+            HStack(alignment: .bottom, spacing: 6) {
+                TextField(editing != nil ? "Edit message" : "Message", text: $text, axis: .vertical)
+                    .font(.bodyC)
+                    .lineSpacing(BodyMetrics.extra)
+                    .lineLimit(1...5)
+                    .focused($focused)
+                    .tint(Theme.blue)
+                    .padding(.vertical, 9 + BodyMetrics.extra / 2)
+                    .frame(minHeight: 42)
+                    .onSubmit { send() }
+                if editing == nil {
+                    Button {
+                        Haptics.tap()
+                        withAnimation(Motion.morph) { plusOpen.toggle() }
+                    } label: {
+                        SymbolView(.plus, size: 22, weight: 2.2)
+                            .foregroundStyle(Theme.label)
+                            .rotationEffect(.degrees(plusOpen ? 45 : 0))
+                            .frame(width: 42, height: 42)
+                            .glassCircle()
+                    }
+                    .buttonStyle(.press(0.9))
+                    .zIndex(3)
+                    .accessibilityLabel(plusOpen ? "Close" : "Add")
                 }
-                .buttonStyle(.press(0.9))
-                .accessibilityLabel("Record voice message")
-                .transition(.opacity.combined(with: .scale))
             }
         }
-        .padding(.trailing, text.isEmpty && editing == nil ? 2 : 14)
-        .frame(minHeight: Bar.height)
-        .glass(RoundedRectangle(cornerRadius: Bar.height / 2, style: .continuous), interactive: false)
+        .padding(.leading, 18)
+        .padding(.trailing, 7)
+        .padding(.top, editingOrReply ? 9 : 7)
+        .padding(.bottom, 7)
+        .frame(minHeight: Self.control)
+        .glass(shape, interactive: false)
+        .overlay(shape.strokeBorder(focused ? Theme.label3 : .clear, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
+        .zIndex(2)
     }
 
+    /// One button after the field: the mic while it's empty; Send, filled
+    /// with ink, once there's something to send; ✓ while editing.
     private var trailingButton: some View {
-        Button {
-            if canSend || editing != nil {
+        let filled = canSend || editing != nil || recorder.isRecording
+        return Button {
+            if canSend || editing != nil || recorder.isRecording {
                 send()
-            } else if recorder.isRecording {
-                finishRecording()
             } else {
-                Haptics.tap()
-                withAnimation(Motion.morph) { plusOpen.toggle() }
+                Haptics.press()
+                if plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
+                recorder.start()
             }
         } label: {
-            let sending = canSend || recorder.isRecording
             ZStack {
-                Image(systemName: editing != nil ? "checkmark" : "arrow.up")
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(.white)
-                    .opacity(sending || editing != nil ? 1 : 0)
-                    .scaleEffect(sending || editing != nil ? 1 : 0.4)
-                Image(systemName: "plus")
-                    .font(.system(size: 21, weight: .semibold))
+                SymbolView(.mic, size: 22)
                     .foregroundStyle(Theme.label)
-                    .rotationEffect(.degrees(plusOpen ? 45 : 0))
-                    .opacity(sending || editing != nil ? 0 : 1)
-                    .scaleEffect(sending || editing != nil ? 0.4 : 1)
+                    .opacity(filled ? 0 : 1)
+                    .scaleEffect(filled ? 0.8 : 1)
+                SymbolView(editing != nil ? .check : .arrowUp, size: 22, weight: 2.5)
+                    .foregroundStyle(Theme.onInk)
+                    .opacity(filled ? 1 : 0)
+                    .scaleEffect(filled ? 1 : 0.8)
             }
-            .frame(width: Bar.height, height: Bar.height)
+            .frame(width: Self.control, height: Self.control)
             .background {
-                Circle().fill(Theme.blue)
-                    .opacity(sending || editing != nil ? 1 : 0)
-                    .scaleEffect(sending || editing != nil ? 1 : 0.5)
+                Circle().fill(Theme.ink).opacity(filled ? 1 : 0)
             }
-            .glassCircle(interactive: !(sending || editing != nil))
+            .glassCircle(interactive: !filled)
         }
         .buttonStyle(.press(0.9))
-        .accessibilityLabel(canSend ? "Send" : (plusOpen ? "Close" : "More"))
+        .opacity(plusOpen ? 0 : 1)
+        .accessibilityLabel(editing != nil ? "Save" : (canSend || recorder.isRecording ? "Send" : "Record voice message"))
     }
 
-    // MARK: banners & chips
+    // MARK: strips, chips
 
-    private var bannerMessage: AnyView? {
+    private var strip: AnyView? {
         if let e = editing {
-            return AnyView(banner(icon: "pencil", title: "Editing message", text: e.body) {
+            return AnyView(stripView(sym: .pencil, title: "Editing", text: e.body, rule: false) {
                 editing = nil
                 text = savedDraft
             })
         }
         if let r = replyTo {
-            return AnyView(banner(icon: "arrowshape.turn.up.left.fill", title: "Replying to \(model.name(of: r.sender))", text: r.preview) {
+            return AnyView(stripView(sym: nil, title: "Replying to \(model.name(of: r.sender))", text: r.preview, rule: true) {
                 replyTo = nil
             })
         }
         return nil
     }
 
-    private func banner(icon: String, title: LocalizedStringKey, text: String, close: @escaping () -> Void) -> some View {
+    private func stripView(sym: Sym?, title: LocalizedStringKey, text: String, rule: Bool, close: @escaping () -> Void) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.blue)
+            if let sym { SymbolView(sym, size: 17).foregroundStyle(Theme.blue) }
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.caption2C.weight(.bold)).foregroundStyle(Theme.blue)
+                Text(title).font(AppFont.make(13, .semibold)).foregroundStyle(Theme.blueText).lineLimit(1)
                 Text(text).font(.footnoteC).foregroundStyle(Theme.label2).lineLimit(1)
             }
-            Spacer()
-            Button(action: close) {
-                Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.label2)
-                    .frame(width: 26, height: 26).background(Theme.fill, in: Circle())
+            .padding(.leading, rule ? 11 : 0)
+            .overlay(alignment: .leading) {
+                if rule { RoundedRectangle(cornerRadius: 2).fill(Theme.blue).frame(width: 3).padding(.vertical, 1) }
             }
-            .buttonStyle(.plain)
+            Spacer(minLength: 0)
+            Button(action: close) {
+                SymbolView(.xmark, size: 13, weight: 2.2).foregroundStyle(Theme.label2)
+                    .frame(width: 30, height: 30)
+                    .background(Theme.fill4, in: Circle())
+                    .contentShape(Circle().inset(by: -7))
+            }
+            .buttonStyle(.press(0.9))
             .accessibilityLabel("Cancel")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .glass(RoundedRectangle(cornerRadius: 18, style: .continuous), interactive: false)
-        .padding(.leading, showBack ? Bar.height + Bar.gap : 0)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private var suggestionChip: some View {
@@ -247,20 +267,19 @@ struct Composer: View {
             Haptics.selection()
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "sparkle").font(.system(size: 11, weight: .bold))
+                SymbolView(.sparkles, size: 13)
                 Text(suggestion).lineLimit(1)
-                Image(systemName: "arrow.turn.down.left").font(.system(size: 10, weight: .bold)).opacity(0.6)
             }
             .font(.footnoteC)
             .foregroundStyle(Theme.label2)
-            .padding(.horizontal, 12)
-            .frame(height: 32)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
             .glassCapsule()
         }
         .buttonStyle(.press)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, showBack ? Bar.height + Bar.gap : 0)
-        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .padding(.leading, showBack ? Self.control + 10 : 0)
+        .transition(.opacity.combined(with: .offset(y: 8)).combined(with: .scale(scale: 0.9)))
         .accessibilityLabel(Text("Use suggestion: \(suggestion)"))
     }
 
@@ -274,9 +293,9 @@ struct Composer: View {
         return (model.members[room.id] ?? []).filter { $0.id != model.me?.id && (q.isEmpty || $0.display.lowercased().hasPrefix(q) || $0.username.lowercased().hasPrefix(q)) }
     }
 
-    private func mentionBar(_ list: [Member]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+    private func mentionPicker(_ list: [Member]) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
                 ForEach(list) { m in
                     Button {
                         var parts = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
@@ -286,19 +305,24 @@ struct Composer: View {
                         mentionIds[m.display] = m.id
                         Haptics.selection()
                     } label: {
-                        HStack(spacing: 6) {
-                            Avatar(user: m.user, size: 24)
-                            Text(m.display).font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label)
+                        HStack(spacing: 10) {
+                            Avatar(user: m.user, size: 28)
+                            Text(m.display).font(.calloutC).foregroundStyle(Theme.label)
+                            Spacer(minLength: 0)
                         }
-                        .padding(.leading, 4).padding(.trailing, 12).frame(height: 34)
-                        .glassCapsule()
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.press)
+                    .buttonStyle(FillPressStyle(radius: 18, fill: Theme.fill4))
                 }
             }
-            .padding(.vertical, 2)
+            .padding(6)
         }
-        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxHeight: min(264, CGFloat(list.count) * 44 + 12))
+        .glass(RoundedRectangle(cornerRadius: 23, style: .continuous), interactive: false)
+        .transition(.opacity.combined(with: .offset(y: 4)))
     }
 
     // MARK: voice
@@ -309,8 +333,8 @@ struct Composer: View {
                 recorder.cancel()
                 Haptics.warning()
             } label: {
-                Image(systemName: "trash").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.red)
-                    .frame(width: 40, height: 40)
+                SymbolView(.trash, size: 20).foregroundStyle(Theme.red)
+                    .frame(width: 42, height: 42)
             }
             .buttonStyle(.press(0.9))
             .accessibilityLabel("Discard recording")
@@ -319,8 +343,9 @@ struct Composer: View {
             Text(Fmt.duration(recorder.elapsed)).font(.subheadMediumC.monospacedDigit()).foregroundStyle(Theme.label)
             LevelMeter(levels: recorder.levels).frame(height: 26)
         }
-        .padding(.horizontal, 8)
-        .frame(height: Bar.height)
+        .padding(.leading, 7)
+        .padding(.trailing, 18)
+        .frame(height: Self.control)
         .frame(maxWidth: .infinity)
         .glass(Capsule(), interactive: false)
     }
@@ -416,43 +441,77 @@ struct Composer: View {
 
 enum PlusAction { case photos, camera, drawing, stickers, file }
 
+/// The web's .composer-panel: 212pt wide, standing on the composer's
+/// trailing end, its body clipped from the button's 56pt circle out to a
+/// card with 24pt corners (280ms), the tools fading in after it.
 struct PlusPanel: View {
+    var open: Bool
     var stickers: Bool
     let pick: (PlusAction) -> Void
 
-    private var items: [(PlusAction, String, LocalizedStringKey, Color)] {
-        var list: [(PlusAction, String, LocalizedStringKey, Color)] = [
-            (.photos, "photo.on.rectangle", "Photos", Theme.blue),
-            (.camera, "camera.fill", "Camera", Color(hex: 0x5e5ce6)),
-            (.drawing, "scribble.variable", "Drawing", Color(hex: 0xff9f0a))
+    private var items: [(PlusAction, Sym, LocalizedStringKey)] {
+        var list: [(PlusAction, Sym, LocalizedStringKey)] = [
+            (.photos, .photo, "Photo"),
+            (.camera, .camera, "Camera"),
+            (.drawing, .brush, "Drawing")
         ]
-        if stickers { list.append((.stickers, "face.smiling.inverse", "Stickers", Color(hex: 0xff375f))) }
-        list.append((.file, "doc.fill", "File", Color(hex: 0x30b0c7)))
+        if stickers { list.append((.stickers, .face, "Stickers")) }
+        list.append((.file, .doc, "File"))
         return list
     }
 
     var body: some View {
-        let cols = Array(repeating: GridItem(.fixed(78), spacing: 6), count: min(3, items.count))
-        LazyVGrid(columns: cols, spacing: 10) {
-            ForEach(Array(items.enumerated()), id: \.offset) { i, item in
+        VStack(spacing: 2) {
+            ForEach(items, id: \.1) { item in
                 Button {
                     Haptics.tap()
                     pick(item.0)
                 } label: {
-                    VStack(spacing: 6) {
-                        Image(systemName: item.1)
-                            .font(.system(size: 21, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 52, height: 52)
-                            .background(item.3.gradient, in: Circle())
-                        Text(item.2).font(.caption2C).foregroundStyle(Theme.label)
+                    HStack(spacing: 12) {
+                        SymbolView(item.1, size: 22).foregroundStyle(Theme.label)
+                        Text(item.2).font(.bodyC).foregroundStyle(Theme.label)
+                        Spacer(minLength: 0)
                     }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.press(0.9))
+                .buttonStyle(FillPressStyle(radius: 18, fill: Theme.field))
+                .opacity(open ? 1 : 0)
+                .animation(open ? .easeOut(duration: 0.16).delay(0.07) : .easeOut(duration: 0.12), value: open)
             }
         }
-        .padding(14)
-        .glass(RoundedRectangle(cornerRadius: 28, style: .continuous), interactive: false)
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 64)
+        .frame(width: 212)
+        .background(Theme.surface)
+        .clipShape(GrowFromCorner(progress: open ? 1 : 0))
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.14), radius: 14, y: 10)
+        .shadow(color: .black.opacity(0.18), radius: 0.5)
+        .allowsHitTesting(open)
+        .accessibilityHidden(!open)
+        .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.28), value: open)
+    }
+}
+
+/// A rect clipped from a 56pt circle in its bottom-trailing corner (0) to
+/// the whole of it with 24pt corners (1).
+struct GrowFromCorner: Shape {
+    var progress: CGFloat
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let d: CGFloat = 56
+        let w = d + (rect.width - d) * progress
+        let h = d + (rect.height - d) * progress
+        let r = 28 + (24 - 28) * progress
+        let box = CGRect(x: rect.maxX - w, y: rect.maxY - h, width: w, height: h)
+        return Path(roundedRect: box, cornerRadius: r, style: .continuous)
     }
 }
 
@@ -462,7 +521,7 @@ struct LevelMeter: View {
     var body: some View {
         HStack(alignment: .center, spacing: 2) {
             ForEach(Array(levels.enumerated()), id: \.offset) { _, l in
-                Capsule().fill(Theme.blue).frame(width: 3, height: max(3, 26 * l))
+                Capsule().fill(Theme.label).frame(width: 2.5, height: max(3, 26 * l))
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)

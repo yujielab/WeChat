@@ -226,6 +226,8 @@ struct ColumnContext: Equatable {
     var size: CGSize = .zero
     var twoUp = false
     var keyboard: CGFloat = 0
+    /// Room the page capsule takes at the foot of the system column (with its gap), when it shows.
+    var capsule: CGFloat = 0
 
     /// Controls stand in the system's column on the trailing edge (iPhone Duo).
     var usesRail: Bool { rail != nil && isRightmost }

@@ -13,6 +13,7 @@ struct AuthView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var appear = false
+    @State private var reveal = false
     @FocusState private var focus: Field?
 
     enum Mode: String, CaseIterable { case signIn, register }
@@ -21,76 +22,82 @@ struct AuthView: View {
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            GlowField(palette: "ocean", intensity: 1.3)
-                .frame(height: 520)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .ignoresSafeArea()
-
             ScrollView {
-                VStack(spacing: 28) {
+                VStack(spacing: 0) {
                     Spacer(minLength: 40)
-                    VStack(spacing: 10) {
-                        Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.system(size: 40, weight: .semibold))
-                            .foregroundStyle(Theme.blue.gradient)
-                            .symbolEffect(.bounce, value: mode)
-                        Text("CUVEN")
-                            .font(AppFont.make(30, .black))
-                            .tracking(10)
-                            .foregroundStyle(Theme.label)
-                        Text(mode == .signIn ? "Welcome back" : "Messages, calls and moments — on your own server")
-                            .font(.subheadC)
-                            .foregroundStyle(Theme.label2)
-                            .multilineTextAlignment(.center)
-                            .contentTransition(.opacity)
-                    }
-                    .opacity(appear ? 1 : 0)
-                    .offset(y: appear ? 0 : 12)
+                    Text("CUVEN")
+                        .font(AppFont.make(26, .bold))
+                        .tracking(13)
+                        .padding(.leading, 13)
+                        .foregroundStyle(Theme.ink)
+                        .modifier(Reveal(step: 0, on: appear))
 
                     modePicker
+                        .padding(.top, 38)
+                        .modifier(Reveal(step: 1, on: appear))
 
-                    VStack(spacing: 12) {
-                        field("Username", text: $username, field: .user, symbol: "at")
-                            .textContentType(.username)
+                    VStack(spacing: 16) {
+                        labelled("Username") {
+                            input("", text: $username, field: .user)
+                                .textContentType(.username)
+                        }
                         if mode == .register {
-                            field("Display name", text: $display, field: .display, symbol: "person")
-                                .textContentType(.name)
-                                .transition(.move(edge: .top).combined(with: .opacity))
+                            labelled("Display name") {
+                                input("", text: $display, field: .display).textContentType(.name)
+                            }
+                            .transition(.opacity.combined(with: .offset(y: -6)))
                         }
-                        secureField
+                        labelled("Password", hint: mode == .register ? String(localized: "6+ characters") : nil) { secureField }
                         if mode == .register && needsCode {
-                            field("Invite code", text: $code, field: .code, symbol: "ticket")
-                                .transition(.move(edge: .top).combined(with: .opacity))
+                            labelled("Invite code") { input("", text: $code, field: .code) }
+                                .transition(.opacity.combined(with: .offset(y: -6)))
                         }
+                        if let error {
+                            Text(error)
+                                .font(.footnoteC).lineSpacing(3)
+                                .foregroundStyle(Theme.redText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .transition(.opacity)
+                        }
+                        Button(action: submit) {
+                            ZStack {
+                                if busy { ProgressView().tint(Theme.onInk) }
+                                else {
+                                    Text(mode == .signIn ? "Log in" : "Sign up")
+                                        .font(AppFont.make(16, .semibold)).tracking(0.32)
+                                }
+                            }
+                            .foregroundStyle(Theme.onInk)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .glassEffect(.regular.tint(Theme.ink.opacity(0.88)).interactive(), in: Capsule())
+                        }
+                        .buttonStyle(.press(0.97))
+                        .disabled(!canSubmit)
+                        .opacity(canSubmit || busy ? 1 : 0.4)
+                        .padding(.top, 8)
                     }
-
-                    if let error {
-                        Label(error, systemImage: "exclamationmark.circle.fill")
-                            .font(.footnoteC)
-                            .foregroundStyle(Theme.redText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    PrimaryButton(title: mode == .signIn ? "Sign in" : "Create account", loading: busy, enabled: canSubmit) {
-                        submit()
-                    }
+                    .padding(.top, 26)
+                    .modifier(Reveal(step: 2, on: appear))
 
                     serverRow
+                        .padding(.top, 28)
+                        .modifier(Reveal(step: 3, on: appear))
                     Spacer(minLength: 20)
                 }
-                .padding(.horizontal, 28)
-                .frame(maxWidth: 440)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: 380 + 48)
                 .frame(maxWidth: .infinity)
+                .frame(minHeight: 600)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
         }
         .animation(Motion.ui, value: mode)
         .animation(Motion.ui, value: error)
         .animation(Motion.ui, value: needsCode)
         .task {
             server = model.serverURL.absoluteString
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.05)) { appear = true }
+            appear = true
             needsCode = await model.authStatus()?.needsCode ?? false
         }
     }
@@ -99,67 +106,94 @@ struct AuthView: View {
         username.count >= 3 && password.count >= 6 && !busy
     }
 
+    /// Log in · Sign up: an ink pill that slides under the chosen one.
     private var modePicker: some View {
         HStack(spacing: 0) {
             ForEach(Mode.allCases, id: \.self) { m in
                 Button {
-                    mode = m
+                    withAnimation(Motion.ui) { mode = m }
                     error = nil
                     Haptics.selection()
                 } label: {
-                    Text(m == .signIn ? "Sign in" : "Create account")
-                        .font(.subheadMediumC)
-                        .foregroundStyle(mode == m ? Theme.label : Theme.label2)
-                        .frame(maxWidth: .infinity, minHeight: 40)
+                    Text(m == .signIn ? "Log in" : "Sign up")
+                        .font(AppFont.make(13, .semibold)).tracking(0.26)
+                        .foregroundStyle(mode == m ? Theme.onInk : Theme.label2)
+                        .frame(maxWidth: .infinity, minHeight: 42)
                         .background {
                             if mode == m {
-                                Capsule().fill(Theme.elevated)
-                                    .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
-                                    .matchedGeometryEffect(id: "mode", in: ns)
+                                Capsule().fill(Theme.ink).matchedGeometryEffect(id: "mode", in: ns)
                             }
                         }
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(4)
+        .padding(3)
         .background(Theme.field, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
     }
 
     @Namespace private var ns
 
-    private func field(_ title: LocalizedStringKey, text: Binding<String>, field: Field, symbol: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol).foregroundStyle(Theme.label3).frame(width: 20)
-            TextField(title, text: text)
-                .font(.bodyC)
+    private func labelled<C: View>(_ title: LocalizedStringKey, hint: String? = nil, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(AppFont.make(12, .medium)).tracking(0.6).foregroundStyle(Theme.label2)
+                Spacer()
+                if let hint { Text(hint).font(.caption2C).foregroundStyle(Theme.label3) }
+            }
+            .padding(.horizontal, 4)
+            content()
+        }
+    }
+
+    private func inputChrome<C: View>(_ field: Field, @ViewBuilder _ content: () -> C) -> some View {
+        content()
+            .padding(.horizontal, 18)
+            .frame(height: 52)
+            .background(Theme.bg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focus == field ? Theme.label : Theme.line, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Theme.label.opacity(focus == field ? 0.08 : 0)).padding(-3))
+            .animation(Motion.quick, value: focus)
+    }
+
+    private func input(_ placeholder: LocalizedStringKey, text: Binding<String>, field: Field) -> some View {
+        inputChrome(field) {
+            TextField(placeholder, text: text)
+                .font(.calloutC)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($focus, equals: field)
                 .submitLabel(.next)
                 .onSubmit { advance(from: field) }
         }
-        .padding(.horizontal, 16)
-        .frame(height: 54)
-        .background(Theme.field, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(focus == field ? Theme.blue.opacity(0.6) : .clear, lineWidth: 1.5))
-        .animation(Motion.quick, value: focus)
     }
 
     private var secureField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "lock").foregroundStyle(Theme.label3).frame(width: 20)
-            SecureField("Password", text: $password)
-                .font(.bodyC)
+        inputChrome(.password) {
+            HStack {
+                Group {
+                    if reveal {
+                        TextField("", text: $password)
+                    } else {
+                        SecureField("", text: $password)
+                    }
+                }
+                .font(.calloutC)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
                 .textContentType(mode == .signIn ? .password : .newPassword)
                 .focused($focus, equals: .password)
                 .submitLabel(.go)
                 .onSubmit { if canSubmit { submit() } }
+                Button(reveal ? "Hide" : "Show") { reveal.toggle() }
+                    .font(AppFont.make(12, .medium))
+                    .foregroundStyle(Theme.label2)
+                    .buttonStyle(.plain)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
         }
-        .padding(.horizontal, 16)
-        .frame(height: 54)
-        .background(Theme.field, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(focus == .password ? Theme.blue.opacity(0.6) : .clear, lineWidth: 1.5))
     }
 
     private var serverRow: some View {
@@ -168,12 +202,15 @@ struct AuthView: View {
                 withAnimation(Motion.ui) { showServer.toggle() }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "server.rack")
+                    SymbolView(.globe, size: 15)
                     Text(model.serverURL.host ?? "Server")
-                    Image(systemName: "chevron.down").rotationEffect(.degrees(showServer ? 180 : 0))
+                    SymbolView(.chevronDown, size: 12).rotationEffect(.degrees(showServer ? 180 : 0))
                 }
                 .font(.footnoteC)
                 .foregroundStyle(Theme.label2)
+                .padding(.horizontal, 18)
+                .frame(minHeight: 44)
+                .overlay(Capsule().strokeBorder(Theme.separator, lineWidth: 1))
             }
             .buttonStyle(.plain)
             if showServer {
@@ -186,11 +223,13 @@ struct AuthView: View {
                         .focused($focus, equals: .server)
                         .onSubmit { applyServer() }
                     Button("Use") { applyServer() }
-                        .font(.subheadMediumC)
+                        .font(.subheadBoldC)
+                        .foregroundStyle(Theme.label)
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 46)
-                .background(Theme.field, in: Capsule())
+                .padding(.horizontal, 18)
+                .frame(height: 52)
+                .background(Theme.bg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -236,5 +275,17 @@ struct AuthView: View {
             }
             busy = false
         }
+    }
+}
+
+/// Sections settle one after another (the web's .reveal: 420ms, 60ms apart).
+struct Reveal: ViewModifier {
+    let step: Int
+    let on: Bool
+    func body(content: Content) -> some View {
+        content
+            .opacity(on ? 1 : 0)
+            .offset(y: on ? 0 : 10)
+            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.42).delay(Double(step) * 0.06), value: on)
     }
 }

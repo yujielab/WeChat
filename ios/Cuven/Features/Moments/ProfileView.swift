@@ -15,68 +15,53 @@ struct ProfileView: View {
     @State private var more = true
     @State private var failed = false
     @Namespace private var ns
+    @State private var scrolled = false
 
     private var isMe: Bool { userId == model.me?.id }
     private var user: User? { page?.user ?? (isMe ? model.me : model.user(userId)) }
 
     var body: some View {
         GeometryReader { geo in
-            let topInset = ctx.insets.top
+            let coverH = min(210, max(150, geo.size.width * 0.36))
             ZStack(alignment: .topLeading) {
-                Theme.bg.ignoresSafeArea()
+                Theme.paper
                 ScrollView {
-                    VStack(spacing: 0) {
-                        cover(height: 190 + topInset)
+                    LazyVStack(spacing: 0) {
+                        cover(height: coverH)
                         identity
                         tabs
-                        if tab == 0 {
-                            LazyVStack(spacing: 0) {
-                                if moments.isEmpty && page != nil {
-                                    Text(page?.visible == false && !isMe ? "You've not talked yet — only posts for everyone show here." : "No posts yet")
-                                        .font(.subheadC).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
-                                        .padding(40)
-                                }
+                        Group {
+                            if tab == 0 {
+                                if moments.isEmpty && page != nil { emptyPosts }
                                 ForEach($moments) { $m in
                                     MomentCard(moment: $m) { moments.removeAll { $0.id == m.id } }
-                                    Hairline().padding(.horizontal, 16)
                                 }
                                 if more && !moments.isEmpty {
                                     ProgressView().padding().onAppear { Task { await loadMore() } }
                                 }
+                            } else {
+                                mediaWall(width: geo.size.width)
                             }
-                        } else {
-                            mediaWall(width: geo.size.width)
+                            Color.clear.frame(height: max(ctx.insets.bottom, 12) + 96)
                         }
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .ignoresSafeArea(edges: .top)
-                .safeAreaPadding(.bottom, ctx.insets.bottom + 90)
-
-                // Back / close
-                if !asPage || ctx.rail == nil {
-                    Button {
-                        Haptics.tap()
-                        close()
-                    } label: {
-                        Image(systemName: asPage ? "chevron.left" : "xmark")
-                            .font(.system(size: 16, weight: .bold)).foregroundStyle(Theme.label)
-                            .frame(width: 44, height: 44).glassCircle()
-                    }
-                    .buttonStyle(.press(0.9))
-                    .padding(.leading, max(ctx.insets.leading, 16))
-                    .padding(.top, topInset + 8)
-                    .accessibilityLabel(asPage ? "Back" : "Close")
+                .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > coverH - 68 } action: { _, v in
+                    withAnimation(.easeOut(duration: 0.22)) { scrolled = v }
                 }
+
+                topbar
 
                 if isMe {
                     Button { nav.composeMoment = true } label: {
-                        Image(systemName: "plus").font(.system(size: 22, weight: .bold)).foregroundStyle(.white)
-                            .frame(width: 58, height: 58).glassCircle(tint: Theme.sky)
+                        SymbolView(.plus, size: 26, weight: 2.2).foregroundStyle(Theme.onInk)
+                            .frame(width: 56, height: 56)
+                            .glassEffect(.regular.tint(Theme.ink.opacity(0.85)).interactive(), in: Circle())
                     }
                     .buttonStyle(.press(0.9))
-                    .padding(.trailing, ctx.insets.trailing + 20)
-                    .padding(.bottom, ctx.insets.bottom + 20)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, max(ctx.insets.bottom, 12) + 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .accessibilityLabel("New moment")
                 }
@@ -86,55 +71,96 @@ struct ProfileView: View {
         .onChange(of: model.momentsVersion) { _, _ in Task { await load() } }
     }
 
+    /// A round glass button over the cover; once the cover has scrolled away
+    /// a bar fills in behind it with the name.
+    private var topbar: some View {
+        HStack(spacing: 12) {
+            Button {
+                Haptics.tap()
+                close()
+            } label: {
+                SymbolView(.xmark, size: 22)
+                    .foregroundStyle(scrolled ? Theme.label : .white)
+                    .frame(width: 44, height: 44)
+                    .background(scrolled ? AnyShapeStyle(Theme.elevated.opacity(0.86)) : AnyShapeStyle(Color.black.opacity(0.42)), in: Circle())
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(scrolled ? Theme.line : .clear, lineWidth: 1))
+            }
+            .buttonStyle(.press(0.9))
+            .accessibilityLabel("Close")
+            Text(user?.name ?? "")
+                .font(AppFont.make(17, .bold))
+                .foregroundStyle(Theme.label)
+                .lineLimit(1)
+                .opacity(scrolled ? 1 : 0)
+                .offset(y: scrolled ? 0 : 6)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 68)
+        .background {
+            if scrolled {
+                Rectangle().fill(.ultraThinMaterial).overlay(Theme.paper.opacity(0.88)).transition(.opacity)
+            }
+        }
+    }
+
+    /// The cover across the top: theirs, or a deep ribbon of light.
     private func cover(height: CGFloat) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            Group {
-                if let c = user?.cover, !c.isEmpty, !c.hasPrefix("preset:") {
-                    RemoteImage(c, maxPixel: 1600)
-                } else {
-                    let t = Theme.tint(for: userId)
-                    LinearGradient(colors: [t.0, Theme.sky.opacity(0.35), t.0.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        Group {
+            if let c = user?.cover, !c.isEmpty, !c.hasPrefix("preset:") {
+                RemoteImage(c, maxPixel: 1600)
+            } else {
+                ZStack {
+                    LinearGradient(stops: [.init(color: Color(hex: 0x0d1430), location: 0), .init(color: Color(hex: 0x1c2f6b), location: 0.45),
+                                           .init(color: Color(hex: 0x0a0f24), location: 1)],
+                                   startPoint: UnitPoint(x: 0.33, y: 0), endPoint: UnitPoint(x: 0.67, y: 1))
+                    RadialGradient(colors: [Color(red: 120 / 255, green: 160 / 255, blue: 1).opacity(0.55), .clear],
+                                   center: UnitPoint(x: 0.85, y: 0.4), startRadius: 0, endRadius: 260)
+                    RadialGradient(colors: [Color(red: 70 / 255, green: 90 / 255, blue: 200 / 255).opacity(0.6), .clear],
+                                   center: UnitPoint(x: 0.15, y: 0.8), startRadius: 0, endRadius: 220)
                 }
             }
-            .frame(height: height)
-            .frame(maxWidth: .infinity)
-            .clipped()
-
-            Avatar(user: user, size: 96)
-                .overlay(Circle().stroke(Theme.bg, lineWidth: 4))
-                .offset(x: 20, y: 48)
         }
-        .padding(.bottom, 48)
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
+        .clipped()
     }
 
     private var identity: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(user?.name ?? "").font(.title1C).foregroundStyle(Theme.label)
-            Text("@\(user?.username ?? "")").font(.subheadC).foregroundStyle(Theme.label2)
+        VStack(alignment: .leading, spacing: 0) {
+            Avatar(user: user, size: 104)
+                .background(Circle().fill(Theme.paper).padding(-4))
+                .padding(.top, -54)
+            Text(user?.name ?? "")
+                .font(AppFont.make(28, .bold))
+                .tracking(-0.56)
+                .foregroundStyle(Theme.label)
+                .padding(.top, 12)
+            Text("@\(user?.username ?? "")").font(.bodyC).foregroundStyle(Theme.label2).padding(.top, 4)
             if let bio = user?.bio, !bio.isEmpty {
-                Text(bio).font(.bodyC).foregroundStyle(Theme.label)
+                Text(bio).font(.bodyC).lineSpacing(BodyMetrics.extra).foregroundStyle(Theme.label).padding(.top, 10)
             }
-            HStack(spacing: 16) {
-                if let joined = page?.user.joined, joined > 0 {
-                    Label("Joined \(Fmt.month(Date(timeIntervalSince1970: TimeInterval(joined) / 1000)))", systemImage: "calendar")
+            if let joined = page?.user.joined, joined > 0 {
+                HStack(spacing: 6) {
+                    SymbolView(.calendar, size: 18)
+                    Text("Joined \(Fmt.month(Date(timeIntervalSince1970: TimeInterval(joined) / 1000)))")
                 }
-                Text("\(page?.count ?? 0) posts").fontWeight(.semibold)
-                if isMe, let f = page?.friends { Text("\(f) friends").fontWeight(.semibold) }
-                else if !isMe { Text(page?.friend == true ? "Friends" : "You've not talked yet") }
+                .font(.subheadC)
+                .foregroundStyle(Theme.label2)
+                .padding(.top, 12)
             }
-            .font(.footnoteC)
-            .foregroundStyle(Theme.label2)
+            HStack(spacing: 18) {
+                count(page?.count ?? 0, "Posts")
+                if isMe, let f = page?.friends { count(f, "Friends") }
+                else if !isMe { Text(page?.friend == true ? "Friends" : "You've not talked yet").font(.subheadC).foregroundStyle(Theme.label2) }
+            }
+            .padding(.top, 10)
 
             HStack(spacing: 10) {
                 if isMe {
-                    Button { nav.settingsOpen = true } label: {
-                        Text("Edit profile").font(.subheadMediumC).foregroundStyle(Theme.label)
-                            .frame(maxWidth: .infinity).frame(height: 40).background(Theme.fillQuiet, in: Capsule())
-                    }
-                    ShareLink(item: "@\(user?.username ?? "")") {
-                        Text("Share profile").font(.subheadMediumC).foregroundStyle(Theme.label)
-                            .frame(maxWidth: .infinity).frame(height: 40).background(Theme.fillQuiet, in: Capsule())
-                    }
+                    ShareLink(item: "@\(user?.username ?? "")") { pill("Share profile") }
+                    Button { nav.settingsOpen = true } label: { pill("Edit profile") }
                 } else if let user {
                     Button {
                         Task {
@@ -144,52 +170,98 @@ struct ProfileView: View {
                                 nav.open(room: id)
                             }
                         }
-                    } label: {
-                        Text("Message").font(.subheadMediumC).foregroundStyle(Theme.onInk)
-                            .frame(maxWidth: .infinity).frame(height: 40).background(Theme.ink, in: Capsule())
-                    }
+                    } label: { pill("Message", solid: true) }
                     let state = model.contacts.first { $0.id == user.id }?.state
-                    if state == nil {
-                        Button {
-                            Task { await model.addContact(user) }
-                        } label: {
-                            Image(systemName: "person.badge.plus").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.label)
-                                .frame(width: 48, height: 40).background(Theme.fillQuiet, in: Capsule())
-                        }
-                        .accessibilityLabel("Add")
+                    Button {
+                        if state == nil { Task { await model.addContact(user) } }
+                    } label: {
+                        pill(state == "accepted" ? "Friends" : (state == "pending_out" ? "Requested" : (state == "pending_in" ? "Accept" : "Add friend")))
                     }
+                    .disabled(state == "accepted" || state == "pending_out")
                 }
             }
             .buttonStyle(.press)
-            .padding(.top, 6)
+            .padding(.top, 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.bottom, 14)
     }
 
+    private func count(_ n: Int, _ word: LocalizedStringKey) -> some View {
+        HStack(spacing: 4) {
+            Text("\(n)").font(AppFont.make(15, .semibold).monospacedDigit()).foregroundStyle(Theme.label)
+            Text(word).font(.subheadC).foregroundStyle(Theme.label2)
+        }
+    }
+
+    /// The web's .mo-pill: 44pt, a hairline just inside (glass here), or ink.
+    private func pill(_ t: LocalizedStringKey, solid: Bool = false) -> some View {
+        Text(t)
+            .font(AppFont.make(15, .semibold))
+            .foregroundStyle(solid ? Theme.onInk : Theme.label)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background { if solid { Capsule().fill(Theme.ink) } }
+            .glassEffect(solid ? Glass.identity : Glass.regular.interactive(), in: Capsule())
+    }
+
+    /// Tabs: an icon each; the chosen one also says its name.
     private var tabs: some View {
         HStack(spacing: 0) {
-            ForEach(Array(["Posts", "Media"].enumerated()), id: \.offset) { i, t in
+            ForEach(0..<2, id: \.self) { i in
+                let on = tab == i
                 Button {
                     Haptics.selection()
-                    withAnimation(Motion.ui) { tab = i }
+                    withAnimation(.spring(duration: 0.34, bounce: 0.1)) { tab = i }
                 } label: {
-                    VStack(spacing: 8) {
-                        Text(LocalizedStringKey(t)).font(.subheadMediumC).foregroundStyle(tab == i ? Theme.label : Theme.label3)
-                        ZStack {
-                            Rectangle().fill(Color.clear).frame(height: 2)
-                            if tab == i {
-                                Capsule().fill(Theme.label).frame(height: 2).matchedGeometryEffect(id: "tab", in: ns)
-                            }
+                    HStack(spacing: 8) {
+                        SymbolView(i == 0 ? .doc : .photo, size: 24)
+                        if on {
+                            Text(i == 0 ? "Posts" : "Media").font(AppFont.make(17, .bold))
+                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(on ? Theme.label : Theme.label2)
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .overlay(alignment: .bottom) {
+                        if on {
+                            Capsule().fill(Theme.label).frame(height: 3).padding(.horizontal, 24)
+                                .matchedGeometryEffect(id: "tab", in: ns)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(i == 0 ? "Posts" : "Media")
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
-        .overlay(alignment: .bottom) { Hairline() }
+        .background(.ultraThinMaterial)
+        .background(Theme.paper.opacity(0.88))
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
+        .padding(.top, 16)
+    }
+
+    private var emptyPosts: some View {
+        VStack(spacing: 6) {
+            if isMe {
+                Text("Share your first moment").font(AppFont.make(17, .bold)).foregroundStyle(Theme.label)
+                Text("Photos or a video, and a few words.").font(.subheadC).foregroundStyle(Theme.label2)
+                Button { nav.composeMoment = true } label: {
+                    Text("Share a moment").font(AppFont.make(15, .semibold)).foregroundStyle(Theme.onInk)
+                        .padding(.horizontal, 18).frame(height: 44)
+                        .glassEffect(.regular.tint(Theme.ink.opacity(0.85)).interactive(), in: Capsule())
+                }
+                .buttonStyle(.press)
+                .padding(.top, 12)
+            } else {
+                Text(page?.visible == false ? "You've not talked yet — only posts for everyone show here." : "No posts yet")
+                    .font(.subheadC).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 40)
     }
 
     private func mediaWall(width: CGFloat) -> some View {
@@ -216,8 +288,12 @@ struct ProfileView: View {
                     .frame(width: width, height: width / a)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     if m.media.count > 1 {
-                        Label("\(m.media.count)", systemImage: "square.on.square").font(.caption2C).foregroundStyle(.white)
-                            .padding(.horizontal, 6).padding(.vertical, 3).background(.black.opacity(0.4), in: Capsule()).padding(8)
+                        HStack(spacing: 3) {
+                            SymbolView(.photoStack, size: 13)
+                            Text("\(m.media.count)")
+                        }
+                        .font(.caption2C).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 3).background(.black.opacity(0.45), in: Capsule()).padding(8)
                     }
                 }
                 if !m.text.isEmpty {
@@ -227,7 +303,7 @@ struct ProfileView: View {
                     Avatar(user: m.user, size: 18)
                     Text(m.user.name).font(.caption2C).foregroundStyle(Theme.label2).lineLimit(1)
                     Spacer()
-                    Image(systemName: m.liked ? "heart.fill" : "heart").font(.system(size: 11)).foregroundStyle(m.liked ? Theme.red : Theme.label3)
+                    SymbolView(.heart, size: 12, filled: m.liked).foregroundStyle(m.liked ? Theme.red : Theme.label3)
                     Text("\(m.likes.count)").font(.caption2C).foregroundStyle(Theme.label3)
                 }
             }

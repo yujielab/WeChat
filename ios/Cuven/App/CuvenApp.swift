@@ -5,6 +5,7 @@ import UserNotifications
 struct CuvenApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = AppModel()
+    @AppStorage("ui:motion") private var motion = "system"
 
     var body: some Scene {
         WindowGroup {
@@ -12,6 +13,10 @@ struct CuvenApp: App {
                 .environment(model)
                 .preferredColorScheme(model.colorScheme)
                 .tint(Theme.blue)
+                // Settings › Reduce motion: what moves only fades, quickly.
+                .transaction { t in
+                    if motion == "reduce", t.animation != nil { t.animation = .easeOut(duration: 0.15) }
+                }
                 .task {
                     AppDelegate.model = model
                     Automation.prepare(model)
@@ -67,9 +72,10 @@ struct SplashView: View {
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            Image(systemName: "bubble.left.and.bubble.right.fill")
-                .font(.system(size: 54, weight: .semibold))
-                .foregroundStyle(Theme.blue.gradient)
+            Image("AppIcon-Mark")
+                .resizable()
+                .frame(width: 96, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .scaleEffect(appear ? 1 : 0.86)
                 .opacity(appear ? 1 : 0)
         }
@@ -123,10 +129,16 @@ enum Automation {
         case "group": if let g = model.rooms.first(where: { $0.isGroup })?.id { nav.open(room: g) }
         case "moments": nav.switchPage(.moments)
         case "memories": nav.switchPage(.memories)
-        case "requests": nav.switchPage(.requests)
+        case "requests", "friends": nav.switchPage(.friends)
         case "me": nav.switchPage(.me)
         case "settings": nav.settingsOpen = true
-        case "newchat": nav.newChatOpen = true
+        case "newchat", "newgroup": nav.newGroup = true
+        case "search":
+            nav.toList()
+            try? await Task.sleep(for: .milliseconds(300))
+            nav.searching = true
+        case "note": nav.noteEditor = true
+        case "note-open": if let n = model.notes.first { nav.openNote = n }
         case "plus":
             if let first {
                 nav.open(room: first)

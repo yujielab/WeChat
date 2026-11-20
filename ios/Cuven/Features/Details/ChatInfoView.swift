@@ -15,26 +15,68 @@ struct ChatInfoView: View {
 
     var body: some View {
         ZStack {
-            Theme.grouped
+            Theme.bg
             if let room {
                 ScrollView {
-                    VStack(spacing: 22) {
-                        hero(room)
-                        quickActions(room)
-                        settings(room)
+                    VStack(spacing: 0) {
+                        profile(room)
+                        if let peer = room.peer, !room.isGroup {
+                            GroupCard {
+                                Button { nav.profile = peer.id } label: {
+                                    Cell(icon: .photo, iconTint: Theme.fbBlue, title: "Moments", chevron: true)
+                                }
+                                .buttonStyle(CellButtonStyle())
+                            }
+                            .padding(.top, 16)
+                        }
+                        GroupCard {
+                            Toggle(isOn: Binding(get: { room.muted }, set: { v in Task { await model.setFlag(room.id, muted: v) } })) {
+                                HStack(spacing: 12) {
+                                    CellIcon(sym: .bell, tint: Theme.fbBlue, slashed: true)
+                                    Text("Mute").font(.bodyC).foregroundStyle(Theme.label)
+                                }
+                            }
+                            .toggleStyle(.ink)
+                            .padding(.horizontal, 16).frame(minHeight: 58)
+                            CellSeparator(leading: 56)
+                            Toggle(isOn: Binding(get: { room.pinned }, set: { v in Task { await model.setFlag(room.id, pinned: v) } })) {
+                                HStack(spacing: 12) {
+                                    CellIcon(sym: .pin, tint: Theme.fbBlue)
+                                    Text("Pin chat").font(.bodyC).foregroundStyle(Theme.label)
+                                }
+                            }
+                            .toggleStyle(.ink)
+                            .padding(.horizontal, 16).frame(minHeight: 58)
+                        }
+                        .padding(.top, 16)
+
                         if room.isGroup { members(room) }
                         sharedMedia
-                        dangerZone(room)
+
+                        GroupCard {
+                            if room.isGroup {
+                                Button { confirmLeave = true } label: {
+                                    Cell(title: "Leave group", color: Theme.redText)
+                                }
+                                .buttonStyle(CellButtonStyle())
+                                CellSeparator()
+                            }
+                            Button { confirmDelete = true } label: {
+                                Cell(title: "Delete chat", color: Theme.redText)
+                            }
+                            .buttonStyle(CellButtonStyle())
+                        }
+                        .padding(.top, 28)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 18)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 22)
                     .padding(.bottom, 24)
                 }
                 .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
-                                            bottom: ctx.usesRail ? ctx.insets.bottom + 12 : ctx.barClearance,
-                                            trailing: ctx.insets.trailing))
+                                            bottom: ctx.usesRail ? max(ctx.insets.bottom, 16) + 20 : ctx.barClearance,
+                                            trailing: railContent))
             }
-            ColumnBar(back: BarItem(id: "close", symbol: nav.columns == 1 ? "chevron.left" : "xmark",
+            ColumnBar(back: BarItem(id: "close", sym: nav.columns == 1 ? .chevronLeft : .xmark,
                                     title: nav.columns == 1 ? "Back" : "Close") { nav.closeDetail() })
         }
         .task(id: roomId) {
@@ -67,115 +109,71 @@ struct ChatInfoView: View {
         }
     }
 
-    private func hero(_ room: Room) -> some View {
-        VStack(spacing: 8) {
-            Avatar(path: room.avatar, name: room.title, id: room.peer?.id ?? room.id, size: 96,
-                   online: !room.isGroup && model.isOnline(room.peer?.id))
-            Text(room.title).font(.title2C).foregroundStyle(Theme.label).multilineTextAlignment(.center)
-            if let peer = room.peer, !room.isGroup {
-                Text("@\(peer.username)").font(.subheadC).foregroundStyle(Theme.label2)
-                if !peer.bio.isEmpty {
-                    Text(peer.bio).font(.subheadC).foregroundStyle(Theme.label).multilineTextAlignment(.center).padding(.top, 2)
-                }
-            } else {
-                Text("\(room.count) members").font(.subheadC).foregroundStyle(Theme.label2)
-            }
-        }
-        .frame(maxWidth: .infinity)
+    private var railContent: CGFloat {
+        guard ctx.usesRail, let rail = ctx.rail else { return ctx.insets.trailing }
+        return max(ctx.insets.trailing, rail.centerFromEdge + Bar.railWidth / 2 + 12)
     }
 
-    private func quickActions(_ room: Room) -> some View {
-        HStack(spacing: 10) {
-            if model.callsEnabled {
-                quick("phone.fill", "Call") { model.calls.start(room: room, video: false) }
-                quick("video.fill", "Video") { model.calls.start(room: room, video: true) }
-            }
-            quick(room.muted ? "bell.slash.fill" : "bell.fill", room.muted ? "Unmute" : "Mute") {
-                Task { await model.setFlag(room.id, muted: !room.muted) }
-            }
-            if let peer = room.peer, !room.isGroup {
-                quick("photo.on.rectangle.angled", "Moments") { nav.profile = peer.id }
-            } else {
-                quick("person.badge.plus", "Add") { inviting = true }
-            }
-        }
-    }
-
-    private func quick(_ symbol: String, _ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+    /// Who it is: a 64pt photo, the name in Title 2, how to reach them.
+    private func profile(_ room: Room) -> some View {
         Button {
-            Haptics.tap()
-            action()
+            if let peer = room.peer, !room.isGroup { nav.profile = peer.id }
         } label: {
-            VStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 18, weight: .semibold)).foregroundStyle(Theme.blue)
-                    .contentTransition(.symbolEffect(.replace))
-                Text(title).font(.caption2C).foregroundStyle(Theme.label)
+            HStack(spacing: 16) {
+                Avatar(path: room.avatar, name: room.title, id: room.peer?.id ?? room.id, size: 64, room: room.isGroup,
+                       online: !room.isGroup && model.isOnline(room.peer?.id))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(room.title)
+                        .font(AppFont.make(22, .semibold))
+                        .tracking(-0.44)
+                        .foregroundStyle(Theme.label)
+                        .lineLimit(2)
+                    if let peer = room.peer, !room.isGroup {
+                        Text("@\(peer.username)").font(.footnoteC).foregroundStyle(Theme.label2).lineLimit(1)
+                    } else {
+                        Text("\(room.count) members").font(.footnoteC).foregroundStyle(Theme.label2)
+                    }
+                }
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .background(Theme.groupedCell, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(20)
+            .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
         }
         .buttonStyle(.press)
+        .disabled(room.isGroup)
     }
 
-    private func settings(_ room: Room) -> some View {
-        VStack(spacing: 0) {
-            toggleRow("Mute notifications", symbol: "bell.slash", isOn: room.muted) { v in
-                Task { await model.setFlag(room.id, muted: v) }
-            }
-            Hairline().padding(.leading, 52)
-            toggleRow("Pin chat", symbol: "pin", isOn: room.pinned) { v in
-                Task { await model.setFlag(room.id, pinned: v) }
-            }
-        }
-        .background(Theme.groupedCell, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func toggleRow(_ title: LocalizedStringKey, symbol: String, isOn: Bool, set: @escaping (Bool) -> Void) -> some View {
-        Toggle(isOn: Binding(get: { isOn }, set: set)) {
-            HStack(spacing: 14) {
-                Image(systemName: symbol).foregroundStyle(Theme.blue).frame(width: 22)
-                Text(title).font(.bodyC)
-            }
-        }
-        .tint(Theme.blue)
-        .padding(.horizontal, 16)
-        .frame(height: 50)
-    }
-
+    /// Members: photos in a grid, then a way to add more.
     private func members(_ room: Room) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Members").font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2).padding(.leading, 6)
-            VStack(spacing: 0) {
-                Button { inviting = true } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.blue)
-                            .frame(width: 38, height: 38).background(Theme.blue.opacity(0.12), in: Circle())
-                        Text("Add people").font(.bodyC).foregroundStyle(Theme.blue)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 14).frame(height: 56)
-                }
-                .buttonStyle(.press(0.99))
-                ForEach(model.members[room.id] ?? []) { m in
-                    Hairline().padding(.leading, 64)
-                    Button { if m.id != model.me?.id { nav.profile = m.id } } label: {
-                        HStack(spacing: 12) {
-                            Avatar(user: m.user, size: 38, online: model.isOnline(m.id))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(m.id == model.me?.id ? String(localized: "You") : m.display).font(.bodyC).foregroundStyle(Theme.label)
-                                Text("@\(m.username)").font(.captionC).foregroundStyle(Theme.label2)
-                            }
-                            Spacer()
-                            if m.role == "owner" || m.role == "admin" {
-                                Text(m.role == "owner" ? "Owner" : "Admin").font(.caption2C).foregroundStyle(Theme.label2)
+        VStack(spacing: 0) {
+            GroupTitle(text: "Members")
+            GroupCard {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 6)], spacing: 12) {
+                    ForEach(model.members[room.id] ?? []) { m in
+                        Button { if m.id != model.me?.id { nav.profile = m.id } } label: {
+                            VStack(spacing: 5) {
+                                Avatar(user: m.user, size: 48, online: model.isOnline(m.id))
+                                Text(m.id == model.me?.id ? String(localized: "You") : m.display)
+                                    .font(.captionC).foregroundStyle(Theme.label2).lineLimit(1)
                             }
                         }
-                        .padding(.horizontal, 14).frame(height: 56)
+                        .buttonStyle(.press(0.94))
                     }
-                    .buttonStyle(.press(0.99))
+                    Button { inviting = true } label: {
+                        VStack(spacing: 5) {
+                            SymbolView(.plus, size: 20, weight: 2.2).foregroundStyle(Theme.label)
+                                .frame(width: 48, height: 48)
+                                .background(Theme.field, in: Circle())
+                                .overlay(Circle().strokeBorder(Theme.line, lineWidth: 1))
+                            Text("Add").font(.captionC).foregroundStyle(Theme.label2)
+                        }
+                    }
+                    .buttonStyle(.press(0.94))
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 14)
             }
-            .background(Theme.groupedCell, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
     }
 
@@ -183,8 +181,8 @@ struct ChatInfoView: View {
     private var sharedMedia: some View {
         let media = model.messages(roomId).filter { ($0.isVisual || $0.type == "video") && !$0.isRevoked && $0.meta?.url != nil && !$0.isLocal }.reversed()
         if !media.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Photos and videos").font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2).padding(.leading, 6)
+            VStack(spacing: 0) {
+                GroupTitle(text: "Photos and videos")
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 4), spacing: 3) {
                     ForEach(Array(media.prefix(24))) { m in
                         FrameReporting { frame in
@@ -204,28 +202,14 @@ struct ChatInfoView: View {
                         .aspectRatio(1, contentMode: .fit)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 23, style: .continuous))
             }
         }
-    }
-
-    private func dangerZone(_ room: Room) -> some View {
-        VStack(spacing: 0) {
-            if room.isGroup {
-                Button { confirmLeave = true } label: {
-                    Text("Leave group").font(.bodyC).foregroundStyle(Theme.redText).frame(maxWidth: .infinity).frame(height: 50)
-                }
-                Hairline()
-            }
-            Button { confirmDelete = true } label: {
-                Text("Delete chat").font(.bodyC).foregroundStyle(Theme.redText).frame(maxWidth: .infinity).frame(height: 50)
-            }
-        }
-        .background(Theme.groupedCell, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
-/// Pick people from your contacts (new group, adding to a group, tagging).
+/// Pick people from your friends (a new group, adding to a group, tagging):
+/// rows with a round check that fills with ink.
 struct PeoplePicker: View {
     let title: LocalizedStringKey
     var exclude: Set<String> = []
@@ -243,45 +227,80 @@ struct PeoplePicker: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List(people) { u in
+        VStack(spacing: 0) {
+            SheetHeader(title: title, centered: true) {
+                GlassIconButton(sym: .xmark, title: "Cancel") { dismiss() }
+            } trailing: {
                 Button {
-                    if picked.contains(u.id) { picked.remove(u.id) } else { picked.insert(u.id) }
-                    Haptics.selection()
+                    done(Array(picked))
+                    dismiss()
                 } label: {
-                    HStack(spacing: 12) {
-                        Avatar(user: u, size: 40)
-                        VStack(alignment: .leading) {
-                            Text(u.name).font(.bodyC).foregroundStyle(Theme.label)
-                            Text("@\(u.username)").font(.captionC).foregroundStyle(Theme.label2)
-                        }
-                        Spacer()
-                        Image(systemName: picked.contains(u.id) ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 22))
-                            .foregroundStyle(picked.contains(u.id) ? Theme.blue : Theme.label3)
-                            .contentTransition(.symbolEffect(.replace))
-                    }
+                    SymbolView(.check, size: 20, weight: 2.4)
+                        .foregroundStyle(Theme.onInk)
+                        .frame(width: 44, height: 44)
+                        .background(Theme.ink, in: Circle())
                 }
+                .buttonStyle(.press(0.94))
+                .disabled(picked.isEmpty)
+                .opacity(picked.isEmpty ? 0.35 : 1)
+                .accessibilityLabel(Text(confirm))
             }
-            .listStyle(.plain)
-            .searchable(text: $query)
-            .overlay {
+            HStack(spacing: 8) {
+                SymbolView(.search, size: 17).foregroundStyle(Theme.label3)
+                TextField("Search", text: $query).font(.bodyC).autocorrectionDisabled()
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 44)
+            .glassCapsule(interactive: false)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+            ScrollView {
                 if people.isEmpty {
-                    ContentUnavailableView("No contacts yet", systemImage: "person.2", description: Text("Add people from Messages › New chat."))
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(confirm) {
-                        done(Array(picked))
-                        dismiss()
+                    VStack(spacing: 6) {
+                        SymbolView(.people, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
+                        Text("No friends yet").font(.headlineC).foregroundStyle(Theme.label)
+                        Text("Add people from Friends.").font(.subheadC).foregroundStyle(Theme.label2)
                     }
-                    .disabled(picked.isEmpty)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 48)
+                } else {
+                    GroupCard {
+                        ForEach(Array(people.enumerated()), id: \.element.id) { i, u in
+                            if i > 0 { CellSeparator(leading: 66) }
+                            Button {
+                                if picked.contains(u.id) { picked.remove(u.id) } else { picked.insert(u.id) }
+                                Haptics.selection()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Avatar(user: u, size: 40)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(u.name).font(.bodyC).foregroundStyle(Theme.label)
+                                        Text("@\(u.username)").font(.footnoteC).foregroundStyle(Theme.label2)
+                                    }
+                                    Spacer(minLength: 0)
+                                    let on = picked.contains(u.id)
+                                    SymbolView(.check, size: 15, weight: 2.4)
+                                        .foregroundStyle(Theme.onInk)
+                                        .opacity(on ? 1 : 0)
+                                        .frame(width: 26, height: 26)
+                                        .background(on ? Theme.ink : .clear, in: Circle())
+                                        .overlay(Circle().strokeBorder(on ? .clear : Theme.label3, lineWidth: 1.5))
+                                        .animation(.easeOut(duration: 0.14), value: on)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 9)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(CellButtonStyle())
+                        }
+                    }
+                    .padding(.horizontal, 20)
                 }
             }
         }
+        .background(Theme.grouped)
+        .presentationDetents([.large])
+        .presentationCornerRadius(30)
+        .presentationBackground(Theme.grouped)
     }
 }

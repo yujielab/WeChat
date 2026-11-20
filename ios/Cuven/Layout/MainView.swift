@@ -23,7 +23,8 @@ struct MainView: View {
             let cols = StripGeometry.columns(for: size)
             let pose: Posture = cols == 1 ? .closed : (posture == .half || foldRect != nil ? .half : .flat)
             let geo = StripGeometry(size: size, insets: insets, keyboard: keyboard.height, columns: nav.columns,
-                                    posture: pose, fold: foldRect, leading: nav.leading)
+                                    posture: pose, fold: foldRect, leading: nav.leading,
+                                    capsule: showsPageCapsule ? PageCapsule.height + Bar.gap + 2 : 0)
             ZStack(alignment: .topLeading) {
                 shell(geo: geo, size: size, insets: insets)
                     .frame(width: size.width, height: size.height)
@@ -39,12 +40,8 @@ struct MainView: View {
         .modifier(HingeWatcher(posture: $posture))
         .environment(nav)
         .fullScreenCover(isPresented: $nav.composeMoment) { MomentEditor() }
-        .sheet(isPresented: $nav.noteEditor) {
-            NoteEditor().presentationDetents([.height(330)]).presentationCornerRadius(30)
-        }
-        .sheet(item: $nav.openNote) { note in
-            NoteSheet(note: note).presentationDetents([.height(360)]).presentationCornerRadius(30)
-        }
+        .sheet(isPresented: $nav.noteEditor) { NoteEditor() }
+        .sheet(item: $nav.openNote) { note in NoteSheet(note: note) }
         .sheet(isPresented: $nav.newGroup) { NewGroupView() }
         .overlay { CallOverlay() }
         .task { await Automation.drive(model, nav) }
@@ -259,6 +256,7 @@ struct StripGeometry {
     let posture: Posture
     let fold: CGRect?
     let leading: Column
+    var capsule: CGFloat = 0
 
     /// Two columns once a list fits beside a readable conversation (the Duo's
     /// inner display, a Max in landscape, iPad).
@@ -339,26 +337,36 @@ struct StripGeometry {
         let f = frame(c)
         return ColumnContext(column: c, insets: ins, isLeftmost: left, isRightmost: right,
                              rail: right ? rail : nil, size: CGSize(width: f.width, height: size.height),
-                             twoUp: columns == 2, keyboard: keyboard)
+                             twoUp: columns == 2, keyboard: keyboard, capsule: right ? capsule : 0)
     }
 
-    /// Where a page's sheet stands: the content's width on one column (8pt in
-    /// from each side, up to the system column), centred and at most 560pt on two.
+    /// Where a page's sheet stands (css/overlays.css .sheet): folded, the
+    /// app's side of the screen 8pt in from each edge (clear of the page
+    /// capsule), at most 560pt, from 26pt under the top to 8pt over the foot;
+    /// unfolded, a form sheet in the middle of the screen itself, at most
+    /// 560 × 680pt, never reaching over the system's column.
     var sheetFrame: CGRect {
-        let contentRight = size.width - insets.trailing
-        let top = max(insets.top, 10) + 16
+        let W = size.width, H = size.height
         if columns == 1 {
-            let x = insets.leading + 8
-            return CGRect(x: x, y: top, width: max(200, contentRight - 8 - x), height: size.height - top)
+            let left = insets.leading + 8
+            let right = max(insets.trailing + 8, rail != nil ? Bar.railWidth + 20 : 0)
+            let room = W - left - right
+            let w = min(560, room)
+            let x = left + (room - w) / 2
+            let top = insets.top + 26
+            let bottom = keyboard > 0 ? 8 : max(8, insets.bottom - 18)
+            return CGRect(x: x, y: top, width: w, height: max(200, H - top - bottom))
         }
-        let w = min(560, contentRight - insets.leading - 48)
-        return CGRect(x: insets.leading + (contentRight - insets.leading - w) / 2, y: top, width: w, height: size.height - top)
+        let w = min(560, W - insets.leading - insets.trailing - 64)
+        let cx = min(max(W / 2, insets.leading + 32 + w / 2), W - insets.trailing - 32 - w / 2)
+        let h = min(680, H - insets.top - 48)
+        return CGRect(x: cx - w / 2, y: insets.top + (H - insets.top - h) / 2, width: w, height: h)
     }
 
     var sheetContext: ColumnContext {
         let f = sheetFrame
         let bottom = keyboard > 0 ? keyboard - (size.height - f.maxY) : insets.bottom
-        return ColumnContext(column: .list, insets: EdgeInsets(top: 0, leading: 0, bottom: max(0, bottom), trailing: 0),
+        return ColumnContext(column: .list, insets: EdgeInsets(top: 0, leading: 0, bottom: max(0, min(bottom, 24)), trailing: 0),
                              isLeftmost: true, isRightmost: true, rail: nil, size: f.size, twoUp: columns == 2, keyboard: keyboard)
     }
 }
@@ -382,6 +390,8 @@ enum Emulation {
 // MARK: - The page capsule (ui/pages.js)
 
 struct PageCapsule: View {
+    /// Six 44pt items, 2pt apart, 4pt in from the glass.
+    static let height: CGFloat = 6 * 44 + 5 * 2 + 8
     @Environment(AppModel.self) private var model
     let nav: Nav
     @Namespace private var ns

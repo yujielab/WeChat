@@ -20,14 +20,20 @@ struct BarItem: Identifiable {
 ///   centred under the status bar's clock; a field stays at the foot.
 struct ColumnBar<Center: View>: View {
     @Environment(\.column) private var ctx
+    @Environment(Nav.self) private var nav
     var back: BarItem?
     var actions: [BarItem] = []
+    /// Actions that start something (Search, New): at the foot of the rail,
+    /// over the page capsule; at the trailing end of the bar elsewhere.
+    var footActions: [BarItem] = []
     var groupActions = true
     var center: Center
 
-    init(back: BarItem? = nil, actions: [BarItem] = [], groupActions: Bool = true, @ViewBuilder center: () -> Center) {
+    init(back: BarItem? = nil, actions: [BarItem] = [], footActions: [BarItem] = [], groupActions: Bool = true,
+         @ViewBuilder center: () -> Center) {
         self.back = back
         self.actions = actions
+        self.footActions = footActions
         self.groupActions = groupActions
         self.center = center()
     }
@@ -38,11 +44,15 @@ struct ColumnBar<Center: View>: View {
         if let rail = ctx.rail, ctx.usesRail {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 12) {
-                    if let back { icon(back) }
+                    if let back { icon(back).transition(.scale(scale: 0.6).combined(with: .opacity)) }
                     if !actions.isEmpty { group(actions, axis: .vertical) }
+                    Spacer(minLength: 0)
+                    if !footActions.isEmpty { group(footActions, axis: .vertical) }
                 }
+                .frame(width: Bar.railWidth)
                 .padding(.top, rail.top)
-                .padding(.trailing, rail.centerFromEdge - Bar.railWidth / 2 + (Bar.railWidth - Bar.height) / 2)
+                .padding(.bottom, railFoot)
+                .padding(.trailing, rail.centerFromEdge - Bar.railWidth / 2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
                 if hasCenter {
@@ -53,24 +63,35 @@ struct ColumnBar<Center: View>: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
             }
+            .animation(Motion.ui, value: back?.id)
+            // Over a page, the app's rails step aside: the edge column is the pages'.
+            .opacity(nav.sheeted ? 0 : 1)
+            .animation(.easeOut(duration: 0.16), value: nav.sheeted)
         } else {
             GlassGroup(spacing: Bar.gap) {
                 HStack(alignment: .bottom, spacing: Bar.gap) {
-                    if let back { icon(back) }
+                    if let back { icon(back).transition(.scale(scale: 0.6).combined(with: .opacity)) }
                     if hasCenter { center.frame(maxWidth: .infinity) } else { Spacer(minLength: 0) }
-                    if !actions.isEmpty { group(actions, axis: .horizontal) }
+                    if !(actions + footActions).isEmpty { group(actions + footActions, axis: .horizontal) }
                 }
             }
             .padding(.leading, max(ctx.insets.leading, 16))
             .padding(.trailing, max(ctx.insets.trailing, 16))
             .padding(.bottom, bottomPad)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .animation(Motion.ui, value: back?.id)
         }
     }
 
     /// max(safe-bottom, 16) at the foot; 8 above the keyboard.
     private var bottomPad: CGFloat {
         ctx.keyboard > 0 ? ctx.insets.bottom + 8 : max(ctx.insets.bottom, 16)
+    }
+
+    /// The rail ends 14pt above the screen's foot, over the page capsule when
+    /// it shows, or 4pt above the keyboard.
+    private var railFoot: CGFloat {
+        ctx.keyboard > 0 ? ctx.insets.bottom + 4 : max(ctx.insets.bottom, 14) + ctx.capsule
     }
 
     private func icon(_ item: BarItem) -> some View {
@@ -94,6 +115,11 @@ struct ColumnBar<Center: View>: View {
                         SymbolView(item.sym, size: 22)
                             .foregroundStyle(item.foreground)
                             .frame(width: 44, height: 44)
+                            .overlay(alignment: .topTrailing) {
+                                if item.badge > 0 {
+                                    Badge(count: item.badge, color: Theme.red, text: .white, small: true).offset(x: 2, y: -2)
+                                }
+                            }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.press(0.9))
@@ -101,14 +127,15 @@ struct ColumnBar<Center: View>: View {
                 }
             }
             .padding(axis == .horizontal ? .horizontal : .vertical, 3)
+            .padding(axis == .horizontal ? .vertical : .horizontal, 0)
             .glass(Capsule(), tint: items.first?.tint)
         }
     }
 }
 
 extension ColumnBar where Center == EmptyView {
-    init(back: BarItem? = nil, actions: [BarItem] = [], groupActions: Bool = true) {
-        self.init(back: back, actions: actions, groupActions: groupActions) { EmptyView() }
+    init(back: BarItem? = nil, actions: [BarItem] = [], footActions: [BarItem] = [], groupActions: Bool = true) {
+        self.init(back: back, actions: actions, footActions: footActions, groupActions: groupActions) { EmptyView() }
     }
 }
 

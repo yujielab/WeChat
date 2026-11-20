@@ -4,48 +4,60 @@ import UIKit
 
 // MARK: - Shape
 
-/// A rounded bubble whose corners tighten where it joins its neighbours in
-/// a group, with a small curled tail on the last one.
+/// The web's bubble (css/thread.css): 23pt corners, so a line of text is a
+/// pill; corners facing the sender pinch to 8pt where a run's bubbles meet;
+/// the run's last one squares that corner off into a small pointed nub.
 struct BubbleShape: Shape {
     var mine: Bool
     var joinTop: Bool
     var joinBottom: Bool
     var tail: Bool
-    var radius: CGFloat = 20
+    var radius: CGFloat = 23
 
     func path(in rect: CGRect) -> Path {
         let big = min(radius, rect.height / 2, rect.width / 2)
-        let small: CGFloat = min(6, big)
-        // Corners: the side facing the sender's avatar tightens where joined.
-        let tl = !mine && joinTop ? small : big
-        let bl = !mine && (joinBottom || tail) ? small : big
-        let tr = mine && joinTop ? small : big
-        let br = mine && (joinBottom || tail) ? small : big
+        let join = min(8, big)
+        var tl = big, tr = big, bl = big, br = big
+        if mine {
+            if joinTop { tr = join }
+            if joinBottom { br = join }
+            if tail { br = 0 }
+        } else {
+            if joinTop { tl = join }
+            if joinBottom { bl = join }
+            if tail { bl = 0 }
+        }
+        let nubW: CGFloat = 8, nubH: CGFloat = min(12, rect.height / 2)
         var p = Path()
         p.move(to: CGPoint(x: rect.minX + tl, y: rect.minY))
         p.addLine(to: CGPoint(x: rect.maxX - tr, y: rect.minY))
-        p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.minY + tr), radius: tr)
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - br))
+        corner(&p, CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY + tr), tr)
         if tail && mine {
-            p.addQuadCurve(to: CGPoint(x: rect.maxX + 6, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY - 1))
-            p.addQuadCurve(to: CGPoint(x: rect.maxX - 10, y: rect.maxY - 2), control: CGPoint(x: rect.maxX - 3, y: rect.maxY + 1))
-            p.addQuadCurve(to: CGPoint(x: rect.maxX - 16, y: rect.maxY), control: CGPoint(x: rect.maxX - 12, y: rect.maxY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - nubH))
+            p.addQuadCurve(to: CGPoint(x: rect.maxX + nubW, y: rect.maxY),
+                           control: CGPoint(x: rect.maxX + 1, y: rect.maxY - 3))
+            p.addLine(to: CGPoint(x: rect.minX + bl, y: rect.maxY))
         } else {
-            p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY), tangent2End: CGPoint(x: rect.maxX - br, y: rect.maxY), radius: br)
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - br))
+            corner(&p, CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.maxX - br, y: rect.maxY), br)
+            p.addLine(to: CGPoint(x: rect.minX + (tail ? 0 : bl), y: rect.maxY))
         }
         if tail && !mine {
-            p.addLine(to: CGPoint(x: rect.minX + 16, y: rect.maxY))
-            p.addQuadCurve(to: CGPoint(x: rect.minX + 10, y: rect.maxY - 2), control: CGPoint(x: rect.minX + 12, y: rect.maxY))
-            p.addQuadCurve(to: CGPoint(x: rect.minX - 6, y: rect.maxY), control: CGPoint(x: rect.minX + 3, y: rect.maxY + 1))
-            p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - bl), control: CGPoint(x: rect.minX, y: rect.maxY - 1))
+            p.addLine(to: CGPoint(x: rect.minX - nubW, y: rect.maxY))
+            p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - nubH),
+                           control: CGPoint(x: rect.minX - 1, y: rect.maxY - 3))
         } else {
-            p.addLine(to: CGPoint(x: rect.minX + bl, y: rect.maxY))
-            p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.maxY - bl), radius: bl)
+            corner(&p, CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY - bl), bl)
         }
         p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + tl))
-        p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY), tangent2End: CGPoint(x: rect.minX + tl, y: rect.minY), radius: tl)
+        corner(&p, CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.minX + tl, y: rect.minY), tl)
         p.closeSubpath()
         return p
+    }
+
+    private func corner(_ p: inout Path, _ c: CGPoint, _ next: CGPoint, _ r: CGFloat) {
+        if r < 0.5 { p.addLine(to: c); p.addLine(to: next) }
+        else { p.addArc(tangent1End: c, tangent2End: next, radius: r) }
     }
 }
 
@@ -55,6 +67,26 @@ struct BubbleStyle {
     var joinBottom = false
     var tail = false
     var shape: BubbleShape { BubbleShape(mine: mine, joinTop: joinTop, joinBottom: joinBottom, tail: tail) }
+}
+
+/// The body text's line box (17pt at 1.45, as the web sets it), and the
+/// leading SwiftUI needs to match it with the custom face.
+enum BodyMetrics {
+    static let size: CGFloat = 17
+    static let lineBox: CGFloat = 17 * 1.45
+    static let natural: CGFloat = AppFont.ui(17).lineHeight
+    static var extra: CGFloat { max(0, lineBox - natural) }
+}
+
+extension Theme {
+    /// The faint drop under a bubble on the light wallpaper (--chip-shadow; none in dark).
+    static let bubbleShadow = Color.token(0x0b141a, 0x000000, 0.13, 0)
+    static let keyHighlight = Color.token(0x787880, 0xffffff, 0.13, 0.16)
+    /// Time marks: the system face, 12pt medium (--time-ink).
+    static let timeInk = Color.token(0x6b7280, 0xa1a1aa)
+    static let noticeBg = Color.token(0xffefd1, 0x232626)
+    static let noticeText = Color.token(0x6b5525, 0xf0f0fa, 1, 0.6)
+    static let chipAccent = Color.token(0x0062cc, 0x27a8ff)
 }
 
 // MARK: - Content
@@ -97,31 +129,34 @@ struct BubbleContent: View {
     private var text: some View {
         if Fmt.isJumboEmoji(message.body) && message.reply == nil {
             Text(message.body)
-                .font(.system(size: 52))
-                .padding(.vertical, 2)
+                .font(.system(size: 44))
+                .padding(.horizontal, 2)
         } else {
-            VStack(alignment: .leading, spacing: 6) {
+            let half = BodyMetrics.extra / 2
+            VStack(alignment: .leading, spacing: 0) {
                 if let reply = message.reply { quote(reply) }
                 Text(attributed)
                     .font(.bodyC)
+                    .lineSpacing(BodyMetrics.extra)
                     .foregroundStyle(fg)
-                    .tint(mine ? .white : Theme.systemBlue)
+                    .tint(mine ? fg : Theme.linkIn)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.disabled)
                 if message.edited > 0 {
-                    Text("Edited").font(.caption2C).foregroundStyle(fg.opacity(0.6))
+                    Text("Edited").font(.caption2C).foregroundStyle(fg.opacity(0.6)).padding(.top, 2)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 16)
+            .padding(.top, 11 + half)
+            .padding(.bottom, 12 + half)
             .background(bg, in: style.shape)
+            .shadow(color: Theme.bubbleShadow, radius: 0.25, y: 1)
             .contentShape(style.shape)
         }
     }
 
     private var attributed: AttributedString {
         var s = AttributedString(message.body)
-        // Links
         if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
             let ns = message.body as NSString
             for match in detector.matches(in: message.body, range: NSRange(location: 0, length: ns.length)) {
@@ -131,50 +166,68 @@ struct BubbleContent: View {
                 s[ar].underlineStyle = Text.LineStyle.single
             }
         }
-        // Key words the hub picked out (time, place, people, numbers, to-dos)
+        // Key words the hub picked out (time, place, people, numbers, to-dos): semibold on a tint.
         if model.highlights, let keys = message.meta?.keys {
             for k in keys where !k.isEmpty {
                 var search = s.startIndex..<s.endIndex
                 while let r = s[search].range(of: k) {
-                    s[r].font = AppFont.make(17, .bold)
-                    if !mine { s[r].backgroundColor = Theme.keyHighlight }
-                    else { s[r].underlineStyle = Text.LineStyle(pattern: .solid, color: .white.opacity(0.7)) }
+                    s[r].font = AppFont.make(17, .semibold)
+                    s[r].backgroundColor = mine ? Color.white.opacity(0.18) : Theme.keyHighlight
                     search = r.upperBound..<s.endIndex
                 }
             }
         }
-        // @mentions in groups
+        // @mentions: a tinted token, never just coloured text.
         if let ids = message.meta?.mentions {
             for id in ids {
                 let name = id == model.me?.id ? (model.me?.name ?? "") : (model.user(id)?.name ?? "")
                 guard !name.isEmpty, let r = s.range(of: "@\(name)") else { continue }
-                s[r].font = AppFont.make(17, .bold)
-                if !mine { s[r].foregroundColor = Theme.blue }
+                s[r].font = AppFont.make(17, .medium)
+                if id == model.me?.id {
+                    s[r].backgroundColor = mine ? Color.white : Theme.badge
+                    s[r].foregroundColor = mine ? Theme.bubbleOut : Theme.onBrand
+                } else {
+                    s[r].backgroundColor = mine ? Color.white.opacity(0.2) : Theme.blue.opacity(0.14)
+                    if !mine { s[r].foregroundColor = Theme.mention }
+                }
             }
         }
         return s
     }
 
+    /// A quote: a leading 3pt rule, the name over one line of text.
     private func quote(_ r: ReplySnapshot) -> some View {
         Button {
             onJumpTo?(r.id)
         } label: {
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 2).fill(mine ? Color.white.opacity(0.7) : Theme.blue).frame(width: 3)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(model.name(of: r.sender)).font(.caption2C.weight(.bold)).foregroundStyle(mine ? .white : Theme.blue)
+                    Text(model.name(of: r.sender))
+                        .font(AppFont.make(13, .semibold))
+                        .foregroundStyle(mine ? fg : Theme.blueText)
+                        .lineLimit(1)
                     Text(r.state == "revoked" ? String(localized: "Message unsent") : replyText(r))
-                        .font(.footnoteC).foregroundStyle(fg.opacity(0.8)).lineLimit(2)
+                        .font(.footnoteC)
+                        .italic(r.state == "revoked")
+                        .foregroundStyle(fg.opacity(r.state == "revoked" ? 0.55 : 0.78))
+                        .lineLimit(1)
                 }
                 if let url = r.url, r.type == "image" || r.type == "drawing" {
-                    RemoteImage(url, maxPixel: 120).frame(width: 34, height: 34).clipShape(RoundedRectangle(cornerRadius: 6))
+                    RemoteImage(url, maxPixel: 120).frame(width: 34, height: 34).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
             }
+            .padding(.leading, 13)
+            .padding(.trailing, 10)
             .padding(.vertical, 5)
-            .padding(.horizontal, 8)
-            .background((mine ? Color.white : Theme.blue).opacity(mine ? 0.16 : 0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2).fill(mine ? fg.opacity(0.7) : Theme.blue).frame(width: 3).padding(.vertical, 1).padding(.leading, 5)
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.top, 1)
+        .padding(.bottom, 7)
+        .padding(.horizontal, -6)
     }
 
     private func replyText(_ r: ReplySnapshot) -> String {
@@ -192,8 +245,8 @@ struct BubbleContent: View {
         Text(mine ? "You unsent a message" : "\(model.name(of: message.sender)) unsent a message")
             .font(.subheadC.italic())
             .foregroundStyle(Theme.label3)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .overlay(style.shape.stroke(Theme.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
     }
 
@@ -212,14 +265,14 @@ struct BubbleContent: View {
     private var picture: some View {
         let size = mediaSize(message.meta, maxW: min(maxWidth, 300))
         return VStack(alignment: .leading, spacing: 4) {
-            if let reply = message.reply { quote(reply).padding(.horizontal, 4).padding(.top, 4) }
+            if let reply = message.reply { quote(reply).padding(.horizontal, 10).padding(.top, 4) }
             FrameReporting { frame in
                 RemoteImage(message.meta?.url ?? "", maxPixel: 900,
-                            placeholder: message.type == "drawing" ? Color.white : Theme.fillQuiet)
+                            placeholder: message.type == "drawing" ? Color.white : Theme.fill4)
                     .frame(width: size.width, height: size.height)
                     .background(message.type == "drawing" ? Color.white : .clear)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.black.opacity(0.06), lineWidth: 0.5))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.imageOutline, lineWidth: 1))
                     .overlay(alignment: .bottomTrailing) {
                         if let p = message.progress, message.local == .sending {
                             ProgressRing(progress: p).padding(10)
@@ -239,16 +292,16 @@ struct BubbleContent: View {
                 if let url = message.meta?.url, !url.hasPrefix("local:") {
                     VideoThumb(path: url)
                 } else {
-                    Theme.fillQuiet
+                    Theme.fill4
                 }
-                Image(systemName: "play.fill")
-                    .font(.system(size: 20, weight: .bold))
+                SymbolView(.play, size: 22)
                     .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
-                    .background(.ultraThinMaterial, in: Circle())
+                    .offset(x: 2)
+                    .frame(width: 52, height: 52)
+                    .glassEffect(.regular.tint(.black.opacity(0.25)), in: Circle())
                 if let d = message.meta?.dur {
-                    Text(Fmt.duration(d)).font(.caption2C.monospacedDigit()).foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
+                    Text(Fmt.duration(d)).font(.system(size: 12, weight: .medium).monospacedDigit()).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
                         .background(.black.opacity(0.4), in: Capsule())
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .padding(8)
@@ -256,6 +309,7 @@ struct BubbleContent: View {
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.imageOutline, lineWidth: 1))
             .contentShape(Rectangle())
             .onTapGesture { onOpenMedia?(frame()) }
         }
@@ -264,45 +318,45 @@ struct BubbleContent: View {
 
     private var voice: some View {
         VoiceBubble(message: message, mine: mine)
-            .padding(.horizontal, 12)
+            .padding(.leading, 8)
+            .padding(.trailing, 14)
             .padding(.vertical, 8)
+            .frame(minWidth: 132)
             .background(bg, in: style.shape)
+            .shadow(color: Theme.bubbleShadow, radius: 0.25, y: 1)
     }
 
     private var file: some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(mine ? Theme.blue : .white)
+            SymbolView(.doc, size: 22)
+                .foregroundStyle(mine ? Theme.bubbleOut : Theme.label)
                 .frame(width: 42, height: 42)
-                .background(mine ? Color.white : Theme.blue, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(mine ? Color.white : Theme.bg, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(message.meta?.name ?? String(localized: "File")).font(.subheadMediumC).foregroundStyle(fg).lineLimit(2)
-                Text(Fmt.fileSize(message.meta?.size)).font(.captionC).foregroundStyle(fg.opacity(0.7))
+                Text(message.meta?.name ?? String(localized: "File")).font(.subheadBoldC).foregroundStyle(fg).lineLimit(2)
+                Text(Fmt.fileSize(message.meta?.size)).font(.footnoteC).foregroundStyle(fg.opacity(0.7))
             }
         }
         .padding(10)
+        .padding(.trailing, 6)
         .frame(maxWidth: 260, alignment: .leading)
         .background(bg, in: style.shape)
+        .shadow(color: Theme.bubbleShadow, radius: 0.25, y: 1)
         .onTapGesture { FileOpener.open(message) }
     }
 
+    /// A call record: a compact, quiet chip; only a call you missed is red.
     private var call: some View {
         let s = CallSummary(meta: message.meta, mine: message.meta?.caller == model.me?.id)
-        return HStack(spacing: 10) {
-            Image(systemName: s.isVideo ? "video.fill" : "phone.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(s.missed ? Theme.red : (mine ? .white : Theme.blue))
-                .frame(width: 34, height: 34)
-                .background((mine ? Color.white : Theme.blue).opacity(mine ? 0.2 : 0.12), in: Circle())
-            VStack(alignment: .leading, spacing: 1) {
-                Text(s.media).font(.subheadMediumC).foregroundStyle(fg)
-                Text(s.text).font(.captionC).foregroundStyle(s.missed ? Theme.redText : fg.opacity(0.7))
-            }
+        return HStack(spacing: 7) {
+            SymbolView(s.isVideo ? .video : .phone, size: 15)
+            Text(s.label).font(.footnoteC)
         }
+        .foregroundStyle(s.missed ? Theme.redText : Theme.label2)
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(bg, in: style.shape)
+        .padding(.vertical, 7)
+        .background(Theme.field, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
         .onTapGesture {
             if let room = model.room(message.room) { model.calls.start(room: room, video: s.isVideo) }
         }
@@ -414,21 +468,24 @@ struct VoiceBubble: View {
 
     var body: some View {
         let active = playback.playing == message.id
+        let ink = mine ? Theme.bubbleOutText : Theme.label
+        let paper = mine ? Theme.bubbleOut : Theme.bubbleIn
         HStack(spacing: 10) {
             Button { playback.toggle(message) } label: {
-                Image(systemName: active ? "pause.fill" : "play.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(mine ? Theme.blue : .white)
-                    .frame(width: 32, height: 32)
-                    .background(mine ? Color.white : Theme.blue, in: Circle())
-                    .contentTransition(.symbolEffect(.replace))
+                SymbolView(active ? .pause : .play, size: 13)
+                    .foregroundStyle(paper)
+                    .offset(x: active ? 0 : 1)
+                    .frame(width: 30, height: 30)
+                    .background(ink, in: Circle())
             }
             .buttonStyle(.press(0.9))
-            Waveform(seed: message.id, progress: active ? playback.progress : 0, color: mine ? .white : Theme.blue)
-                .frame(width: 120, height: 26)
+            .accessibilityLabel(active ? "Pause" : "Play")
+            Waveform(seed: message.id, progress: active ? playback.progress : 0,
+                     color: mine ? Theme.bubbleOutText : Theme.bubbleInText)
+                .frame(width: min(160, max(60, CGFloat(message.meta?.dur ?? 4) * 7)), height: 26)
             Text(Fmt.duration(message.meta?.dur ?? 0))
-                .font(.captionC.monospacedDigit())
-                .foregroundStyle(mine ? .white.opacity(0.85) : Theme.label2)
+                .font(.footnoteC.monospacedDigit())
+                .foregroundStyle((mine ? Theme.bubbleOutText : Theme.bubbleInText).opacity(0.8))
         }
     }
 }
@@ -442,9 +499,9 @@ struct Waveform: View {
         Canvas { ctx, size in
             var h: UInt64 = 1469598103934665603
             for b in seed.utf8 { h = (h ^ UInt64(b)) &* 1099511628211 }
-            let bars = 28
             let gap: CGFloat = 2
-            let w = (size.width - gap * CGFloat(bars - 1)) / CGFloat(bars)
+            let w: CGFloat = 2.5
+            let bars = max(8, Int((size.width + gap) / (w + gap)))
             for i in 0..<bars {
                 h = h &* 6364136223846793005 &+ 1442695040888963407
                 let v = CGFloat((h >> 33) % 100) / 100
@@ -452,7 +509,7 @@ struct Waveform: View {
                 let bh = max(3, size.height * (0.25 + 0.75 * v) * shape)
                 let rect = CGRect(x: CGFloat(i) * (w + gap), y: (size.height - bh) / 2, width: w, height: bh)
                 let played = CGFloat(i) / CGFloat(bars) < progress
-                ctx.fill(Path(roundedRect: rect, cornerRadius: w / 2), with: .color(color.opacity(played ? 1 : 0.45)))
+                ctx.fill(Path(roundedRect: rect, cornerRadius: w / 2), with: .color(color.opacity(played ? 1 : 0.35)))
             }
         }
     }

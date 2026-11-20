@@ -1,16 +1,18 @@
 import SwiftUI
 
+/// The Messages list (views/chatList.js, css/list.css).
 struct ChatListView: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
     @Environment(\.column) private var ctx
     @State private var query = ""
     @State private var found: [User] = []
-    @State private var scrolled = false
     @FocusState private var searchFocused: Bool
 
-    /// Beside the sidebar the list doesn't repeat its filters and title.
+    /// Unfolded, the list leads a window: it drops its filters for a button in its bar.
+    private var leadingTwoUp: Bool { ctx.twoUp && !ctx.isRightmost }
     private var besideSidebar: Bool { nav.columns == 2 && nav.leading == .sidebar }
+    private var inset: CGFloat { 22 }
 
     private var filtered: [Room] {
         var list = model.rooms
@@ -31,85 +33,69 @@ struct ChatListView: View {
         ZStack {
             Theme.bg
             List {
-                header
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-
-                if !nav.searching && nav.filter == .all && !besideSidebar {
-                    NotesRow()
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                Group {
+                    if nav.searching { searchHead } else { header }
                 }
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
                 if !nav.searching && !besideSidebar {
-                    FilterChips()
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
+                    NotesRow()
+                        .listRowInsets(EdgeInsets(top: 18, leading: 0, bottom: 10, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    if leadingTwoUp {
+                        requestsLink.frame(maxWidth: .infinity, alignment: .trailing)
+                            .padding(.trailing, inset)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 6, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    } else {
+                        FilterTabs(requests: requestsLink)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                }
+
+                if nav.searching && query.isEmpty {
+                    Text("RECENT")
+                        .font(AppFont.make(12, .medium)).tracking(0.96)
+                        .foregroundStyle(Theme.label2)
+                        .padding(.horizontal, inset - 6)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 6, bottom: 4, trailing: 6))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
 
                 ForEach(filtered) { room in
-                    ChatRow(room: room, selected: nav.columns == 2 && nav.room == room.id && nav.isVisible(.chat))
-                        .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            Haptics.selection()
-                            nav.open(room: room.id)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                Task { await model.deleteChat(room.id) }
-                            } label: { Label("Delete", systemImage: "trash") }
-                            Button {
-                                Task { await model.setFlag(room.id, muted: !room.muted) }
-                            } label: { Label(room.muted ? "Unmute" : "Mute", systemImage: room.muted ? "bell" : "bell.slash") }
-                                .tint(Theme.indigo)
-                        }
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            Button {
-                                Task { await model.setFlag(room.id, unread: !(room.unread > 0 || room.marked)) }
-                            } label: {
-                                Label(room.unread > 0 || room.marked ? "Read" : "Unread",
-                                      systemImage: room.unread > 0 || room.marked ? "envelope.open" : "envelope.badge")
-                            }
-                            .tint(Theme.blue)
-                            Button {
-                                Task { await model.setFlag(room.id, pinned: !room.pinned) }
-                            } label: { Label(room.pinned ? "Unpin" : "Pin", systemImage: room.pinned ? "pin.slash" : "pin") }
-                                .tint(Theme.orange)
-                        }
-                        .contextMenu {
-                            rowMenu(room)
-                        } preview: {
-                            ThreadPreview(roomId: room.id)
-                                .environment(model)
-                        }
+                    rowView(room)
                 }
 
-                if filtered.isEmpty {
-                    emptyState
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                if filtered.isEmpty && !nav.searching {
+                    emptyState.listRowSeparator(.hidden).listRowBackground(Color.clear)
                 }
 
                 if nav.searching && !found.isEmpty {
-                    Section {
-                        ForEach(found) { u in
-                            PersonRow(user: u)
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        }
-                    } header: {
-                        Text("People").font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2)
+                    Text("PEOPLE")
+                        .font(AppFont.make(12, .medium)).tracking(0.96)
+                        .foregroundStyle(Theme.label2)
+                        .padding(.horizontal, inset - 6)
+                        .listRowInsets(EdgeInsets(top: 14, leading: 6, bottom: 4, trailing: 6))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    ForEach(found) { u in
+                        PersonRow(user: u)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
 
                 if !nav.searching && nav.filter == .all && !besideSidebar {
                     PeopleSections()
+                        .listRowInsets(EdgeInsets(top: 18, leading: 0, bottom: 0, trailing: 0))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
@@ -117,265 +103,330 @@ struct ChatListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 1)
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
-                                        bottom: ctx.usesRail ? ctx.insets.bottom + 12 : ctx.barClearance,
-                                        trailing: ctx.usesRail ? ctx.insets.trailing : ctx.insets.trailing))
+            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.contentBottom,
+                                        trailing: ctx.usesRail ? ctx.insets.trailing + 10 : ctx.insets.trailing))
             .refreshable {
                 await model.refreshRooms()
                 await model.loadNotes()
                 await model.loadPeople()
             }
-            .onScrollGeometryChangeCompat { scrolled = $0 > 8 }
+            .animation(Motion.ui, value: nav.searching)
 
-            // A frosted strip under the status bar once the list moves.
-            VStack(spacing: 0) {
-                Rectangle().fill(.bar).frame(height: ctx.insets.top)
-                    .opacity(scrolled && ctx.insets.top > 20 ? 1 : 0)
-                Spacer()
-            }
-            .allowsHitTesting(false)
-
-            ColumnBar(back: backItem, actions: actions)
+            bars
         }
-        .animation(Motion.ui, value: nav.searching)
-        .animation(Motion.ui, value: nav.filter)
         .task(id: query) {
-            guard nav.searching, query.count >= 1 else { found = []; return }
+            guard nav.searching, !query.isEmpty else { found = []; return }
             try? await Task.sleep(for: .milliseconds(280))
             let res = await model.searchUsers(query)
             if !Task.isCancelled { withAnimation(Motion.ui) { found = res } }
         }
-    }
-
-    private var backItem: BarItem? {
-        guard nav.columns == 1 || nav.leading != .sidebar else { return nil }
-        if nav.searching {
-            return BarItem(id: "cancel", symbol: "xmark", title: "Cancel search") {
-                query = ""
-                nav.searching = false
-                searchFocused = false
-            }
-        }
-        return BarItem(id: "back", symbol: "sidebar.left", title: "Sidebar", badge: model.requests.count) { nav.toSidebar() }
-    }
-
-    private var actions: [BarItem] {
-        var a: [BarItem] = []
-        if nav.columns == 2 && !besideSidebar {
-            a.append(BarItem(id: "filter", symbol: nav.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
-                             title: "Filter") {
-                let all = ListFilter.allCases
-                let i = all.firstIndex(of: nav.filter) ?? 0
-                withAnimation(Motion.ui) { nav.filter = all[(i + 1) % all.count] }
-            })
-        }
-        a.append(BarItem(id: "new", symbol: "square.and.pencil", title: "New chat", foreground: .white) { nav.newChatOpen = true })
-        return a.map { item in
-            var i = item
-            if i.id == "new" { i.tint = Theme.blue }
-            return i
+        .onChange(of: nav.searching) { _, on in
+            if on { searchFocused = true } else { query = ""; searchFocused = false }
         }
     }
 
     // MARK: header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if nav.searching {
-                HStack(spacing: 10) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(Theme.label3)
-                        TextField("Search chats and people", text: $query)
-                            .font(.bodyC)
-                            .focused($searchFocused)
-                            .submitLabel(.search)
-                            .autocorrectionDisabled()
-                        if !query.isEmpty {
-                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.label3) }
-                                .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .frame(height: 44)
-                    .background(Theme.field, in: Capsule())
-                    Button("Cancel") {
-                        query = ""
-                        nav.searching = false
-                        searchFocused = false
-                    }
-                    .font(.bodyC)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.blue)
+        HStack(alignment: .center, spacing: 10) {
+            Text(besideSidebar ? nav.filter.title : "Messages")
+                .font(ctx.twoUp ? .title1C : .largeTitleC)
+                .tracking(-0.68)
+                .foregroundStyle(Theme.fbBlueTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 8)
+            if ctx.usesRail || leadingTwoUp {
+                // Search beside the title, in blue glass, as tall as it.
+                Button {
+                    Haptics.tap()
+                    withAnimation(Motion.ui) { nav.searching = true }
+                } label: {
+                    SymbolView(.search, size: 18, weight: 2.4)
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .blueGlass(Circle())
                 }
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .onAppear { searchFocused = true }
-            } else {
-                HStack(alignment: .center, spacing: 10) {
-                    Text(besideSidebar ? nav.filter.title : "Messages")
-                        .font(.largeTitleC)
-                        .foregroundStyle(Theme.blue)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Button {
-                        Haptics.tap()
-                        nav.searching = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
-                            .glassCircle(tint: Theme.blue.opacity(0.8))
-                    }
-                    .buttonStyle(.press(0.9))
-                    .accessibilityLabel("Search")
-                    Spacer()
-                    if ctx.rail == nil || !ctx.isRightmost {
-                        Button {
-                            nav.switchPage(.moments)
-                            model.momentsDot = false
-                        } label: {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Theme.label)
-                                .frame(width: 40, height: 40)
-                                .background(Theme.field, in: Circle())
-                                .overlay(alignment: .topTrailing) {
-                                    if model.momentsDot { Circle().fill(Theme.red).frame(width: 9, height: 9) }
-                                }
+                .buttonStyle(.press(0.94))
+                .accessibilityLabel("Search")
+            }
+            if !ctx.usesRail && !leadingTwoUp {
+                // Moments, beside the title where there's no page capsule.
+                Button {
+                    model.momentsDot = false
+                    nav.switchPage(.moments)
+                } label: {
+                    SymbolView(.photo, size: 20)
+                        .foregroundStyle(Theme.label)
+                        .frame(width: 44, height: 44)
+                        .glassCircle()
+                        .overlay(alignment: .topTrailing) {
+                            if model.momentsDot { Circle().fill(Theme.red).frame(width: 9, height: 9).offset(x: -4, y: 4) }
                         }
-                        .buttonStyle(.press(0.9))
-                        .accessibilityLabel("Moments")
-                    }
-                    Button { nav.settingsOpen = true } label: {
-                        Avatar(user: model.me, size: 40)
-                    }
-                    .buttonStyle(.press(0.9))
-                    .accessibilityLabel("Settings")
                 }
-                .transition(.opacity)
+                .buttonStyle(.press)
+                .accessibilityLabel("Moments")
+            }
+            if leadingTwoUp || (!ctx.usesRail && ctx.rail == nil && ctx.twoUp) {
+                Button { withAnimation(Motion.move) { nav.settingsOpen = true } } label: {
+                    Avatar(user: model.me, size: 40)
+                }
+                .buttonStyle(.press(0.94))
+                .accessibilityLabel("Settings")
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 4)
+        .padding(.leading, inset)
+        .padding(.trailing, inset)
+        .padding(.top, ctx.twoUp ? 24 : 30)
     }
 
+    private var searchHead: some View {
+        HStack(spacing: 8) {
+            SymbolView(.search, size: 17).foregroundStyle(Theme.label3)
+            TextField("Search chats and contacts", text: $query)
+                .font(.bodyC)
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !ctx.usesRail {
+                Button("Cancel") { withAnimation(Motion.ui) { nav.searching = false } }
+                    .font(.bodyC)
+                    .foregroundStyle(Theme.blueText)
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+        .glassCapsule(interactive: false)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private var requestsLink: some View {
+        Button { nav.switchPage(.friends) } label: {
+            HStack(spacing: 6) {
+                Text("Requests").font(AppFont.make(16, .semibold)).foregroundStyle(Theme.label)
+                if !model.requests.isEmpty {
+                    Badge(count: model.requests.count, color: Theme.red, text: .white)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+        }
+        .buttonStyle(.press)
+    }
+
+    // MARK: rows
+
     @ViewBuilder
-    private func rowMenu(_ room: Room) -> some View {
-        let unread = room.unread > 0 || room.marked
+    private func rowView(_ room: Room) -> some View {
+        let selected = nav.columns == 2 && nav.room == room.id && nav.isVisible(.chat)
         Button {
-            Task { await model.setFlag(room.id, unread: !unread) }
-        } label: { Label(unread ? "Mark as read" : "Mark as unread", systemImage: unread ? "envelope.open" : "envelope.badge") }
-        Button {
-            Task { await model.setFlag(room.id, pinned: !room.pinned) }
-        } label: { Label(room.pinned ? "Unpin" : "Pin", systemImage: room.pinned ? "pin.slash" : "pin") }
-        Button {
-            Task { await model.setFlag(room.id, muted: !room.muted) }
-        } label: { Label(room.muted ? "Unmute" : "Mute", systemImage: room.muted ? "bell" : "bell.slash") }
-        Divider()
-        Button(role: .destructive) {
-            Task { await model.deleteChat(room.id) }
-        } label: { Label("Delete chat", systemImage: "trash") }
+            Haptics.selection()
+            nav.open(room: room.id)
+        } label: {
+            ChatRow(room: room, selected: selected, compact: nav.searching)
+        }
+        .buttonStyle(RowPressStyle(radius: 22))
+        .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                Task { await model.deleteChat(room.id) }
+            } label: { Label("Delete", systemImage: "trash") }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            let unread = room.unread > 0 || room.marked
+            Button {
+                Task { await model.setFlag(room.id, unread: !unread) }
+            } label: { Label(unread ? "Read" : "Unread", systemImage: unread ? "envelope.open" : "envelope.badge") }
+                .tint(Theme.fbBlue)
+            Button {
+                Task { await model.setFlag(room.id, pinned: !room.pinned) }
+            } label: { Label(room.pinned ? "Unpin" : "Pin", systemImage: room.pinned ? "pin.slash" : "pin") }
+                .tint(Theme.orange)
+        }
+        .contextMenu {
+            let unread = room.unread > 0 || room.marked
+            Button { Task { await model.setFlag(room.id, unread: !unread) } } label: {
+                Label(unread ? "Mark as read" : "Mark as unread", systemImage: unread ? "envelope.open" : "envelope.badge")
+            }
+            Button { Task { await model.setFlag(room.id, pinned: !room.pinned) } } label: {
+                Label(room.pinned ? "Unpin" : "Pin", systemImage: room.pinned ? "pin.slash" : "pin")
+            }
+            Button { Task { await model.setFlag(room.id, muted: !room.muted) } } label: {
+                Label(room.muted ? "Unmute" : "Mute", systemImage: room.muted ? "bell" : "bell.slash")
+            }
+            Divider()
+            Button(role: .destructive) { Task { await model.deleteChat(room.id) } } label: { Label("Delete chat", systemImage: "trash") }
+        } preview: {
+            ThreadPreview(roomId: room.id).environment(model)
+        }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: nav.searching ? "magnifyingglass" : "bubble.left.and.text.bubble.right")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(Theme.label3)
-            Text(nav.searching ? "No chats match" : (nav.filter == .all ? "Chats show up here once you send or receive a message." : "Nothing here"))
+        VStack(alignment: .leading, spacing: 12) {
+            Text(nav.filter == .all ? "Chats show up here once you send or receive a message." : "Nothing here")
                 .font(.subheadC)
                 .foregroundStyle(Theme.label2)
-                .multilineTextAlignment(.center)
-            if !nav.searching && nav.filter == .all {
-                Button { nav.newChatOpen = true } label: {
-                    Text("Start").font(.headlineC).foregroundStyle(.white)
-                        .padding(.horizontal, 26).frame(height: 42)
-                        .background(Theme.blue, in: Capsule())
+            if nav.filter == .all {
+                PillButton(title: "Start", style: .blue) { nav.switchPage(.friends) }
+            }
+        }
+        .padding(.horizontal, inset)
+        .padding(.vertical, 18)
+    }
+
+    // MARK: bars
+
+    @ViewBuilder
+    private var bars: some View {
+        if ctx.usesRail {
+            // The Duo: Back heads the rail (Cancel while searching); Search is beside the title.
+            ColumnBar(back: nav.searching
+                ? BarItem(id: "cancel", sym: .xmark, title: "Cancel search") { withAnimation(Motion.ui) { nav.searching = false } }
+                : (besideSidebar ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() }))
+        } else if !nav.searching {
+            ColumnBar(back: (nav.columns == 1 && !leadingTwoUp) ? BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() } : nil,
+                      actions: leadingTwoUp ? [BarItem(id: "filter", sym: .filter, title: "Filter") { cycleFilter() }] : []) {
+                Button {
+                    Haptics.tap()
+                    withAnimation(Motion.ui) { nav.searching = true }
+                } label: {
+                    HStack(spacing: 10) {
+                        SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
+                        Text("Search chats and contacts").font(.bodyC).foregroundStyle(Theme.label3).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: Bar.height)
+                    .glassCapsule()
                 }
                 .buttonStyle(.press)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+    }
+
+    private func cycleFilter() {
+        let all = ListFilter.allCases
+        let i = all.firstIndex(of: nav.filter) ?? 0
+        withAnimation(Motion.ui) { nav.filter = all[(i + 1) % all.count] }
     }
 }
 
-extension Theme {
-    static let indigo = Color.dynamic(0x5856d6, 0x5e5ce6)
+// MARK: - Filter tabs (blue glass thumb that slides)
+
+struct FilterTabs<Trailing: View>: View {
+    @Environment(Nav.self) private var nav
+    let requests: Trailing
+    @Namespace private var ns
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(ListFilter.allCases) { f in
+                    let on = nav.filter == f
+                    Button {
+                        Haptics.selection()
+                        withAnimation(Motion.ui) { nav.filter = f }
+                    } label: {
+                        Text(f.title)
+                            .font(AppFont.make(15, on ? .bold : .semibold))
+                            .foregroundStyle(on ? .white : Theme.label2)
+                            .padding(.horizontal, 16)
+                            .frame(height: 44)
+                            .background {
+                                if on {
+                                    Capsule().fill(.clear).frame(height: 36)
+                                        .blueGlass(Capsule())
+                                        .matchedGeometryEffect(id: "thumb", in: ns)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+                Rectangle().fill(Theme.line).frame(width: 1, height: 20).padding(.horizontal, 6)
+                requests
+            }
+            .padding(.horizontal, 22)
+        }
+        .scrollClipDisabled()
+    }
 }
 
-// MARK: - Row
+// MARK: - Row (row-inner: 76pt, 46pt avatar, name 17 semibold, time 13, preview 15)
 
 struct ChatRow: View {
     @Environment(AppModel.self) private var model
     let room: Room
     var selected = false
+    var compact = false
 
     var body: some View {
-        let typingText = typingLine
+        let typing = typingLine
+        let unread = room.unread > 0 || room.marked
         HStack(spacing: 12) {
-            Avatar(path: room.avatar, name: room.title, id: room.peer?.id ?? room.id, size: 54,
+            Avatar(path: room.avatar, name: room.title, size: compact ? 38 : 46, room: room.isGroup,
                    online: !room.isGroup && model.isOnline(room.peer?.id))
-                .overlay(alignment: .bottomTrailing) {
-                    if room.isGroup {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Theme.label2)
-                            .frame(width: 20, height: 20)
-                            .background(Theme.bg, in: Circle())
-                            .offset(x: 2, y: 2)
-                    }
-                }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: compact ? 1 : 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(room.title)
-                        .font(room.unread > 0 ? .headlineC : AppFont.make(17, .medium))
+                        .font(AppFont.make(compact ? 15 : 17, .semibold))
+                        .tracking(-0.2)
                         .foregroundStyle(Theme.label)
                         .lineLimit(1)
                     if room.muted {
-                        Image(systemName: "bell.slash.fill").font(.system(size: 11)).foregroundStyle(Theme.label3)
+                        SymbolView(.bell, size: 13, slashed: true).foregroundStyle(Theme.label3)
                     }
                     Spacer(minLength: 4)
-                    Text(Fmt.listTime(room.date))
-                        .font(.footnoteC.monospacedDigit())
-                        .foregroundStyle(room.unread > 0 && !room.muted ? Theme.blue : Theme.label3)
+                    if !compact {
+                        Text(Fmt.listTime(room.date))
+                            .font(AppFont.make(13, unread && !room.muted ? .semibold : .regular).monospacedDigit())
+                            .foregroundStyle(unread && !room.muted ? Theme.brandText : Theme.label2)
+                    }
                 }
                 HStack(alignment: .center, spacing: 6) {
                     Group {
-                        if let typingText {
-                            Text(typingText).foregroundStyle(Theme.blue).italic()
+                        if let typing {
+                            Text(typing).foregroundStyle(Theme.blueText)
                         } else if room.mention != nil && room.unread > 0 {
-                            (Text("Mentioned you · ").foregroundStyle(Theme.blue).bold() + Text(preview).foregroundStyle(Theme.label2))
+                            Text("Mentioned you · ").foregroundStyle(Theme.blueText) + Text(preview).foregroundStyle(Theme.label2)
                         } else {
-                            Text(preview).foregroundStyle(room.unread > 0 ? Theme.label : Theme.label2)
+                            Text(preview).foregroundStyle(unread ? Theme.label : Theme.label2)
                         }
                     }
-                    .font(.subheadC)
-                    .lineLimit(2)
+                    .font(AppFont.make(compact ? 13 : 15))
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    if room.pinned {
-                        Image(systemName: "pin.fill").font(.system(size: 11)).foregroundStyle(Theme.label3).rotationEffect(.degrees(40))
+                    if room.pinned && !compact {
+                        SymbolView(.pin, size: 13).foregroundStyle(Theme.label3)
                     }
-                    if room.unread > 0 {
-                        Badge(count: room.marked ? 0 : room.unread, color: room.muted ? Theme.label3 : Theme.blue)
-                            .opacity(room.marked ? 0 : 1)
-                            .overlay { if room.marked { Circle().fill(Theme.blue).frame(width: 12, height: 12) } }
+                    if room.unread > 0 && !compact {
+                        if room.marked {
+                            Circle().fill(Theme.badge).frame(width: 12, height: 12)
+                        } else {
+                            Badge(count: room.unread, color: room.muted ? Theme.fill : Theme.badge, text: room.muted ? Theme.label2 : Theme.onBrand)
+                        }
                     }
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 13)
+        .padding(.vertical, compact ? 6 : 12)
+        .frame(minHeight: compact ? 52 : 72)
         .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(selected ? Theme.fillQuiet : Color.clear)
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(selected ? Theme.line : .clear, lineWidth: 1))
+            if selected {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Theme.fill4)
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+            }
         }
+        .contentShape(Rectangle())
         .animation(Motion.quick, value: selected)
-        .animation(Motion.quick, value: typingText)
+        .animation(Motion.quick, value: typing)
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
     }
 
     private var typingLine: String? {
@@ -386,13 +437,12 @@ struct ChatRow: View {
     }
 
     private var preview: String {
-        guard let last = room.last else { return room.isGroup ? String(localized: "Group created") : "" }
+        guard let last = room.last else { return "" }
         if last.isSystem { return last.body }
-        let mine = last.sender == model.me?.id
         var p = last.preview
         if last.type == "call" { p = CallSummary(meta: last.meta, mine: last.meta?.caller == model.me?.id).label }
         if last.local == .failed { return String(localized: "Not sent · ") + p }
-        if mine { return String(localized: "You: ") + p }
+        if last.sender == model.me?.id { return room.isGroup ? String(localized: "You: ") + p : p }
         if room.isGroup { return "\(model.name(of: last.sender)): \(p)" }
         return p
     }
@@ -405,82 +455,22 @@ struct PersonRow: View {
     var subtitle: String?
 
     var body: some View {
-        HStack(spacing: 12) {
-            Avatar(user: user, size: 46, online: model.isOnline(user.id))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(user.name).font(.headlineC).foregroundStyle(Theme.label)
-                Text(subtitle ?? "@\(user.username)").font(.footnoteC).foregroundStyle(Theme.label2)
-            }
-            Spacer()
-            Button {
-                Task {
-                    if let id = await model.openDM(user) { nav.open(room: id) }
+        Button {
+            Task { if let id = await model.openDM(user) { nav.open(room: id) } }
+        } label: {
+            HStack(spacing: 12) {
+                Avatar(user: user, size: 38, online: model.isOnline(user.id))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(user.name).font(.subheadBoldC).foregroundStyle(Theme.label)
+                    Text(subtitle ?? "@\(user.username)").font(.footnoteC).foregroundStyle(Theme.label2)
                 }
-            } label: {
-                Text("Message").font(.subheadMediumC).foregroundStyle(Theme.blue)
-                    .padding(.horizontal, 14).frame(height: 32)
-                    .background(Theme.blue.opacity(0.12), in: Capsule())
+                Spacer()
             }
-            .buttonStyle(.press)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-    }
-}
-
-// MARK: - Filters
-
-struct FilterChips: View {
-    @Environment(AppModel.self) private var model
-    @Environment(Nav.self) private var nav
-    @Namespace private var ns
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(ListFilter.allCases) { f in
-                        let on = nav.filter == f
-                        Button {
-                            Haptics.selection()
-                            withAnimation(Motion.ui) { nav.filter = f }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Text(f.title)
-                                if f == .unread {
-                                    let n = model.rooms.filter { $0.unread > 0 || $0.marked }.count
-                                    if n > 0 { Text("\(n)").monospacedDigit().opacity(0.8) }
-                                }
-                            }
-                            .font(.subheadMediumC)
-                            .foregroundStyle(on ? Theme.onInk : Theme.label)
-                            .padding(.horizontal, 14)
-                            .frame(height: 34)
-                            .background {
-                                if on {
-                                    Capsule().fill(Theme.ink).matchedGeometryEffect(id: "chip", in: ns)
-                                } else {
-                                    Capsule().stroke(Theme.line, lineWidth: 1)
-                                }
-                            }
-                        }
-                        .buttonStyle(.press)
-                    }
-                }
-            }
-            Button { nav.switchPage(.requests) } label: {
-                HStack(spacing: 4) {
-                    Text("Requests")
-                    if !model.requests.isEmpty {
-                        Text("\(model.requests.count)").font(.caption2C).foregroundStyle(.white)
-                            .padding(.horizontal, 6).frame(height: 18).background(Theme.red, in: Capsule())
-                    }
-                }
-                .font(.subheadMediumC)
-                .foregroundStyle(Theme.blue)
-            }
-            .buttonStyle(.press)
-        }
+        .buttonStyle(RowPressStyle(radius: 18))
     }
 }
 
@@ -493,29 +483,10 @@ struct EmptyChatView: View {
         ZStack {
             Theme.bg
             VStack(spacing: 12) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 44, weight: .ultraLight))
-                    .foregroundStyle(Theme.label3)
+                SymbolView(.bubble, size: 44, weight: 1.4).foregroundStyle(Theme.label3)
                 Text("Pick a chat").font(.headlineC).foregroundStyle(Theme.label2)
             }
             .padding(.trailing, ctx.insets.trailing)
-        }
-    }
-}
-
-// MARK: - Scroll offset (iOS 18 API, quiet fallback)
-
-extension View {
-    @ViewBuilder
-    func onScrollGeometryChangeCompat(_ action: @escaping (CGFloat) -> Void) -> some View {
-        if #available(iOS 18.0, *) {
-            self.onScrollGeometryChange(for: CGFloat.self) { geo in
-                geo.contentOffset.y + geo.contentInsets.top
-            } action: { _, new in
-                action(new)
-            }
-        } else {
-            self
         }
     }
 }

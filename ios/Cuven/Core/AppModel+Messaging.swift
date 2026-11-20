@@ -30,7 +30,16 @@ extension AppModel {
 
     // MARK: - Threads
 
-    func messages(_ room: String) -> [Message] { threads[room]?.messages ?? [] }
+    func messages(_ room: String) -> [Message] {
+        let all = threads[room]?.messages ?? []
+        return hiddenMessages.isEmpty ? all : all.filter { !hiddenMessages.contains($0.id) }
+    }
+
+    /// Delete for me: gone from this device; they'll still see it.
+    func deleteLocally(_ m: Message) {
+        if m.local == .failed { discardFailed(m); return }
+        hiddenMessages.insert(m.id)
+    }
 
     func loadThread(_ room: String) async {
         var t = threads[room] ?? ThreadData()

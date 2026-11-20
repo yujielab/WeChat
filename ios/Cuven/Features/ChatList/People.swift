@@ -1,6 +1,10 @@
 import SwiftUI
 
-// MARK: - Notes row (a line for friends, above your photo, for a day)
+// People in the Messages list (views/people.js, css/people.css): notes along
+// the top — a bubble resting on the top of each photo, yours first — and,
+// under the chats, Suggested and People you may know with a card to invite.
+
+// MARK: - Notes
 
 struct NotesRow: View {
     @Environment(AppModel.self) private var model
@@ -8,179 +12,272 @@ struct NotesRow: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: 14) {
-                noteItem(user: model.me, text: model.myNote?.text, mine: true) {
-                    nav.noteEditor = true
-                }
+            HStack(alignment: .top, spacing: 4) {
+                NoteItem(user: model.me, text: model.myNote?.text, mine: true) { nav.noteEditor = true }
                 ForEach(model.notes) { n in
-                    noteItem(user: n.user, text: n.text, mine: false) {
-                        nav.openNote = n
-                    }
-                    .transition(.scale.combined(with: .opacity))
+                    NoteItem(user: n.user, text: n.text, mine: false) { nav.openNote = n }
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 14)
             .padding(.top, 2)
+            .padding(.bottom, 4)
+            .scrollTargetLayout()
         }
+        .scrollTargetBehavior(.viewAligned)
         .scrollClipDisabled()
+        .animation(Motion.ui, value: model.notes.map(\.id))
     }
+}
 
-    private func noteItem(user: User?, text: String?, mine: Bool, action: @escaping () -> Void) -> some View {
+private struct NoteItem: View {
+    let user: User?
+    let text: String?
+    let mine: Bool
+    let action: () -> Void
+    @State private var pressed = false
+
+    var body: some View {
         Button {
             Haptics.tap()
             action()
         } label: {
             VStack(spacing: 6) {
-                ZStack(alignment: .top) {
-                    Avatar(user: user, size: 66)
-                        .padding(.top, 34)
-                        .overlay(alignment: .bottomTrailing) {
-                            if mine && text == nil {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 11, weight: .heavy))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 22, height: 22)
-                                    .background(Theme.blue, in: Circle())
-                                    .overlay(Circle().stroke(Theme.bg, lineWidth: 2.5))
-                            }
+                Avatar(user: user, size: 60)
+                    .overlay(alignment: .bottomTrailing) {
+                        if mine && text == nil {
+                            SymbolView(.plus, size: 12, weight: 2.6)
+                                .foregroundStyle(Theme.onInk)
+                                .frame(width: 22, height: 22)
+                                .background(Theme.ink, in: Circle())
+                                .background(Circle().fill(Theme.bg).padding(-3))
+                                .offset(x: 3, y: 3)
                         }
-                    ThoughtBubble(text: text ?? (mine ? String(localized: "Share a thought…") : ""), placeholder: text == nil)
-                }
+                    }
                 Text(mine ? String(localized: "Your note") : (user?.name ?? ""))
                     .font(.captionC)
-                    .foregroundStyle(Theme.label2)
+                    .foregroundStyle(mine ? Theme.label3 : Theme.label2)
                     .lineLimit(1)
-                    .frame(width: 76)
             }
+            .frame(width: 92)
+            .padding(.top, 50)
+            .padding(.bottom, 4)
+            .overlay(alignment: .top) {
+                // The bubble: its lower edge 16pt over the photo, however many lines.
+                NoteBubble(text: text ?? (mine ? String(localized: "Share a thought…") : ""), empty: text == nil)
+                    .frame(height: 66, alignment: .bottom)
+            }
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.press(0.94))
+        .buttonStyle(NoteFaceStyle())
     }
 }
 
-struct ThoughtBubble: View {
+private struct NoteFaceStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(configuration.isPressed ? Motion.pressIn : Motion.ui, value: configuration.isPressed)
+    }
+}
+
+/// A note's bubble: elevated surface, a hairline rim, a soft drop.
+struct NoteBubble: View {
     let text: String
-    var placeholder = false
+    var empty = false
+    var big = false
 
     var body: some View {
         Text(text)
-            .font(AppFont.make(12, placeholder ? .regular : .medium))
-            .foregroundStyle(placeholder ? Theme.label3 : Theme.label)
-            .lineLimit(2)
+            .font(big ? .bodyC : .captionC)
+            .lineSpacing(big ? 2 : 1)
+            .foregroundStyle(empty ? Theme.label3 : Theme.label)
+            .lineLimit(big ? 3 : 2)
             .multilineTextAlignment(.center)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(maxWidth: 96)
-            .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
-            .overlay(alignment: .bottomLeading) {
-                Circle().fill(Theme.elevated).frame(width: 9, height: 9)
-                    .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
-                    .offset(x: 18, y: 6)
-            }
+            .padding(.horizontal, big ? 18 : 10)
+            .padding(.vertical, big ? 12 : 7)
+            .frame(minWidth: big ? 160 : 48)
+            .frame(maxWidth: big ? 300 : 96)
             .fixedSize(horizontal: false, vertical: true)
+            .background(Theme.elevated, in: RoundedRectangle(cornerRadius: big ? 22 : 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: big ? 22 : 16, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+            .shadow(color: .black.opacity(0.14), radius: 8, y: 6)
     }
 }
 
+/// Writing yours: the bubble large on your photo, 60 characters, for a day.
 struct NoteEditor: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @State private var sending = false
     @FocusState private var focused: Bool
 
+    private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     var body: some View {
-        VStack(spacing: 18) {
-            HStack {
-                Button("Cancel") { dismiss() }.foregroundStyle(Theme.label2)
-                Spacer()
-                Text("Your note").font(.headlineC)
-                Spacer()
-                Button("Share") {
-                    Task {
-                        await model.setNote(text)
-                        dismiss()
+        VStack(spacing: 0) {
+            ZStack {
+                Text("Note").font(.headlineC).foregroundStyle(Theme.label)
+                HStack {
+                    GlassIconButton(sym: .xmark, title: "Cancel") { dismiss() }
+                    Spacer()
+                    Button {
+                        sending = true
+                        Task {
+                            await model.setNote(trimmed)
+                            Haptics.success()
+                            dismiss()
+                        }
+                    } label: {
+                        SymbolView(.arrowUp, size: 20, weight: 2.5)
+                            .foregroundStyle(Theme.onInk)
+                            .frame(width: 44, height: 44)
+                            .background(Theme.ink, in: Circle())
                     }
+                    .buttonStyle(.press(0.94))
+                    .disabled(trimmed.isEmpty || sending)
+                    .opacity(trimmed.isEmpty ? 0.35 : 1)
+                    .accessibilityLabel("Share")
                 }
-                .font(.headlineC)
-                .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+            .padding(.horizontal, 18)
+            .padding(.top, 22)
+
             ZStack(alignment: .top) {
-                Avatar(user: model.me, size: 72).padding(.top, 44)
-                TextField("Share a thought…", text: $text)
-                    .font(AppFont.make(15, .medium))
+                Avatar(user: model.me, size: 96).padding(.top, 76)
+                TextField("Share a thought…", text: $text, axis: .vertical)
+                    .font(.bodyC)
                     .multilineTextAlignment(.center)
+                    .lineLimit(1...3)
                     .focused($focused)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: 260)
-                    .background(Theme.field, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .submitLabel(.done)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .frame(minWidth: 160, maxWidth: 300)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.14), radius: 8, y: 6)
+                    .frame(height: 96, alignment: .bottom)
                     .onChange(of: text) { _, v in if v.count > 60 { text = String(v.prefix(60)) } }
             }
-            HStack {
-                Text("Friends see it for 24 hours").font(.footnoteC).foregroundStyle(Theme.label3)
-                Spacer()
-                Text("\(60 - text.count)").font(.footnoteC.monospacedDigit()).foregroundStyle(text.count > 50 ? Theme.orange : Theme.label3)
-            }
+            .padding(.top, 40)
+
+            Text("\(text.count)/60")
+                .font(.captionC.monospacedDigit())
+                .foregroundStyle(Theme.label3)
+                .padding(.top, 12)
+            Text("Friends see it on your photo for 24 hours.")
+                .font(.footnoteC)
+                .foregroundStyle(Theme.label2)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 300)
+                .padding(.top, 6)
+
             if model.myNote != nil {
-                Button("Delete note", role: .destructive) {
+                Button(role: .destructive) {
                     Task {
                         await model.clearNote()
                         dismiss()
                     }
+                } label: {
+                    HStack(spacing: 6) {
+                        SymbolView(.trash, size: 18)
+                        Text("Delete note").font(.subheadBoldC)
+                    }
+                    .foregroundStyle(Theme.red)
+                    .padding(.horizontal, 16)
+                    .frame(height: 44)
                 }
-                .font(.subheadMediumC)
+                .buttonStyle(.press)
+                .padding(.top, 18)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 18)
         }
-        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Theme.grouped)
         .onAppear {
             text = model.myNote?.text ?? ""
             focused = true
         }
+        .presentationDetents([.height(model.myNote != nil ? 470 : 420), .large])
+        .presentationCornerRadius(30)
+        .presentationBackground(Theme.grouped)
     }
 }
 
+/// Reading a friend's note, with a reply that starts a chat.
 struct NoteSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
     @Environment(\.dismiss) private var dismiss
     let note: FriendNote
     @State private var reply = ""
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { reply.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Capsule().fill(Theme.line).frame(width: 36, height: 5).padding(.top, 8)
-            Avatar(user: note.user, size: 64)
-            Text(note.user.name).font(.headlineC)
-            Text(note.text)
-                .font(AppFont.make(26, .bold))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Text(Fmt.relative(Date(timeIntervalSince1970: TimeInterval(note.created) / 1000)))
-                .font(.footnoteC).foregroundStyle(Theme.label3)
-            Spacer()
-            HStack(spacing: 10) {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                GlassIconButton(sym: .xmark, title: "Close") { dismiss() }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 22)
+
+            ZStack(alignment: .top) {
+                Avatar(user: note.user, size: 96).padding(.top, 76)
+                NoteBubble(text: note.text, big: true).frame(height: 96, alignment: .bottom)
+            }
+            .padding(.top, 34)
+
+            (Text(note.user.name).font(.subheadBoldC).foregroundStyle(Theme.label)
+             + Text(" · " + Fmt.relative(Date(timeIntervalSince1970: TimeInterval(note.created) / 1000)))
+                .font(.subheadC).foregroundStyle(Theme.label2))
+                .padding(.top, 14)
+
+            HStack(spacing: 8) {
                 TextField("Reply to \(note.user.name)…", text: $reply)
                     .font(.bodyC)
-                    .padding(.horizontal, 16)
-                    .frame(height: 46)
-                    .background(Theme.field, in: Capsule())
-                Button {
-                    let text = reply
-                    Task {
-                        if let room = await model.replyToNote(note, text: text) {
-                            dismiss()
-                            nav.open(room: room)
-                        }
-                    }
-                } label: {
-                    Image(systemName: "arrow.up").font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 46, height: 46).background(Theme.blue, in: Circle())
+                    .focused($focused)
+                    .submitLabel(.send)
+                    .onSubmit(send)
+                    .padding(.horizontal, 18)
+                    .frame(height: 44)
+                    .background(Theme.elevated, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
+                Button(action: send) {
+                    SymbolView(.arrowUp, size: 18, weight: 2.5)
+                        .foregroundStyle(Theme.onInk)
+                        .frame(width: 44, height: 44)
+                        .background(Theme.ink, in: Circle())
                 }
-                .disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty)
-                .opacity(reply.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+                .buttonStyle(.press(0.94))
+                .disabled(trimmed.isEmpty)
+                .opacity(trimmed.isEmpty ? 0.35 : 1)
+                .accessibilityLabel("Send")
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+            .padding(.top, 18)
+            Spacer(minLength: 16)
+        }
+        .frame(maxWidth: .infinity)
+        .presentationDetents([.height(440), .large])
+        .presentationCornerRadius(30)
+        .presentationBackground(Theme.grouped)
+    }
+
+    private func send() {
+        let text = trimmed
+        guard !text.isEmpty else { return }
+        Task {
+            if let room = await model.replyToNote(note, text: text) {
+                Haptics.success()
+                dismiss()
+                nav.open(room: room)
+            }
         }
     }
 }
@@ -195,102 +292,107 @@ struct PeopleSections: View {
     @AppStorage("ui:inviteDismissed") private var inviteDismissed = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             if !model.suggested.isEmpty {
-                sectionTitle("Suggested")
+                title("Suggested")
                 ForEach(model.suggested) { u in
-                    PersonRow(user: u, subtitle: u.reason ?? String(localized: "Tap to chat"))
+                    Button {
+                        Task { if let id = await model.openDM(u) { nav.open(room: id) } }
+                    } label: {
+                        personMain(u, sub: u.reason ?? String(localized: "Tap to chat"))
+                    }
+                    .buttonStyle(.press)
+                    .padding(.horizontal, 22)
                 }
+                .padding(.bottom, 14)
             }
             if !model.discover.isEmpty || !inviteDismissed {
                 HStack {
-                    sectionTitle("People you may know")
+                    title("People you may know")
                     Spacer()
                     if model.discover.count > 5 {
                         Button(showAll ? "Less" : "See all") { withAnimation(Motion.ui) { showAll.toggle() } }
-                            .font(.subheadMediumC)
+                            .font(.subheadBoldC)
+                            .foregroundStyle(Theme.blueText)
+                            .padding(.horizontal, 12)
+                            .frame(height: 44)
+                            .padding(.trailing, 10)
                     }
                 }
-                if !inviteDismissed { inviteCard }
+                if !inviteDismissed {
+                    InviteCard { withAnimation(Motion.ui) { inviteDismissed = true } }
+                        .padding(.horizontal, 10)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
+                }
                 ForEach(showAll ? model.discover : Array(model.discover.prefix(5))) { u in
                     discoverRow(u)
+                        .padding(.horizontal, 10)
                         .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
             }
         }
-        .padding(.top, 18)
-        .padding(.horizontal, 10)
+        .animation(Motion.ui, value: model.discover.map(\.id))
     }
 
-    private func sectionTitle(_ t: LocalizedStringKey) -> some View {
-        Text(t).font(.headlineC).foregroundStyle(Theme.label).padding(.horizontal, 10)
+    private func title(_ t: LocalizedStringKey) -> some View {
+        Text(t)
+            .font(.headlineC.weight(.bold))
+            .tracking(-0.17)
+            .foregroundStyle(Theme.label)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 6)
     }
 
-    private var inviteCard: some View {
+    private func personMain(_ u: User, sub: String) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: "envelope.open.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(Theme.blue)
-                .frame(width: 46, height: 46)
-                .background(Theme.blue.opacity(0.12), in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Invite friends").font(.headlineC)
-                Text("Share a link to this server").font(.footnoteC).foregroundStyle(Theme.label2)
+            Avatar(user: u, size: 52)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(u.name).font(.headlineC).foregroundStyle(Theme.label).lineLimit(1)
+                Text(sub).font(.subheadC).foregroundStyle(Theme.label2).lineLimit(1)
             }
-            Spacer()
-            ShareLink(item: model.serverURL) {
-                Text("Share").font(.subheadMediumC).foregroundStyle(Theme.blue)
-                    .padding(.horizontal, 14).frame(height: 32)
-                    .overlay(Capsule().stroke(Theme.ink, lineWidth: 1))
-            }
-            Button { withAnimation(Motion.ui) { inviteDismissed = true } } label: {
-                Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.label3)
-            }
-            .buttonStyle(.plain)
+            Spacer(minLength: 0)
         }
-        .padding(14)
-        .background(Theme.paper, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 
     private func discoverRow(_ u: User) -> some View {
-        HStack(spacing: 12) {
-            Button { nav.profile = u.id } label: {
-                HStack(spacing: 12) {
-                    Avatar(user: u, size: 46)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(u.name).font(.headlineC).foregroundStyle(Theme.label)
-                        Text(subtitle(u)).font(.footnoteC).foregroundStyle(Theme.label2).lineLimit(1)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            Spacer()
+        HStack(spacing: 8) {
+            Button { nav.profile = u.id } label: { personMain(u, sub: subtitle(u)) }
+                .buttonStyle(.press)
             let done = requested.contains(u.id)
             Button {
                 guard !done else { return }
                 Task {
-                    if await model.addContact(u) != nil { withAnimation(Motion.ui) { _ = requested.insert(u.id) } }
+                    if await model.addContact(u) != nil {
+                        Haptics.success()
+                        withAnimation(Motion.ui) { _ = requested.insert(u.id) }
+                    }
                 }
             } label: {
                 Text(done ? "Requested" : "Add")
-                    .font(.subheadMediumC)
-                    .foregroundStyle(done ? Theme.label2 : .white)
-                    .padding(.horizontal, 16).frame(height: 32)
-                    .background(done ? Theme.fillQuiet : Theme.blue, in: Capsule())
+                    .font(AppFont.make(13, .semibold))
+                    .foregroundStyle(done ? Theme.label2 : Theme.onInk)
+                    .padding(.horizontal, 16)
+                    .frame(minWidth: 84, minHeight: 36)
+                    .background(done ? Theme.fill2 : Theme.ink, in: Capsule())
                     .contentTransition(.opacity)
             }
             .buttonStyle(.press)
+            .disabled(done)
             Button {
                 Task { await model.dismissPerson(u) }
             } label: {
-                Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.label3)
-                    .frame(width: 28, height: 28)
+                SymbolView(.xmark, size: 16).foregroundStyle(Theme.label2)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Circle().inset(by: -4))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press(0.9))
             .accessibilityLabel("Don't suggest")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .frame(minHeight: 72)
     }
 
     private func subtitle(_ u: User) -> String {
@@ -299,81 +401,45 @@ struct PeopleSections: View {
     }
 }
 
-// MARK: - Requests page
-
-struct RequestsPage: View {
+/// Invite friends: Share is white, a black line just inside its edge, blue words.
+struct InviteCard: View {
     @Environment(AppModel.self) private var model
-    @Environment(Nav.self) private var nav
-    @Environment(\.column) private var ctx
+    var dismiss: (() -> Void)?
 
     var body: some View {
-        ZStack {
-            Theme.bg
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Requests").font(.largeTitleC).foregroundStyle(Theme.blue)
-                        .padding(.horizontal, 20)
-                    if model.requests.isEmpty && model.sentRequests.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "person.crop.circle.badge.checkmark").font(.system(size: 40, weight: .light)).foregroundStyle(Theme.label3)
-                            Text("No requests right now").font(.subheadC).foregroundStyle(Theme.label2)
-                        }
-                        .frame(maxWidth: .infinity).padding(.top, 60)
-                    }
-                    if !model.requests.isEmpty {
-                        Text("Want to add you").font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2).padding(.horizontal, 20)
-                        ForEach(model.requests) { u in
-                            HStack(spacing: 12) {
-                                Avatar(user: u, size: 50)
-                                VStack(alignment: .leading) {
-                                    Text(u.name).font(.headlineC)
-                                    Text("@\(u.username)").font(.footnoteC).foregroundStyle(Theme.label2)
-                                }
-                                Spacer()
-                                Button("Accept") { Task { await model.acceptContact(u) } }
-                                    .font(.subheadMediumC).foregroundStyle(.white)
-                                    .padding(.horizontal, 16).frame(height: 34).background(Theme.blue, in: Capsule())
-                                    .buttonStyle(.press)
-                                Button { Task { await model.removeContact(u) } } label: {
-                                    Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.label2)
-                                        .frame(width: 34, height: 34).background(Theme.fillQuiet, in: Circle())
-                                }
-                                .buttonStyle(.press)
-                            }
-                            .padding(.horizontal, 20)
-                            .transition(.opacity.combined(with: .move(edge: .trailing)))
-                        }
-                    }
-                    if !model.sentRequests.isEmpty {
-                        Text("Sent").font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2).padding(.horizontal, 20).padding(.top, 8)
-                        ForEach(model.sentRequests) { u in
-                            HStack(spacing: 12) {
-                                Avatar(user: u, size: 50)
-                                VStack(alignment: .leading) {
-                                    Text(u.name).font(.headlineC)
-                                    Text("@\(u.username)").font(.footnoteC).foregroundStyle(Theme.label2)
-                                }
-                                Spacer()
-                                Button("Cancel") { Task { await model.removeContact(u) } }
-                                    .font(.subheadMediumC).foregroundStyle(Theme.label)
-                                    .padding(.horizontal, 16).frame(height: 34).background(Theme.fillQuiet, in: Capsule())
-                                    .buttonStyle(.press)
-                            }
-                            .padding(.horizontal, 20)
-                        }
-                    }
-                }
-                .padding(.top, 12)
-                .animation(Motion.ui, value: model.contacts)
+        HStack(spacing: 14) {
+            SymbolView(.personPlus, size: 24)
+                .foregroundStyle(Theme.label)
+                .frame(width: 52, height: 52)
+                .background(Theme.fill2, in: Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Invite friends").font(.headlineC).foregroundStyle(Theme.label)
+                Text("Send friends a link to Cuven.").font(.subheadC).foregroundStyle(Theme.label2).lineLimit(2)
             }
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.insets.bottom + 80,
-                                        trailing: ctx.insets.trailing))
-            .refreshable { await model.refreshContacts() }
-
-            if ctx.rail == nil {
-                ColumnBar(back: BarItem(id: "close", symbol: "chevron.left", title: "Back") { nav.switchPage(.chats) })
-                    .environment(\.column, ctx)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 10)
+            ShareLink(item: model.serverURL) {
+                Text("Share")
+                    .font(AppFont.make(13, .semibold))
+                    .foregroundStyle(Color(hex: 0x0062cc))
+                    .padding(.horizontal, 16)
+                    .frame(minWidth: 84, minHeight: 36)
+                    .background(Color.white, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.black, lineWidth: 1))
+            }
+            .buttonStyle(.press)
+            if let dismiss {
+                Button(action: dismiss) {
+                    SymbolView(.xmark, size: 16).foregroundStyle(Theme.label2)
+                        .frame(width: 36, height: 36)
+                        .glassCircle()
+                }
+                .buttonStyle(.press(0.9))
+                .accessibilityLabel("Dismiss")
             }
         }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .padding(.vertical, 6)
     }
 }

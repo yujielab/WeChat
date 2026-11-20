@@ -12,6 +12,7 @@ struct MomentsPage: View {
     @State private var fresh = false
     @State private var seenVersion = 0
     @AppStorage("ui:momentsSeen") private var seenAt: Double = 0
+    @State private var scrolled = false
 
     private var people: [User] {
         var seen = Set<String>()
@@ -29,60 +30,71 @@ struct MomentsPage: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Theme.bg
+        ZStack(alignment: .bottomTrailing) {
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    titleRow
-                    peopleRow
-                    if fresh {
-                        Button {
-                            Task { await reload() }
-                        } label: {
-                            Label("New moments", systemImage: "arrow.up")
-                                .font(.subheadMediumC).foregroundStyle(.white)
-                                .padding(.horizontal, 16).frame(height: 36).background(Theme.sky, in: Capsule())
-                        }
-                        .padding(.vertical, 8)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-                    if loading && moments.isEmpty {
-                        ForEach(0..<2, id: \.self) { _ in MomentSkeleton() }
-                    } else if moments.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "photo.on.rectangle.angled").font(.system(size: 40, weight: .light)).foregroundStyle(Theme.label3)
-                            Text("No moments yet").font(.headlineC)
-                            Text("Share a photo or a few words with your friends.").font(.subheadC).foregroundStyle(Theme.label2)
-                            Button { nav.composeMoment = true } label: {
-                                Text("New moment").font(.headlineC).foregroundStyle(.white)
-                                    .padding(.horizontal, 22).frame(height: 44).background(Theme.sky, in: Capsule())
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        peopleRow
+                        if fresh {
+                            Button {
+                                Task { await reload() }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    SymbolView(.arrowUp, size: 15, weight: 2.4)
+                                    Text("New moments").font(.subheadBoldC)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16).frame(height: 36)
+                                .background(Theme.skyTitle, in: Capsule())
                             }
                             .buttonStyle(.press)
+                            .padding(.vertical, 8)
+                            .transition(.scale.combined(with: .opacity))
                         }
-                        .padding(.top, 60)
-                    }
-                    ForEach($moments) { $m in
-                        MomentCard(moment: $m) {
-                            withAnimation(Motion.ui) { moments.removeAll { $0.id == m.id } }
+                        if loading && moments.isEmpty {
+                            ForEach(0..<2, id: \.self) { _ in MomentSkeleton() }
+                        } else if moments.isEmpty {
+                            VStack(spacing: 6) {
+                                SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
+                                Text("No moments yet").font(.headlineC).foregroundStyle(Theme.label)
+                                Text("Share a photo or a few words with your friends.")
+                                    .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
+                            }
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 48)
                         }
-                        .frame(maxWidth: 640)
-                        Hairline().padding(.horizontal, 16)
-                    }
-                    if more && !moments.isEmpty {
-                        ProgressView().padding(24)
-                            .onAppear { Task { await loadMore() } }
+                        ForEach($moments) { $m in
+                            MomentCard(moment: $m) {
+                                withAnimation(Motion.ui) { moments.removeAll { $0.id == m.id } }
+                            }
+                            .frame(maxWidth: 640)
+                        }
+                        if more && !moments.isEmpty {
+                            ProgressView().padding(24)
+                                .onAppear { Task { await loadMore() } }
+                        }
+                        Color.clear.frame(height: 88)
+                    } header: {
+                        head
                     }
                 }
             }
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
-                                        bottom: ctx.insets.bottom + 90, trailing: ctx.insets.trailing))
+            .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 4 } action: { _, v in
+                withAnimation(.easeOut(duration: 0.22)) { scrolled = v }
+            }
             .refreshable { await reload() }
 
-            if ctx.rail == nil {
-                ColumnBar(back: BarItem(id: "back", symbol: "chevron.left", title: "Back") { nav.switchPage(.chats) },
-                          actions: [BarItem(id: "new", symbol: "plus", title: "New moment", tint: Theme.sky, foreground: .white) { nav.composeMoment = true }])
-                    .environment(\.column, ctx)
+            // New moment: a round glass button floating at the page's foot.
+            Button { nav.composeMoment = true } label: {
+                SymbolView(.plus, size: 26, weight: 2.2)
+                    .foregroundStyle(Theme.label)
+                    .frame(width: 56, height: 56)
+                    .glassCircle()
             }
+            .buttonStyle(.press(0.9))
+            .padding(.trailing, 20)
+            .padding(.bottom, max(ctx.insets.bottom, 12) + 16)
+            .accessibilityLabel("New moment")
         }
         .animation(Motion.ui, value: fresh)
         .task { await reload() }
@@ -90,69 +102,82 @@ struct MomentsPage: View {
         .onDisappear { seenAt = Date().timeIntervalSince1970 * 1000 }
     }
 
-    private var titleRow: some View {
-        HStack(spacing: 10) {
-            Text("Moments").font(.largeTitleC).foregroundStyle(Theme.sky)
-            Spacer()
-            roundButton("square.and.pencil", "New moment") { nav.composeMoment = true }
-            roundButton("person.crop.circle", "Your profile") { nav.profile = model.me?.id }
-            if ctx.rail != nil {
-                roundButton("xmark", "Close") { nav.switchPage(.chats) }
+    /// The wordmark in sky blue, the close button beside it; frosted once the feed moves.
+    private var head: some View {
+        HStack(spacing: 8) {
+            Text("Moments")
+                .font(AppFont.make(28, .heavy))
+                .tracking(-0.98)
+                .foregroundStyle(Theme.skyTitle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            SheetClose()
+        }
+        .padding(.leading, 20)
+        .padding(.trailing, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .frame(minHeight: 64)
+        .background {
+            if scrolled {
+                Rectangle().fill(.ultraThinMaterial)
+                    .overlay(Theme.paper.opacity(0.86))
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
+                    .transition(.opacity)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
     }
 
-    private func roundButton(_ symbol: String, _ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.tap()
-            action()
-        } label: {
-            Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.label)
-                .frame(width: 40, height: 40).background(Theme.fillQuiet, in: Circle())
-        }
-        .buttonStyle(.press(0.9))
-        .accessibilityLabel(Text(title))
-    }
-
+    /// People: a ring round whoever has something new, a hairline after.
     private var peopleRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
+            HStack(spacing: 10) {
                 Button { nav.composeMoment = true } label: {
-                    VStack(spacing: 6) {
-                        Avatar(user: model.me, size: 64)
-                            .padding(3)
-                            .overlay(alignment: .bottomTrailing) {
-                                Image(systemName: "plus").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
-                                    .frame(width: 22, height: 22).background(Theme.blue, in: Circle())
-                                    .overlay(Circle().stroke(Theme.bg, lineWidth: 2.5))
-                            }
-                        Text("You").font(.captionC).foregroundStyle(Theme.label2)
+                    person(user: model.me, name: String(localized: "Your moment"), fresh: false) {
+                        SymbolView(.plus, size: 14, weight: 2.6).foregroundStyle(.white)
+                            .frame(width: 24, height: 24).background(Theme.blue, in: Circle())
                     }
                 }
-                .buttonStyle(.press(0.94))
+                .buttonStyle(NoteFaceStyleShared())
                 ForEach(people) { u in
                     Button { nav.profile = u.id } label: {
-                        VStack(spacing: 6) {
-                            Avatar(user: u, size: 64, ring: hasNew(u))
-                                .padding(hasNew(u) ? 0 : 3)
-                                .overlay(alignment: .bottomTrailing) {
-                                    if u.friend == false {
-                                        Image(systemName: "person.badge.plus").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                                            .frame(width: 20, height: 20).background(Theme.label2, in: Circle())
-                                            .overlay(Circle().stroke(Theme.bg, lineWidth: 2))
-                                    }
-                                }
-                            Text(u.name).font(.captionC).foregroundStyle(Theme.label2).lineLimit(1).frame(width: 70)
+                        person(user: u, name: u.name, fresh: hasNew(u)) {
+                            if u.friend == false {
+                                SymbolView(.personPlus, size: 14).foregroundStyle(Theme.onInk)
+                                    .frame(width: 24, height: 24).background(Theme.ink, in: Circle())
+                            }
                         }
                     }
-                    .buttonStyle(.press(0.94))
+                    .buttonStyle(NoteFaceStyleShared())
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 14)
         }
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
+    }
+
+    private func person<Badge: View>(user: User?, name: String, fresh: Bool, @ViewBuilder badge: () -> Badge) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                if fresh {
+                    Circle().fill(AngularGradient(colors: [Theme.blue, Theme.indigo, Color(hex: 0xbf5af2), Color(hex: 0xff375f), Theme.orange, Theme.blue],
+                                                  center: .center, angle: .degrees(200 - 90)))
+                    Circle().fill(Theme.paper).padding(2.5)
+                } else {
+                    Circle().strokeBorder(Theme.line, lineWidth: 1)
+                }
+                Avatar(user: user, size: 64)
+            }
+            .frame(width: 74, height: 74)
+            .overlay(alignment: .topLeading) {
+                badge()
+                    .background(Circle().fill(Theme.paper).padding(-3))
+                    .offset(x: 37 + 14 - 12 + 12, y: 50)
+            }
+            Text(name).font(.captionC).foregroundStyle(Theme.label).lineLimit(1)
+        }
+        .frame(width: 84)
     }
 
     private func reload() async {
@@ -182,16 +207,25 @@ struct MomentSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Circle().fill(Theme.fillQuiet).frame(width: 38, height: 38)
+                Circle().fill(Theme.fill4).frame(width: 36, height: 36)
                 VStack(alignment: .leading, spacing: 6) {
                     SkeletonBar(width: 120)
                     SkeletonBar(width: 70, height: 9)
                 }
             }
             .padding(.horizontal, 16)
-            Rectangle().fill(Theme.fillQuiet).aspectRatio(1, contentMode: .fit)
+            Rectangle().fill(Theme.fill4).aspectRatio(1, contentMode: .fit)
             SkeletonBar(width: 200).padding(.horizontal, 16)
         }
         .padding(.vertical, 12)
+    }
+}
+
+/// A face that gives a little under the finger (the web's .note:active / .mo-person:active: 0.94).
+struct NoteFaceStyleShared: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(configuration.isPressed ? Motion.pressIn : Motion.ui, value: configuration.isPressed)
     }
 }

@@ -13,6 +13,7 @@ struct MemoriesPage: View {
     @State private var query = ""
     @State private var newestFirst = true
     @Namespace private var ns
+    @State private var scrolled = false
 
     private let filters: [(String, LocalizedStringKey)] = [("all", "All"), ("photo", "Photos"), ("video", "Videos"), ("drawing", "Drawings")]
 
@@ -34,91 +35,129 @@ struct MemoriesPage: View {
     }
 
     var body: some View {
-        ZStack {
-            Theme.bg
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
-                    HStack {
-                        Text("Memories").font(.largeTitleC).foregroundStyle(Theme.blue)
-                        Spacer()
-                        Menu {
-                            Picker("Order", selection: $newestFirst) {
-                                Text("Newest first").tag(true)
-                                Text("Oldest first").tag(false)
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(Theme.label)
-                                .frame(width: 40, height: 40).background(Theme.fillQuiet, in: Circle())
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Section {
                     HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(Theme.label3)
-                        TextField("Search chats or people", text: $query).font(.bodyC)
+                        SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
+                        TextField("Search", text: $query).font(.bodyC).autocorrectionDisabled()
                     }
-                    .padding(.horizontal, 14).frame(height: 42)
-                    .background(Theme.field, in: Capsule())
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 14).frame(height: 44)
+                    .background(Theme.fill2, in: Capsule())
+                    .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 6)
 
-                    HStack(spacing: 8) {
-                        ForEach(filters, id: \.0) { f in
-                            Button {
-                                Haptics.selection()
-                                withAnimation(Motion.ui) { filter = f.0 }
-                            } label: {
-                                Text(f.1).font(.subheadMediumC)
-                                    .foregroundStyle(filter == f.0 ? Theme.onInk : Theme.label)
-                                    .padding(.horizontal, 14).frame(height: 34)
-                                    .background {
-                                        if filter == f.0 { Capsule().fill(Theme.ink).matchedGeometryEffect(id: "f", in: ns) }
-                                        else { Capsule().stroke(Theme.line, lineWidth: 1) }
-                                    }
-                            }
-                            .buttonStyle(.press)
-                        }
-                    }
-                    .padding(.horizontal, 20)
+                    tabs
 
                     if let recap = recap { recapCard(recap) }
 
                     if loading && items.isEmpty {
-                        grid(Array(repeating: nil, count: 12))
+                        grid(Array(repeating: nil, count: 12)).padding(.top, 14)
                     } else if items.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "sparkles.rectangle.stack").font(.system(size: 40, weight: .light)).foregroundStyle(Theme.label3)
-                            Text("Photos you share in chats collect here.").font(.subheadC).foregroundStyle(Theme.label2)
+                        VStack(spacing: 6) {
+                            SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
+                            Text("No memories yet").font(AppFont.make(17, .bold)).foregroundStyle(Theme.label)
+                            Text("Photos, videos and drawings you and your friends share in chats are kept here.")
+                                .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
                         }
-                        .frame(maxWidth: .infinity).padding(.top, 50)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 56)
                     }
 
                     ForEach(months, id: \.0) { month, list in
-                        Section {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(month).font(AppFont.make(15, .bold)).foregroundStyle(Theme.label)
+                                Text("\(list.count)").font(AppFont.make(12, .semibold)).foregroundStyle(Theme.label3)
+                            }
+                            .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 8)
                             grid(list.map { Optional($0) })
-                        } header: {
-                            Text(month).font(.headlineC).foregroundStyle(Theme.label)
-                                .padding(.horizontal, 20).padding(.vertical, 6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Theme.bg.opacity(0.94))
                         }
+                        .padding(.top, 14)
                     }
 
                     if more && !items.isEmpty {
                         ProgressView().frame(maxWidth: .infinity).padding()
                             .onAppear { Task { await loadMore() } }
                     }
+                    Color.clear.frame(height: max(ctx.insets.bottom, 12) + 24)
+                } header: {
+                    head
                 }
             }
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.insets.bottom + 90, trailing: ctx.insets.trailing))
-            .refreshable { await reload() }
+        }
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 4 } action: { _, v in
+            withAnimation(.easeOut(duration: 0.22)) { scrolled = v }
+        }
+        .refreshable { await reload() }
+        .task(id: filter) { await reload() }
+    }
 
-            if ctx.rail == nil {
-                ColumnBar(back: BarItem(id: "back", symbol: "chevron.left", title: "Back") { nav.switchPage(.chats) })
-                    .environment(\.column, ctx)
+    /// A chevron, the title in the middle, and "…".
+    private var head: some View {
+        ZStack {
+            Text("Memories").font(AppFont.make(17, .bold)).foregroundStyle(Theme.label)
+            HStack {
+                SheetClose(sym: .chevronDown)
+                Spacer()
+                Menu {
+                    Picker("Order", selection: $newestFirst) {
+                        Text("Newest first").tag(true)
+                        Text("Oldest first").tag(false)
+                    }
+                } label: {
+                    SymbolView(.ellipsis, size: 20).foregroundStyle(Theme.label)
+                        .frame(width: 44, height: 44)
+                        .glassCircle()
+                }
+                .accessibilityLabel("More")
             }
         }
-        .task(id: filter) { await reload() }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 6)
+        .frame(minHeight: 62)
+        .background {
+            if scrolled {
+                Rectangle().fill(.ultraThinMaterial)
+                    .overlay(Theme.paper.opacity(0.88))
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    /// Tabs with a line under the chosen one.
+    private var tabs: some View {
+        HStack(spacing: 4) {
+            ForEach(filters, id: \.0) { f in
+                let on = filter == f.0
+                Button {
+                    Haptics.selection()
+                    withAnimation(.spring(duration: 0.32, bounce: 0.1)) { filter = f.0 }
+                } label: {
+                    Text(f.1)
+                        .font(AppFont.make(15, on ? .bold : .semibold))
+                        .foregroundStyle(on ? Theme.label : Theme.label2)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .overlay(alignment: .bottom) {
+                            if on {
+                                Capsule().fill(Theme.label).frame(height: 3)
+                                    .matchedGeometryEffect(id: "line", in: ns)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 1) }
     }
 
     private var recap: [MemoryItem]? {
@@ -127,9 +166,10 @@ struct MemoriesPage: View {
         return r.count >= 3 ? Array(r.prefix(8)) : nil
     }
 
+    /// The recap: the latest month's best picture, large, its name over it.
     private func recapCard(_ list: [MemoryItem]) -> some View {
         FrameReporting { frame in
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .topLeading) {
                 TimelineView(.periodic(from: .now, by: 3)) { tl in
                     let i = Int(tl.date.timeIntervalSinceReferenceDate / 3) % list.count
                     RemoteImage(list[i].url, maxPixel: 1200)
@@ -137,15 +177,25 @@ struct MemoriesPage: View {
                         .transition(.opacity)
                         .animation(.easeInOut(duration: 0.8), value: i)
                 }
-                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
+                LinearGradient(stops: [.init(color: .black.opacity(0.42), location: 0), .init(color: .clear, location: 0.46)],
+                               startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("This month").font(.caption2C.weight(.bold)).foregroundStyle(.white.opacity(0.85)).textCase(.uppercase)
-                    Text("\(list.count) moments together").font(.title3C).foregroundStyle(.white)
+                    Text(Fmt.month(list[0].date)).font(AppFont.make(20, .bold))
+                    Text("\(list.count) memories").font(.footnoteC).opacity(0.9)
                 }
-                .padding(18)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.35), radius: 10, y: 1)
+                .padding(.top, 16).padding(.leading, 18).padding(.trailing, 60)
+                SymbolView(.play, size: 18).foregroundStyle(.black).offset(x: 1)
+                    .frame(width: 44, height: 44)
+                    .background(.white.opacity(0.88), in: Circle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(14)
             }
-            .frame(height: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .aspectRatio(16 / 11, contentMode: .fit)
+            .background(Theme.fill2)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: .black.opacity(0.3), radius: 17, y: 16)
             .contentShape(Rectangle())
             .onTapGesture {
                 let first = list[0]
@@ -154,25 +204,27 @@ struct MemoriesPage: View {
                 }
             }
         }
-        .frame(height: 220)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
     }
 
     private func grid(_ list: [MemoryItem?]) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 4), spacing: 2) {
+        let cols = ctx.size.width <= 380 ? 3 : 4
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: cols), spacing: 2) {
             ForEach(Array(list.enumerated()), id: \.offset) { _, item in
                 if let item {
                     FrameReporting { frame in
                         ZStack(alignment: .bottomTrailing) {
                             Group {
                                 if item.type == "video" { VideoThumb(path: item.url, maxPixel: 300) }
-                                else { RemoteImage(item.url, maxPixel: 300, placeholder: item.type == "drawing" ? .white : Theme.fillQuiet) }
+                                else { RemoteImage(item.url, maxPixel: 300, placeholder: item.type == "drawing" ? .white : Theme.fill2) }
                             }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                             .clipped()
                             if item.type == "video" {
-                                Text(Fmt.duration(item.dur)).font(.caption2C.monospacedDigit()).foregroundStyle(.white)
-                                    .padding(4).shadow(radius: 2)
+                                Text(Fmt.duration(item.dur)).font(AppFont.make(12, .semibold).monospacedDigit()).foregroundStyle(.white)
+                                    .padding(5).shadow(color: .black.opacity(0.5), radius: 3)
                             }
                         }
                         .contentShape(Rectangle())
@@ -190,7 +242,7 @@ struct MemoriesPage: View {
                     }
                     .aspectRatio(1, contentMode: .fit)
                 } else {
-                    Rectangle().fill(Theme.fillQuiet).aspectRatio(1, contentMode: .fit)
+                    Rectangle().fill(Theme.fill2).aspectRatio(1, contentMode: .fit)
                 }
             }
         }
