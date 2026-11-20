@@ -21,6 +21,10 @@ packages:
   Lottie:
     url: https://github.com/airbnb/lottie-spm
     from: "4.5.0"
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    minVersion: "120.0.0"
+    maxVersion: "300.0.0"
 
 targets:
   Cuven:
@@ -32,6 +36,7 @@ targets:
           - "**/*.md"
     dependencies:
       - package: Lottie
+      - package: WebRTC
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: us.cuven.app

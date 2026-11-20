@@ -62,6 +62,15 @@ struct MainView: View {
                 pageLayer(geo: geo)
                     .zIndex(20)
 
+                // Someone's page, over everything in the shell.
+                if let pid = nav.profile {
+                    ProfileView(userId: pid)
+                        .environment(\.column, geo.pageContext)
+                        .id(pid)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .zIndex(25)
+                }
+
                 // The page capsule in the system column (iPhone Duo only).
                 if let rail = geo.rail, showsPageSwitcher {
                     PageSwitcher(nav: nav)
@@ -86,6 +95,7 @@ struct MainView: View {
                 }
             }
             .frame(width: size.width, height: size.height)
+            .animation(Motion.move, value: nav.profile)
             .onAppear { nav.setColumns(geo.columnsFor(size)) }
             .onChange(of: size) { _, s in
                 withAnimation(Motion.move) { nav.setColumns(StripGeometry.columns(for: s)) }
@@ -99,10 +109,6 @@ struct MainView: View {
         .fullScreenCover(isPresented: $nav.composeMoment) { MomentEditor() }
         .sheet(isPresented: $nav.noteEditor) { NoteEditor().presentationDetents([.height(300)]) }
         .sheet(item: $nav.openNote) { note in NoteSheet(note: note).presentationDetents([.medium]) }
-        .fullScreenCover(item: Binding(get: { nav.profile.map(ProfileRef.init) }, set: { nav.profile = $0?.id })) { ref in
-            ProfileView(userId: ref.id)
-                .environment(nav)
-        }
         .overlay { CallOverlay() }
         .onChange(of: visibleRoom) { _, room in
             model.visibleRoom = room
@@ -130,7 +136,7 @@ struct MainView: View {
     }
 
     private var showsPageSwitcher: Bool {
-        if nav.viewer != nil { return false }
+        if nav.viewer != nil || nav.profile != nil { return false }
         if nav.columns == 2 { return !(nav.detail == .draw && nav.isVisible(.detail)) }
         return nav.page != .chats || nav.active == .list || nav.active == .sidebar
     }
@@ -197,7 +203,6 @@ struct MainView: View {
     }
 }
 
-private struct ProfileRef: Identifiable { let id: String }
 
 // MARK: - Geometry
 
