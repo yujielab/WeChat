@@ -20,10 +20,10 @@ name: iOS IPA
 on:
   push:
     branches: [main, 'claude/**']
-    paths: ['ios/**', '.github/workflows/ios.yml']
+    paths: ['ios/**', '!ios/tools/**', '!ios/README.md', '.github/workflows/ios.yml']
     tags: ['ios-v*']
   pull_request:
-    paths: ['ios/**', '.github/workflows/ios.yml']
+    paths: ['ios/**', '!ios/tools/**', '!ios/README.md', '.github/workflows/ios.yml']
   workflow_dispatch:
     inputs:
       release:

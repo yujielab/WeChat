@@ -10,13 +10,13 @@ B=${1:-http://localhost:8787}
 # ships bash 3.2, without associative arrays.)
 tok() { local v="TOKEN_$1"; printf '%s' "${!v}"; }
 post() { # who path json
-  curl -sS --max-time 20 -H "Cookie: cfm_session=$(tok "$1")" -H "Origin: $B" -H 'content-type: application/json' -d "$3" "$B$2"
+  curl -sS --max-time 90 --retry 3 --retry-delay 2 --retry-all-errors -H "Cookie: cfm_session=$(tok "$1")" -H "Origin: $B" -H 'content-type: application/json' -d "$3" "$B$2"
 }
-get() { curl -sS --max-time 20 -H "Cookie: cfm_session=$(tok "$1")" -H "Origin: $B" "$B$2"; }
+get() { curl -sS --max-time 90 --retry 3 --retry-delay 2 --retry-all-errors -H "Cookie: cfm_session=$(tok "$1")" -H "Origin: $B" "$B$2"; }
 
 reg() { # who username display
   local h
-  h=$(curl -sS --max-time 30 -D - -o /dev/null -H "Origin: $B" -H 'content-type: application/json' \
+  h=$(curl -sS --max-time 90 --retry 3 --retry-delay 2 --retry-all-errors -D - -o /dev/null -H "Origin: $B" -H 'content-type: application/json' \
     -d "{\"username\":\"$2\",\"password\":\"cuven-demo\",\"display\":\"$3\"}" "$B/auth/register")
   local t
   t=$(printf '%s' "$h" | tr -d '\r' | sed -n 's/^[Ss]et-[Cc]ookie: cfm_session=\([^;]*\).*/\1/p' | head -1)
