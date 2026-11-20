@@ -87,7 +87,7 @@ else
   shoot inner-02-thread thread light 6 1 inner
   shoot inner-02-thread-dark thread dark 6 1 inner
   shoot inner-03-details info light 7 1 inner
-  shoot inner-04-draw draw light 7 1 inner
+  shoot inner-04-draw draw light 14 1 inner
   shoot inner-10-moments moments light 7 1 inner
   shoot inner-14-menu sidebar light 6 1 inner
   shoot inner-15-settings settings light 7 1 inner

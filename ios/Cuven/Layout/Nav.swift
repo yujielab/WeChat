@@ -86,7 +86,7 @@ final class Nav {
     var rightmost: Column { visibleColumns.last ?? leading }
 
     /// A sheet is up over the strip (the page capsule stays, the strip recedes).
-    var sheeted: Bool { page != .chats || settingsOpen || profile != nil }
+    var sheeted: Bool { page != .chats || settingsOpen || profile != nil || noteEditor || openNote != nil }
 
     func setColumns(_ n: Int) {
         guard n != columns else { return }

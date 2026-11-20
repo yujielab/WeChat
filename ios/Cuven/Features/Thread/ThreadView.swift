@@ -68,9 +68,6 @@ struct ThreadView: View {
                             ProgressView().padding().scaleEffect(x: 1, y: -1)
                         }
 
-                        if thread?.loaded == true && thread?.hasMore == false {
-                            conversationStart.scaleEffect(x: 1, y: -1)
-                        }
 
                         Color.clear
                             .frame(height: headerHeight + ctx.insets.top + 8)

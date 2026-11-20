@@ -25,7 +25,6 @@ struct NotesRow: View {
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.viewAligned)
-        .scrollClipDisabled()
         .animation(Motion.ui, value: model.notes.map(\.id))
     }
 }
@@ -108,7 +107,7 @@ struct NoteBubble: View {
 /// Writing yours: the bubble large on your photo, 60 characters, for a day.
 struct NoteEditor: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
+    @Environment(Nav.self) private var nav
     @State private var text = ""
     @State private var sending = false
     @FocusState private var focused: Bool
@@ -120,14 +119,14 @@ struct NoteEditor: View {
             ZStack {
                 Text("Note").font(.headlineC).foregroundStyle(Theme.label)
                 HStack {
-                    GlassIconButton(sym: .xmark, title: "Cancel") { dismiss() }
+                    GlassIconButton(sym: .xmark, title: "Cancel") { close() }
                     Spacer()
                     Button {
                         sending = true
                         Task {
                             await model.setNote(trimmed)
                             Haptics.success()
-                            dismiss()
+                            close()
                         }
                     } label: {
                         SymbolView(.arrowUp, size: 20, weight: 2.5)
@@ -142,7 +141,7 @@ struct NoteEditor: View {
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.top, 22)
+            .frame(minHeight: 56)
 
             ZStack(alignment: .top) {
                 Avatar(user: model.me, size: 96).padding(.top, 76)
@@ -162,7 +161,7 @@ struct NoteEditor: View {
                     .frame(height: 96, alignment: .bottom)
                     .onChange(of: text) { _, v in if v.count > 60 { text = String(v.prefix(60)) } }
             }
-            .padding(.top, 40)
+            .padding(.top, 28)
 
             Text("\(text.count)/60")
                 .font(.captionC.monospacedDigit())
@@ -179,7 +178,7 @@ struct NoteEditor: View {
                 Button(role: .destructive) {
                     Task {
                         await model.clearNote()
-                        dismiss()
+                        close()
                     }
                 } label: {
                     HStack(spacing: 6) {
@@ -196,14 +195,15 @@ struct NoteEditor: View {
             Spacer(minLength: 18)
         }
         .frame(maxWidth: .infinity)
-        .background(Theme.grouped)
         .onAppear {
             text = model.myNote?.text ?? ""
             focused = true
         }
-        .presentationDetents([.height(model.myNote != nil ? 470 : 420), .large])
-        .presentationCornerRadius(30)
-        .presentationBackground(Theme.grouped)
+    }
+
+    private func close() {
+        focused = false
+        withAnimation(Motion.move) { nav.noteEditor = false }
     }
 }
 
@@ -211,7 +211,6 @@ struct NoteEditor: View {
 struct NoteSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
-    @Environment(\.dismiss) private var dismiss
     let note: FriendNote
     @State private var reply = ""
     @FocusState private var focused: Bool
@@ -222,16 +221,16 @@ struct NoteSheet: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                GlassIconButton(sym: .xmark, title: "Close") { dismiss() }
+                GlassIconButton(sym: .xmark, title: "Close") { close() }
             }
             .padding(.horizontal, 18)
-            .padding(.top, 22)
+            .frame(minHeight: 56)
 
             ZStack(alignment: .top) {
                 Avatar(user: note.user, size: 96).padding(.top, 76)
                 NoteBubble(text: note.text, big: true).frame(height: 96, alignment: .bottom)
             }
-            .padding(.top, 34)
+            .padding(.top, 20)
 
             (Text(note.user.name).font(.subheadBoldC).foregroundStyle(Theme.label)
              + Text(" · " + Fmt.relative(Date(timeIntervalSince1970: TimeInterval(note.created) / 1000)))
@@ -264,9 +263,11 @@ struct NoteSheet: View {
             Spacer(minLength: 16)
         }
         .frame(maxWidth: .infinity)
-        .presentationDetents([.height(440), .large])
-        .presentationCornerRadius(30)
-        .presentationBackground(Theme.grouped)
+    }
+
+    private func close() {
+        focused = false
+        withAnimation(Motion.move) { nav.openNote = nil }
     }
 
     private func send() {
@@ -275,7 +276,7 @@ struct NoteSheet: View {
         Task {
             if let room = await model.replyToNote(note, text: text) {
                 Haptics.success()
-                dismiss()
+                close()
                 nav.open(room: room)
             }
         }

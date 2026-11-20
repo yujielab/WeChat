@@ -39,8 +39,6 @@ struct MainView: View {
         .background(SafeAreaReader { safe = $0 }.ignoresSafeArea())
         .modifier(HingeWatcher(posture: $posture))
         .fullScreenCover(isPresented: $nav.composeMoment) { MomentEditor().environment(nav) }
-        .sheet(isPresented: $nav.noteEditor) { NoteEditor().environment(nav) }
-        .sheet(item: $nav.openNote) { note in NoteSheet(note: note).environment(nav) }
         .sheet(isPresented: $nav.newGroup) { NewGroupView().environment(nav) }
         .overlay { CallOverlay() }
         .task { await Automation.drive(model, nav) }
@@ -82,7 +80,8 @@ struct MainView: View {
     @ViewBuilder
     private func shell(geo: StripGeometry, size: CGSize, insets: EdgeInsets) -> some View {
         ZStack(alignment: .topLeading) {
-            Theme.bg
+            // What shows round the receded app while a sheet is up.
+            (nav.sheeted ? Theme.recede : Theme.bg)
 
             // The strip, receding while a sheet is up.
             ZStack(alignment: .topLeading) {
@@ -157,7 +156,9 @@ struct MainView: View {
 
     private func closeSheet() {
         withAnimation(Motion.move) {
-            if nav.settingsOpen { nav.settingsOpen = false }
+            if nav.noteEditor { nav.noteEditor = false }
+            else if nav.openNote != nil { nav.openNote = nil }
+            else if nav.settingsOpen { nav.settingsOpen = false }
             else if nav.profile != nil { nav.profile = nil }
             else { nav.page = .chats }
         }
@@ -370,6 +371,10 @@ struct StripGeometry {
         return ColumnContext(column: .list, insets: EdgeInsets(top: 0, leading: 0, bottom: max(0, min(bottom, 24)), trailing: 0),
                              isLeftmost: true, isRightmost: true, rail: nil, size: f.size, twoUp: columns == 2, keyboard: keyboard)
     }
+}
+
+extension Theme {
+    static let recede = Color.token(0xd1d1d6, 0x000000)
 }
 
 // MARK: - Screenshot emulation (CI only)

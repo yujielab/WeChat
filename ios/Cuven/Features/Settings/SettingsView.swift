@@ -22,7 +22,6 @@ struct SettingsView: View {
         ScrollView {
             VStack(spacing: 0) {
                 SheetHeader(title: "Settings", large: true) { SheetClose() }
-                    .padding(.top, 10)
 
                 Button { editing = true } label: {
                     HStack(spacing: 16) {
@@ -137,11 +136,10 @@ struct SettingsView: View {
     private func segmentRow(_ title: LocalizedStringKey, _ options: [(String, LocalizedStringKey)], _ value: Binding<String>) -> some View {
         HStack(spacing: 12) {
             Text(title).font(.bodyC).foregroundStyle(Theme.label)
-                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                .frame(minWidth: 80, alignment: .leading)
-            Spacer(minLength: 0)
+                .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
             InkSegmented(options: options, selection: value)
-                .frame(maxWidth: CGFloat(options.count) * 84)
+                .fixedSize()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)

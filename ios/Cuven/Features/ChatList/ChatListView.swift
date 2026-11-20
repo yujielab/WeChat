@@ -42,7 +42,7 @@ struct ChatListView: View {
 
                 if !nav.searching && !besideSidebar {
                     NotesRow()
-                        .listRowInsets(EdgeInsets(top: 18, leading: 0, bottom: 10, trailing: 0))
+                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 4, trailing: 0))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                     if leadingTwoUp {
@@ -136,7 +136,7 @@ struct ChatListView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 8)
-            if ctx.usesRail || leadingTwoUp {
+            if ctx.usesRail && !leadingTwoUp {
                 // Search beside the title, in blue glass, as tall as it.
                 Button {
                     Haptics.tap()
@@ -177,7 +177,7 @@ struct ChatListView: View {
         }
         .padding(.leading, inset)
         .padding(.trailing, inset)
-        .padding(.top, ctx.twoUp ? 24 : 30)
+        .padding(.top, 24)
     }
 
     private var searchHead: some View {
@@ -226,7 +226,7 @@ struct ChatListView: View {
             Haptics.selection()
             nav.open(room: room.id)
         } label: {
-            ChatRow(room: room, selected: selected, compact: nav.searching)
+            ChatRow(room: room, selected: selected, compact: nav.searching, leading: ctx.twoUp && !ctx.isRightmost)
         }
         .buttonStyle(RowPressStyle(radius: 22))
         .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10))
@@ -324,6 +324,7 @@ struct FilterTabs<Trailing: View>: View {
     @Environment(Nav.self) private var nav
     let requests: Trailing
     @Namespace private var ns
+    @State private var moreAtEnd = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -353,8 +354,19 @@ struct FilterTabs<Trailing: View>: View {
                 requests
             }
             .padding(.horizontal, 22)
+            .padding(.vertical, 8)
         }
-        .scrollClipDisabled()
+        // Where the row runs past the column, it fades at that edge (list.css data-more).
+        .onScrollGeometryChange(for: Bool.self) { g in
+            g.contentOffset.x + g.containerSize.width < g.contentSize.width - 2
+        } action: { _, v in moreAtEnd = v }
+        .mask {
+            HStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(moreAtEnd ? 0 : 1)], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 40)
+            }
+        }
     }
 }
 
@@ -365,17 +377,19 @@ struct ChatRow: View {
     let room: Room
     var selected = false
     var compact = false
+    /// The leading pane of a split view: 44pt photos, 66pt rows.
+    var leading = false
 
     var body: some View {
         let typing = typingLine
         let unread = room.unread > 0 || room.marked
         HStack(spacing: 12) {
-            Avatar(path: room.avatar, name: room.title, size: compact ? 38 : 46, room: room.isGroup,
+            Avatar(path: room.avatar, name: room.title, size: compact ? 40 : (leading ? 44 : 46),
                    online: !room.isGroup && model.isOnline(room.peer?.id))
             VStack(alignment: .leading, spacing: compact ? 1 : 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(room.title)
-                        .font(AppFont.make(compact ? 15 : 17, .semibold))
+                        .font(AppFont.make(17, .semibold))
                         .tracking(-0.2)
                         .foregroundStyle(Theme.label)
                         .lineLimit(1)
@@ -400,6 +414,7 @@ struct ChatRow: View {
                         }
                     }
                     .font(AppFont.make(compact ? 13 : 15))
+                    .lineSpacing(compact ? 0 : 2)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     if room.pinned && !compact {
@@ -415,9 +430,9 @@ struct ChatRow: View {
                 }
             }
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, compact ? 6 : 12)
-        .frame(minHeight: compact ? 52 : 72)
+        .padding(.horizontal, leading ? 11 : 13)
+        .padding(.vertical, compact ? 10 : (leading ? 10 : 12))
+        .frame(minHeight: compact ? 66 : (leading ? 66 : 76))
         .background {
             if selected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)

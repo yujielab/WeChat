@@ -22,7 +22,6 @@ struct FriendsPage: View {
         ScrollView {
             VStack(spacing: 0) {
                 SheetHeader(title: "Friends", large: true) { SheetClose() }
-                    .padding(.top, 10)
 
                 HStack(spacing: 10) {
                     SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
@@ -45,7 +44,6 @@ struct FriendsPage: View {
                 .frame(height: 48)
                 .glassCapsule(interactive: false)
                 .padding(.horizontal, 20)
-                .padding(.top, 6)
 
                 if !query.isEmpty {
                     searchResults
@@ -148,7 +146,7 @@ struct FriendsPage: View {
         }
 
         if !friends.isEmpty {
-            GroupTitle(text: "Contacts").padding(.horizontal, 20).padding(.top, 14)
+            GroupTitle(text: "Contacts").padding(.horizontal, 20).padding(.top, 6)
             GroupCard {
                 ForEach(Array(friends.enumerated()), id: \.element.id) { i, u in
                     if i > 0 { CellSeparator(leading: 72) }
@@ -242,8 +240,17 @@ struct FriendsPage: View {
         withAnimation(Motion.ui) { results = r }
     }
 
+    /// The people sheet's eyebrows sit close over their rows.
     private func eyebrow(_ t: LocalizedStringKey) -> some View {
-        GroupTitle(text: t).padding(.horizontal, 8)
+        Text(t)
+            .textCase(.uppercase)
+            .font(AppFont.make(13, .semibold))
+            .tracking(0.52)
+            .foregroundStyle(Theme.label2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 22)
+            .padding(.top, 18)
+            .padding(.bottom, 2)
     }
 
     private func personRow<Actions: View>(_ u: User, sub: String, @ViewBuilder actions: () -> Actions) -> some View {

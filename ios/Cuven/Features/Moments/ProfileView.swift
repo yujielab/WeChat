@@ -236,8 +236,7 @@ struct ProfileView: View {
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
-        .background(.ultraThinMaterial)
-        .background(Theme.paper.opacity(0.88))
+        .background(Theme.paper)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
         .padding(.top, 16)
     }

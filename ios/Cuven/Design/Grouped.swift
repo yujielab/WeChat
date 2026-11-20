@@ -163,11 +163,12 @@ struct InkSegmented<Value: Hashable>: View {
                     withAnimation(Motion.ui) { selection = o.0 }
                 } label: {
                     Text(o.1)
-                        .font(AppFont.make(15, on ? .semibold : .medium))
-                        .foregroundStyle(on ? Theme.onInk : Theme.label)
+                        .font(AppFont.make(15, on ? .bold : .regular))
+                        .foregroundStyle(on ? Theme.onInk : Theme.label2)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .fixedSize()
+                        .padding(.horizontal, options.count > 3 ? 7 : 14)
+                        .frame(minHeight: 34)
                         .background {
                             if on { Capsule().fill(Theme.ink).matchedGeometryEffect(id: "seg", in: ns) }
                         }
@@ -178,6 +179,6 @@ struct InkSegmented<Value: Hashable>: View {
             }
         }
         .padding(3)
-        .background(Theme.fill4, in: Capsule())
+        .glassCapsule(interactive: false)
     }
 }

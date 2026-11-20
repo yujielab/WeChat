@@ -35,7 +35,10 @@ enum ThreadBuilder {
     static func items(_ messages: [Message], me: String?, isGroup: Bool, peerRead: Int, peerReadAt: Int,
                       receipts: Bool, unreadFrom: Int?) -> [ThreadItem] {
         var out: [ThreadItem] = []
-        let lastMine = messages.last(where: { $0.sender == me && !$0.isSystem })
+        // Where your latest message stands shows under it only while it's the
+        // latest thing said (or still going, or failed): chat-time.js.
+        let lastSaid = messages.last(where: { !$0.isSystem })
+        let lastMine = lastSaid?.sender == me ? lastSaid : nil
         var unreadPlaced = false
         let cal = Calendar.current
 

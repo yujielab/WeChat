@@ -20,11 +20,12 @@ struct AuthView: View {
     enum Field: Hashable { case user, display, password, code, server }
 
     var body: some View {
+        GeometryReader { proxy in
         ZStack {
             Theme.bg.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 0) {
-                    Spacer(minLength: 40)
+                    Spacer(minLength: 28)
                     Text("CUVEN")
                         .font(AppFont.make(26, .bold))
                         .tracking(13)
@@ -72,8 +73,7 @@ struct AuthView: View {
                             .glassEffect(.regular.tint(Theme.ink.opacity(0.88)).interactive(), in: Capsule())
                         }
                         .buttonStyle(.press(0.97))
-                        .disabled(!canSubmit)
-                        .opacity(canSubmit || busy ? 1 : 0.4)
+                        .disabled(busy)
                         .padding(.top, 8)
                     }
                     .padding(.top, 26)
@@ -87,10 +87,12 @@ struct AuthView: View {
                 .padding(.horizontal, 24)
                 .frame(maxWidth: 380 + 48)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 600)
+                // The form stands in the middle of the screen (auth.css margin: auto).
+                .frame(minHeight: proxy.size.height)
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollBounceBehavior(.basedOnSize)
+        }
         }
         .animation(Motion.ui, value: mode)
         .animation(Motion.ui, value: error)
@@ -121,7 +123,9 @@ struct AuthView: View {
                         .frame(maxWidth: .infinity, minHeight: 42)
                         .background {
                             if mode == m {
-                                Capsule().fill(Theme.ink).matchedGeometryEffect(id: "mode", in: ns)
+                                Capsule().fill(.clear)
+                                    .glassEffect(.regular.tint(Theme.ink.opacity(0.55)), in: Capsule())
+                                    .matchedGeometryEffect(id: "mode", in: ns)
                             }
                         }
                         .contentShape(Capsule())
@@ -256,6 +260,11 @@ struct AuthView: View {
     }
 
     private func submit() {
+        guard canSubmit else {
+            error = username.count < 3 ? String(localized: "Enter your username") : String(localized: "Passwords are at least 6 characters")
+            Haptics.warning()
+            return
+        }
         focus = nil
         error = nil
         busy = true

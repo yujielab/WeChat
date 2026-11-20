@@ -62,6 +62,7 @@ struct Composer: View {
                 trailingButton
             }
             .overlay(alignment: .bottomTrailing) {
+                ZStack(alignment: .bottomTrailing) {
                 PlusPanel(open: plusOpen, stickers: model.stickersEnabled) { action in
                     withAnimation(Motion.morph) { plusOpen = false }
                     switch action {
@@ -72,11 +73,30 @@ struct Composer: View {
                     case .file: showFiles = true
                     }
                 }
+                // Open, the button is the panel's corner: its + turns into × above the card.
+                if plusOpen {
+                    Button {
+                        Haptics.tap()
+                        withAnimation(Motion.morph) { plusOpen = false }
+                    } label: {
+                        SymbolView(.plus, size: 22, weight: 2.2)
+                            .foregroundStyle(Theme.label)
+                            .rotationEffect(.degrees(45))
+                            .frame(width: 42, height: 42)
+                            .glassCircle()
+                    }
+                    .buttonStyle(.press(0.9))
+                    .padding(.trailing, Self.control + 10 + 7)
+                    .padding(.bottom, 7)
+                    .transition(.identity)
+                    .accessibilityLabel("Close")
+                }
+                }
             }
         }
         .padding(.top, 12)
         .padding(.leading, max(ctx.insets.leading, margin))
-        .padding(.trailing, ctx.usesRail ? ctx.insets.trailing + 2 : max(ctx.insets.trailing, margin))
+        .padding(.trailing, ctx.usesRail ? ctx.insets.trailing + margin : max(ctx.insets.trailing, margin))
         .background(alignment: .bottom) {
             GlowField(palette: model.composerGlow, intensity: focused ? 1.5 : 0.9)
                 .frame(height: 240)
@@ -493,6 +513,9 @@ struct PlusPanel: View {
         .allowsHitTesting(open)
         .accessibilityHidden(!open)
         .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.28), value: open)
+        // Gone once it has shrunk back into the button.
+        .opacity(open ? 1 : 0)
+        .animation(open ? .linear(duration: 0.01) : .linear(duration: 0.06).delay(0.24), value: open)
     }
 }
 

@@ -14,9 +14,29 @@ struct PageSheetLayer: View {
         case page(Page)
         case settings
         case profile(String)
+        case noteEditor
+        case note(FriendNote)
+
+        /// Fits its content, resting on the foot (or in the middle, unfolded).
+        var fitted: Bool {
+            switch self {
+            case .noteEditor, .note: return true
+            default: return false
+            }
+        }
+
+        /// Pages with a heading of their own run to the sheet's top edge; the grabber lies over it.
+        var ownHead: Bool {
+            switch self {
+            case .page(.moments), .page(.memories), .page(.me), .profile: return true
+            default: return false
+            }
+        }
     }
 
     private var kind: Kind? {
+        if nav.noteEditor { return .noteEditor }
+        if let n = nav.openNote { return .note(n) }
         if nav.settingsOpen { return .settings }
         if let p = nav.profile { return .profile(p) }
         if nav.page != .chats { return .page(nav.page) }
@@ -24,12 +44,13 @@ struct PageSheetLayer: View {
     }
 
     var body: some View {
-        let f = geo.sheetFrame
+        let full = geo.sheetFrame
         ZStack(alignment: .topLeading) {
             if let kind {
+                let f = kind.fitted ? fittedFrame(full) : full
                 card(kind)
-                    .padding(.top, geo.columns == 1 ? 20 : 0)
-                    .frame(width: f.width, height: f.height)
+                    .padding(.top, geo.columns == 1 && !kind.ownHead ? 20 : 0)
+                    .frame(width: f.width, height: f.height, alignment: .top)
                     .background(Theme.paper)
                     .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
@@ -51,7 +72,23 @@ struct PageSheetLayer: View {
         case .page(let p): return "page-\(p.rawValue)"
         case .settings: return "settings"
         case .profile(let id): return "profile-\(id)"
+        case .noteEditor: return "note-editor"
+        case .note(let n): return "note-\(n.id)"
         }
+    }
+
+    /// A note's card: as tall as it needs, on the foot of the app's side
+    /// (above the keyboard), or in the middle when unfolded.
+    private func fittedFrame(_ full: CGRect) -> CGRect {
+        let h: CGFloat = nav.noteEditor ? (model.myNote != nil ? 450 : 390) : 400
+        let bottomGap = geo.keyboard > 0 ? geo.keyboard + 8 : max(8, geo.insets.bottom - 18)
+        if geo.columns == 1 {
+            let height = min(h, geo.size.height - bottomGap - geo.insets.top - 26)
+            return CGRect(x: full.minX, y: geo.size.height - bottomGap - height, width: full.width, height: height)
+        }
+        let room = geo.size.height - (geo.keyboard > 0 ? geo.keyboard : 0)
+        let height = min(h, room - 32)
+        return CGRect(x: full.minX, y: max(16, (room - height) / 2), width: full.width, height: height)
     }
 
     @ViewBuilder
@@ -64,6 +101,8 @@ struct PageSheetLayer: View {
         case .page(.chats): EmptyView()
         case .settings: SettingsView()
         case .profile(let id): ProfileView(userId: id)
+        case .noteEditor: NoteEditor()
+        case .note(let n): NoteSheet(note: n)
         }
     }
 
@@ -92,7 +131,9 @@ struct PageSheetLayer: View {
     }
 
     private func close() {
-        if nav.settingsOpen { nav.settingsOpen = false }
+        if nav.noteEditor { nav.noteEditor = false }
+        else if nav.openNote != nil { nav.openNote = nil }
+        else if nav.settingsOpen { nav.settingsOpen = false }
         else if nav.profile != nil { nav.profile = nil }
         else { nav.page = .chats }
     }
@@ -133,17 +174,17 @@ struct SheetHeader<Leading: View, Trailing: View>: View {
                 leading()
                 if !centered {
                     Text(title)
-                        .font(large ? AppFont.make(26, .bold) : AppFont.make(20, .bold))
-                        .tracking(large ? -0.4 : 0)
+                        .font(large ? AppFont.make(24, .bold) : AppFont.make(20, .bold))
+                        .tracking(-0.4)
                         .foregroundStyle(color)
                 }
                 Spacer(minLength: 0)
                 trailing()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 18)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 18)
+        .frame(minHeight: 56)
+        .padding(.bottom, 12)
     }
 }
 
@@ -163,7 +204,9 @@ struct SheetClose: View {
         GlassIconButton(sym: sym, title: "Close") {
             if let action { action() } else {
                 withAnimation(Motion.move) {
-                    if nav.settingsOpen { nav.settingsOpen = false }
+                    if nav.noteEditor { nav.noteEditor = false }
+                    else if nav.openNote != nil { nav.openNote = nil }
+                    else if nav.settingsOpen { nav.settingsOpen = false }
                     else if nav.profile != nil { nav.profile = nil }
                     else { nav.page = .chats }
                 }

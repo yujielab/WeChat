@@ -73,6 +73,7 @@ private struct EmulatedDisplay: ViewModifier {
     func body(content: Content) -> some View {
         if let emu = Emulation.current {
             content
+                .safeAreaPadding(emu.insets)
                 .frame(width: emu.size.width, height: emu.size.height)
                 .clipped()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -130,6 +131,7 @@ enum Automation {
     static func drive(_ model: AppModel, _ nav: Nav) async {
         guard active else { return }
         try? await Task.sleep(for: .seconds(1.5))
+        for _ in 0..<40 where model.rooms.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
         let first = model.rooms.first { !$0.isGroup }?.id ?? model.rooms.first?.id
         switch screen {
         case "sidebar": nav.toSidebar()
