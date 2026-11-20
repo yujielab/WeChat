@@ -1,0 +1,26 @@
+# Reads the iOS 27.2 SDK on the Xcode 27 runner: the iPhone Duo APIs
+# (arrangements, reserved regions, toolbar priorities), the Duo simulator's
+# device profile and the simctl commands, so the app is written against the
+# real declarations. Artifact: "sdk-probe".
+
+name: iOS SDK probe
+
+on:
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/ios-sdk-probe.yml', 'ios/tools/sdk-probe.sh']
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        run: bash ios/tools/sdk-probe.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-probe
+          path: probe
