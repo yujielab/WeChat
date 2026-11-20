@@ -1,51 +1,54 @@
 import SwiftUI
 
-/// One control in a column's bar.
+/// One control in a column's bar (bars.js: every item has a symbol and a title).
 struct BarItem: Identifiable {
     let id: String
-    let symbol: String
+    let sym: Sym
     let title: LocalizedStringKey
     var badge: Int = 0
+    var badgeInk = false
     var tint: Color? = nil
     var foreground: Color = Theme.label
     let action: () -> Void
 }
 
-/// A column's controls, placed where the device wants them:
-/// - a floating glass bar at the bottom (56pt, one-handed): the exit at the
-///   leading end, a field in the middle, actions at the trailing end;
-/// - on iPhone Duo, in the system column on the trailing edge, top to
-///   bottom: the exit first, then actions (Apple: Back or Close at the top
-///   of the vertical axis). A field stays at the bottom, before the column.
+/// A column's controls where the device wants them (ui/bars.js, rail.css):
+/// - a floating bar at the column's foot: the way out at the leading end, a
+///   field in the middle, actions at the trailing end, all 44pt glass;
+/// - on iPhone Duo, in the system column: the way out at the head of the
+///   rail, then the actions (one glass circle each, a capsule for a group),
+///   centred under the status bar's clock; a field stays at the foot.
 struct ColumnBar<Center: View>: View {
     @Environment(\.column) private var ctx
     var back: BarItem?
     var actions: [BarItem] = []
+    var groupActions = true
     var center: Center
 
-    init(back: BarItem? = nil, actions: [BarItem] = [], @ViewBuilder center: () -> Center) {
+    init(back: BarItem? = nil, actions: [BarItem] = [], groupActions: Bool = true, @ViewBuilder center: () -> Center) {
         self.back = back
         self.actions = actions
+        self.groupActions = groupActions
         self.center = center()
     }
+
+    private var hasCenter: Bool { Center.self != EmptyView.self }
 
     var body: some View {
         if let rail = ctx.rail, ctx.usesRail {
             ZStack(alignment: .topTrailing) {
-                // The rail
-                VStack(spacing: Bar.gap) {
+                VStack(spacing: 12) {
                     if let back { icon(back) }
                     if !actions.isEmpty { group(actions, axis: .vertical) }
                 }
                 .padding(.top, rail.top)
-                .padding(.trailing, rail.centerFromEdge - Bar.height / 2)
+                .padding(.trailing, rail.centerFromEdge - Bar.railWidth / 2 + (Bar.railWidth - Bar.height) / 2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
-                // The field, before the system column
-                if Center.self != EmptyView.self {
+                if hasCenter {
                     center
                         .padding(.leading, max(ctx.insets.leading, 16))
-                        .padding(.trailing, ctx.insets.trailing + 8)
+                        .padding(.trailing, ctx.insets.trailing + 10)
                         .padding(.bottom, bottomPad)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
@@ -54,11 +57,7 @@ struct ColumnBar<Center: View>: View {
             GlassGroup(spacing: Bar.gap) {
                 HStack(alignment: .bottom, spacing: Bar.gap) {
                     if let back { icon(back) }
-                    if Center.self != EmptyView.self {
-                        center.frame(maxWidth: .infinity)
-                    } else {
-                        Spacer(minLength: 0)
-                    }
+                    if hasCenter { center.frame(maxWidth: .infinity) } else { Spacer(minLength: 0) }
                     if !actions.isEmpty { group(actions, axis: .horizontal) }
                 }
             }
@@ -69,19 +68,21 @@ struct ColumnBar<Center: View>: View {
         }
     }
 
+    /// max(safe-bottom, 16) at the foot; 8 above the keyboard.
     private var bottomPad: CGFloat {
-        ctx.insets.bottom > 0 ? ctx.insets.bottom + (ctx.insets.bottom > 40 ? 8 : 4) : 14
+        ctx.keyboard > 0 ? ctx.insets.bottom + 8 : max(ctx.insets.bottom, 16)
     }
 
     private func icon(_ item: BarItem) -> some View {
-        GlassIconButton(symbol: item.symbol, title: item.title, tint: item.tint, foreground: item.foreground,
-                        badge: item.badge, action: item.action)
+        GlassIconButton(sym: item.sym, title: item.title, tint: item.tint, foreground: item.foreground,
+                        badge: item.badge, badgeInk: item.badgeInk, action: item.action)
     }
 
     @ViewBuilder
     private func group(_ items: [BarItem], axis: Axis) -> some View {
-        if items.count == 1, let only = items.first {
-            icon(only)
+        if items.count == 1 || !groupActions {
+            let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: Bar.gap)) : AnyLayout(VStackLayout(spacing: 12))
+            layout { ForEach(items) { icon($0) } }
         } else {
             let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
             layout {
@@ -90,14 +91,10 @@ struct ColumnBar<Center: View>: View {
                         Haptics.tap()
                         item.action()
                     } label: {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 18, weight: .semibold))
+                        SymbolView(item.sym, size: 22)
                             .foregroundStyle(item.foreground)
-                            .frame(width: axis == .horizontal ? 46 : Bar.height, height: axis == .horizontal ? Bar.height : 46)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
-                            .overlay(alignment: .topTrailing) {
-                                if item.badge > 0 { Badge(count: item.badge).scaleEffect(0.8).offset(x: 2, y: 2) }
-                            }
                     }
                     .buttonStyle(.press(0.9))
                     .accessibilityLabel(Text(item.title))
@@ -110,15 +107,20 @@ struct ColumnBar<Center: View>: View {
 }
 
 extension ColumnBar where Center == EmptyView {
-    init(back: BarItem? = nil, actions: [BarItem] = []) {
-        self.init(back: back, actions: actions) { EmptyView() }
+    init(back: BarItem? = nil, actions: [BarItem] = [], groupActions: Bool = true) {
+        self.init(back: back, actions: actions, groupActions: groupActions) { EmptyView() }
     }
 }
 
-/// How tall a column's bar is, for content to stop above it.
 extension ColumnContext {
+    /// How much room the foot bar takes, for content to stop above it.
     var barClearance: CGFloat {
-        let base = insets.bottom > 0 ? insets.bottom + (insets.bottom > 40 ? 8 : 4) : 14
-        return base + Bar.height + 12
+        let base = keyboard > 0 ? insets.bottom + 8 : max(insets.bottom, 16)
+        return base + Bar.height + 14
+    }
+
+    /// Bottom padding for scrolling content: above the bar, or just the safe area where the rail holds the controls.
+    var contentBottom: CGFloat {
+        usesRail ? max(insets.bottom, 16) + 8 : barClearance
     }
 }

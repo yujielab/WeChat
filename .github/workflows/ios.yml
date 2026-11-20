@@ -40,7 +40,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
       SCHEME: Cuven
@@ -48,11 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select the newest stable Xcode
+      - name: Select Xcode 27.2 (iOS 27.2 SDK)
         run: |
-          ls -d /Applications/Xcode*.app || true
-          XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi -e beta -e rc | sort -V | tail -1)
-          if [ -z "$XC" ]; then XC=/Applications/Xcode.app; fi
+          XC=/Applications/Xcode_27.2.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_27*.app | grep -vi beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version

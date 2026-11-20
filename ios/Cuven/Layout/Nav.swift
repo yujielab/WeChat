@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// The four columns, in the order they sit on the strip.
+/// The four columns, in the order they sit on the strip (ui/strip.js).
 enum Column: Int, CaseIterable, Comparable {
     case sidebar = 0, list, chat, detail
     static func < (a: Column, b: Column) -> Bool { a.rawValue < b.rawValue }
-    var previous: Column? { Column(rawValue: rawValue - 1) }
 }
 
 enum DetailKind: Equatable {
@@ -12,8 +11,10 @@ enum DetailKind: Equatable {
     case draw
 }
 
+/// The pages of the capsule (ui/pages.js): Chats and Menu are the strip;
+/// the rest open over it.
 enum Page: String, CaseIterable, Identifiable {
-    case chats, moments, memories, requests, me
+    case chats, moments, memories, friends, me
     var id: String { rawValue }
 }
 
@@ -28,23 +29,20 @@ enum ListFilter: String, CaseIterable, Identifiable {
         case .groups: return "Groups"
         }
     }
-    var symbol: String {
+    var sym: Sym {
         switch self {
-        case .all: return "bubble.left.and.bubble.right"
-        case .unread: return "circlebadge"
-        case .direct: return "person"
-        case .groups: return "person.2"
+        case .all: return .bubble
+        case .unread: return .unread
+        case .direct: return .person
+        case .groups: return .people
         }
     }
 }
 
+/// Closed (the outer display), half (partly open like a book: two equal
+/// panes at the fold) or open flat (navigation narrow, conversation wide).
 enum Posture: String {
-    /// Folded: the outer display, one column.
-    case closed
-    /// Partially folded like a book: two equal panes, one each side of the fold.
-    case book
-    /// Open flat: navigation narrow (about a third), conversation wide.
-    case flat
+    case closed, half, flat
 }
 
 struct ViewerItem: Identifiable, Equatable {
@@ -56,9 +54,9 @@ struct ViewerItem: Identifiable, Equatable {
     var caption: String = ""
 }
 
-/// Where the window on the strip is and what each column holds. The strip
-/// moves one column forward or back; folding and unfolding keep the column
-/// in use on screen (README: 一条横向的栏带).
+/// Where the window on the strip stands and what each column holds. The
+/// window moves one column forward or back; folding or unfolding keeps the
+/// column in use on screen.
 @MainActor
 @Observable
 final class Nav {
@@ -75,18 +73,20 @@ final class Nav {
     var viewer: ViewerItem?
     var profile: String?
     var settingsOpen = false
-    var newChatOpen = false
     var composeMoment = false
     var noteEditor = false
     var openNote: FriendNote?
+    var newGroup = false
 
     var visibleColumns: [Column] {
         (0..<columns).compactMap { Column(rawValue: leading.rawValue + $0) }
     }
 
     func isVisible(_ c: Column) -> Bool { visibleColumns.contains(c) }
-
     var rightmost: Column { visibleColumns.last ?? leading }
+
+    /// A sheet is up over the strip (the page capsule stays, the strip recedes).
+    var sheeted: Bool { page != .chats || settingsOpen || profile != nil }
 
     func setColumns(_ n: Int) {
         guard n != columns else { return }
@@ -100,10 +100,6 @@ final class Nav {
             default: leading = .list
             }
         }
-        clampLeading()
-    }
-
-    private func clampLeading() {
         let maxLead = Column.allCases.count - columns
         if leading.rawValue > maxLead { leading = Column(rawValue: maxLead)! }
     }
@@ -137,7 +133,7 @@ final class Nav {
             leading = columns == 1 ? .chat : .list
         }
         Task {
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .milliseconds(420))
             if active != .detail { detail = nil }
         }
     }
@@ -151,6 +147,7 @@ final class Nav {
 
     func toSidebar() {
         go {
+            page = .chats
             active = .sidebar
             leading = .sidebar
         }
@@ -189,17 +186,30 @@ final class Nav {
         Haptics.tap()
     }
 
+    /// The capsule: the new page fades in where the old one fades out.
     func switchPage(_ p: Page) {
-        guard p != page else {
-            if p == .chats { toList() }
-            return
+        if p == .chats {
+            withAnimation(Motion.move) {
+                page = .chats
+                if active == .sidebar { active = .list; leading = .list }
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.24)) { page = p }
         }
-        withAnimation(.easeInOut(duration: 0.24)) { page = p }
+        Haptics.selection()
+    }
+
+    func menu() {
+        withAnimation(Motion.move) {
+            page = .chats
+            active = .sidebar
+            leading = .sidebar
+        }
         Haptics.selection()
     }
 }
 
-// MARK: - Column context (insets and where the controls go)
+// MARK: - Column context: insets and where the controls go
 
 struct RailMetrics: Equatable {
     var width: CGFloat
@@ -215,9 +225,12 @@ struct ColumnContext: Equatable {
     var rail: RailMetrics?
     var size: CGSize = .zero
     var twoUp = false
+    var keyboard: CGFloat = 0
 
-    /// Controls go in the system column on the trailing edge (iPhone Duo).
+    /// Controls stand in the system's column on the trailing edge (iPhone Duo).
     var usesRail: Bool { rail != nil && isRightmost }
+    /// Where content stops on the trailing side: the column, or the margin.
+    var trailingContent: CGFloat { insets.trailing }
 }
 
 private struct ColumnContextKey: EnvironmentKey {

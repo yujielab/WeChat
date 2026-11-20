@@ -1,51 +1,24 @@
 import SwiftUI
 
-// MARK: - Glass
+// MARK: - Glass (the web's .glass: a frosted base with a rim; native Liquid Glass here)
 
-/// Liquid Glass on iOS 26 (interactive, refracting); a frosted material with
-/// a hairline rim and a faint contact shadow before that, and solid when
-/// Reduce Transparency is on.
 struct GlassSurface<S: InsettableShape>: ViewModifier {
     var shape: S
     var tint: Color?
     var interactive: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var scheme
+    @AppStorage("ui:glass") private var glassMode = "auto"
 
     func body(content: Content) -> some View {
-        if reduceTransparency {
+        if reduceTransparency || glassMode == "solid" {
             content
-                .background(tint ?? Theme.elevated, in: shape)
-                .overlay(shape.strokeBorder(Theme.line, lineWidth: 1))
+                .background(tint ?? Theme.glassSolid, in: shape)
+                .overlay(shape.strokeBorder(Theme.line, lineWidth: 0.5))
         } else {
-            glassy(content)
-        }
-    }
-
-    @ViewBuilder
-    private func glassy(_ content: Content) -> some View {
-        if #available(iOS 26.0, *) {
             content.glassEffect(makeGlass(), in: shape)
-        } else {
-            content
-                .background {
-                    ZStack {
-                        shape.fill(.ultraThinMaterial)
-                        shape.fill(tint?.opacity(0.85) ?? Theme.glassFrost)
-                    }
-                }
-                .overlay {
-                    shape.strokeBorder(
-                        LinearGradient(colors: [Color.white.opacity(scheme == .dark ? 0.22 : 0.95),
-                                                Color.white.opacity(scheme == .dark ? 0.06 : 0.4)],
-                                       startPoint: .top, endPoint: .bottom),
-                        lineWidth: 0.75)
-                }
-                .shadow(color: .black.opacity(scheme == .dark ? 0.4 : 0.08), radius: 10, y: 4)
         }
     }
 
-    @available(iOS 26.0, *)
     private func makeGlass() -> Glass {
         var g = Glass.regular
         if let tint { g = g.tint(tint) }
@@ -58,41 +31,36 @@ extension View {
     func glass<S: InsettableShape>(_ shape: S, tint: Color? = nil, interactive: Bool = true) -> some View {
         modifier(GlassSurface(shape: shape, tint: tint, interactive: interactive))
     }
-
     func glassCapsule(tint: Color? = nil, interactive: Bool = true) -> some View {
         glass(Capsule(), tint: tint, interactive: interactive)
     }
-
     func glassCircle(tint: Color? = nil, interactive: Bool = true) -> some View {
         glass(Circle(), tint: tint, interactive: interactive)
     }
-}
-
-/// Groups glass shapes so they blend and morph into each other on iOS 26.
-struct GlassGroup<Content: View>: View {
-    var spacing: CGFloat = 12
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) { content() }
-        } else {
-            content()
-        }
+    /// The web's blue glass (the list's Search, the filter thumb): Facebook blue at 80%.
+    func blueGlass<S: InsettableShape>(_ shape: S) -> some View {
+        glass(shape, tint: Theme.fbBlue.opacity(0.8), interactive: true)
     }
 }
 
-// MARK: - Press
+/// Glass shapes that blend and morph into each other.
+struct GlassGroup<Content: View>: View {
+    var spacing: CGFloat = 10
+    @ViewBuilder var content: () -> Content
+    var body: some View { GlassEffectContainer(spacing: spacing) { content() } }
+}
 
-/// Pressing lands at once (0.97 and a touch darker) and springs back from
-/// wherever it got to.
+// MARK: - Press (tokens.css: in at once to 0.98, out gently from wherever it got)
+
 struct PressStyle: ButtonStyle {
-    var scale: CGFloat = 0.97
+    var scale: CGFloat = Motion.pressScale
+    var dim: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
-            .brightness(configuration.isPressed ? -0.035 : 0)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1)
+            .brightness(configuration.isPressed && dim ? -0.03 : 0)
             .animation(configuration.isPressed ? Motion.pressIn : Motion.pressOut, value: configuration.isPressed)
     }
 }
@@ -102,21 +70,31 @@ extension ButtonStyle where Self == PressStyle {
     static func press(_ scale: CGFloat) -> PressStyle { PressStyle(scale: scale) }
 }
 
-// MARK: - Bar items
-
-enum Bar {
-    static let height: CGFloat = 52
-    static let gap: CGFloat = 10
+/// A row's press: the web darkens it to --paper at once, no scale.
+struct RowPressStyle: ButtonStyle {
+    var radius: CGFloat = 18
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Theme.paper : .clear, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .animation(configuration.isPressed ? nil : Motion.quick, value: configuration.isPressed)
+    }
 }
 
-/// One control in a floating bar: a glass circle with a symbol, a title for
-/// accessibility and the overflow menu, and an optional badge.
+// MARK: - Bar items (glass-btn: 44pt, a 22pt glyph)
+
+enum Bar {
+    static let height: CGFloat = 44
+    static let gap: CGFloat = 10
+    static let railWidth: CGFloat = 52
+}
+
 struct GlassIconButton: View {
-    let symbol: String
+    let sym: Sym
     let title: LocalizedStringKey
     var tint: Color? = nil
     var foreground: Color = Theme.label
     var badge: Int = 0
+    var badgeInk = false
     var size: CGFloat = Bar.height
     let action: () -> Void
 
@@ -125,89 +103,93 @@ struct GlassIconButton: View {
             Haptics.tap()
             action()
         } label: {
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.36, weight: .semibold))
+            SymbolView(sym, size: 22)
                 .foregroundStyle(foreground)
                 .frame(width: size, height: size)
                 .contentShape(Circle())
                 .glassCircle(tint: tint)
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {
-                        Badge(count: badge).offset(x: 4, y: -4)
+                        Badge(count: badge, color: badgeInk ? Theme.ink : Theme.red, text: badgeInk ? Theme.onInk : .white, small: true)
+                            .offset(x: 4, y: -4)
                     }
                 }
         }
-        .buttonStyle(.press(0.92))
+        .buttonStyle(.press)
         .accessibilityLabel(Text(title))
-        .help(Text(title))
     }
 }
 
+/// The web's count badge: a pill at 20pt (18 small), bold digits.
 struct Badge: View {
     let count: Int
-    var color: Color = Theme.blue
+    var color: Color = Theme.badge
+    var text: Color = Theme.onBrand
+    var small = false
 
     var body: some View {
         Text(count > 99 ? "99+" : "\(count)")
-            .font(.system(size: 12, weight: .bold).monospacedDigit())
-            .foregroundStyle(.white)
+            .font(AppFont.make(small ? 11 : 12, .semibold).monospacedDigit())
+            .foregroundStyle(text)
             .padding(.horizontal, count > 9 ? 5 : 0)
-            .frame(minWidth: 20, minHeight: 20)
+            .frame(minWidth: small ? 18 : 20, minHeight: small ? 18 : 20)
             .background(color, in: Capsule())
-            .overlay(Capsule().stroke(Theme.bg, lineWidth: 2))
             .contentTransition(.numericText())
     }
 }
 
-// MARK: - Avatar
+extension Theme {
+    static let badge = brandStrong
+}
+
+// MARK: - Avatar (views/avatar.js: a monogram that cross-fades to the photo)
 
 struct Avatar: View {
-    var user: User?
     var path: String = ""
     var name: String = ""
-    var id: String = ""
-    var size: CGFloat = 44
+    var size: CGFloat = 52
+    var room = false
     var online = false
     var ring = false
 
-    init(user: User?, size: CGFloat = 44, online: Bool = false, ring: Bool = false) {
-        self.user = user
-        self.path = user?.avatar ?? ""
-        self.name = user?.name ?? ""
-        self.id = user?.id ?? ""
+    init(user: User?, size: CGFloat = 52, online: Bool = false, ring: Bool = false) {
+        path = user?.avatar ?? ""
+        name = user?.name ?? ""
         self.size = size
         self.online = online
         self.ring = ring
     }
 
-    init(path: String, name: String, id: String, size: CGFloat = 44, online: Bool = false) {
+    init(path: String, name: String, id: String = "", size: CGFloat = 52, room: Bool = false, online: Bool = false) {
         self.path = path
         self.name = name
-        self.id = id
         self.size = size
+        self.room = room
         self.online = online
     }
 
     var body: some View {
-        let tint = Theme.tint(for: id.isEmpty ? name : id)
+        let colors = Theme.avatarColors(name)
+        let shape = RoundedRectangle(cornerRadius: room ? size * 0.3 : size / 2, style: .continuous)
         ZStack {
+            colors.bg
+            Text(Theme.initials(name))
+                .font(AppFont.make(size * 0.4, .semibold))
+                .tracking(-0.01 * size * 0.4)
+                .foregroundStyle(colors.fg)
+                .minimumScaleFactor(0.5)
             if !path.isEmpty {
-                RemoteImage(path, maxPixel: size * 3, placeholder: tint.0)
-            } else {
-                tint.0
-                Text(String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased())
-                    .font(AppFont.make(size * 0.42, .medium))
-                    .foregroundStyle(tint.1)
+                RemoteImage(path, maxPixel: size * 3, placeholder: .clear)
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 0.5))
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Theme.imageOutline, lineWidth: 0.5))
         .padding(ring ? 3 : 0)
         .overlay {
             if ring {
                 Circle().strokeBorder(
-                    AngularGradient(colors: [Theme.sky, Color(hex: 0x8a5cf6), Color(hex: 0xff5f8f), Color(hex: 0xffb340), Theme.sky], center: .center),
+                    AngularGradient(colors: [Color(hex: 0xfeda75), Color(hex: 0xfa7e1e), Color(hex: 0xd62976), Color(hex: 0x962fbf), Color(hex: 0x4f5bd5), Color(hex: 0xfeda75)], center: .center),
                     lineWidth: 2.5)
             }
         }
@@ -215,8 +197,8 @@ struct Avatar: View {
             if online {
                 Circle()
                     .fill(Theme.green)
-                    .frame(width: max(10, size * 0.26), height: max(10, size * 0.26))
-                    .overlay(Circle().stroke(Theme.bg, lineWidth: max(2, size * 0.05)))
+                    .frame(width: max(10, size * 0.27), height: max(10, size * 0.27))
+                    .overlay(Circle().stroke(Theme.bg, lineWidth: max(2, size * 0.055)))
                     .transition(.scale.combined(with: .opacity))
             }
         }
@@ -227,11 +209,13 @@ struct Avatar: View {
 // MARK: - Misc
 
 struct Hairline: View {
+    var color: Color = Theme.separator
     var body: some View {
-        Rectangle().fill(Theme.separator).frame(height: 1 / UIScreen.main.scale)
+        Rectangle().fill(color).frame(height: 0.5)
     }
 }
 
+/// The web's primary button: an ink pill (red for a destructive one).
 struct PrimaryButton: View {
     let title: LocalizedStringKey
     var destructive = false
@@ -247,7 +231,7 @@ struct PrimaryButton: View {
             }
             .font(.headlineC)
             .foregroundStyle(destructive ? Color.white : Theme.onInk)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(maxWidth: .infinity, minHeight: 50)
             .background(destructive ? Theme.red : Theme.ink, in: Capsule())
             .opacity(enabled ? 1 : 0.35)
         }
@@ -256,14 +240,55 @@ struct PrimaryButton: View {
     }
 }
 
+/// A small ink pill (Accept, Share a moment) or a quiet grey one (Cancel).
+struct PillButton: View {
+    let title: LocalizedStringKey
+    var style: Style = .ink
+    let action: () -> Void
+    enum Style { case ink, quiet, blue, outline }
+
+    var body: some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            Text(title)
+                .font(.subheadBoldC)
+                .foregroundStyle(fg)
+                .padding(.horizontal, 16)
+                .frame(height: 34)
+                .background(bg, in: Capsule())
+                .overlay { if style == .outline { Capsule().strokeBorder(Theme.ink, lineWidth: 1.5) } }
+        }
+        .buttonStyle(.press)
+    }
+
+    private var fg: Color {
+        switch style {
+        case .ink: return Theme.onInk
+        case .quiet: return Theme.label
+        case .blue: return .white
+        case .outline: return Theme.blueText
+        }
+    }
+
+    private var bg: Color {
+        switch style {
+        case .ink: return Theme.ink
+        case .quiet: return Theme.fill4
+        case .blue: return Theme.fbBlue
+        case .outline: return .clear
+        }
+    }
+}
+
+/// The web's toast: a glass capsule at the top, centred.
 struct ToastView: View {
     let toast: Toast
 
     var body: some View {
         HStack(spacing: 8) {
-            if toast.isError {
-                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Theme.red)
-            }
+            if toast.isError { SymbolView(.exclaim, size: 18).foregroundStyle(Theme.red) }
             Text(toast.text).font(.subheadMediumC).foregroundStyle(Theme.label).lineLimit(2)
         }
         .padding(.horizontal, 18)
@@ -273,19 +298,19 @@ struct ToastView: View {
     }
 }
 
-/// A skeleton bar the length of the text it stands for.
+/// Skeletons are the real shapes with bars where the words go (ui/skeleton.js).
 struct SkeletonBar: View {
     var width: CGFloat
     var height: CGFloat = 12
-    @State private var phase = false
+
+    init(width: CGFloat, height: CGFloat = 12) {
+        self.width = width
+        self.height = height
+    }
 
     var body: some View {
-        Capsule()
-            .fill(Theme.fillQuiet)
-            .frame(width: width, height: height)
-            .opacity(phase ? 0.55 : 1)
-            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: phase)
-            .onAppear { phase = true }
+        Capsule().fill(Theme.fill4).frame(width: width, height: height)
+            .phaseAnimator([1.0, 0.55]) { v, phase in v.opacity(phase) } animation: { _ in .easeInOut(duration: 0.9) }
     }
 }
 

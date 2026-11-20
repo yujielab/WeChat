@@ -1,9 +1,8 @@
 import SwiftUI
 import UIKit
 
-// The web app's tokens (public/css/tokens.css) as native colors: paper white
-// and near-black ink, Facebook blue for your messages and live things, cool
-// neutral greys, and glass only on the floating controls.
+// The web app's design tokens (public/css/tokens.css, chat.css), value for
+// value, light and dark, so the two clients look the same side by side.
 
 extension Color {
     init(hex: UInt32, alpha: Double = 1) {
@@ -14,71 +13,142 @@ extension Color {
                   opacity: alpha)
     }
 
-    /// A color with a light and a dark value.
-    static func dynamic(_ light: UInt32, _ dark: UInt32, lightAlpha: Double = 1, darkAlpha: Double = 1) -> Color {
+    /// A token with a light and a dark value (hex + alpha each).
+    static func token(_ light: UInt32, _ dark: UInt32, _ la: Double = 1, _ da: Double = 1) -> Color {
         Color(UIColor { t in
-            let hex = t.userInterfaceStyle == .dark ? dark : light
-            let a = t.userInterfaceStyle == .dark ? darkAlpha : lightAlpha
+            let dark0 = t.userInterfaceStyle == .dark
+            let hex = dark0 ? dark : light
             return UIColor(red: CGFloat((hex >> 16) & 0xff) / 255, green: CGFloat((hex >> 8) & 0xff) / 255,
-                           blue: CGFloat(hex & 0xff) / 255, alpha: a)
+                           blue: CGFloat(hex & 0xff) / 255, alpha: dark0 ? da : la)
         })
+    }
+
+    /// hsl(h s% l%) as CSS computes it.
+    static func hsl(_ h: Double, _ s: Double, _ l: Double, _ a: Double = 1) -> Color {
+        let s = s / 100, l = l / 100
+        let c = (1 - abs(2 * l - 1)) * s
+        let hp = h / 60
+        let x = c * (1 - abs(hp.truncatingRemainder(dividingBy: 2) - 1))
+        var (r, g, b) = (0.0, 0.0, 0.0)
+        switch hp {
+        case 0..<1: (r, g, b) = (c, x, 0)
+        case 1..<2: (r, g, b) = (x, c, 0)
+        case 2..<3: (r, g, b) = (0, c, x)
+        case 3..<4: (r, g, b) = (0, x, c)
+        case 4..<5: (r, g, b) = (x, 0, c)
+        default: (r, g, b) = (c, 0, x)
+        }
+        let m = l - c / 2
+        return Color(.sRGB, red: r + m, green: g + m, blue: b + m, opacity: a)
     }
 }
 
 enum Theme {
-    static let bg = Color.dynamic(0xffffff, 0x000000)
-    static let paper = Color.dynamic(0xf5f5f7, 0x0d0d0f)
-    static let elevated = Color.dynamic(0xffffff, 0x1c1c1e)
-    static let grouped = Color.dynamic(0xf2f2f7, 0x000000)
-    static let groupedCell = Color.dynamic(0xffffff, 0x1c1c1e)
-    static let label = Color.dynamic(0x0b0b0d, 0xf5f5f7)
-    static let label2 = Color.dynamic(0x6e6e73, 0xa1a1a6)
-    static let label3 = Color.dynamic(0x8e8e93, 0x7c7c80)
-    static let line = Color.dynamic(0xe5e5ea, 0x2c2c2e)
-    static let separator = Color.dynamic(0x3c3c43, 0x545458, lightAlpha: 0.22, darkAlpha: 0.6)
-    static let field = Color.dynamic(0xf2f2f5, 0x1c1c1e)
-    static let fillQuiet = Color.dynamic(0xececf0, 0x1f1f22)
-    static let fill = Color.dynamic(0x787880, 0x787880, lightAlpha: 0.16, darkAlpha: 0.32)
+    // Surfaces
+    static let bg = Color.token(0xffffff, 0x000000)
+    static let paper = Color.token(0xf5f5f7, 0x000000)
+    static let surface = Color.token(0xffffff, 0x0f0f11)
+    static let elevated = Color.token(0xffffff, 0x121214)
+    static let grouped = Color.token(0xf5f5f7, 0x000000)
+    static let grouped2 = Color.token(0xffffff, 0x121214)
+    static let field = Color.token(0xf2f2f5, 0x111113)
+    static let line = Color.token(0xe5e5ea, 0xf0f0fa, 1, 0.13)
 
-    static let blue = Color.dynamic(0x1877f2, 0x2d88ff)          // Facebook blue: your messages, titles
-    static let sky = Color.dynamic(0x0099ff, 0x34adff)           // Moments
-    static let systemBlue = Color.dynamic(0x007aff, 0x0a84ff)
-    static let red = Color.dynamic(0xff3b30, 0xff453a)
-    static let redText = Color.dynamic(0xd70015, 0xff6961)
-    static let green = Color.dynamic(0x34c759, 0x30d158)
-    static let orange = Color.dynamic(0xff9500, 0xff9f0a)
-    static let ink = Color.dynamic(0x000000, 0xffffff)
-    static let onInk = Color.dynamic(0xffffff, 0x000000)
+    // Labels
+    static let label = Color.token(0x0b0b0d, 0xf5f5fa)
+    static let label2 = Color.token(0x6e6e73, 0xf0f0fa, 1, 0.6)
+    static let label3 = Color.token(0x8e8e93, 0xf0f0fa, 1, 0.34)
+    static let label4 = Color.token(0x3c3c43, 0xf0f0fa, 0.18, 0.16)
+    static let separator = Color.token(0x3c3c43, 0xf0f0fa, 0.22, 0.16)
 
-    static let bubbleOut = blue
+    // Fills
+    static let fill = Color.token(0x787880, 0x787880, 0.2, 0.36)
+    static let fill2 = Color.token(0x787880, 0x787880, 0.16, 0.32)
+    static let fill3 = Color.token(0x767680, 0x767680, 0.12, 0.24)
+    static let fill4 = Color.token(0x747480, 0x767680, 0.08, 0.18)
+
+    // Colors
+    static let blue = Color.token(0x007aff, 0x0a84ff)
+    static let blueText = Color.token(0x0062cc, 0x0a84ff)
+    static let red = Color.token(0xff3b30, 0xff453a)
+    static let redText = Color.token(0xd70015, 0xff453a)
+    static let green = Color.token(0x34c759, 0x30d158)
+    static let orange = Color.token(0xff9500, 0xff9f0a)
+    static let orangeText = Color.token(0xc93400, 0xff9f0a)
+    static let indigo = Color.token(0x5856d6, 0x5e5ce6)
+    static let brand = Color(hex: 0x00ad59)
+    static let brandText = Color.token(0x007a4d, 0x00c357)
+    static let brandStrong = Color.token(0x007a4d, 0x00c357)
+    static let onBrand = Color.token(0xffffff, 0x000000)
+    static let fbBlue = Color(hex: 0x1877f2)
+    static let fbBlueTitle = Color.token(0x1877f2, 0x2d88ff)
+    static let skyTitle = Color.token(0x0099ff, 0x4cc2ff)
+    static let mention = Color.token(0x0062cc, 0x409cff)
+    static let tickRead = Color.token(0x007dff, 0x27a8ff)
+
+    // Ink: primary actions are ink, not blue.
+    static let ink = Color.token(0x000000, 0xf5f5fa)
+    static let onInk = Color.token(0xffffff, 0x000000)
+
+    // Messages (chat.css: your messages are Facebook blue in the conversation)
+    static let bubbleOut = fbBlue
     static let bubbleOutText = Color.white
-    static let bubbleIn = Color.dynamic(0xf0f0f2, 0x262628)
-    static let bubbleInText = Color.dynamic(0x111b21, 0xf2f2f5)
-    static let keyHighlight = Color.dynamic(0xfff1a8, 0x5a4a00, lightAlpha: 0.9, darkAlpha: 0.6)
+    static let bubbleIn = Color.token(0xf0f0f2, 0x232626)
+    static let bubbleInText = Color.token(0x111b21, 0xe9edef)
+    static let bubbleCard = Color.token(0xffffff, 0x1c1c1e)
+    static let linkIn = Color.token(0x0062cc, 0x5eb0ff)
 
-    static let scrim = Color.black.opacity(0.32)
-    static let glassFrost = Color.dynamic(0xececf0, 0x2a2a2e, lightAlpha: 0.5, darkAlpha: 0.5)
+    static let scrim = Color.token(0x000000, 0x000000, 0.32, 0.6)
+    static let imageOutline = Color.token(0x000000, 0xffffff, 0.08, 0.12)
+    static let glassFrost = Color.token(0xececf0, 0x48484e, 0.5, 0.5)
+    static let glassSolid = Color.token(0xffffff, 0x121214)
+    static let glassRim = Color.token(0xffffff, 0xffffff, 0.95, 0.2)
 
-    /// Avatar tints for people without a photo, chosen from their id.
-    static let avatarTints: [(Color, Color)] = [
-        (Color.dynamic(0xe6dff0, 0x3a3346), Color.dynamic(0x5b4b78, 0xd6c8f0)),
-        (Color.dynamic(0xdcefe4, 0x26392e), Color.dynamic(0x2f6b4a, 0xb8e6cb)),
-        (Color.dynamic(0xe1e7f0, 0x2b3240), Color.dynamic(0x3c5478, 0xc5d5f0)),
-        (Color.dynamic(0xf0e6dc, 0x40362c), Color.dynamic(0x7a5634, 0xf0d6bd)),
-        (Color.dynamic(0xf0dfe3, 0x40303a), Color.dynamic(0x7a3c4f, 0xf0c5d3)),
-        (Color.dynamic(0xdff0ef, 0x283c3b), Color.dynamic(0x2f6b68, 0xb8e6e3))
-    ]
+    // Legacy names used across the app
+    static var fillQuiet: Color { fill4 }
+    static var systemBlue: Color { blue }
+    static var sky: Color { skyTitle }
 
-    static func tint(for id: String) -> (Color, Color) {
-        var h: UInt32 = 5381
-        for b in id.utf8 { h = (h &* 33) &+ UInt32(b) }
-        return avatarTints[Int(h % UInt32(avatarTints.count))]
+    /// The web's monogram colors: one of five hues from the name.
+    static func avatarHue(_ name: String) -> Double {
+        var h: UInt32 = 0
+        for scalar in name.unicodeScalars { h = h &* 31 &+ scalar.value }
+        return [27, 75, 145, 205, 265][Int(h % 5)]
+    }
+
+    static func avatarColors(_ name: String) -> (bg: Color, fg: Color) {
+        let hue = avatarHue(name)
+        let bg = Color(UIColor { t in
+            UIColor(t.userInterfaceStyle == .dark ? Color.hsl(hue, 15, 23) : Color.hsl(hue, 20, 90))
+        })
+        let fg = Color(UIColor { t in
+            UIColor(t.userInterfaceStyle == .dark ? Color.hsl(hue, 22, 78) : Color.hsl(hue, 20, 34))
+        })
+        return (bg, fg)
+    }
+
+    /// Initials as the web makes them (ui/format.js): a CJK character alone,
+    /// two letters from two words that start with letters, else the first.
+    static func initials(_ name: String) -> String {
+        let s = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return "" }
+        if let cjk = s.unicodeScalars.first(where: { (0x3400...0x9FFF).contains($0.value) || (0xF900...0xFAFF).contains($0.value) }) {
+            return String(Character(cjk))
+        }
+        let words = s.split(whereSeparator: { $0.isWhitespace })
+        if words.count > 1, let a = words[0].first, let b = words[1].first, a.isLetter, b.isLetter {
+            return (String(a) + String(b)).uppercased()
+        }
+        return String(s.first!).uppercased()
     }
 }
 
-// MARK: - Type (Clarinetta, sized with Dynamic Type; CJK falls back to PingFang)
+// MARK: - Type: Clarinetta everywhere, sized like the web's rem scale
 
 enum AppFont {
+    /// CSS weights map onto the faces the web ships: 300 Light, 400 Regular,
+    /// 500 Medium; 550–700 Bold (the browser picks the next heavier face);
+    /// 800 ExtraBold; 900 Black.
     static func face(_ weight: Font.Weight) -> String {
         switch weight {
         case .light, .thin, .ultraLight: return "Clarinetta-Light"
@@ -93,9 +163,14 @@ enum AppFont {
     static func make(_ size: CGFloat, _ weight: Font.Weight = .regular, relativeTo style: Font.TextStyle = .body) -> Font {
         Font.custom(face(weight), size: size, relativeTo: style)
     }
+
+    static func ui(_ size: CGFloat, _ weight: Font.Weight = .regular) -> UIFont {
+        UIFont(name: face(weight), size: size) ?? .systemFont(ofSize: size)
+    }
 }
 
 extension Font {
+    // tokens.css type scale (rem = 17px)
     static let largeTitleC = AppFont.make(34, .bold, relativeTo: .largeTitle)
     static let title1C = AppFont.make(28, .bold, relativeTo: .title)
     static let title2C = AppFont.make(22, .bold, relativeTo: .title2)
@@ -105,26 +180,37 @@ extension Font {
     static let calloutC = AppFont.make(16, .regular, relativeTo: .callout)
     static let subheadC = AppFont.make(15, .regular, relativeTo: .subheadline)
     static let subheadMediumC = AppFont.make(15, .medium, relativeTo: .subheadline)
+    static let subheadBoldC = AppFont.make(15, .semibold, relativeTo: .subheadline)
     static let footnoteC = AppFont.make(13, .regular, relativeTo: .footnote)
     static let captionC = AppFont.make(12, .regular, relativeTo: .caption)
     static let caption2C = AppFont.make(11, .medium, relativeTo: .caption2)
 }
 
-// MARK: - Motion (the web app's sampled springs, as native springs)
+// MARK: - Motion (tokens.css: durations and the sampled springs)
 
 enum Motion {
-    /// Columns and surfaces: about half a second, no overshoot.
-    static let move = Animation.spring(response: 0.42, dampingFraction: 0.92)
-    /// Small moves: indicators, toggles.
-    static let ui = Animation.spring(response: 0.3, dampingFraction: 0.86)
-    /// Things that grow from where they were touched.
-    static let morph = Animation.spring(response: 0.36, dampingFraction: 0.8)
-    /// A press: in at once, out gently.
+    /// --spring-smooth: columns and surfaces, ~367ms, no overshoot.
+    static let move = Animation.spring(duration: 0.367, bounce: 0)
+    /// --spring-snappy: 266ms, a hair of overshoot.
+    static let ui = Animation.spring(duration: 0.266, bounce: 0.05)
+    /// --spring-bouncy: 403ms.
+    static let bouncy = Animation.spring(duration: 0.403, bounce: 0.15)
+    /// --spring-gentle: 490ms.
+    static let gentle = Animation.spring(duration: 0.49, bounce: 0)
+    /// Morphs from a source (the "+" panel, the viewer): --ease-morph.
+    static let morph = Animation.timingCurve(0.32, 0.72, 0, 1, duration: 0.36)
+    /// Press: in at once (100ms), out from wherever it got to (190ms).
     static let pressIn = Animation.easeOut(duration: 0.1)
-    static let pressOut = Animation.spring(response: 0.28, dampingFraction: 0.62)
-    /// Frequent, light: a new message, switching chats.
-    static let quick = Animation.easeOut(duration: 0.17)
-    static let bouncy = Animation.spring(response: 0.38, dampingFraction: 0.62)
+    static let pressOut = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.19)
+    /// --dur-quick: colour and opacity state changes, 160ms.
+    static let quick = Animation.easeOut(duration: 0.16)
+    /// A new message: 170ms, no scale, blur or bounce.
+    static let message = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.17)
+    /// --dur-fade: scrims and overlays.
+    static let fade = Animation.easeOut(duration: 0.2)
+    /// --dur-burst: the double-tap heart.
+    static let burst = Animation.spring(duration: 0.56, bounce: 0.35)
+    static let pressScale: CGFloat = 0.98
 }
 
 // MARK: - Haptics
