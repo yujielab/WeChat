@@ -19,6 +19,14 @@ jobs:
   screenshots:
     runs-on: macos-26
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: phone
+            device: "iPhone.*Pro Max"
+          - kind: pad
+            device: "iPad Pro"
     env:
       WRANGLER_SEND_METRICS: "false"
     steps:
@@ -33,6 +41,16 @@ jobs:
           XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi -e beta -e rc | sort -V | tail -1)
           sudo xcode-select -s "${XC:-/Applications/Xcode.app}"
           xcodebuild -version
+
+      # Booting takes minutes on a fresh runner: start it now, so it boots
+      # while the app is built.
+      - name: Boot the simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r --arg p "${{ matrix.device }}" '[.devices[][] | select(.name | test($p))][0].udid // empty')
+          [ -n "$UDID" ] || UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | test("iPhone"))][0].udid')
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          echo "booting $UDID"
+          nohup xcrun simctl bootstatus "$UDID" -b > boot.log 2>&1 &
 
       - name: Install tools
         run: |
@@ -74,8 +92,8 @@ jobs:
             || { grep -E -A3 "error:" sim.log | head -200; exit 1; }
 
       - name: Screenshots
-        timeout-minutes: 25
-        run: bash ios/tools/screens.sh
+        timeout-minutes: 30
+        run: bash ios/tools/screens.sh "$UDID" ${{ matrix.kind }}
 
       - name: Hub log
         if: always()
@@ -84,6 +102,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.kind }}
           path: ios/screens
           if-no-files-found: warn
