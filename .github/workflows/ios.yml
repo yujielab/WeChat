@@ -1,0 +1,179 @@
+# Builds the native iOS app (ios/) into an .ipa on a macOS runner.
+#
+# Always: an unsigned Cuven.ipa (artifact "Cuven-ipa"), ready to be signed
+# and installed with AltStore / Sideloadly / your own certificate.
+#
+# Optional, when these repository secrets are set, also a signed IPA
+# (artifact "Cuven-signed-ipa"):
+#   IOS_CERTIFICATE_P12      base64 of the .p12 (certificate + private key)
+#   IOS_CERTIFICATE_PASSWORD password of the .p12
+#   IOS_PROVISION_PROFILE    base64 of the .mobileprovision
+#   IOS_EXPORT_METHOD        optional: ad-hoc (default), development, app-store, enterprise
+#   IOS_BUNDLE_ID            optional: bundle id that matches the profile (default us.cuven.app)
+#
+# Run it by hand (Actions › iOS IPA › Run workflow) with "release" ticked, or
+# push a tag ios-v*, to also attach the IPA to a GitHub Release.
+
+name: iOS IPA
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['ios/**', '.github/workflows/ios.yml']
+    tags: ['ios-v*']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Attach the IPA to a GitHub Release
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      SCHEME: Cuven
+      HAS_SIGNING: ${{ secrets.IOS_CERTIFICATE_P12 != '' && secrets.IOS_PROVISION_PROFILE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select the newest stable Xcode
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi -e beta -e rc | sort -V | tail -1)
+          if [ -z "$XC" ]; then XC=/Applications/Xcode.app; fi
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: ios
+        run: xcodebuild -resolvePackageDependencies -project Cuven.xcodeproj -scheme "$SCHEME" -clonedSourcePackagesDirPath build/spm
+
+      - name: Build (unsigned, device)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Cuven.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/dd \
+            -clonedSourcePackagesDirPath build/spm \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -quiet 2>&1 | tee build.log
+
+      - name: Show compile errors
+        if: failure()
+        working-directory: ios
+        run: |
+          echo "::group::errors"
+          grep -E "error:|fatal error" build.log | sort -u | head -150 || true
+          echo "::endgroup::"
+
+      - name: Package unsigned IPA
+        working-directory: ios
+        run: |
+          APP=build/dd/Build/Products/Release-iphoneos/Cuven.app
+          test -d "$APP"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry Cuven.ipa Payload
+          ls -lh Cuven.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cuven-ipa
+          path: ios/Cuven.ipa
+          if-no-files-found: error
+
+      - name: Signed IPA (only when signing secrets are set)
+        id: signed
+        if: env.HAS_SIGNING == 'true'
+        working-directory: ios
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE: ${{ secrets.IOS_PROVISION_PROFILE }}
+          IOS_EXPORT_METHOD: ${{ secrets.IOS_EXPORT_METHOD }}
+          IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+          KC=$RUNNER_TEMP/signing.keychain-db
+          KCPW=$(uuidgen)
+          echo "$IOS_CERTIFICATE_P12" | base64 --decode > $RUNNER_TEMP/cert.p12
+          echo "$IOS_PROVISION_PROFILE" | base64 --decode > $RUNNER_TEMP/profile.mobileprovision
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          security import $RUNNER_TEMP/cert.p12 -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KCPW" "$KC" >/dev/null
+          security list-keychain -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security cms -D -i $RUNNER_TEMP/profile.mobileprovision > $RUNNER_TEMP/profile.plist
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' $RUNNER_TEMP/profile.plist)
+          TEAM=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' $RUNNER_TEMP/profile.plist)
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' $RUNNER_TEMP/profile.plist)
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp $RUNNER_TEMP/profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          BUNDLE=${IOS_BUNDLE_ID:-us.cuven.app}
+          METHOD=${IOS_EXPORT_METHOD:-ad-hoc}
+          IDENTITY="Apple Distribution"
+          if [ "$METHOD" = "development" ]; then IDENTITY="Apple Development"; fi
+          xcodebuild archive \
+            -project Cuven.xcodeproj -scheme "$SCHEME" -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/Cuven.xcarchive \
+            -derivedDataPath build/dd-signed -clonedSourcePackagesDirPath build/spm \
+            CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE" \
+            CODE_SIGN_IDENTITY="$IDENTITY" PROVISIONING_PROFILE_SPECIFIER="$NAME" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KC" -quiet
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>$METHOD</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>$BUNDLE</key><string>$NAME</string></dict>
+            <key>compileBitcode</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/Cuven.xcarchive -exportPath build/signed -exportOptionsPlist build/ExportOptions.plist
+          mv build/signed/*.ipa Cuven-signed.ipa
+          ls -lh Cuven-signed.ipa
+          security delete-keychain "$KC" || true
+
+      - uses: actions/upload-artifact@v4
+        if: steps.signed.outcome == 'success'
+        with:
+          name: Cuven-signed-ipa
+          path: ios/Cuven-signed.ipa
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/ios-v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('ios-build-{0}', github.run_number) }}
+          name: Cuven iOS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('build {0}', github.run_number) }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          files: |
+            ios/Cuven.ipa
+            ios/Cuven-signed.ipa
+          fail_on_unmatched_files: false
