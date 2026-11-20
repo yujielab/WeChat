@@ -16,8 +16,8 @@ Web 端（`public/`）作为界面与交互的参照。不是网页套壳：没�
 每次推送 `ios/**` 都会触发 GitHub Actions（`.github/workflows/ios.yml`，macOS 26 + 最新 Xcode）：
 
 1. 打开仓库 **Actions › iOS IPA**，点最新一次运行，在 **Artifacts** 下载 `Cuven-ipa`（解压得到 `Cuven.ipa`）。
-2. 想要一个公开的下载链接：**Actions › iOS IPA › Run workflow**，勾选 *Attach the IPA to a GitHub Release*；
-   或者推送一个 `ios-v1.0.0` 这样的标签。IPA 会出现在 Releases 里。
+2. 公开的下载链接在仓库的 **Releases** 里。发布新版本的三种方式：**Actions › iOS IPA › Run workflow** 并勾选
+   *Attach the IPA to a GitHub Release*；推送 `ios-v1.0.0` 这样的标签；或者推送一个提交信息里带 `[ios-release]` 的提交。
 
 ### 安装
 

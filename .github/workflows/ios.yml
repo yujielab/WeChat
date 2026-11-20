@@ -11,8 +11,9 @@
 #   IOS_EXPORT_METHOD        optional: ad-hoc (default), development, app-store, enterprise
 #   IOS_BUNDLE_ID            optional: bundle id that matches the profile (default us.cuven.app)
 #
-# Run it by hand (Actions › iOS IPA › Run workflow) with "release" ticked, or
-# push a tag ios-v*, to also attach the IPA to a GitHub Release.
+# Run it by hand (Actions › iOS IPA › Run workflow) with "release" ticked,
+# push a tag ios-v*, or push a commit whose message contains [ios-release],
+# to also publish the IPA as a GitHub Release.
 
 name: iOS IPA
 
@@ -181,13 +182,33 @@ jobs:
           name: Cuven-signed-ipa
           path: ios/Cuven-signed.ipa
 
+      - name: Release name
+        id: rel
+        if: startsWith(github.ref, 'refs/tags/ios-v') || (github.event_name == 'workflow_dispatch' && inputs.release) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ios-release]'))
+        run: |
+          VERSION=$(grep -E '^[[:space:]]*MARKETING_VERSION:' ios/project.yml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="$GITHUB_REF_NAME"; else TAG="ios-v$VERSION-build.$GITHUB_RUN_NUMBER"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=Cuven for iOS $VERSION (build $GITHUB_RUN_NUMBER)" >> "$GITHUB_OUTPUT"
+
+      # Run by hand with "release" ticked, push a tag ios-v*, or push a commit
+      # whose message contains [ios-release]: the IPA goes to a GitHub Release.
       - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/ios-v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        if: steps.rel.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('ios-build-{0}', github.run_number) }}
-          name: Cuven iOS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('build {0}', github.run_number) }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            Cuven 原生 iOS 应用（SwiftUI），为 iPhone Duo 适配，iOS 17 及以上（iOS 26 起使用液态玻璃）。
+
+            **安装**：下载下面的 `Cuven.ipa`。它是未签名的，用 Sideloadly / AltStore / SideStore 以自己的 Apple ID 签名安装（免费账号 7 天后需重签），或用 TrollStore 直接安装。配置了签名密钥时还会附带 `Cuven-signed.ipa`。
+
+            默认连接 `https://wechat.cuven.us`，可在登录页下方改成自己的服务器。说明见 [ios/README.md](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/ios/README.md)。
+
+            构建：${{ github.sha }}
           files: |
             ios/Cuven.ipa
             ios/Cuven-signed.ipa
