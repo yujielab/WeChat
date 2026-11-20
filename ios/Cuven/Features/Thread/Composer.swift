@@ -481,8 +481,7 @@ final class VoiceRecorder {
     @ObservationIgnored private var url: URL?
 
     func start() {
-        let session = AVAudioSession.sharedInstance()
-        session.requestRecordPermission { [weak self] granted in
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
             Task { @MainActor in
                 guard granted, let self else { return }
                 self.begin()
@@ -492,7 +491,7 @@ final class VoiceRecorder {
 
     private func begin() {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try? session.setActive(true)
         let u = FileManager.default.temporaryDirectory.appendingPathComponent("voice-\(UUID().uuidString).m4a")
         let settings: [String: Any] = [

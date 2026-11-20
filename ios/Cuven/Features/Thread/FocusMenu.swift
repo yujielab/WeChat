@@ -65,13 +65,8 @@ struct FocusMenu: View {
             let local = target.frame.offsetBy(dx: -origin.x, dy: -origin.y)
             let capsuleH: CGFloat = m.isRevoked || m.local == .failed ? 0 : 52
             let cardH = CGFloat(actions.count) * 46 + 36
-            let top = ctx.insets.top + 12
-            let bottom = H - max(ctx.insets.bottom, 12) - 12
-            // How far the message must move so everything fits.
             let bubbleH = min(local.height, H * 0.42)
-            var y = local.minY
-            if y - capsuleH - 8 < top { y = top + capsuleH + 8 }
-            if y + bubbleH + 10 + cardH > bottom { y = bottom - cardH - 10 - bubbleH }
+            let y = fittedTop(local: local, height: H, bubbleH: bubbleH, capsuleH: capsuleH, cardH: cardH)
             let dy = shown ? y - local.minY : 0
             let sideX = mine ? local.maxX : local.minX
 
@@ -162,6 +157,16 @@ struct FocusMenu: View {
             }
         }
         .onAppear { withAnimation(Motion.morph) { shown = true } }
+    }
+
+    /// Where the message's top goes so the reactions above and the card below both fit on screen.
+    private func fittedTop(local: CGRect, height H: CGFloat, bubbleH: CGFloat, capsuleH: CGFloat, cardH: CGFloat) -> CGFloat {
+        let top = ctx.insets.top + 12
+        let bottom = H - max(ctx.insets.bottom, 12) - 12
+        var y = local.minY
+        if y - capsuleH - 8 < top { y = top + capsuleH + 8 }
+        if y + bubbleH + 10 + cardH > bottom { y = bottom - cardH - 10 - bubbleH }
+        return y
     }
 
     private func close() {

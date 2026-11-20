@@ -357,7 +357,7 @@ final class CallManager {
 
     private func configureAudio() {
         let s = AVAudioSession.sharedInstance()
-        try? s.setCategory(.playAndRecord, mode: video ? .videoChat : .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP])
+        try? s.setCategory(.playAndRecord, mode: video ? .videoChat : .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
         try? s.setActive(true)
         if video {
             speaker = true
@@ -384,7 +384,7 @@ final class CallManager {
 
     static func permission(video: Bool) async -> Bool {
         let mic: Bool = await withCheckedContinuation { cont in
-            AVAudioSession.sharedInstance().requestRecordPermission { cont.resume(returning: $0) }
+            AVAudioApplication.requestRecordPermission { cont.resume(returning: $0) }
         }
         guard mic else { return false }
         if !video { return true }

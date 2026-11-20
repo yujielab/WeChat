@@ -80,14 +80,14 @@ jobs:
             -derivedDataPath build/dd \
             -clonedSourcePackagesDirPath build/spm \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            -quiet 2>&1 | tee build.log
+            -quiet > build.log 2>&1
 
       - name: Show compile errors
         if: failure()
         working-directory: ios
         run: |
           echo "::group::errors"
-          grep -E "error:|fatal error" build.log | sort -u | head -150 || true
+          grep -E -A3 "error:|fatal error" build.log | grep -v "^--$" | head -300 || true
           echo "::endgroup::"
 
       - name: Package unsigned IPA

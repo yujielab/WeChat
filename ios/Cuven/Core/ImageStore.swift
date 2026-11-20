@@ -44,23 +44,19 @@ final class ImageStore: @unchecked Sendable {
     func image(_ path: String, maxPixel: CGFloat) async -> UIImage? {
         if let hit = cached(path, maxPixel: maxPixel) { return hit }
         let k = key(path, maxPixel)
-        lock.lock()
-        if let running = inflight[k] {
-            lock.unlock()
-            return await running.value
+        let task: Task<UIImage?, Never> = lock.withLock {
+            if let running = inflight[k] { return running }
+            let t = Task<UIImage?, Never> { [weak self] in
+                guard let self, let data = await self.data(path) else { return nil }
+                let img = Self.decode(data, maxPixel: maxPixel)
+                if let img { self.cache.setObject(img, forKey: k as NSString, cost: img.cost) }
+                return img
+            }
+            inflight[k] = t
+            return t
         }
-        let task = Task<UIImage?, Never> { [weak self] in
-            guard let self, let data = await self.data(path) else { return nil }
-            let img = Self.decode(data, maxPixel: maxPixel)
-            if let img { self.cache.setObject(img, forKey: k as NSString, cost: img.cost) }
-            return img
-        }
-        inflight[k] = task
-        lock.unlock()
         let result = await task.value
-        lock.lock()
-        inflight[k] = nil
-        lock.unlock()
+        lock.withLock { inflight[k] = nil }
         return result
     }
 
