@@ -5,6 +5,10 @@
 Cloudflare 账号里。界面参考 iOS“信息”，并借鉴 Benji Taylor（Family / Honk /
 drawesome）的设计与动效，专门为 **iPhone Duo** 的外屏（折叠）与内屏（展开）打磨。
 
+> **原生 iOS 应用**：`ios/` 里是用 SwiftUI 写的 100% 原生客户端（不是网页套壳），对接同一个后端，
+> 为 iPhone Duo 的外屏 / 内屏、系统侧栏和折叠姿态适配，支持 iOS 26 液态玻璃。每次推送由 GitHub Actions
+> 构建出 `Cuven.ipa`，安装与签名方法见 [ios/README.md](ios/README.md)。
+
 界面沿用 Cuven Transfer / Worker Studio 的纸白与近黑设计语言：共享选中胶囊、
 触下反馈与弹簧回弹、浮动输入框、可跟手关闭的纸感弹层。登录、消息、手绘和设置
 使用同一套间距与材料层级，支持深色、减少动态效果及窄窗口。

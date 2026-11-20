@@ -59,13 +59,28 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/build/spm
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-${{ hashFiles('ios/project.yml') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Generate the Xcode project
         working-directory: ios
         run: xcodegen generate
 
       - name: Resolve Swift packages
         working-directory: ios
-        run: xcodebuild -resolvePackageDependencies -project Cuven.xcodeproj -scheme "$SCHEME" -clonedSourcePackagesDirPath build/spm
+        timeout-minutes: 15
+        run: |
+          for i in 1 2 3; do
+            perl -e 'alarm shift; exec @ARGV' 300 xcodebuild -resolvePackageDependencies -project Cuven.xcodeproj -scheme "$SCHEME" -clonedSourcePackagesDirPath build/spm && exit 0
+            echo "retry $i"; sleep 5
+          done
+          exit 1
 
       - name: Build (unsigned, device)
         working-directory: ios
