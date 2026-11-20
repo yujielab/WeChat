@@ -4,7 +4,7 @@ options:
   bundleIdPrefix: us.cuven
   deploymentTarget:
     iOS: "17.0"
-  developmentLanguage: zh-Hans
+  developmentLanguage: en
   createIntermediateGroups: true
   generateEmptyDirectories: false
 
