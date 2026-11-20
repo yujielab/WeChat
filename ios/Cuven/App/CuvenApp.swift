@@ -14,7 +14,9 @@ struct CuvenApp: App {
                 .tint(Theme.blue)
                 .task {
                     AppDelegate.model = model
+                    Automation.prepare(model)
                     await model.launch()
+                    await Automation.signIn(model)
                 }
         }
     }
@@ -73,4 +75,76 @@ struct SplashView: View {
         }
         .onAppear { withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { appear = true } }
     }
+}
+
+/// Hooks for automated screenshots (CI runs the app in the Simulator against
+/// a local `wrangler dev`). Driven only by environment variables a person's
+/// device never has, so they do nothing in normal use.
+enum Automation {
+    static let env = ProcessInfo.processInfo.environment
+    static var active: Bool { env["CUVEN_SCREEN"] != nil }
+    static var screen: String { env["CUVEN_SCREEN"] ?? "" }
+
+    @MainActor
+    static func prepare(_ model: AppModel) {
+        guard active else { return }
+        if let server = env["CUVEN_SERVER"] { _ = model.setServer(server) }
+        if let look = env["CUVEN_APPEARANCE"] { model.appearance = look }
+        if env["CUVEN_BOOK"] == "1" { model.bookLayout = true }
+    }
+
+    @MainActor
+    static func signIn(_ model: AppModel) async {
+        guard active, model.phase == .signedOut, let user = env["CUVEN_USER"], let pass = env["CUVEN_PASS"] else { return }
+        try? await model.login(username: user, password: pass)
+    }
+
+    /// Takes the shell to the screen being photographed.
+    @MainActor
+    static func drive(_ model: AppModel, _ nav: Nav) async {
+        guard active else { return }
+        try? await Task.sleep(for: .seconds(1.5))
+        let first = model.rooms.first { !$0.isGroup }?.id ?? model.rooms.first?.id
+        switch screen {
+        case "sidebar": nav.toSidebar()
+        case "thread": if let first { nav.open(room: first) }
+        case "info":
+            if let first {
+                nav.open(room: first)
+                try? await Task.sleep(for: .seconds(1))
+                nav.show(.info)
+            }
+        case "draw":
+            if let first {
+                nav.open(room: first)
+                try? await Task.sleep(for: .seconds(1))
+                nav.show(.draw)
+            }
+        case "group": if let g = model.rooms.first(where: { $0.isGroup })?.id { nav.open(room: g) }
+        case "moments": nav.switchPage(.moments)
+        case "memories": nav.switchPage(.memories)
+        case "requests": nav.switchPage(.requests)
+        case "me": nav.switchPage(.me)
+        case "settings": nav.settingsOpen = true
+        case "newchat": nav.newChatOpen = true
+        case "plus":
+            if let first {
+                nav.open(room: first)
+                try? await Task.sleep(for: .seconds(1))
+                NotificationCenter.default.post(name: .automationPlus, object: nil)
+            }
+        case "focus":
+            if let first {
+                nav.open(room: first)
+                try? await Task.sleep(for: .seconds(1.5))
+                NotificationCenter.default.post(name: .automationFocus, object: nil)
+            }
+        default: break
+        }
+    }
+}
+
+extension Notification.Name {
+    static let automationPlus = Notification.Name("cuven.automation.plus")
+    static let automationFocus = Notification.Name("cuven.automation.focus")
 }

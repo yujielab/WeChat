@@ -106,6 +106,9 @@ struct Composer: View {
         }
         .onChange(of: replyTo?.id) { _, id in if id != nil { focused = true } }
         .task(id: text) { await fetchSuggestion() }
+        .onReceive(NotificationCenter.default.publisher(for: .automationPlus)) { _ in
+            withAnimation(Motion.morph) { plusOpen = true }
+        }
         .photosPicker(isPresented: $showPhotos, selection: $pickerItems, maxSelectionCount: 9, matching: .any(of: [.images, .videos]))
         .onChange(of: pickerItems) { _, items in
             guard !items.isEmpty else { return }

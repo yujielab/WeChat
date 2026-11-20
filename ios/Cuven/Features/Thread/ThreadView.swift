@@ -150,6 +150,14 @@ struct ThreadView: View {
             }
         }
         .background(FrameProbe(box: rootProbe))
+        .onReceive(NotificationCenter.default.publisher(for: .automationFocus)) { _ in
+            // Lift the latest message from the other side, as a long press would.
+            if let m = model.messages(roomId).last(where: { $0.sender != model.me?.id && $0.type == "text" }) {
+                let w = ctx.size.width
+                let frame = CGRect(x: rootProbe.frame.minX + 50, y: rootProbe.frame.minY + ctx.size.height * 0.55, width: min(260, w * 0.6), height: 44)
+                withAnimation(Motion.morph) { focus = FocusTarget(message: m, frame: frame) }
+            }
+        }
         .onPreferenceChange(ComposerHeightKey.self) { composerHeight = $0 }
         .onPreferenceChange(HeaderHeightKey.self) { headerHeight = max(60, $0) }
         .sheet(isPresented: $stickersOpen) {

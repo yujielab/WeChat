@@ -118,6 +118,7 @@ struct MainView: View {
             model.appActive = phase == .active
             if phase == .active, let r = visibleRoom { model.markRead(r) }
         }
+        .task { await Automation.drive(model, nav) }
         .onChange(of: model.pendingRoom) { _, room in
             guard let room else { return }
             model.pendingRoom = nil

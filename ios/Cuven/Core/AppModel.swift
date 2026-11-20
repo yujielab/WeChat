@@ -199,7 +199,7 @@ final class AppModel {
         indexUsers()
         withAnimation(.smooth(duration: 0.35)) { phase = .ready }
         socket.start()
-        requestNotifications()
+        if !Automation.active { requestNotifications() }
         persist()
         Task { await loadNotes() }
         Task { await loadPeople() }

@@ -1,0 +1,75 @@
+# Runs the iOS app in the Simulator against a local copy of the backend
+# (`wrangler dev --local`, seeded with demo data) and uploads a screenshot
+# of each screen (artifact "screenshots"): an iPhone for the one-column
+# layout, an iPad for two columns.
+
+name: iOS screenshots
+
+on:
+  push:
+    branches: ['claude/**']
+    paths: ['ios/**', '.github/workflows/ios-screens.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-screens-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Select the newest stable Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi -e beta -e rc | sort -V | tail -1)
+          sudo xcode-select -s "${XC:-/Applications/Xcode.app}"
+          xcodebuild -version
+
+      - name: Install tools
+        run: |
+          npm ci --no-audit --no-fund
+          brew install xcodegen
+
+      - name: Start the local hub
+        run: |
+          nohup npx wrangler dev --local --port 8787 --ip 127.0.0.1 > wrangler.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8787/auth/status >/dev/null; then echo "hub up"; exit 0; fi
+            sleep 2
+          done
+          cat wrangler.log; exit 1
+
+      - name: Seed demo data
+        run: bash ios/tools/seed.sh http://localhost:8787
+
+      - name: Build for the Simulator
+        working-directory: ios
+        run: |
+          xcodegen generate
+          xcodebuild build -project Cuven.xcodeproj -scheme Cuven -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO -quiet > sim.log 2>&1 \
+            || { grep -E -A3 "error:" sim.log | head -200; exit 1; }
+
+      - name: Screenshots
+        run: bash ios/tools/screens.sh
+
+      - name: Hub log
+        if: always()
+        run: tail -40 wrangler.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: ios/screens
+          if-no-files-found: warn
