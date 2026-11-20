@@ -201,7 +201,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           make_latest: true
           body: |
-            Cuven 原生 iOS 应用（SwiftUI），为 iPhone Duo 适配，iOS 17 及以上（iOS 26 起使用液态玻璃）。
+            Cuven 原生 iOS 应用（SwiftUI），用 Xcode 27.2 / iOS 27.2 SDK 构建，iOS 26 及以上，为 iPhone Duo 适配（铰链、折痕、系统列）。界面、图标、布局与动效按 Web 端一比一重建。
 
             **安装**：下载下面的 `Cuven.ipa`。它是未签名的，用 Sideloadly / AltStore / SideStore 以自己的 Apple ID 签名安装（免费账号 7 天后需重签），或用 TrollStore 直接安装。配置了签名密钥时还会附带 `Cuven-signed.ipa`。
 
