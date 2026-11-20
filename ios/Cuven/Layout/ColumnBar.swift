@@ -65,7 +65,7 @@ struct ColumnBar<Center: View>: View {
             }
             .animation(Motion.ui, value: back?.id)
             // Over a page, the app's rails step aside: the edge column is the pages'.
-            .opacity(nav.sheeted ? 0 : 1)
+            .opacity(nav.sheeted && !ctx.onPage ? 0 : 1)
             .animation(.easeOut(duration: 0.16), value: nav.sheeted)
         } else {
             GlassGroup(spacing: Bar.gap) {

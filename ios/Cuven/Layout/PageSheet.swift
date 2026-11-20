@@ -1,55 +1,32 @@
 import SwiftUI
 
-/// The pages open as sheets over the strip (the web's openSheet): a card
-/// with a grabber, in the content column on one screen, centred on two;
-/// swipe it down or tap the receded strip to close. One sheet at a time;
-/// Settings and someone's page open over a page.
-struct PageSheetLayer: View {
+/// A note opens as a card over the app (the web's note sheet): as tall as it
+/// needs, on the foot of the app's side (above the keyboard), centred when
+/// unfolded; the app recedes behind it. Drag the grabber down, or tap the
+/// app, to close.
+struct DialogLayer: View {
     let geo: StripGeometry
     @Environment(Nav.self) private var nav
     @Environment(AppModel.self) private var model
     @State private var drag: CGFloat = 0
 
     private enum Kind: Equatable {
-        case page(Page)
-        case settings
-        case profile(String)
         case noteEditor
         case note(FriendNote)
-
-        /// Fits its content, resting on the foot (or in the middle, unfolded).
-        var fitted: Bool {
-            switch self {
-            case .noteEditor, .note: return true
-            default: return false
-            }
-        }
-
-        /// Pages with a heading of their own run to the sheet's top edge; the grabber lies over it.
-        var ownHead: Bool {
-            switch self {
-            case .page(.moments), .page(.memories), .page(.me), .profile: return true
-            default: return false
-            }
-        }
     }
 
     private var kind: Kind? {
         if nav.noteEditor { return .noteEditor }
         if let n = nav.openNote { return .note(n) }
-        if nav.settingsOpen { return .settings }
-        if let p = nav.profile { return .profile(p) }
-        if nav.page != .chats { return .page(nav.page) }
         return nil
     }
 
     var body: some View {
-        let full = geo.sheetFrame
         ZStack(alignment: .topLeading) {
             if let kind {
-                let f = kind.fitted ? fittedFrame(full) : full
+                let f = frame()
                 card(kind)
-                    .padding(.top, geo.columns == 1 && !kind.ownHead ? 20 : 0)
+                    .padding(.top, geo.columns == 1 ? 20 : 0)
                     .frame(width: f.width, height: f.height, alignment: .top)
                     .background(Theme.paper)
                     .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
@@ -61,25 +38,29 @@ struct PageSheetLayer: View {
                     .transition(geo.columns == 1
                         ? AnyTransition.offset(y: f.height + 40)
                         : AnyTransition.opacity.combined(with: .scale(scale: 0.96)).combined(with: .blur(4)))
-                    .id(kindKey(kind))
+                    .id(key(kind))
             }
         }
         .animation(Motion.bouncy, value: kind)
     }
 
-    private func kindKey(_ k: Kind) -> String {
+    private func key(_ k: Kind) -> String {
         switch k {
-        case .page(let p): return "page-\(p.rawValue)"
-        case .settings: return "settings"
-        case .profile(let id): return "profile-\(id)"
         case .noteEditor: return "note-editor"
         case .note(let n): return "note-\(n.id)"
         }
     }
 
-    /// A note's card: as tall as it needs, on the foot of the app's side
-    /// (above the keyboard), or in the middle when unfolded.
-    private func fittedFrame(_ full: CGRect) -> CGRect {
+    @ViewBuilder
+    private func card(_ k: Kind) -> some View {
+        switch k {
+        case .noteEditor: NoteEditor()
+        case .note(let n): NoteSheet(note: n)
+        }
+    }
+
+    private func frame() -> CGRect {
+        let full = geo.sheetFrame
         let h: CGFloat = nav.noteEditor ? (model.myNote != nil ? 450 : 390) : 400
         let bottomGap = geo.keyboard > 0 ? geo.keyboard + 8 : max(8, geo.insets.bottom - 18)
         if geo.columns == 1 {
@@ -89,21 +70,6 @@ struct PageSheetLayer: View {
         let room = geo.size.height - (geo.keyboard > 0 ? geo.keyboard : 0)
         let height = min(h, room - 32)
         return CGRect(x: full.minX, y: max(16, (room - height) / 2), width: full.width, height: height)
-    }
-
-    @ViewBuilder
-    private func card(_ k: Kind) -> some View {
-        switch k {
-        case .page(.moments): MomentsPage()
-        case .page(.memories): MemoriesPage()
-        case .page(.friends): FriendsPage()
-        case .page(.me): ProfileView(userId: model.me?.id ?? "", asPage: true)
-        case .page(.chats): EmptyView()
-        case .settings: SettingsView()
-        case .profile(let id): ProfileView(userId: id)
-        case .noteEditor: NoteEditor()
-        case .note(let n): NoteSheet(note: n)
-        }
     }
 
     private var grabber: some View {
@@ -116,10 +82,8 @@ struct PageSheetLayer: View {
                 .onChanged { drag = $0.translation.height }
                 .onEnded { v in
                     if v.translation.height > 120 || v.predictedEndTranslation.height > 300 {
-                        withAnimation(Motion.move) {
-                            drag = 0
-                            close()
-                        }
+                        withAnimation(Motion.move) { drag = 0 }
+                        nav.closeTop()
                     } else {
                         withAnimation(Motion.ui) { drag = 0 }
                     }
@@ -127,15 +91,7 @@ struct PageSheetLayer: View {
         )
         .accessibilityLabel("Close")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { close() }
-    }
-
-    private func close() {
-        if nav.noteEditor { nav.noteEditor = false }
-        else if nav.openNote != nil { nav.openNote = nil }
-        else if nav.settingsOpen { nav.settingsOpen = false }
-        else if nav.profile != nil { nav.profile = nil }
-        else { nav.page = .chats }
+        .accessibilityAction { nav.closeTop() }
     }
 }
 
@@ -202,15 +158,7 @@ struct SheetClose: View {
 
     var body: some View {
         GlassIconButton(sym: sym, title: "Close") {
-            if let action { action() } else {
-                withAnimation(Motion.move) {
-                    if nav.noteEditor { nav.noteEditor = false }
-                    else if nav.openNote != nil { nav.openNote = nil }
-                    else if nav.settingsOpen { nav.settingsOpen = false }
-                    else if nav.profile != nil { nav.profile = nil }
-                    else { nav.page = .chats }
-                }
-            }
+            if let action { action() } else { nav.closeTop() }
         }
     }
 }

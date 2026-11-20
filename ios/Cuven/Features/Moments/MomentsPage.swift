@@ -12,7 +12,6 @@ struct MomentsPage: View {
     @State private var fresh = false
     @State private var seenVersion = 0
     @AppStorage("ui:momentsSeen") private var seenAt: Double = 0
-    @State private var scrolled = false
 
     private var people: [User] {
         var seen = Set<String>()
@@ -30,101 +29,56 @@ struct MomentsPage: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    Section {
-                        peopleRow
-                        if fresh {
-                            Button {
-                                Task { await reload() }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    SymbolView(.arrowUp, size: 15, weight: 2.4)
-                                    Text("New moments").font(.subheadBoldC)
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16).frame(height: 36)
-                                .background(Theme.skyTitle, in: Capsule())
-                            }
-                            .buttonStyle(.press)
-                            .padding(.vertical, 8)
-                            .transition(.scale.combined(with: .opacity))
+        PageScaffold(title: .wordmark("Moments", Theme.skyTitle),
+                     back: ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.switchPage(.chats) } : nil,
+                     actions: [BarItem(id: "new", sym: .plus, title: "New moment") { nav.composeMoment = true }],
+                     background: Theme.paper) {
+            LazyVStack(spacing: 0) {
+                peopleRow
+                if fresh {
+                    Button {
+                        Task { await reload() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            SymbolView(.arrowUp, size: 15, weight: 2.4)
+                            Text("New moments").font(.subheadBoldC)
                         }
-                        if loading && moments.isEmpty {
-                            ForEach(0..<2, id: \.self) { _ in MomentSkeleton() }
-                        } else if moments.isEmpty {
-                            VStack(spacing: 6) {
-                                SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
-                                Text("No moments yet").font(.headlineC).foregroundStyle(Theme.label)
-                                Text("Share a photo or a few words with your friends.")
-                                    .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
-                            }
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 48)
-                        }
-                        ForEach($moments) { $m in
-                            MomentCard(moment: $m) {
-                                withAnimation(Motion.ui) { moments.removeAll { $0.id == m.id } }
-                            }
-                            .frame(maxWidth: 640)
-                        }
-                        if more && !moments.isEmpty {
-                            ProgressView().padding(24)
-                                .onAppear { Task { await loadMore() } }
-                        }
-                        Color.clear.frame(height: 88)
-                    } header: {
-                        head
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16).frame(height: 36)
+                        .background(Theme.skyTitle, in: Capsule())
+                    }
+                    .buttonStyle(.press)
+                    .padding(.vertical, 8)
+                    .transition(.scale.combined(with: .opacity))
+                }
+                if loading && moments.isEmpty {
+                    ForEach(0..<2, id: \.self) { _ in MomentSkeleton() }
+                } else if moments.isEmpty {
+                    VStack(spacing: 6) {
+                        SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
+                        Text("No moments yet").font(.headlineC).foregroundStyle(Theme.label)
+                        Text("Share a photo or a few words with your friends.")
+                            .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 48)
+                }
+                ForEach($moments) { $m in
+                    MomentCard(moment: $m) {
+                        withAnimation(Motion.ui) { moments.removeAll { $0.id == m.id } }
                     }
                 }
+                if more && !moments.isEmpty {
+                    ProgressView().padding(24)
+                        .onAppear { Task { await loadMore() } }
+                }
             }
-            .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 4 } action: { _, v in
-                withAnimation(.easeOut(duration: 0.22)) { scrolled = v }
-            }
-            .refreshable { await reload() }
-
-            // New moment: a round glass button floating at the page's foot.
-            Button { nav.composeMoment = true } label: {
-                SymbolView(.plus, size: 26, weight: 2.2)
-                    .foregroundStyle(Theme.label)
-                    .frame(width: 56, height: 56)
-                    .glassCircle()
-            }
-            .buttonStyle(.press(0.9))
-            .padding(.trailing, 20)
-            .padding(.bottom, max(ctx.insets.bottom, 12) + 16)
-            .accessibilityLabel("New moment")
         }
+        .refreshable { await reload() }
         .animation(Motion.ui, value: fresh)
         .task { await reload() }
         .onChange(of: model.momentsVersion) { _, _ in fresh = true }
         .onDisappear { seenAt = Date().timeIntervalSince1970 * 1000 }
-    }
-
-    /// The wordmark in sky blue, the close button beside it; frosted once the feed moves.
-    private var head: some View {
-        HStack(spacing: 8) {
-            Text("Moments")
-                .font(AppFont.make(28, .heavy))
-                .tracking(-0.98)
-                .foregroundStyle(Theme.skyTitle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            SheetClose()
-        }
-        .padding(.leading, 20)
-        .padding(.trailing, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 6)
-        .frame(minHeight: 64)
-        .background {
-            if scrolled {
-                Rectangle().fill(.ultraThinMaterial)
-                    .overlay(Theme.paper.opacity(0.86))
-                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
-                    .transition(.opacity)
-            }
-        }
     }
 
     /// People: a ring round whoever has something new, a hairline after.

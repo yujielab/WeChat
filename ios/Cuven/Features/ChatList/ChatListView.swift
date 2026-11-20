@@ -102,6 +102,7 @@ struct ChatListView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .environment(\.defaultMinListRowHeight, 1)
             .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.contentBottom,
                                         trailing: ctx.usesRail ? ctx.insets.trailing + 10 : ctx.insets.trailing))

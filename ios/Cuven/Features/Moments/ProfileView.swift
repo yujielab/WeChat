@@ -23,47 +23,31 @@ struct ProfileView: View {
     var body: some View {
         GeometryReader { geo in
             let coverH = min(210, max(150, geo.size.width * 0.36))
-            ZStack(alignment: .topLeading) {
-                Theme.paper
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        cover(height: coverH)
-                        identity
-                        tabs
-                        Group {
-                            if tab == 0 {
-                                if moments.isEmpty && page != nil { emptyPosts }
-                                ForEach($moments) { $m in
-                                    MomentCard(moment: $m) { moments.removeAll { $0.id == m.id } }
-                                }
-                                if more && !moments.isEmpty {
-                                    ProgressView().padding().onAppear { Task { await loadMore() } }
-                                }
-                            } else {
-                                mediaWall(width: geo.size.width)
-                            }
-                            Color.clear.frame(height: max(ctx.insets.bottom, 12) + 96)
+            PageScaffold(title: .inline(LocalizedStringKey(user?.name ?? "")),
+                         titleShown: scrolled,
+                         back: backItem,
+                         actions: actionItems,
+                         background: Theme.paper,
+                         underBar: true,
+                         onScroll: { y in
+                             let past = y > coverH - 60
+                             if past != scrolled { withAnimation(.easeOut(duration: 0.22)) { scrolled = past } }
+                         }) {
+                LazyVStack(spacing: 0) {
+                    cover(height: coverH)
+                    identity
+                    tabs
+                    if tab == 0 {
+                        if moments.isEmpty && page != nil { emptyPosts }
+                        ForEach($moments) { $m in
+                            MomentCard(moment: $m) { moments.removeAll { $0.id == m.id } }
                         }
+                        if more && !moments.isEmpty {
+                            ProgressView().padding().onAppear { Task { await loadMore() } }
+                        }
+                    } else {
+                        mediaWall(width: min(geo.size.width, 680))
                     }
-                    .frame(maxWidth: .infinity)
-                }
-                .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > coverH - 68 } action: { _, v in
-                    withAnimation(.easeOut(duration: 0.22)) { scrolled = v }
-                }
-
-                topbar
-
-                if isMe {
-                    Button { nav.composeMoment = true } label: {
-                        SymbolView(.plus, size: 26, weight: 2.2).foregroundStyle(Theme.onInk)
-                            .frame(width: 56, height: 56)
-                            .glassEffect(.regular.tint(Theme.ink.opacity(0.85)).interactive(), in: Circle())
-                    }
-                    .buttonStyle(.press(0.9))
-                    .padding(.trailing, 20)
-                    .padding(.bottom, max(ctx.insets.bottom, 12) + 16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .accessibilityLabel("New moment")
                 }
             }
         }
@@ -71,38 +55,28 @@ struct ProfileView: View {
         .onChange(of: model.momentsVersion) { _, _ in Task { await load() } }
     }
 
-    /// A round glass button over the cover; once the cover has scrolled away
-    /// a bar fills in behind it with the name.
-    private var topbar: some View {
-        HStack(spacing: 12) {
-            Button {
-                Haptics.tap()
-                close()
-            } label: {
-                SymbolView(.xmark, size: 22)
-                    .foregroundStyle(scrolled ? Theme.label : .white)
-                    .frame(width: 44, height: 44)
-                    .background(scrolled ? AnyShapeStyle(Theme.elevated.opacity(0.86)) : AnyShapeStyle(Color.black.opacity(0.42)), in: Circle())
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(scrolled ? Theme.line : .clear, lineWidth: 1))
-            }
-            .buttonStyle(.press(0.9))
-            .accessibilityLabel("Close")
-            Text(user?.name ?? "")
-                .font(AppFont.make(17, .bold))
-                .foregroundStyle(Theme.label)
-                .lineLimit(1)
-                .opacity(scrolled ? 1 : 0)
-                .offset(y: scrolled ? 0 : 6)
-            Spacer(minLength: 0)
+    /// The way out: back from someone's page; on your own (a capsule page)
+    /// only where there's no capsule to leave by.
+    private var backItem: BarItem? {
+        if !asPage { return BarItem(id: "back", sym: .chevronLeft, title: "Back") { close() } }
+        return ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { close() } : nil
+    }
+
+    private var actionItems: [BarItem] {
+        if isMe {
+            return [BarItem(id: "new", sym: .plus, title: "New moment") { nav.composeMoment = true },
+                    BarItem(id: "settings", sym: .ellipsis, title: "Settings") { withAnimation(Motion.move) { nav.settingsOpen = true } }]
         }
-        .padding(.horizontal, 14)
-        .frame(height: 68)
-        .background {
-            if scrolled {
-                Rectangle().fill(.ultraThinMaterial).overlay(Theme.paper.opacity(0.88)).transition(.opacity)
+        guard let user else { return [] }
+        return [BarItem(id: "message", sym: .bubble, title: "Message") {
+            Task {
+                if let id = await model.openDM(user) {
+                    close()
+                    nav.switchPage(.chats)
+                    nav.open(room: id)
+                }
             }
-        }
+        }]
     }
 
     /// The cover across the top: theirs, or a deep ribbon of light.
@@ -160,7 +134,7 @@ struct ProfileView: View {
             HStack(spacing: 10) {
                 if isMe {
                     ShareLink(item: "@\(user?.username ?? "")") { pill("Share profile") }
-                    Button { nav.settingsOpen = true } label: { pill("Edit profile") }
+                    Button { withAnimation(Motion.move) { nav.editingProfile = true } } label: { pill("Edit profile") }
                 } else if let user {
                     Button {
                         Task {

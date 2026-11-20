@@ -6,7 +6,8 @@ import AVFoundation
 /// who can see and comment, and when it goes out.
 struct MomentEditor: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
+    @Environment(Nav.self) private var nav
+    @Environment(\.column) private var ctx
 
     struct Pick: Identifiable {
         let id = UUID()
@@ -38,8 +39,12 @@ struct MomentEditor: View {
     private var dirty: Bool { !text.isEmpty || !picks.isEmpty }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        PageScaffold(title: .inline(scheduleOn ? "Schedule" : "New moment"),
+                     back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { if dirty { confirmDiscard = true } else { dismiss() } },
+                     actions: [BarItem(id: "post", sym: .paperplane, title: scheduleOn ? "Schedule" : "Post",
+                                       tint: canPost ? Theme.ink.opacity(0.9) : nil,
+                                       foreground: canPost ? Theme.onInk : Theme.label3) { if canPost { post() } }],
+                     background: Theme.paper) {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top, spacing: 12) {
                         Avatar(user: model.me, size: 44)
@@ -74,15 +79,24 @@ struct MomentEditor: View {
                             .padding(.horizontal, 18)
                     }
                 }
-                .padding(.top, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 140)
                 .animation(Motion.ui, value: picks.count)
                 .animation(Motion.ui, value: scheduleOn)
             }
-            .safeAreaInset(edge: .bottom) { bottomBar }
-            .safeAreaInset(edge: .top, spacing: 0) { head }
-            .toolbar(.hidden, for: .navigationBar)
-            .background(Theme.paper)
-            .interactiveDismissDisabled(dirty)
+            // The tools, kept at the foot (over the keyboard when it's up).
+            .overlay(alignment: .bottom) {
+                bottomBar
+                    .padding(.leading, ctx.insets.leading)
+                    .padding(.trailing, toolsTrailing)
+                    .padding(.bottom, ctx.keyboard > 0 ? ctx.keyboard : ctx.insets.bottom)
+            }
+            .overlay(alignment: .top) {
+                if posting {
+                    ProgressView().progressViewStyle(.linear).tint(Theme.blue)
+                        .padding(.top, ctx.insets.top)
+                }
+            }
             .confirmationDialog("Discard this moment?", isPresented: $confirmDiscard, titleVisibility: .visible) {
                 Button("Discard", role: .destructive) { dismiss() }
             }
@@ -113,37 +127,16 @@ struct MomentEditor: View {
                 Button("Cancel", role: .cancel) { altFor = nil }
             }
             .onAppear { focused = true }
-        }
     }
 
-    /// Cancel and a Post pill across the top, frosted over the words.
-    private var head: some View {
-        HStack(spacing: 10) {
-            Button { if dirty { confirmDiscard = true } else { dismiss() } } label: {
-                Text("Cancel").font(AppFont.make(17, .semibold)).foregroundStyle(Theme.label)
-                    .padding(.horizontal, 10).frame(height: 44)
-            }
-            .buttonStyle(FillPressStyle(radius: 22, fill: Theme.fill2))
-            Text(posting ? String(localized: "Posting…") : (scheduleOn ? String(localized: "Goes out \(Fmt.dayStamp(at))") : ""))
-                .font(.footnoteC).foregroundStyle(Theme.label2).lineLimit(1)
-                .frame(maxWidth: .infinity)
-            Button { post() } label: {
-                Group {
-                    if posting { ProgressView().tint(Theme.onInk) }
-                    else { Text(scheduleOn ? "Schedule" : "Post").font(AppFont.make(15, .bold)) }
-                }
-                .foregroundStyle(Theme.onInk)
-                .padding(.horizontal, 20).frame(minWidth: 84, minHeight: 40)
-                .background(Theme.ink, in: Capsule())
-            }
-            .buttonStyle(.press(0.96))
-            .disabled(!canPost)
-            .opacity(canPost ? 1 : 0.35)
-        }
-        .padding(.leading, 12).padding(.trailing, 16).padding(.top, 14).padding(.bottom, 6)
-        .frame(minHeight: 64)
-        .background(.ultraThinMaterial)
-        .background(Theme.paper.opacity(0.9))
+    private var toolsTrailing: CGFloat {
+        guard ctx.usesRail, let rail = ctx.rail else { return ctx.insets.trailing }
+        return max(ctx.insets.trailing, rail.centerFromEdge + Bar.railWidth / 2 + 12)
+    }
+
+    private func dismiss() {
+        focused = false
+        withAnimation(Motion.move) { nav.composeMoment = false }
     }
 
     private func pickCard(_ p: Pick) -> some View {

@@ -77,6 +77,8 @@ final class Nav {
     var noteEditor = false
     var openNote: FriendNote?
     var newGroup = false
+    var editingProfile = false
+    var changingPassword = false
 
     var visibleColumns: [Column] {
         (0..<columns).compactMap { Column(rawValue: leading.rawValue + $0) }
@@ -85,8 +87,30 @@ final class Nav {
     func isVisible(_ c: Column) -> Bool { visibleColumns.contains(c) }
     var rightmost: Column { visibleColumns.last ?? leading }
 
-    /// A sheet is up over the strip (the page capsule stays, the strip recedes).
-    var sheeted: Bool { page != .chats || settingsOpen || profile != nil || noteEditor || openNote != nil }
+    /// A page pushed over everything (no page capsule): settings, someone's
+    /// page, the editors.
+    var pushed: Bool { settingsOpen || profile != nil || editingProfile || changingPassword || newGroup || composeMoment }
+    /// A full-screen page covers the strip (a capsule page or a pushed one).
+    var covered: Bool { page != .chats || pushed }
+    /// A small card over the app (a note), the app receding behind it.
+    var dialogUp: Bool { noteEditor || openNote != nil }
+    /// Anything over the strip: it takes no touches and its rail steps aside.
+    var sheeted: Bool { covered || dialogUp }
+
+    /// Closes the topmost page or card.
+    func closeTop() {
+        withAnimation(Motion.move) {
+            if noteEditor { noteEditor = false }
+            else if openNote != nil { openNote = nil }
+            else if composeMoment { composeMoment = false }
+            else if newGroup { newGroup = false }
+            else if changingPassword { changingPassword = false }
+            else if editingProfile { editingProfile = false }
+            else if settingsOpen { settingsOpen = false }
+            else if profile != nil { profile = nil }
+            else if page != .chats { page = .chats }
+        }
+    }
 
     func setColumns(_ n: Int) {
         guard n != columns else { return }
@@ -228,6 +252,8 @@ struct ColumnContext: Equatable {
     var keyboard: CGFloat = 0
     /// Room the page capsule takes at the foot of the system column (with its gap), when it shows.
     var capsule: CGFloat = 0
+    /// A full-screen page's own context (its rail shows while the strip's step aside).
+    var onPage = false
 
     /// Controls stand in the system's column on the trailing edge (iPhone Duo).
     var usesRail: Bool { rail != nil && isRightmost }

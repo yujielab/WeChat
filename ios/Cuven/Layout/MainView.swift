@@ -38,8 +38,6 @@ struct MainView: View {
         .ignoresSafeArea()
         .background(SafeAreaReader { safe = $0 }.ignoresSafeArea())
         .modifier(HingeWatcher(posture: $posture))
-        .fullScreenCover(isPresented: $nav.composeMoment) { MomentEditor().environment(nav) }
-        .sheet(isPresented: $nav.newGroup) { NewGroupView().environment(nav) }
         .overlay { CallOverlay() }
         .task { await Automation.drive(model, nav) }
         .onChange(of: model.pendingRoom) { _, room in
@@ -81,7 +79,7 @@ struct MainView: View {
     private func shell(geo: StripGeometry, size: CGSize, insets: EdgeInsets) -> some View {
         ZStack(alignment: .topLeading) {
             // What shows round the receded app while a sheet is up.
-            (nav.sheeted ? Theme.recede : Theme.bg)
+            (receded ? Theme.recede : Theme.bg)
 
             // The strip, receding while a sheet is up.
             ZStack(alignment: .topLeading) {
@@ -109,18 +107,22 @@ struct MainView: View {
                 }
             }
             .frame(width: size.width, height: size.height)
-            .clipShape(RoundedRectangle(cornerRadius: nav.sheeted ? 30 : 0, style: .continuous))
-            .scaleEffect(nav.sheeted ? 0.94 : 1, anchor: .top)
-            .offset(y: nav.sheeted ? max(insets.top, 10) : 0)
+            // A note's card: the app recedes behind it.
+            .clipShape(RoundedRectangle(cornerRadius: receded ? 30 : 0, style: .continuous))
+            .scaleEffect(receded ? 0.94 : 1, anchor: .top)
+            .offset(y: receded ? max(insets.top, 10) : 0)
+            .opacity(nav.page != .chats ? 0 : 1)
             .overlay {
-                Theme.scrim.opacity(nav.sheeted ? 1 : 0)
-                    .allowsHitTesting(nav.sheeted)
+                Theme.scrim.opacity(receded ? 1 : 0)
+                    .allowsHitTesting(receded)
                     .onTapGesture { closeSheet() }
             }
 
-            // The pages
-            PageSheetLayer(geo: geo)
+            // Full-screen pages, then the cards over them.
+            PageLayer(geo: geo, capsule: showsPageCapsule ? PageCapsule.height + Bar.gap + 2 : 0)
                 .zIndex(20)
+            DialogLayer(geo: geo)
+                .zIndex(25)
 
             // The page capsule in the system column (iPhone Duo only).
             if let rail = geo.rail, showsPageCapsule {
@@ -145,24 +147,23 @@ struct MainView: View {
                     .zIndex(50)
             }
         }
-        .animation(Motion.move, value: nav.sheeted)
+        .animation(Motion.move, value: nav.dialogUp)
     }
 
+    /// The capsule shows on the strip's first columns and on its own pages;
+    /// a page pushed over them (Settings, someone's page, an editor) has the
+    /// column to itself.
     private var showsPageCapsule: Bool {
-        if nav.viewer != nil || keyboard.height > 0 { return false }
+        if nav.viewer != nil || keyboard.height > 0 || nav.pushed || nav.dialogUp { return false }
+        if nav.page != .chats { return true }
         if nav.columns == 2 { return !(nav.detail == .draw && nav.isVisible(.detail)) }
-        return nav.sheeted || nav.active == .list || nav.active == .sidebar
+        return nav.active == .list || nav.active == .sidebar
     }
 
-    private func closeSheet() {
-        withAnimation(Motion.move) {
-            if nav.noteEditor { nav.noteEditor = false }
-            else if nav.openNote != nil { nav.openNote = nil }
-            else if nav.settingsOpen { nav.settingsOpen = false }
-            else if nav.profile != nil { nav.profile = nil }
-            else { nav.page = .chats }
-        }
-    }
+    /// Only a note's card makes the app recede; pages cover it.
+    private var receded: Bool { nav.dialogUp && !nav.covered }
+
+    private func closeSheet() { nav.closeTop() }
 
     @ViewBuilder
     private func seam(geo: StripGeometry, height: CGFloat) -> some View {
@@ -363,6 +364,14 @@ struct StripGeometry {
         let cx = min(max(W / 2, insets.leading + 32 + w / 2), W - insets.trailing - 32 - w / 2)
         let h = min(680, H - insets.top - 48)
         return CGRect(x: cx - w / 2, y: insets.top + (H - insets.top - h) / 2, width: w, height: h)
+    }
+
+    /// A full-screen page: the whole screen, its own rail in the system's column.
+    func pageContext(capsule: CGFloat) -> ColumnContext {
+        let bottom = keyboard > 0 ? keyboard : insets.bottom
+        return ColumnContext(column: .list, insets: EdgeInsets(top: insets.top, leading: insets.leading, bottom: bottom, trailing: insets.trailing),
+                             isLeftmost: true, isRightmost: true, rail: rail, size: size, twoUp: columns == 2,
+                             keyboard: keyboard, capsule: capsule, onPage: true)
     }
 
     var sheetContext: ColumnContext {

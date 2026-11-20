@@ -13,7 +13,6 @@ struct MemoriesPage: View {
     @State private var query = ""
     @State private var newestFirst = true
     @Namespace private var ns
-    @State private var scrolled = false
 
     private let filters: [(String, LocalizedStringKey)] = [("all", "All"), ("photo", "Photos"), ("video", "Videos"), ("drawing", "Drawings")]
 
@@ -35,96 +34,61 @@ struct MemoriesPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    HStack(spacing: 8) {
-                        SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
-                        TextField("Search", text: $query).font(.bodyC).autocorrectionDisabled()
+        PageScaffold(title: .inline("Memories"),
+                     back: ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.switchPage(.chats) } : nil,
+                     actions: [BarItem(id: "order", sym: .filter, title: newestFirst ? "Oldest first" : "Newest first") {
+                         withAnimation(Motion.ui) { newestFirst.toggle() }
+                         model.show(newestFirst ? String(localized: "Newest first") : String(localized: "Oldest first"))
+                     }],
+                     background: Theme.paper) {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
+                    TextField("Search", text: $query).font(.bodyC).autocorrectionDisabled()
+                }
+                .padding(.horizontal, 14).frame(height: 44)
+                .background(Theme.fill2, in: Capsule())
+                .padding(.horizontal, 16).padding(.bottom, 6)
+                tabs
+            }
+        } content: {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let recap = recap { recapCard(recap) }
+
+                if loading && items.isEmpty {
+                    grid(Array(repeating: nil, count: 12)).padding(.top, 14)
+                } else if items.isEmpty {
+                    VStack(spacing: 6) {
+                        SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
+                        Text("No memories yet").font(AppFont.make(17, .bold)).foregroundStyle(Theme.label)
+                        Text("Photos, videos and drawings you and your friends share in chats are kept here.")
+                            .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal, 14).frame(height: 44)
-                    .background(Theme.fill2, in: Capsule())
-                    .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 6)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 56)
+                }
 
-                    tabs
-
-                    if let recap = recap { recapCard(recap) }
-
-                    if loading && items.isEmpty {
-                        grid(Array(repeating: nil, count: 12)).padding(.top, 14)
-                    } else if items.isEmpty {
-                        VStack(spacing: 6) {
-                            SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
-                            Text("No memories yet").font(AppFont.make(17, .bold)).foregroundStyle(Theme.label)
-                            Text("Photos, videos and drawings you and your friends share in chats are kept here.")
-                                .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
+                ForEach(months, id: \.0) { month, list in
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(month).font(AppFont.make(15, .bold)).foregroundStyle(Theme.label)
+                            Text("\(list.count)").font(AppFont.make(12, .semibold)).foregroundStyle(Theme.label3)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 56)
+                        .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 8)
+                        grid(list.map { Optional($0) })
                     }
+                    .padding(.top, 14)
+                }
 
-                    ForEach(months, id: \.0) { month, list in
-                        VStack(alignment: .leading, spacing: 0) {
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text(month).font(AppFont.make(15, .bold)).foregroundStyle(Theme.label)
-                                Text("\(list.count)").font(AppFont.make(12, .semibold)).foregroundStyle(Theme.label3)
-                            }
-                            .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 8)
-                            grid(list.map { Optional($0) })
-                        }
-                        .padding(.top, 14)
-                    }
-
-                    if more && !items.isEmpty {
-                        ProgressView().frame(maxWidth: .infinity).padding()
-                            .onAppear { Task { await loadMore() } }
-                    }
-                    Color.clear.frame(height: max(ctx.insets.bottom, 12) + 24)
-                } header: {
-                    head
+                if more && !items.isEmpty {
+                    ProgressView().frame(maxWidth: .infinity).padding()
+                        .onAppear { Task { await loadMore() } }
                 }
             }
-        }
-        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 4 } action: { _, v in
-            withAnimation(.easeOut(duration: 0.22)) { scrolled = v }
         }
         .refreshable { await reload() }
         .task(id: filter) { await reload() }
-    }
-
-    /// A chevron, the title in the middle, and "…".
-    private var head: some View {
-        ZStack {
-            Text("Memories").font(AppFont.make(17, .bold)).foregroundStyle(Theme.label)
-            HStack {
-                SheetClose(sym: .chevronDown)
-                Spacer()
-                Menu {
-                    Picker("Order", selection: $newestFirst) {
-                        Text("Newest first").tag(true)
-                        Text("Oldest first").tag(false)
-                    }
-                } label: {
-                    SymbolView(.ellipsis, size: 20).foregroundStyle(Theme.label)
-                        .frame(width: 44, height: 44)
-                        .glassCircle()
-                }
-                .accessibilityLabel("More")
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 12)
-        .padding(.bottom, 6)
-        .frame(minHeight: 62)
-        .background {
-            if scrolled {
-                Rectangle().fill(.ultraThinMaterial)
-                    .overlay(Theme.paper.opacity(0.88))
-                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
-                    .transition(.opacity)
-            }
-        }
     }
 
     /// Tabs with a line under the chosen one.

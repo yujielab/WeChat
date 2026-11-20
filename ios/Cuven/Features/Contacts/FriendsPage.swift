@@ -19,44 +19,43 @@ struct FriendsPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                SheetHeader(title: "Friends", large: true) { SheetClose() }
-
-                HStack(spacing: 10) {
-                    SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
-                    TextField("Find people by username", text: $query)
-                        .font(.bodyC)
-                        .focused($searchFocused)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.search)
-                    if !query.isEmpty {
-                        Button { query = "" } label: {
-                            SymbolView(.xmark, size: 13, weight: 2.2).foregroundStyle(Theme.label2)
-                                .frame(width: 26, height: 26).background(Theme.fill3, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Clear")
+        PageScaffold(title: .large("Friends", Theme.label),
+                     back: ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.switchPage(.chats) } : nil,
+                     actions: [BarItem(id: "group", sym: .people, title: "New group") { nav.newGroup = true }],
+                     background: Theme.grouped) {
+            HStack(spacing: 10) {
+                SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
+                TextField("Find people by username", text: $query)
+                    .font(.bodyC)
+                    .focused($searchFocused)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                if !query.isEmpty {
+                    Button { query = "" } label: {
+                        SymbolView(.xmark, size: 13, weight: 2.2).foregroundStyle(Theme.label2)
+                            .frame(width: 26, height: 26).background(Theme.fill3, in: Circle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear")
                 }
-                .padding(.horizontal, 18)
-                .frame(height: 48)
-                .glassCapsule(interactive: false)
-                .padding(.horizontal, 20)
-
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 48)
+            .glassCapsule(interactive: false)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
+        } content: {
+            VStack(spacing: 0) {
                 if !query.isEmpty {
                     searchResults
                 } else {
                     content
                 }
             }
-            .padding(.bottom, max(ctx.insets.bottom, 16) + 24)
             .animation(Motion.ui, value: model.contacts)
             .animation(Motion.ui, value: query.isEmpty)
         }
-        .scrollDismissesKeyboard(.interactively)
-        .background(Theme.grouped)
         .refreshable { await model.refreshContacts() }
         .task(id: query) {
             guard !query.isEmpty else { results = []; return }
@@ -279,7 +278,6 @@ struct FriendsPage: View {
 struct NewGroupView: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
-    @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var picked: Set<String> = []
     @State private var creating = false
@@ -289,52 +287,40 @@ struct NewGroupView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            SheetHeader(title: "New group", centered: true) {
-                GlassIconButton(sym: .xmark, title: "Cancel") { dismiss() }
-            } trailing: {
-                Button(action: create) {
-                    SymbolView(.check, size: 20, weight: 2.4)
-                        .foregroundStyle(Theme.onInk)
-                        .frame(width: 44, height: 44)
-                        .background(Theme.ink, in: Circle())
+        PageScaffold(title: .inline("New group"),
+                     back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { close() },
+                     actions: [BarItem(id: "create", sym: .check, title: "Create", tint: picked.isEmpty ? nil : Theme.ink.opacity(0.9),
+                                       foreground: picked.isEmpty ? Theme.label3 : Theme.onInk) { create() }],
+                     background: Theme.grouped) {
+            VStack(spacing: 0) {
+                GroupCard {
+                    TextField("Group name", text: $name)
+                        .font(.bodyC)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 58)
                 }
-                .buttonStyle(.press(0.94))
-                .disabled(picked.isEmpty || creating)
-                .opacity(picked.isEmpty ? 0.35 : 1)
-                .accessibilityLabel("Create")
-            }
-            ScrollView {
-                VStack(spacing: 0) {
+                GroupFoot(text: "\(picked.count) selected")
+                GroupTitle(text: "Friends")
+                if friends.isEmpty {
+                    Text("Add friends first, then start a group with them.")
+                        .font(.subheadC).foregroundStyle(Theme.label2)
+                        .padding(.vertical, 24)
+                } else {
                     GroupCard {
-                        TextField("Group name", text: $name)
-                            .font(.bodyC)
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 58)
-                    }
-                    GroupFoot(text: "\(picked.count) selected")
-                    GroupTitle(text: "Friends")
-                    if friends.isEmpty {
-                        Text("Add friends first, then start a group with them.")
-                            .font(.subheadC).foregroundStyle(Theme.label2)
-                            .padding(.vertical, 24)
-                    } else {
-                        GroupCard {
-                            ForEach(Array(friends.enumerated()), id: \.element.id) { i, u in
-                                if i > 0 { CellSeparator(leading: 66) }
-                                friendRow(u)
-                            }
+                        ForEach(Array(friends.enumerated()), id: \.element.id) { i, u in
+                            if i > 0 { CellSeparator(leading: 66) }
+                            friendRow(u)
                         }
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
         }
-        .background(Theme.grouped)
-        .presentationDetents([.large])
-        .presentationCornerRadius(30)
-        .presentationBackground(Theme.grouped)
+    }
+
+    private func close() {
+        withAnimation(Motion.move) { nav.newGroup = false }
     }
 
     private func friendRow(_ u: User) -> some View {
@@ -363,12 +349,18 @@ struct NewGroupView: View {
     }
 
     private func create() {
+        guard !picked.isEmpty, !creating else {
+            if picked.isEmpty { model.show(String(localized: "Pick at least one friend")) }
+            return
+        }
         creating = true
         Task {
             if let id = await model.createGroup(name: name.trimmingCharacters(in: .whitespaces), members: Array(picked)) {
                 Haptics.success()
-                dismiss()
-                nav.page = .chats
+                withAnimation(Motion.move) {
+                    nav.newGroup = false
+                    nav.page = .chats
+                }
                 nav.open(room: id)
             }
             creating = false

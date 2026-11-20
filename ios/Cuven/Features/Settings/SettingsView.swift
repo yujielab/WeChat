@@ -14,16 +14,14 @@ struct SettingsView: View {
     @AppStorage("ui:time-format") private var timeFormat = "system"
     @State private var confirmSignOut = false
     @State private var confirmForget = false
-    @State private var editing = false
-    @State private var password = false
 
     var body: some View {
         @Bindable var model = model
-        ScrollView {
+        PageScaffold(title: .inline("Settings"),
+                     back: BarItem(id: "close", sym: .xmark, title: "Close") { withAnimation(Motion.move) { nav.settingsOpen = false } },
+                     background: Theme.paper) {
             VStack(spacing: 0) {
-                SheetHeader(title: "Settings", large: true) { SheetClose() }
-
-                Button { editing = true } label: {
+                Button { withAnimation(Motion.move) { nav.editingProfile = true } } label: {
                     HStack(spacing: 16) {
                         Avatar(user: model.me, size: 64)
                         VStack(alignment: .leading, spacing: 3) {
@@ -45,7 +43,7 @@ struct SettingsView: View {
 
                 GroupTitle(text: "Account")
                 GroupCard {
-                    Button { password = true } label: { Cell(icon: .lock, title: "Change password", chevron: true) }
+                    Button { withAnimation(Motion.move) { nav.changingPassword = true } } label: { Cell(icon: .lock, title: "Change password", chevron: true) }
                         .buttonStyle(CellButtonStyle())
                     CellSeparator(leading: 58)
                     Cell(icon: .globe, title: "Server") {
@@ -111,9 +109,8 @@ struct SettingsView: View {
                     .padding(.top, 14)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, max(ctx.insets.bottom, 16) + 24)
+            .padding(.top, 4)
         }
-        .background(Theme.paper)
         .confirmationDialog("Log out of Cuven?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Log out", role: .destructive) {
                 nav.settingsOpen = false
@@ -128,8 +125,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .sheet(isPresented: $editing) { EditProfileSheet() }
-        .sheet(isPresented: $password) { PasswordSheet() }
         .onChange(of: model.haptics) { _, on in if on { Haptics.selection() } }
     }
 
@@ -166,7 +161,7 @@ struct SettingsView: View {
 /// your name and a line about you.
 struct EditProfileSheet: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
+    @Environment(Nav.self) private var nav
     @State private var display = ""
     @State private var bio = ""
     @State private var avatarItem: PhotosPickerItem?
@@ -176,13 +171,11 @@ struct EditProfileSheet: View {
     @State private var recent: [String] = []
 
     var body: some View {
-        ScrollView {
+        PageScaffold(title: .inline("Edit profile"),
+                     back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { close() },
+                     actions: [BarItem(id: "save", sym: .check, title: "Save", tint: Theme.ink.opacity(0.9), foreground: Theme.onInk) { save() }],
+                     background: Theme.paper) {
             VStack(alignment: .leading, spacing: 0) {
-                SheetHeader(title: "Edit profile", centered: true) {
-                    GlassIconButton(sym: .xmark, title: "Cancel") { dismiss() }
-                } trailing: {
-                    EmptyView()
-                }
                 PhotosPicker(selection: $coverItem, matching: .images) {
                     ZStack {
                         Group {
@@ -243,35 +236,10 @@ struct EditProfileSheet: View {
                 field("Display name", text: $display)
                 label("Bio")
                 field("Bio (optional)", text: $bio)
-
-                Button {
-                    saving = true
-                    Task {
-                        let name = display.trimmingCharacters(in: .whitespaces)
-                        if await model.updateProfile(display: name.isEmpty ? model.me?.username : name,
-                                                     bio: bio.trimmingCharacters(in: .whitespaces)) {
-                            Haptics.success()
-                            model.show(String(localized: "Saved"))
-                            dismiss()
-                        }
-                        saving = false
-                    }
-                } label: {
-                    Text("Save").font(.headlineC).foregroundStyle(Theme.onInk)
-                        .frame(maxWidth: .infinity).frame(height: 50)
-                        .background(Theme.ink, in: Capsule())
-                }
-                .buttonStyle(.press)
-                .disabled(saving)
-                .padding(.top, 24)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 24)
+            .padding(.top, 4)
         }
-        .background(Theme.paper)
-        .presentationDetents([.large])
-        .presentationCornerRadius(30)
-        .presentationBackground(Theme.paper)
         .onChange(of: avatarItem) { _, item in
             guard let item else { return }
             Task {
@@ -300,6 +268,25 @@ struct EditProfileSheet: View {
         }
     }
 
+    private func close() {
+        withAnimation(Motion.move) { nav.editingProfile = false }
+    }
+
+    private func save() {
+        guard !saving else { return }
+        saving = true
+        Task {
+            let name = display.trimmingCharacters(in: .whitespaces)
+            if await model.updateProfile(display: name.isEmpty ? model.me?.username : name,
+                                         bio: bio.trimmingCharacters(in: .whitespaces)) {
+                Haptics.success()
+                model.show(String(localized: "Saved"))
+                close()
+            }
+            saving = false
+        }
+    }
+
     private func label(_ t: LocalizedStringKey) -> some View {
         Text(t).font(AppFont.make(13, .semibold)).foregroundStyle(Theme.label2)
             .padding(.top, 18).padding(.bottom, 6).padding(.leading, 6)
@@ -318,59 +305,57 @@ struct EditProfileSheet: View {
 /// Change password.
 struct PasswordSheet: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
+    @Environment(Nav.self) private var nav
     @State private var current = ""
     @State private var next = ""
     @State private var busy = false
 
+    private var ready: Bool { !current.isEmpty && next.count >= 6 && !busy }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SheetHeader(title: "Change password", centered: true) {
-                GlassIconButton(sym: .xmark, title: "Cancel") { dismiss() }
-            } trailing: {
-                EmptyView()
+        PageScaffold(title: .inline("Change password"),
+                     back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { close() },
+                     actions: [BarItem(id: "save", sym: .check, title: "Update password", tint: ready ? Theme.ink.opacity(0.9) : nil,
+                                       foreground: ready ? Theme.onInk : Theme.label3) { save() }],
+                     background: Theme.paper) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Current password").font(AppFont.make(13, .semibold)).foregroundStyle(Theme.label2)
+                    .padding(.top, 8).padding(.bottom, 6).padding(.leading, 6)
+                SecureField("Current password", text: $current)
+                    .textContentType(.password)
+                    .font(.bodyC).padding(.horizontal, 16).frame(height: 50)
+                    .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+                Text("New password").font(AppFont.make(13, .semibold)).foregroundStyle(Theme.label2)
+                    .padding(.top, 18).padding(.bottom, 6).padding(.leading, 6)
+                SecureField("New password (6+ characters)", text: $next)
+                    .textContentType(.newPassword)
+                    .font(.bodyC).padding(.horizontal, 16).frame(height: 50)
+                    .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+                    .submitLabel(.done)
+                    .onSubmit { save() }
             }
-            Text("Current password").font(AppFont.make(13, .semibold)).foregroundStyle(Theme.label2)
-                .padding(.top, 8).padding(.bottom, 6).padding(.leading, 6)
-            SecureField("Current password", text: $current)
-                .textContentType(.password)
-                .font(.bodyC).padding(.horizontal, 16).frame(height: 50)
-                .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
-            Text("New password").font(AppFont.make(13, .semibold)).foregroundStyle(Theme.label2)
-                .padding(.top, 18).padding(.bottom, 6).padding(.leading, 6)
-            SecureField("New password (6+ characters)", text: $next)
-                .textContentType(.newPassword)
-                .font(.bodyC).padding(.horizontal, 16).frame(height: 50)
-                .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
-            Button {
-                busy = true
-                Task {
-                    if await model.changePassword(current: current, next: next) {
-                        model.show(String(localized: "Password updated"))
-                        dismiss()
-                    }
-                    busy = false
-                }
-            } label: {
-                Group {
-                    if busy { ProgressView().tint(Theme.onInk) } else { Text("Update password").font(.headlineC) }
-                }
-                .foregroundStyle(Theme.onInk)
-                .frame(maxWidth: .infinity).frame(height: 50)
-                .background(Theme.ink, in: Capsule())
-            }
-            .buttonStyle(.press)
-            .disabled(current.isEmpty || next.count < 6 || busy)
-            .opacity(current.isEmpty || next.count < 6 ? 0.4 : 1)
-            .padding(.top, 24)
-            Spacer(minLength: 0)
+            .padding(.horizontal, 20)
         }
-        .padding(.horizontal, 20)
-        .background(Theme.paper)
-        .presentationDetents([.height(400), .large])
-        .presentationCornerRadius(30)
-        .presentationBackground(Theme.paper)
+    }
+
+    private func close() {
+        withAnimation(Motion.move) { nav.changingPassword = false }
+    }
+
+    private func save() {
+        guard ready else {
+            if !busy { model.show(String(localized: "Passwords are at least 6 characters")) }
+            return
+        }
+        busy = true
+        Task {
+            if await model.changePassword(current: current, next: next) {
+                model.show(String(localized: "Password updated"))
+                close()
+            }
+            busy = false
+        }
     }
 }
