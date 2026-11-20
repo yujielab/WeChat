@@ -415,18 +415,21 @@ struct InviteCard: View {
                 .background(Theme.fill2, in: Circle())
             VStack(alignment: .leading, spacing: 1) {
                 Text("Invite friends").font(.headlineC).foregroundStyle(Theme.label)
+                    .lineLimit(1).minimumScaleFactor(0.8)
                 Text("Send friends a link to Cuven.").font(.subheadC).foregroundStyle(Theme.label2).lineLimit(2)
             }
+            .layoutPriority(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 10)
             ShareLink(item: model.serverURL) {
                 Text("Share")
                     .font(AppFont.make(13, .semibold))
                     .foregroundStyle(Color(hex: 0x0062cc))
-                    .padding(.horizontal, 16)
-                    .frame(minWidth: 84, minHeight: 36)
+                    .padding(.horizontal, 14)
+                    .frame(minWidth: 72, minHeight: 36)
                     .background(Color.white, in: Capsule())
                     .overlay(Capsule().strokeBorder(Color.black, lineWidth: 1))
+                    .fixedSize()
             }
             .buttonStyle(.press)
             if let dismiss {

@@ -127,9 +127,11 @@ struct ProfileView: View {
                 .padding(.top, 12)
             }
             HStack(spacing: 18) {
-                count(page?.count ?? 0, "Posts")
-                if isMe, let f = page?.friends { count(f, "Friends") }
-                else if !isMe { Text(page?.friend == true ? "Friends" : "You've not talked yet").font(.subheadC).foregroundStyle(Theme.label2) }
+                count(page?.count ?? 0, (page?.count ?? 0) == 1 ? "Post" : "Posts")
+                if isMe, let f = page?.friends { count(f, f == 1 ? "Friend" : "Friends") }
+                else if !isMe {
+                    Text(page?.friend == true ? "You're friends" : "You've not talked yet").font(.subheadC).foregroundStyle(Theme.label2)
+                }
             }
             .padding(.top, 10)
 

@@ -128,13 +128,18 @@ struct SettingsView: View {
         .onChange(of: model.haptics) { _, on in if on { Haptics.selection() } }
     }
 
+    /// The name and its choices on one line where they fit; the choices under the name where they don't.
     private func segmentRow(_ title: LocalizedStringKey, _ options: [(String, LocalizedStringKey)], _ value: Binding<String>) -> some View {
-        HStack(spacing: 12) {
-            Text(title).font(.bodyC).foregroundStyle(Theme.label)
-                .lineLimit(3).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            InkSegmented(options: options, selection: value)
-                .fixedSize()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                Text(title).font(.bodyC).foregroundStyle(Theme.label).lineLimit(1).fixedSize()
+                Spacer(minLength: 8)
+                InkSegmented(options: options, selection: value).fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title).font(.bodyC).foregroundStyle(Theme.label)
+                InkSegmented(options: options, selection: value).fixedSize()
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)

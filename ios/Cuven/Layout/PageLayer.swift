@@ -138,6 +138,8 @@ struct PageScaffold<Header: View, Content: View>: View {
             .padding(.top, ctx.insets.top > 20 ? 4 : 16)
             header
         }
+        // In line with the content: the same readable width, centred.
+        .frame(maxWidth: maxWidth)
         .frame(maxWidth: .infinity)
     }
 
