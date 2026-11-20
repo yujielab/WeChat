@@ -108,7 +108,7 @@ struct CallOverlay: View {
     private var topCapsule: some View {
         HStack(spacing: 10) {
             Button { withAnimation(Motion.morph) { calls.expanded = false } } label: {
-                Image(systemName: "chevron.down").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                SymbolView(.chevronDown, size: 18).foregroundStyle(.white)
                     .frame(width: 34, height: 34)
             }
             .accessibilityLabel("Minimize")
@@ -137,21 +137,21 @@ struct CallOverlay: View {
     private var controls: some View {
         if calls.phase == .incoming {
             HStack(spacing: 64) {
-                roundButton("phone.down.fill", "Decline", color: Theme.red, size: 72) { calls.decline() }
-                roundButton(calls.video ? "video.fill" : "phone.fill", "Accept", color: Theme.green, size: 72) { calls.accept() }
-                    .symbolEffect(.bounce, options: .repeating, value: calls.phase)
+                roundButton(.phoneDown, "Decline", color: Theme.red, size: 72) { calls.decline() }
+                roundButton(calls.video ? .video : .phoneFill, "Accept", color: Theme.green, size: 72) { calls.accept() }
+                    .phaseAnimator([1.0, 1.08]) { v, k in v.scaleEffect(k) } animation: { _ in .easeInOut(duration: 0.6) }
             }
         } else {
             GlassGroup(spacing: 8) {
                 HStack(spacing: 12) {
                     if calls.video {
-                        control(calls.camOff ? "video.slash.fill" : "video.fill", "Camera", on: !calls.camOff) { calls.toggleCamera() }
-                        control("arrow.triangle.2.circlepath.camera.fill", "Flip camera", on: true) { calls.flip() }
+                        control(.video, slashed: calls.camOff, "Camera", on: !calls.camOff) { calls.toggleCamera() }
+                        control(.cameraRotate, "Flip camera", on: true) { calls.flip() }
                     } else {
-                        control(calls.speaker ? "speaker.wave.3.fill" : "speaker.fill", "Speaker", on: calls.speaker) { calls.toggleSpeaker() }
+                        control(calls.speaker ? .speaker : .speakerOff, "Speaker", on: calls.speaker) { calls.toggleSpeaker() }
                     }
-                    control(calls.muted ? "mic.slash.fill" : "mic.fill", "Microphone", on: !calls.muted) { calls.toggleMute() }
-                    roundButton("phone.down.fill", "End call", color: Theme.red, size: 60) { calls.hangUp() }
+                    control(.mic, slashed: calls.muted, "Microphone", on: !calls.muted) { calls.toggleMute() }
+                    roundButton(.phoneDown, "End call", color: Theme.red, size: 60) { calls.hangUp() }
                 }
                 .padding(10)
                 .glass(Capsule(), tint: .black.opacity(0.35), interactive: false)
@@ -159,23 +159,21 @@ struct CallOverlay: View {
         }
     }
 
-    private func control(_ symbol: String, _ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
+    private func control(_ sym: Sym, slashed: Bool = false, _ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 21, weight: .semibold))
+            SymbolView(sym, size: 26, slashed: slashed)
                 .foregroundStyle(on ? .white : .black)
                 .frame(width: 60, height: 60)
                 .background(on ? Color.white.opacity(0.16) : Color.white, in: Circle())
-                .contentTransition(.symbolEffect(.replace))
+                .animation(Motion.quick, value: on)
         }
         .buttonStyle(.press(0.9))
         .accessibilityLabel(Text(title))
     }
 
-    private func roundButton(_ symbol: String, _ title: LocalizedStringKey, color: Color, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func roundButton(_ sym: Sym, _ title: LocalizedStringKey, color: Color, size: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.36, weight: .semibold))
+            SymbolView(sym, size: size * 0.42)
                 .foregroundStyle(.white)
                 .frame(width: size, height: size)
                 .background(color, in: Circle())
@@ -189,7 +187,7 @@ struct CallOverlay: View {
     private var pill: some View {
         Button { withAnimation(Motion.morph) { calls.expanded = true } } label: {
             HStack(spacing: 10) {
-                Image(systemName: calls.video ? "video.fill" : "phone.fill").foregroundStyle(Theme.green)
+                SymbolView(calls.video ? .video : .phoneFill, size: 17).foregroundStyle(Theme.green)
                 Text(calls.title).font(.subheadMediumC).foregroundStyle(.white).lineLimit(1)
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(statusLine).font(.footnoteC.monospacedDigit()).foregroundStyle(.white.opacity(0.75))

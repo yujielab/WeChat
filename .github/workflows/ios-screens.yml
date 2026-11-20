@@ -1,7 +1,9 @@
 # Runs the iOS app in the Simulator against a local copy of the backend
 # (`wrangler dev --local`, seeded with demo data) and uploads a screenshot
 # of each screen (artifact "screenshots"): an iPhone for the one-column
-# layout, an iPad for two columns.
+# layout, and the iPhone Duo's two displays (outer 466×678 with a 90pt system
+# column, inner 951×669 with 84pt) laid out inside an iPad simulator with
+# CUVEN_EMULATE, since the Duo simulator can't boot on the hosted runner.
 
 name: iOS screenshots
 
@@ -25,7 +27,7 @@ jobs:
         include:
           - kind: phone
             device: "iPhone.*Pro Max"
-          - kind: pad
+          - kind: duo
             device: "iPad Pro"
     env:
       WRANGLER_SEND_METRICS: "false"
@@ -36,10 +38,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Select the newest stable Xcode
+      - name: Select Xcode 27.2 (iOS 27.2 SDK)
         run: |
-          XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi -e beta -e rc | sort -V | tail -1)
-          sudo xcode-select -s "${XC:-/Applications/Xcode.app}"
+          XC=/Applications/Xcode_27.2.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_27*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
           xcodebuild -version
 
       # Booting takes minutes on a fresh runner: start it now, so it boots
@@ -56,6 +59,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           brew install xcodegen
+          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow || true
 
       - name: Cache Swift packages
         uses: actions/cache@v4

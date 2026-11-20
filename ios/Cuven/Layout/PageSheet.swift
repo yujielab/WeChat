@@ -38,8 +38,8 @@ struct PageSheetLayer: View {
                     .offset(x: f.minX, y: f.minY + max(0, drag))
                     .environment(\.column, geo.sheetContext)
                     .transition(geo.columns == 1
-                        ? .offset(y: f.height + 40)
-                        : .opacity.combined(with: .scale(scale: 0.96)).combined(with: .blur(4)))
+                        ? AnyTransition.offset(y: f.height + 40)
+                        : AnyTransition.opacity.combined(with: .scale(scale: 0.96)).combined(with: .blur(4)))
                     .id(kindKey(kind))
             }
         }

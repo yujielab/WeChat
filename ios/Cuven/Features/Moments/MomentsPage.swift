@@ -157,7 +157,7 @@ struct MomentsPage: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 0.5) }
     }
 
-    private func person<Badge: View>(user: User?, name: String, fresh: Bool, @ViewBuilder badge: () -> Badge) -> some View {
+    private func person<Mark: View>(user: User?, name: String, fresh: Bool, @ViewBuilder badge: () -> Mark) -> some View {
         VStack(spacing: 6) {
             ZStack {
                 if fresh {

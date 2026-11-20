@@ -45,13 +45,13 @@ struct PhotoViewer: View {
                 if chrome && expanded {
                     HStack {
                         Button { close() } label: {
-                            Image(systemName: "xmark").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                            SymbolView(.xmark, size: 22).foregroundStyle(.white)
                                 .frame(width: 44, height: 44).glassCircle(tint: .black.opacity(0.3))
                         }
                         .accessibilityLabel("Close")
                         Spacer()
                         Button { share() } label: {
-                            Image(systemName: "square.and.arrow.up").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                            SymbolView(.share, size: 22).foregroundStyle(.white)
                                 .frame(width: 44, height: 44).glassCircle(tint: .black.opacity(0.3))
                         }
                         .accessibilityLabel("Share")

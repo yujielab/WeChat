@@ -63,6 +63,26 @@ struct RootView: View {
             }
         }
         .animation(.smooth(duration: 0.4), value: model.phase)
+        .modifier(EmulatedDisplay())
+    }
+}
+
+/// CI screenshots only (CUVEN_EMULATE): the whole app laid out at the iPhone
+/// Duo display's size in the top-left corner, with no status bar over it.
+private struct EmulatedDisplay: ViewModifier {
+    func body(content: Content) -> some View {
+        if let emu = Emulation.current {
+            content
+                .frame(width: emu.size.width, height: emu.size.height)
+                .clipped()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color.black)
+                .ignoresSafeArea()
+                .statusBarHidden(true)
+                .persistentSystemOverlays(.hidden)
+        } else {
+            content
+        }
     }
 }
 
