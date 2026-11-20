@@ -74,6 +74,7 @@ jobs:
             || { grep -E -A3 "error:" sim.log | head -200; exit 1; }
 
       - name: Screenshots
+        timeout-minutes: 25
         run: bash ios/tools/screens.sh
 
       - name: Hub log

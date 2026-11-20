@@ -13,25 +13,29 @@ PAD=$(pick "iPad Pro")
 [ -z "$PAD" ] && PAD=$(pick "iPad")
 echo "phone=$PHONE pad=$PAD"
 
+# Nothing here may hang the job: every simulator call has a time limit.
+t() { local s=$1; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }
+
+# Boot both at once, then wait for each.
+for U in $PHONE $PAD; do t 120 xcrun simctl boot "$U" 2>/dev/null || true; done
 for U in $PHONE $PAD; do
-  xcrun simctl boot "$U" 2>/dev/null || true
-  xcrun simctl bootstatus "$U" -b >/dev/null
-  xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 2>/dev/null || true
-  xcrun simctl install "$U" "$APP"
+  t 300 xcrun simctl bootstatus "$U" -b >/dev/null || echo "boot wait timed out for $U"
+  t 30 xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 2>/dev/null || true
+  t 120 xcrun simctl install "$U" "$APP" || echo "install failed on $U"
 done
 
 shoot() { # udid name screen [appearance] [wait] [signin]
   local U=$1 N=$2 S=$3 L=${4:-light} W=${5:-6} SIGN=${6:-1}
-  xcrun simctl terminate "$U" us.cuven.app 2>/dev/null || true
+  t 20 xcrun simctl terminate "$U" us.cuven.app 2>/dev/null || true
   if [ "$SIGN" = 1 ]; then
     SIMCTL_CHILD_CUVEN_SERVER=http://localhost:8787 SIMCTL_CHILD_CUVEN_USER=alice SIMCTL_CHILD_CUVEN_PASS=cuven-demo \
-    SIMCTL_CHILD_CUVEN_SCREEN="$S" SIMCTL_CHILD_CUVEN_APPEARANCE="$L" xcrun simctl launch "$U" us.cuven.app >/dev/null
+    SIMCTL_CHILD_CUVEN_SCREEN="$S" SIMCTL_CHILD_CUVEN_APPEARANCE="$L" t 60 xcrun simctl launch "$U" us.cuven.app >/dev/null
   else
     SIMCTL_CHILD_CUVEN_SERVER=http://localhost:8787 SIMCTL_CHILD_CUVEN_SCREEN="$S" SIMCTL_CHILD_CUVEN_APPEARANCE="$L" \
-      xcrun simctl launch "$U" us.cuven.app >/dev/null
+      t 60 xcrun simctl launch "$U" us.cuven.app >/dev/null
   fi
   sleep "$W"
-  xcrun simctl io "$U" screenshot "$OUT/$N.png" >/dev/null 2>&1 && echo "shot $N"
+  t 30 xcrun simctl io "$U" screenshot "$OUT/$N.png" >/dev/null 2>&1 && echo "shot $N" || echo "no shot $N"
 }
 
 shoot "$PHONE" 01-phone-auth auth light 5 0
