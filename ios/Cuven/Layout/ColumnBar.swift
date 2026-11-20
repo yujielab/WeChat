@@ -70,9 +70,9 @@ struct ColumnBar<Center: View>: View {
         } else {
             GlassGroup(spacing: Bar.gap) {
                 HStack(alignment: .bottom, spacing: Bar.gap) {
-                    if let back { icon(back).transition(.scale(scale: 0.6).combined(with: .opacity)) }
+                    if let back { icon(back, size: Bar.foot).transition(.scale(scale: 0.6).combined(with: .opacity)) }
                     if hasCenter { center.frame(maxWidth: .infinity) } else { Spacer(minLength: 0) }
-                    if !(actions + footActions).isEmpty { group(actions + footActions, axis: .horizontal) }
+                    if !(actions + footActions).isEmpty { group(actions + footActions, axis: .horizontal, size: Bar.foot) }
                 }
             }
             .padding(.leading, max(ctx.insets.leading, 16))
@@ -94,16 +94,16 @@ struct ColumnBar<Center: View>: View {
         ctx.keyboard > 0 ? ctx.insets.bottom + 4 : max(ctx.insets.bottom, 14) + ctx.capsule
     }
 
-    private func icon(_ item: BarItem) -> some View {
+    private func icon(_ item: BarItem, size: CGFloat = Bar.height) -> some View {
         GlassIconButton(sym: item.sym, title: item.title, tint: item.tint, foreground: item.foreground,
-                        badge: item.badge, badgeInk: item.badgeInk, action: item.action)
+                        badge: item.badge, badgeInk: item.badgeInk, size: size, action: item.action)
     }
 
     @ViewBuilder
-    private func group(_ items: [BarItem], axis: Axis) -> some View {
+    private func group(_ items: [BarItem], axis: Axis, size: CGFloat = Bar.height) -> some View {
         if items.count == 1 || !groupActions {
             let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: Bar.gap)) : AnyLayout(VStackLayout(spacing: 12))
-            layout { ForEach(items) { icon($0) } }
+            layout { ForEach(items) { icon($0, size: size) } }
         } else {
             let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
             layout {
@@ -114,7 +114,7 @@ struct ColumnBar<Center: View>: View {
                     } label: {
                         SymbolView(item.sym, size: 22)
                             .foregroundStyle(item.foreground)
-                            .frame(width: 44, height: 44)
+                            .frame(width: axis == .horizontal ? size - 4 : 44, height: axis == .horizontal ? size : 44)
                             .overlay(alignment: .topTrailing) {
                                 if item.badge > 0 {
                                     Badge(count: item.badge, color: Theme.red, text: .white, small: true).offset(x: 2, y: -2)
@@ -143,7 +143,7 @@ extension ColumnContext {
     /// How much room the foot bar takes, for content to stop above it.
     var barClearance: CGFloat {
         let base = keyboard > 0 ? insets.bottom + 8 : max(insets.bottom, 16)
-        return base + Bar.height + 14
+        return base + Bar.foot + 14
     }
 
     /// Bottom padding for scrolling content: above the bar, or just the safe area where the rail holds the controls.

@@ -5,15 +5,18 @@ Web 端（`public/`）作为界面与交互的参照。不是网页套壳：没�
 相机、录音、手绘、通话都是系统原生实现。专门为 **iPhone Duo**（外屏折叠 / 内屏展开）适配，
 普通 iPhone、Pro Max 横屏和 iPad 同样可用。
 
-- 最低系统：iOS 17；在 iOS 26 及以上使用系统 **Liquid Glass**（`glassEffect`，可交互、会折射），
-  更早的系统退回磨砂材质 + 细边 + 接触阴影；“降低透明度”时为实色。
+- 用 **Xcode 27.2 / iOS 27.2 SDK** 构建，最低系统 iOS 26；全部玻璃控件是系统 **Liquid Glass**
+  （`glassEffect`，可交互、会折射），“降低透明度”或设置里的“Reduce transparency”时为实色。
+- **与 Web 端一致**：颜色、字号、圆角、间距、动效时长直接取自 `public/css`（`tokens.css`、`thread.css`、
+  `list.css`、`overlays.css`……），图标是 `public/index.html` 里的同一套 SVG 符号，由
+  `ios/tools/gen-symbols.py` 转成原生路径（`Design/Symbols.generated.swift`），不是 SF Symbols 的近似。
 - 依赖（Swift Package）：[lottie-spm](https://github.com/airbnb/lottie-spm)（动画表情）、
   [WebRTC](https://github.com/stasel/WebRTC)（语音 / 视频通话）。
 - 字体：Clarinetta（由 `public/fonts` 转成 OTF 并补全字体名表），中文自动回落苹方；跟随“动态字体”。
 
 ## 拿到 IPA
 
-每次推送 `ios/**` 都会触发 GitHub Actions（`.github/workflows/ios.yml`，macOS 26 + 最新 Xcode）：
+每次推送 `ios/**` 都会触发 GitHub Actions（`.github/workflows/ios.yml`，`xcode-27` 运行器 + Xcode 27.2）：
 
 1. 打开仓库 **Actions › iOS IPA**，点最新一次运行，在 **Artifacts** 下载 `Cuven-ipa`（解压得到 `Cuven.ipa`）。
 2. 公开的下载链接在仓库的 **Releases** 里。发布新版本的三种方式：**Actions › iOS IPA › Run workflow** 并勾选
@@ -77,23 +80,28 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
   把当前最右一栏的控制竖排进这一列：返回 / 关闭在最上，其后是操作（对话：返回、语音、视频、聊天信息），
   从相机和状态栏下方开始（外屏 170pt、内屏 118pt），正对状态栏时钟的中线；输入框留在这一列之前。
   内屏展开时左栏仍用底部栏、右栏用侧栏。普通 iPhone 横屏两侧安全区一样宽，不会被当成 Duo。
-- **页面胶囊**：Duo 的系统列底部一个竖向胶囊：Chats、Moments、Memories、Requests、You、Menu，
-  当前页的浅色圆底在切换时滑过去；其他设备从边栏进入这些页面。
-- **底部胶囊栏**：没有系统列的设备，每一栏的控制都在底部一条 52pt 悬浮玻璃栏里，单手可及：
-  离开这一栏的按钮固定在左下角，单个操作是圆，成组的是胶囊，中间是搜索框或输入框；随键盘上移。
+- **页面胶囊**：Duo 的系统列底部一个竖向胶囊：Chats、Moments、Memories、Friends、You、Menu，
+  当前页的浅色圆底在切换时滑过去；栏里“开始某件事”的按钮（边栏的 Search、手绘板的撤销 / 重做）站在胶囊正上方。
+  页面以纸张样式的 sheet 打开（外屏贴内容区、内屏居中的表单），背后的栏带缩小后退。
+- **铰链与折痕（iOS 27.1+）**：`onHingeChange` 读出合上 / 半折 / 放平，`reservedRegions(kind: .division)`
+  读出折痕的位置；半折像书一样时两栏以折痕为界，折痕两侧一层淡阴影。
+- **底部栏**：没有系统列的设备，每一栏的控制在底部 56pt 的栏里，单手可及：
+  离开这一栏的按钮在左下角，单个操作是圆，成组的是胶囊，中间是搜索框或输入框；随键盘上移。
 - **网格用偶数列**：回忆、聊天信息里的照片墙都是四列，个人主页图片墙两列瀑布流。
 - 每一栏只拿它真正接触到的那条边的安全区（左栏不吃右侧系统列、右栏不吃左侧），所以内容不会被系统列挤压。
 
-## 界面与动效（比 Web 端更进一步）
+## 界面与动效（与 Web 端一致）
 
-- **消息**：Facebook 蓝的自己气泡、浅灰的对方气泡，同组气泡相接处收紧圆角，每组最后一条带弯尾巴；
-  发出的从输入框升起、收到的平滑出现；连续消息分组，超过一小时插入浮动时间；未读分隔线“New messages”。
-- **长按消息**：对话整体模糊，这条消息原样浮起（大小、换行完全一致），回应胶囊在上、操作卡片在下，
-  靠近底部时整体上移刚好够的距离；回应按钮依次弹出。
+- **消息**：Facebook 蓝的自己气泡、浅灰的对方气泡，23pt 圆角（单行即胶囊），同组相接处收成 8pt，
+  每组最后一条那个角变成小尖角；同一人 3pt、换人 12pt；静默 5 分钟或换日插入时间（系统字体 12pt，
+  当天第一个写出 Today / Yesterday）；未读分隔“New messages below”；系统提示是浅黄小底板。
+- **长按消息**：对话整体模糊，这条消息原样浮起，顶部是完整发送时间，回应胶囊在上、操作卡片在下
+  （Reply / Copy / Select text / Edit…，再一段 Unsend / Delete for me），靠近底部时整体上移刚好够的距离。
 - **双击爱心**、**右滑回复**（越过阈值有触感）、点回复引用跳回原消息并高亮。
 - **实时输入预览**（Honk 式）：对方正在打的字实时出现在虚线气泡里；可在设置里关闭“Live typing”。
-- **输入框**：“+”按下从按钮本身长出附件面板（照片、相机、手绘、表情、文件），“+”转成“×”；有字时原位变成“发送”；
-  空着时右端是麦克风，点一下录语音（实时音量条、可丢弃）；智能续写以建议胶囊给出，点一下采用；群聊里输入 @ 弹出成员。
+- **输入框**：56pt 的胶囊，“+”在框内右端，按下从按钮处长出 212pt 的附件卡片（照片、相机、手绘、表情、文件），
+  “+”转成“×”；框外是麦克风圆钮，有字时原位变成墨色的发送（编辑时是 ✓）；回复 / 编辑时框顶出现一条引用，
+  框变成圆角矩形；智能续写以建议胶囊给出；群聊里输入 @ 弹出成员列表。
 - **输入框弥散光**：四团柔和的光沿各自轨迹缓慢漂移（Ocean / Dawn / Aurora / Off），聚焦时更亮，“减少动态效果”时静止。
 - **照片**：从气泡放大到全屏、下拉缩回原处；双指 / 双击缩放；分享与保存。
 - **手绘板**（PencilKit）：钢笔、马克笔、荧光笔、铅笔、橡皮站成一排（手里那支升高，笔尖是当前颜色），
@@ -114,8 +122,9 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
   App 完全退出后的推送需要后端增加 APNs（需要 Apple 开发者账号的 .p8 密钥），目前未做。
 - **视频表情**（`.webm`）：iOS 无法播放 WebM，显示其静态图；静态与动画（Lottie）表情正常。
 - 未签名的 IPA 需要自行重签；免费 Apple ID 签名 7 天后需要重签。
-- iPhone Duo 的姿态（半折 / 放平）目前没有可用的公开 API（iOS 27 的 `ArrangementView` / `ReservedRegion`
-  需要更新的 SDK），所以半折的等宽布局由设置项控制；折叠 / 展开、系统列、内外屏尺寸都自动识别。
+- GitHub 托管的 macOS 运行器上 iPhone Duo 模拟器无法启动（Data Migration Failed），所以 CI 截图
+  （`.github/workflows/ios-screens.yml`）用 `CUVEN_EMULATE=outer|inner` 在 iPad 模拟器里按外屏 466×678 / 内屏 951×669
+  和系统列宽度排版后裁出；真机与本地 Duo 模拟器走系统的安全区、铰链和折痕 API。
 
 ## 目录
 

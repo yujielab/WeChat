@@ -79,24 +79,9 @@ struct MomentEditor: View {
                 .animation(Motion.ui, value: scheduleOn)
             }
             .safeAreaInset(edge: .bottom) { bottomBar }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { if dirty { confirmDiscard = true } else { dismiss() } }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button { post() } label: {
-                        Group {
-                            if posting { ProgressView().tint(Theme.onInk) }
-                            else { Text(scheduleOn ? "Schedule" : "Post").font(.headlineC) }
-                        }
-                        .foregroundStyle(Theme.onInk)
-                        .padding(.horizontal, 16).frame(height: 34)
-                        .background(Theme.ink.opacity(canPost ? 1 : 0.3), in: Capsule())
-                    }
-                    .disabled(!canPost)
-                }
-            }
+            .safeAreaInset(edge: .top, spacing: 0) { head }
+            .toolbar(.hidden, for: .navigationBar)
+            .background(Theme.paper)
             .interactiveDismissDisabled(dirty)
             .confirmationDialog("Discard this moment?", isPresented: $confirmDiscard, titleVisibility: .visible) {
                 Button("Discard", role: .destructive) { dismiss() }
@@ -131,6 +116,36 @@ struct MomentEditor: View {
         }
     }
 
+    /// Cancel and a Post pill across the top, frosted over the words.
+    private var head: some View {
+        HStack(spacing: 10) {
+            Button { if dirty { confirmDiscard = true } else { dismiss() } } label: {
+                Text("Cancel").font(AppFont.make(17, .semibold)).foregroundStyle(Theme.label)
+                    .padding(.horizontal, 10).frame(height: 44)
+            }
+            .buttonStyle(FillPressStyle(radius: 22, fill: Theme.fill2))
+            Text(posting ? String(localized: "Posting…") : (scheduleOn ? String(localized: "Goes out \(Fmt.dayStamp(at))") : ""))
+                .font(.footnoteC).foregroundStyle(Theme.label2).lineLimit(1)
+                .frame(maxWidth: .infinity)
+            Button { post() } label: {
+                Group {
+                    if posting { ProgressView().tint(Theme.onInk) }
+                    else { Text(scheduleOn ? "Schedule" : "Post").font(AppFont.make(15, .bold)) }
+                }
+                .foregroundStyle(Theme.onInk)
+                .padding(.horizontal, 20).frame(minWidth: 84, minHeight: 40)
+                .background(Theme.ink, in: Capsule())
+            }
+            .buttonStyle(.press(0.96))
+            .disabled(!canPost)
+            .opacity(canPost ? 1 : 0.35)
+        }
+        .padding(.leading, 12).padding(.trailing, 16).padding(.top, 14).padding(.bottom, 6)
+        .frame(minHeight: 64)
+        .background(.ultraThinMaterial)
+        .background(Theme.paper.opacity(0.9))
+    }
+
     private func pickCard(_ p: Pick) -> some View {
         let a = max(0.6, min(1.8, p.size.width / max(1, p.size.height)))
         return ZStack(alignment: .topTrailing) {
@@ -140,7 +155,7 @@ struct MomentEditor: View {
                 } else {
                     ZStack {
                         Theme.fillQuiet
-                        Image(systemName: "video.fill").font(.system(size: 30)).foregroundStyle(Theme.label2)
+                        SymbolView(.video, size: 34).foregroundStyle(Theme.label2)
                     }
                 }
             }
@@ -150,7 +165,7 @@ struct MomentEditor: View {
             Button {
                 withAnimation(Motion.ui) { picks.removeAll { $0.id == p.id } }
             } label: {
-                Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                SymbolView(.xmark, size: 14, weight: 2.4).foregroundStyle(.white)
                     .frame(width: 28, height: 28).background(.black.opacity(0.5), in: Circle())
             }
             .padding(8)
@@ -189,9 +204,9 @@ struct MomentEditor: View {
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: audience == "friends" ? "person.2.fill" : "globe")
+                        SymbolView(audience == "friends" ? .people : .globe, size: 16)
                         Text(audienceLine)
-                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .bold))
+                        SymbolView(.chevronDown, size: 12)
                     }
                     .font(.footnoteC)
                     .foregroundStyle(Theme.label2)
@@ -199,16 +214,16 @@ struct MomentEditor: View {
                 Spacer()
             }
             HStack(spacing: 22) {
-                tool("photo.on.rectangle", "Photos") { showPicker = true }
+                tool(.photo, "Photos") { showPicker = true }
                     .disabled(picks.count >= 9 || picks.contains { $0.video != nil })
-                tool("camera", "Camera") { showCamera = true }
-                tool("person.badge.plus", "Tag people") { tagging = true }
-                tool(scheduleOn ? "clock.fill" : "clock", "Schedule") { withAnimation(Motion.ui) { scheduleOn.toggle() } }
+                tool(.camera, "Camera") { showCamera = true }
+                tool(.personPlus, "Tag people") { tagging = true }
+                tool(.clock, "Schedule", on: scheduleOn) { withAnimation(Motion.ui) { scheduleOn.toggle() } }
                 Spacer()
                 ZStack {
                     Circle().stroke(Theme.line, lineWidth: 3)
                     Circle().trim(from: 0, to: CGFloat(text.count) / CGFloat(limit))
-                        .stroke(limit - text.count < 100 ? Theme.orange : Theme.sky, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .stroke(limit - text.count < 100 ? Theme.orange : Theme.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     if limit - text.count < 100 {
                         Text("\(limit - text.count)").font(.system(size: 9, weight: .bold).monospacedDigit()).foregroundStyle(Theme.orange)
@@ -220,7 +235,8 @@ struct MomentEditor: View {
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
-        .background(.bar)
+        .background(.ultraThinMaterial)
+        .background(Theme.paper.opacity(0.9))
     }
 
     private var audienceLine: String {
@@ -232,13 +248,17 @@ struct MomentEditor: View {
         }
     }
 
-    private func tool(_ symbol: String, _ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+    private func tool(_ sym: Sym, _ title: LocalizedStringKey, on: Bool = false, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.tap()
             action()
         } label: {
-            Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(Theme.label)
+            SymbolView(sym, size: 24, weight: on ? 2.3 : nil)
+                .foregroundStyle(on ? Theme.blue : Theme.label)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.press(0.9))
         .accessibilityLabel(Text(title))
     }
 

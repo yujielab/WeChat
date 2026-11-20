@@ -38,11 +38,10 @@ struct MainView: View {
         .ignoresSafeArea()
         .background(SafeAreaReader { safe = $0 }.ignoresSafeArea())
         .modifier(HingeWatcher(posture: $posture))
-        .environment(nav)
-        .fullScreenCover(isPresented: $nav.composeMoment) { MomentEditor() }
-        .sheet(isPresented: $nav.noteEditor) { NoteEditor() }
-        .sheet(item: $nav.openNote) { note in NoteSheet(note: note) }
-        .sheet(isPresented: $nav.newGroup) { NewGroupView() }
+        .fullScreenCover(isPresented: $nav.composeMoment) { MomentEditor().environment(nav) }
+        .sheet(isPresented: $nav.noteEditor) { NoteEditor().environment(nav) }
+        .sheet(item: $nav.openNote) { note in NoteSheet(note: note).environment(nav) }
+        .sheet(isPresented: $nav.newGroup) { NewGroupView().environment(nav) }
         .overlay { CallOverlay() }
         .task { await Automation.drive(model, nav) }
         .onChange(of: model.pendingRoom) { _, room in
@@ -64,6 +63,8 @@ struct MainView: View {
                 nav.open(room: chat)
             }
         }
+        // Last, so the sheets and the call overlay see it too.
+        .environment(nav)
     }
 
     private var visibleRoom: String? {

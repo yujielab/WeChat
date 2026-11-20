@@ -295,14 +295,16 @@ struct ChatListView: View {
                     Haptics.tap()
                     withAnimation(Motion.ui) { nav.searching = true }
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 9) {
                         SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
-                        Text("Search chats and contacts").font(.bodyC).foregroundStyle(Theme.label3).lineLimit(1)
+                        Text("Search chats and contacts").font(.calloutC).foregroundStyle(Theme.label2).lineLimit(1)
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, 16)
-                    .frame(height: Bar.height)
-                    .glassCapsule()
+                    .padding(.horizontal, 17)
+                    .frame(height: Bar.foot)
+                    .background(Theme.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
                 }
                 .buttonStyle(.press)
             }
@@ -370,7 +372,7 @@ struct ChatRow: View {
         HStack(spacing: 12) {
             Avatar(path: room.avatar, name: room.title, size: compact ? 38 : 46, room: room.isGroup,
                    online: !room.isGroup && model.isOnline(room.peer?.id))
-            VStack(alignment: .leading, spacing: compact ? 1 : 3) {
+            VStack(alignment: .leading, spacing: compact ? 1 : 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(room.title)
                         .font(AppFont.make(compact ? 15 : 17, .semibold))
@@ -405,9 +407,9 @@ struct ChatRow: View {
                     }
                     if room.unread > 0 && !compact {
                         if room.marked {
-                            Circle().fill(Theme.badge).frame(width: 12, height: 12)
+                            Circle().fill(Theme.badge).frame(width: 18, height: 18)
                         } else {
-                            Badge(count: room.unread, color: room.muted ? Theme.fill : Theme.badge, text: room.muted ? Theme.label2 : Theme.onBrand)
+                            Badge(count: room.unread, color: room.muted ? Theme.fill : Theme.badge, text: room.muted ? Theme.label2 : Theme.onBrand, small: true)
                         }
                     }
                 }

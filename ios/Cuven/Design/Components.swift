@@ -86,6 +86,8 @@ struct RowPressStyle: ButtonStyle {
 
 enum Bar {
     static let height: CGFloat = 44
+    /// The bars at a column's foot (the search pill, the composer): 56pt.
+    static let foot: CGFloat = 56
     static let gap: CGFloat = 10
     static let railWidth: CGFloat = 52
 }

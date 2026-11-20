@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ios-shots-${{ github.ref }}
+  group: ios-shots-duo-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
