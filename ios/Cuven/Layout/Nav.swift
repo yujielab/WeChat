@@ -18,6 +18,10 @@ enum Page: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum FilterCard: Equatable {
+    case list, memories
+}
+
 enum ListFilter: String, CaseIterable, Identifiable {
     case all, unread, direct, groups
     var id: String { rawValue }
@@ -79,6 +83,8 @@ final class Nav {
     var newGroup = false
     var editingProfile = false
     var changingPassword = false
+    /// A card of filters over the app (the list's, Memories').
+    var filterCard: FilterCard?
 
     var visibleColumns: [Column] {
         (0..<columns).compactMap { Column(rawValue: leading.rawValue + $0) }
@@ -93,14 +99,15 @@ final class Nav {
     /// A full-screen page covers the strip (a capsule page or a pushed one).
     var covered: Bool { page != .chats || pushed }
     /// A small card over the app (a note), the app receding behind it.
-    var dialogUp: Bool { noteEditor || openNote != nil }
+    var dialogUp: Bool { noteEditor || openNote != nil || filterCard != nil }
     /// Anything over the strip: it takes no touches and its rail steps aside.
     var sheeted: Bool { covered || dialogUp }
 
     /// Closes the topmost page or card.
     func closeTop() {
         withAnimation(Motion.move) {
-            if noteEditor { noteEditor = false }
+            if filterCard != nil { filterCard = nil }
+            else if noteEditor { noteEditor = false }
             else if openNote != nil { openNote = nil }
             else if composeMoment { composeMoment = false }
             else if newGroup { newGroup = false }

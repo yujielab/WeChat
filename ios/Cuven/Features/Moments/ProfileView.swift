@@ -29,6 +29,8 @@ struct ProfileView: View {
                          actions: actionItems,
                          background: Theme.paper,
                          underBar: true,
+                         subtitle: page.map { String(localized: "\($0.count) posts") },
+                         barBackdrop: AnyView(cover(height: coverH)),
                          onScroll: { y in
                              let past = y > coverH - 60
                              if past != scrolled { withAnimation(.easeOut(duration: 0.22)) { scrolled = past } }

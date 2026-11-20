@@ -9,9 +9,9 @@ struct MemoriesPage: View {
     @State private var items: [MemoryItem] = []
     @State private var more = true
     @State private var loading = true
-    @State private var filter = "all"
+    @AppStorage("ui:memories-type") private var filter = "all"
     @State private var query = ""
-    @State private var newestFirst = true
+    @AppStorage("ui:memories-newest") private var newestFirst = true
     @Namespace private var ns
 
     private let filters: [(String, LocalizedStringKey)] = [("all", "All"), ("photo", "Photos"), ("video", "Videos"), ("drawing", "Drawings")]
@@ -36,9 +36,8 @@ struct MemoriesPage: View {
     var body: some View {
         PageScaffold(title: .inline("Memories"),
                      back: ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.switchPage(.chats) } : nil,
-                     actions: [BarItem(id: "order", sym: .filter, title: newestFirst ? "Oldest first" : "Newest first") {
-                         withAnimation(Motion.ui) { newestFirst.toggle() }
-                         model.show(newestFirst ? String(localized: "Newest first") : String(localized: "Oldest first"))
+                     actions: [BarItem(id: "filters", sym: .filter, title: "Filters") {
+                         withAnimation(Motion.bouncy) { nav.filterCard = .memories }
                      }],
                      background: Theme.paper) {
             VStack(spacing: 0) {

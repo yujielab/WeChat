@@ -160,6 +160,16 @@ enum Automation {
             try? await Task.sleep(for: .milliseconds(300))
             nav.searching = true
         case "note": nav.noteEditor = true
+        case "filters":
+            nav.switchPage(.memories)
+            try? await Task.sleep(for: .milliseconds(600))
+            nav.filterCard = .memories
+        case "profile":
+            if let peer = model.rooms.first(where: { !$0.isGroup })?.peer { nav.profile = peer.id }
+        case "editprofile":
+            nav.settingsOpen = true
+            try? await Task.sleep(for: .milliseconds(500))
+            nav.editingProfile = true
         case "note-open": if let n = model.notes.first { nav.openNote = n }
         case "plus":
             if let first {

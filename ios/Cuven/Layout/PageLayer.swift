@@ -30,11 +30,17 @@ struct PageScaffold<Header: View, Content: View>: View {
     var maxWidth: CGFloat = 680
     /// Content starts at the very top (a cover runs under the floating bar).
     var underBar = false
+    /// A line under the title (someone's page: how much they've shared).
+    var subtitle: String? = nil
+    /// What the bar shows behind it once the title is up (a cover, blurred).
+    var barBackdrop: AnyView? = nil
     var onScroll: ((CGFloat) -> Void)? = nil
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
 
     private var railed: Bool { ctx.usesRail }
+    /// The bar sits on a cover (or a cover blurred behind it).
+    private var overCover: Bool { underBar && barBackdrop != nil }
 
     /// Content runs up to the rail and its gap, or the system's column.
     private var trailing: CGFloat {
@@ -70,12 +76,21 @@ struct PageScaffold<Header: View, Content: View>: View {
                     .padding(.trailing, trailing)
                     .background {
                         if titleShown {
-                            Rectangle().fill(.ultraThinMaterial)
-                                .overlay(background.opacity(0.86))
-                                .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.7),
-                                                             .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
-                                .ignoresSafeArea()
-                                .transition(.opacity)
+                            if let barBackdrop {
+                                barBackdrop
+                                    .blur(radius: 18)
+                                    .overlay(Color.black.opacity(0.35))
+                                    .clipped()
+                                    .ignoresSafeArea()
+                                    .transition(.opacity)
+                            } else {
+                                Rectangle().fill(.ultraThinMaterial)
+                                    .overlay(background.opacity(0.86))
+                                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.7),
+                                                                 .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                                    .ignoresSafeArea()
+                                    .transition(.opacity)
+                            }
                         }
                     }
                     .animation(.easeOut(duration: 0.22), value: titleShown)
@@ -98,7 +113,8 @@ struct PageScaffold<Header: View, Content: View>: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 if !railed, let back {
-                    GlassIconButton(sym: back.sym, title: back.title, tint: back.tint, foreground: back.foreground) { back.action() }
+                    GlassIconButton(sym: back.sym, title: back.title, tint: overCover ? .black.opacity(0.45) : back.tint,
+                                    foreground: overCover ? .white : back.foreground) { back.action() }
                 }
                 titleView
                     .opacity(titleShown ? 1 : 0)
@@ -108,7 +124,8 @@ struct PageScaffold<Header: View, Content: View>: View {
                     GlassGroup(spacing: 8) {
                         HStack(spacing: 8) {
                             ForEach(actions + footActions) { item in
-                                GlassIconButton(sym: item.sym, title: item.title, tint: item.tint, foreground: item.foreground,
+                                GlassIconButton(sym: item.sym, title: item.title, tint: overCover ? .black.opacity(0.45) : item.tint,
+                                                foreground: overCover ? .white : item.foreground,
                                                 badge: item.badge, badgeInk: item.badgeInk) { item.action() }
                             }
                         }
@@ -128,12 +145,17 @@ struct PageScaffold<Header: View, Content: View>: View {
         case .none:
             Spacer(minLength: 0)
         case .inline(let t):
-            Text(t)
-                .font(AppFont.make(20, .bold))
-                .tracking(-0.4)
-                .foregroundStyle(Theme.label)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
+            VStack(alignment: subtitle == nil ? .center : .leading, spacing: 0) {
+                Text(t)
+                    .font(AppFont.make(20, .bold))
+                    .tracking(-0.4)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle).font(.subheadC).opacity(0.8).lineLimit(1)
+                }
+            }
+            .foregroundStyle(barBackdrop != nil && titleShown ? Color.white : Theme.label)
+            .frame(maxWidth: .infinity, alignment: subtitle == nil ? .center : .leading)
                 .padding(.trailing, !railed && back != nil && (actions + footActions).isEmpty ? 54 : 0)
                 .padding(.leading, !railed && back == nil && !(actions + footActions).isEmpty ? 54 : 0)
         case .large(let t, let color):
@@ -158,10 +180,11 @@ struct PageScaffold<Header: View, Content: View>: View {
 extension PageScaffold where Header == EmptyView {
     init(title: PageTitle = .none, titleShown: Bool = true, back: BarItem? = nil, actions: [BarItem] = [],
          footActions: [BarItem] = [], background: Color = Theme.bg, maxWidth: CGFloat = 680, underBar: Bool = false,
+         subtitle: String? = nil, barBackdrop: AnyView? = nil,
          onScroll: ((CGFloat) -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.init(title: title, titleShown: titleShown, back: back, actions: actions, footActions: footActions,
-                  background: background, maxWidth: maxWidth, underBar: underBar, onScroll: onScroll,
-                  header: { EmptyView() }, content: content)
+                  background: background, maxWidth: maxWidth, underBar: underBar, subtitle: subtitle, barBackdrop: barBackdrop,
+                  onScroll: onScroll, header: { EmptyView() }, content: content)
     }
 }
 

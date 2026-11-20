@@ -291,7 +291,10 @@ struct ChatListView: View {
                 : (besideSidebar ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() }))
         } else if !nav.searching {
             ColumnBar(back: (nav.columns == 1 && !leadingTwoUp) ? BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() } : nil,
-                      actions: leadingTwoUp ? [BarItem(id: "filter", sym: .filter, title: "Filter") { cycleFilter() }] : []) {
+                      actions: leadingTwoUp ? [BarItem(id: "filter", sym: .filter, title: "Filter", tint: nav.filter == .all ? nil : Theme.fbBlue.opacity(0.8),
+                                                        foreground: nav.filter == .all ? Theme.label : .white) {
+                          withAnimation(Motion.bouncy) { nav.filterCard = .list }
+                      }] : []) {
                 Button {
                     Haptics.tap()
                     withAnimation(Motion.ui) { nav.searching = true }
@@ -312,11 +315,6 @@ struct ChatListView: View {
         }
     }
 
-    private func cycleFilter() {
-        let all = ListFilter.allCases
-        let i = all.firstIndex(of: nav.filter) ?? 0
-        withAnimation(Motion.ui) { nav.filter = all[(i + 1) % all.count] }
-    }
 }
 
 // MARK: - Filter tabs (blue glass thumb that slides)

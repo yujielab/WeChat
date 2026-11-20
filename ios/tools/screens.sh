@@ -82,6 +82,9 @@ else
   shoot outer-15-settings settings light 7 1 outer
   shoot outer-16-note note light 7 1 outer
   shoot outer-18-group group light 6 1 outer
+  shoot outer-19-filters filters light 7 1 outer
+  shoot outer-20-profile profile light 7 1 outer
+  shoot outer-21-editprofile editprofile light 7 1 outer
   # The inner display (open).
   shoot inner-01-list list light 12 1 inner
   shoot inner-02-thread thread light 6 1 inner
