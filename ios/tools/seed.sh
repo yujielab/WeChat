@@ -4,16 +4,24 @@
 # Usage: ios/tools/seed.sh http://localhost:8787
 set -euo pipefail
 B=${1:-http://localhost:8787}
-J=$(mktemp -d)
 
-post() { # cookiejar path json
-  curl -sS -b "$J/$1" -c "$J/$1" -H "Origin: $B" -H 'content-type: application/json' -d "$3" "$B$2"
+# The session cookie is Secure, which curl won't send over plain http, so
+# each account's token is kept and sent by hand. (Plain variables: macOS
+# ships bash 3.2, without associative arrays.)
+tok() { local v="TOKEN_$1"; printf '%s' "${!v}"; }
+post() { # who path json
+  curl -sS --max-time 20 -H "Cookie: cfm_session=$(tok "$1")" -H "Origin: $B" -H 'content-type: application/json' -d "$3" "$B$2"
 }
-get() { curl -sS -b "$J/$1" -H "Origin: $B" "$B$2"; }
+get() { curl -sS --max-time 20 -H "Cookie: cfm_session=$(tok "$1")" -H "Origin: $B" "$B$2"; }
 
-reg() { # jar username display
-  curl -sS -c "$J/$1" -H "Origin: $B" -H 'content-type: application/json' \
-    -d "{\"username\":\"$2\",\"password\":\"cuven-demo\",\"display\":\"$3\"}" "$B/auth/register" >/dev/null
+reg() { # who username display
+  local h
+  h=$(curl -sS --max-time 30 -D - -o /dev/null -H "Origin: $B" -H 'content-type: application/json' \
+    -d "{\"username\":\"$2\",\"password\":\"cuven-demo\",\"display\":\"$3\"}" "$B/auth/register")
+  local t
+  t=$(printf '%s' "$h" | tr -d '\r' | sed -n 's/^[Ss]et-[Cc]ookie: cfm_session=\([^;]*\).*/\1/p' | head -1)
+  [ -n "$t" ] || { echo "register $2 failed"; printf '%s\n' "$h"; exit 1; }
+  printf -v "TOKEN_$1" '%s' "$t"
 }
 
 reg a alice "Alice"
