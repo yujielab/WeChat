@@ -37,7 +37,7 @@ struct StickerPanel: View {
                         withAnimation(Motion.ui) { selected = "+" }
                         Task { if catalog.isEmpty { catalog = await model.stickerCatalog() } }
                     } label: {
-                        Image(systemName: "plus").font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.label)
+                        SymbolView(.plus, size: 20, weight: 2.2).foregroundStyle(Theme.label)
                             .frame(width: 46, height: 46)
                             .background(selected == "+" ? Theme.fill : .clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
@@ -103,10 +103,10 @@ struct StickerPanel: View {
                         }
                     }
                 }
-                .font(.subheadMediumC)
-                .foregroundStyle(p.added ? Theme.label : .white)
-                .padding(.horizontal, 14).frame(height: 32)
-                .background(p.added ? Theme.fillQuiet : Theme.blue, in: Capsule())
+                .font(AppFont.make(13, .semibold))
+                .foregroundStyle(p.added ? Theme.label : Theme.onInk)
+                .padding(.horizontal, 16).frame(minWidth: 84, minHeight: 36)
+                .background(p.added ? Theme.fill2 : Theme.ink, in: Capsule())
                 .buttonStyle(.press)
             }
         }
