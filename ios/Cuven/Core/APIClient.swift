@@ -90,18 +90,19 @@ final class APIClient: @unchecked Sendable {
     static var tzOffset: Int { -TimeZone.current.secondsFromGMT() / 60 }
 
     func url(_ path: String, query: [String: String] = [:]) -> URL {
-        var comps = URLComponents(url: base, resolvingAgainstBaseURL: false)!
-        let (p, q) = path.split(separator: "?", maxSplits: 1).map(String.init).splitPair()
+        guard var comps = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return base }
+        let (rawPath, q) = path.split(separator: "?", maxSplits: 1).map(String.init).splitPair()
+        let p = rawPath.hasPrefix("/") ? rawPath : "/" + rawPath
         comps.path = p
         var items = q.map { URLComponents(string: "?\($0)")?.queryItems ?? [] } ?? []
         for (k, v) in query.sorted(by: { $0.key < $1.key }) { items.append(URLQueryItem(name: k, value: v)) }
         comps.queryItems = items.isEmpty ? nil : items
-        return comps.url!
+        return comps.url ?? base
     }
 
     /// A media or sticker path (/api/media/...) as a request the server will answer.
     func mediaRequest(_ path: String) -> URLRequest? {
-        guard !path.isEmpty else { return nil }
+        guard !path.isEmpty, !path.hasPrefix("local:") else { return nil }
         let u: URL
         if path.hasPrefix("http://") || path.hasPrefix("https://") {
             guard let abs = URL(string: path) else { return nil }
@@ -285,6 +286,20 @@ struct Bootstrap: Decodable {
     var assist: Bool?
     var stickers: Bool?
     var prefs: Prefs?
+
+    enum CodingKeys: String, CodingKey { case me, rooms, contacts, presence, calls, assist, stickers, prefs }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        me = try c.decode(User.self, forKey: .me)
+        rooms = c.v(.rooms, [])
+        contacts = c.v(.contacts, [])
+        presence = c.v(.presence, [])
+        calls = c.o(.calls)
+        assist = c.o(.assist)
+        stickers = c.o(.stickers)
+        prefs = c.o(.prefs)
+    }
 }
 
 struct RoomsResponse: Decodable { var rooms: [Room] }

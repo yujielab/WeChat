@@ -150,7 +150,7 @@ struct CallOverlay: View {
                     } else {
                         control(calls.speaker ? "speaker.wave.3.fill" : "speaker.fill", "Speaker", on: calls.speaker) { calls.toggleSpeaker() }
                     }
-                    control(calls.muted ? "mic.slash.fill" : "mic.fill", "Mute", on: !calls.muted) { calls.toggleMute() }
+                    control(calls.muted ? "mic.slash.fill" : "mic.fill", "Microphone", on: !calls.muted) { calls.toggleMute() }
                     roundButton("phone.down.fill", "End call", color: Theme.red, size: 60) { calls.hangUp() }
                 }
                 .padding(10)
