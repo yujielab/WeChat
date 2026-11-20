@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ios-screens-${{ github.ref }}
+  group: ios-shots-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
