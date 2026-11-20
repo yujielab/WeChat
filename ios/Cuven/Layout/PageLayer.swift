@@ -134,6 +134,8 @@ struct PageScaffold<Header: View, Content: View>: View {
             }
             .padding(.horizontal, 18)
             .frame(minHeight: 60)
+            // The title's centre near 48pt from the top, as the Duo's own apps keep it.
+            .padding(.top, ctx.insets.top > 20 ? 4 : 16)
             header
         }
         .frame(maxWidth: .infinity)

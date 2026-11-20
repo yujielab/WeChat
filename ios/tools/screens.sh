@@ -54,46 +54,46 @@ shoot() { # name screen [appearance] [wait] [signin] [emulate]
 }
 
 if [ "$KIND" = phone ]; then
-  shoot 01-auth auth light 6 0
-  shoot 02-list list light 12
-  shoot 03-thread thread
-  shoot 04-focus focus light 8
-  shoot 05-plus plus light 7
-  shoot 06-info info light 7
-  shoot 07-sidebar sidebar
-  shoot 08-search search light 7
-  shoot 09-thread-dark thread dark
+  shoot 01-auth auth light 10 0
+  shoot 02-list list light 16
+  shoot 03-thread thread light 10
+  shoot 04-focus focus light 12
+  shoot 05-plus plus light 11
+  shoot 06-info info light 11
+  shoot 07-sidebar sidebar light 10
+  shoot 08-search search light 11
+  shoot 09-thread-dark thread dark 10
 else
   # The outer display (folded).
-  shoot outer-00-auth auth light 6 0 outer
-  shoot outer-01-list list light 12 1 outer
-  shoot outer-01-list-dark list dark 8 1 outer
-  shoot outer-02-sidebar sidebar light 6 1 outer
-  shoot outer-03-search search light 7 1 outer
-  shoot outer-04-thread thread light 6 1 outer
-  shoot outer-04-thread-dark thread dark 6 1 outer
-  shoot outer-05-plus plus light 7 1 outer
-  shoot outer-07-menu focus light 8 1 outer
-  shoot outer-08-details info light 7 1 outer
-  shoot outer-10-moments moments light 7 1 outer
-  shoot outer-11-memories memories light 7 1 outer
-  shoot outer-12-friends friends light 7 1 outer
-  shoot outer-13-you me light 7 1 outer
-  shoot outer-15-settings settings light 7 1 outer
-  shoot outer-16-note note light 7 1 outer
-  shoot outer-18-group group light 6 1 outer
-  shoot outer-19-filters filters light 7 1 outer
-  shoot outer-20-profile profile light 7 1 outer
-  shoot outer-21-editprofile editprofile light 7 1 outer
+  shoot outer-00-auth auth light 10 0 outer
+  shoot outer-01-list list light 16 1 outer
+  shoot outer-01-list-dark list dark 12 1 outer
+  shoot outer-02-sidebar sidebar light 10 1 outer
+  shoot outer-03-search search light 11 1 outer
+  shoot outer-04-thread thread light 10 1 outer
+  shoot outer-04-thread-dark thread dark 10 1 outer
+  shoot outer-05-plus plus light 11 1 outer
+  shoot outer-07-menu focus light 12 1 outer
+  shoot outer-08-details info light 11 1 outer
+  shoot outer-10-moments moments light 11 1 outer
+  shoot outer-11-memories memories light 11 1 outer
+  shoot outer-12-friends friends light 11 1 outer
+  shoot outer-13-you me light 11 1 outer
+  shoot outer-15-settings settings light 11 1 outer
+  shoot outer-16-note note light 11 1 outer
+  shoot outer-18-group group light 10 1 outer
+  shoot outer-19-filters filters light 11 1 outer
+  shoot outer-20-profile profile light 11 1 outer
+  shoot outer-21-editprofile editprofile light 11 1 outer
   # The inner display (open).
-  shoot inner-01-list list light 12 1 inner
-  shoot inner-02-thread thread light 6 1 inner
-  shoot inner-02-thread-dark thread dark 6 1 inner
-  shoot inner-03-details info light 7 1 inner
-  shoot inner-04-draw draw light 14 1 inner
-  shoot inner-10-moments moments light 7 1 inner
-  shoot inner-14-menu sidebar light 6 1 inner
-  shoot inner-15-settings settings light 7 1 inner
+  shoot inner-01-list list light 16 1 inner
+  shoot inner-02-thread thread light 10 1 inner
+  shoot inner-02-thread-dark thread dark 10 1 inner
+  shoot inner-03-details info light 11 1 inner
+  shoot inner-04-draw draw light 18 1 inner
+  shoot inner-10-moments moments light 11 1 inner
+  shoot inner-14-menu sidebar light 10 1 inner
+  shoot inner-15-settings settings light 11 1 inner
 fi
 
 # Crash reports, if any, go with the screenshots.
