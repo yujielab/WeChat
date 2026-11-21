@@ -44,6 +44,8 @@ final class CallManager {
     @ObservationIgnored private var peers = Set<String>()
     @ObservationIgnored private var pullTries = 0
     @ObservationIgnored private let sounds = CallSounds()
+    /// Asking for the microphone before ringing: a second tap meanwhile waits.
+    @ObservationIgnored private var dialing = false
     /// The call in the Dynamic Island and on the Lock Screen.
     @ObservationIgnored private var activity: Activity<CallActivityAttributes>?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
@@ -82,8 +84,25 @@ final class CallManager {
             else { model.show(String(localized: "You're already on a call"), error: true) }
             return
         }
+        guard !dialing else { return }
         guard model.callsEnabled else { return model.show(String(localized: "Calls aren't available right now"), error: true) }
         guard model.connected else { return model.show(String(localized: "Still connecting…"), error: true) }
+        // The microphone (and camera) first: nobody is rung for a call that
+        // can't happen, and no record says it was cancelled.
+        dialing = true
+        Task {
+            let granted = await Self.permission(video: video)
+            dialing = false
+            guard granted else {
+                model.show(String(localized: "Allow the microphone (and camera) in Settings to make calls"), error: true)
+                return
+            }
+            guard !active else { return }
+            dial(room: room, video: video)
+        }
+    }
+
+    private func dial(room: Room, video: Bool) {
         reset()
         AudioPlayback.shared.stop()
         let id = "\(Int(Date().timeIntervalSince1970 * 1000))\(Int.random(in: 0..<1000))"
@@ -147,7 +166,11 @@ final class CallManager {
             if phase == .outgoing { status = String(localized: "Not reachable right now") }
         case "decline":
             if room?.isGroup == true && !peers.isEmpty { return }
-            finish((e["busy"] as? Bool) == true ? String(localized: "Busy") : String(localized: "Declined"), notify: false)
+            // The caller's side writes the call's one record, as the web does.
+            let busy = (e["busy"] as? Bool) == true
+            let missed = (e["missed"] as? Bool) == true
+            finish(busy ? String(localized: "Busy") : (missed ? String(localized: "No answer") : String(localized: "Declined")),
+                   notify: isCaller && !answered, result: busy ? "busy" : (missed ? "missed" : "declined"))
         case "cancel":
             finish(String(localized: "Call ended"), notify: false)
         case "hangup":
@@ -224,7 +247,8 @@ final class CallManager {
     }
 
     func hangUp() {
-        guard active else { return }
+        // Once: a second tap (or the Lock Screen's button) while it's ending does nothing.
+        guard active, phase != .ending else { return }
         if answered {
             let duration = liveAt.map { Int(Date().timeIntervalSince($0)) } ?? 0
             send(["kind": "hangup", "media": video ? "video" : "audio", "duration": duration])
@@ -243,7 +267,7 @@ final class CallManager {
         guard active, let me = model.me?.id else { return }
         guard granted else {
             model.show(String(localized: "Allow the microphone (and camera) in Settings to make calls"), error: true)
-            hangUp()
+            fail()
             return
         }
         configureAudio()
@@ -273,8 +297,15 @@ final class CallManager {
             pullWanted()
         } catch {
             model.show(error.userMessage, error: true)
-            hangUp()
+            fail()
         }
+    }
+
+    /// It couldn't get going: an unanswered call's record says the
+    /// connection failed (not that you cancelled it); otherwise it's a hang-up.
+    private func fail() {
+        if isCaller && !answered { finish(String(localized: "Connection failed"), notify: true, result: "failed") }
+        else { hangUp() }
     }
 
     private func announce() {
@@ -419,7 +450,8 @@ final class CallManager {
     // MARK: - Ending
 
     private func finish(_ text: String, notify: Bool, result: String = "missed") {
-        guard active else { return }
+        // Ended once: whatever else arrives while it closes adds nothing.
+        guard active, phase != .ending else { return }
         if notify {
             send(["kind": "cancel", "media": video ? "video" : "audio", "missed": true, "result": result])
         }

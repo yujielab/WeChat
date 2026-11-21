@@ -117,7 +117,7 @@ struct BubbleContent: View {
                 case "voice": voice
                 case "video": video
                 case "file": file
-                case "call": call
+                case "call": CallRecordChip(message: message)
                 case "location": LocationBubble(message: message, mine: mine)
                 default:
                     if message.isLocation { LocationBubble(message: message, mine: mine) } else { text }
@@ -354,11 +354,19 @@ struct BubbleContent: View {
         .shadow(color: Theme.bubbleShadow, radius: 0.25, y: 1)
         .onTapGesture { FileOpener.open(message) }
     }
+}
 
-    /// A call record: a compact, quiet chip; only a call you missed is red.
-    private var call: some View {
+/// A call record: a compact, quiet chip (only a call you missed is red).
+/// Tapped, it offers to call back, voice or video, rather than ringing
+/// straight away from a tap meant for something else.
+private struct CallRecordChip: View {
+    @Environment(AppModel.self) private var model
+    let message: Message
+    @State private var asking = false
+
+    var body: some View {
         let s = CallSummary(meta: message.meta, mine: message.meta?.caller == model.me?.id)
-        return HStack(spacing: 7) {
+        HStack(spacing: 7) {
             SymbolView(s.isVideo ? .video : .phone, size: 15)
             Text(s.label).font(.footnoteC)
         }
@@ -367,9 +375,17 @@ struct BubbleContent: View {
         .padding(.vertical, 7)
         .background(Theme.field, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .contentShape(Rectangle())
-        .onTapGesture {
-            if let room = model.room(message.room) { model.calls.start(room: room, video: s.isVideo) }
+        .onTapGesture { asking = true }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Text("Call back"))
+        .confirmationDialog(Text("Call back"), isPresented: $asking) {
+            Button("Voice call") { call(video: false) }
+            Button("Video call") { call(video: true) }
         }
+    }
+
+    private func call(video: Bool) {
+        if let room = model.room(message.room) { model.calls.start(room: room, video: video) }
     }
 }
 

@@ -179,9 +179,16 @@ export class CallBroker {
         // ongoing: the call is still on for the rest (a group with someone in it or being rung),
         // so nobody else's call or ring is put away with this one leaving.
         relay({ missed: Boolean(msg.missed), ongoing: Boolean(this.get(room)), ...(kind === 'decline' && msg.busy === true && { busy: true }) })
-        // A hang-up for a call the server already ended and recorded is not recorded twice.
-        const recorded = finished || !current && this.hub.store.kvGet(`callend:${room}`) === callId
-        if (kind === 'cancel' || (kind === 'hangup' && !this.get(room) && !recorded)) this.logCall(room, from, msg, caller)
+        // One record per call, whatever arrives how often: a cancel is the
+        // caller's (or, the call already gone, the first one heard), a
+        // hang-up counts once the call is over, and a call already recorded
+        // (by the server ending it, or an earlier cancel) is not recorded again.
+        const recorded = finished || (callId && this.hub.store.kvGet(`callend:${room}`) === callId)
+        const cancelled = kind === 'cancel' && (!current || from === current.caller)
+        if (!recorded && (cancelled || (kind === 'hangup' && !this.get(room)))) {
+          if (callId) this.hub.store.kvSet(`callend:${room}`, callId)
+          this.logCall(room, from, msg, caller)
+        }
         break
       }
       default:

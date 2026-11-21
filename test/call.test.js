@@ -104,6 +104,23 @@ test('the caller leaving ends it; a missed call tells those notified', async () 
   assert.equal(t.store.lastMessage(t.room).body, 'Missed voice call')
 })
 
+test('one call is recorded once, however often its end arrives', async () => {
+  const t = setup()
+  const calls = () => t.store.listMessages(t.room, { limit: 100 }).filter(m => m.type === 'call').length
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  // The callee can't cancel someone else's call into the record.
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'cancel', room: t.room, callId: 'c1', media: 'audio', missed: true })
+  assert.equal(calls(), 0)
+  for (let i = 0; i < 5; i++) t.broker.signal(t.ids.a, { t: 'call', kind: 'cancel', room: t.room, callId: 'c1', media: 'audio', missed: true, result: 'cancelled' })
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio' })
+  assert.equal(calls(), 1)
+  // The next call is a call of its own.
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c2', media: 'video' })
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'cancel', room: t.room, callId: 'c2', media: 'video', missed: true })
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'cancel', room: t.room, callId: 'c2', media: 'video', missed: true })
+  assert.equal(calls(), 2)
+})
+
 test('a decline that timed out reaches the caller as missed', () => {
   const t = setup()
   t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
