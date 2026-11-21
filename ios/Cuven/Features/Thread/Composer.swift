@@ -1,4 +1,6 @@
 import SwiftUI
+import TipKit
+import ImagePlayground
 import PhotosUI
 import AVFoundation
 import UniformTypeIdentifiers
@@ -30,6 +32,8 @@ struct Composer: View {
     @State private var showCamera = false
     @State private var showFiles = false
     @State private var showLocation = false
+    @State private var showPlayground = false
+    @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @State private var mentionIds: [String: String] = [:]
     @State private var savedDraft = ""
     @FocusState private var focused: Bool
@@ -78,6 +82,7 @@ struct Composer: View {
                 GlassGroup(spacing: 10) {
                     HStack(alignment: .bottom, spacing: 10) {
                         field
+                            .popoverTip(HoldToTalkTip(), arrowEdge: .bottom)
                             .overlay {
                                 if recorder.isRecording {
                                     recordingBar
@@ -93,12 +98,13 @@ struct Composer: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 ZStack(alignment: .bottomTrailing) {
-                PlusPanel(open: plusOpen, stickers: model.stickersEnabled) { action in
+                PlusPanel(open: plusOpen, stickers: model.stickersEnabled, imagine: supportsImagePlayground) { action in
                     withAnimation(Motion.morph) { plusOpen = false }
                     switch action {
                     case .photos: showPhotos = true
                     case .camera: showCamera = true
                     case .location: showLocation = true
+                    case .imagine: showPlayground = true
                     case .drawing: nav.show(.draw)
                     case .stickers: stickersOpen = true
                     case .file: showFiles = true
@@ -169,6 +175,12 @@ struct Composer: View {
             }
             .ignoresSafeArea()
         }
+        // A picture made with Image Playground, on the device, sent as a photo.
+        .imagePlaygroundSheet(isPresented: $showPlayground, concepts: []) { url in
+            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                model.sendPicture(image, room: room.id, replyTo: takeReply())
+            }
+        }
         .sheet(isPresented: $showLocation) {
             LocationPicker { place in
                 model.sendLocation(latitude: place.latitude, longitude: place.longitude, name: place.name,
@@ -204,6 +216,8 @@ struct Composer: View {
             }
             HStack(alignment: .bottom, spacing: 6) {
                 TextField(editing != nil ? "Edit message" : "Message", text: $text, axis: .vertical)
+                    // Apple Intelligence's Writing Tools, in full where the device has them.
+                    .writingToolsBehavior(.complete)
                     .font(.bodyC)
                     .lineSpacing(BodyMetrics.extra)
                     .lineLimit(1...5)
@@ -483,6 +497,7 @@ struct Composer: View {
                 if !holding {
                     holding = true
                     cancelArmed = false
+                    HoldToTalkTip().invalidate(reason: .actionPerformed)
                     Haptics.press()
                     if plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
                     recorder.start()
@@ -611,7 +626,7 @@ struct Composer: View {
 
 // MARK: - The "+" panel
 
-enum PlusAction { case photos, camera, location, drawing, stickers, file }
+enum PlusAction { case photos, camera, location, drawing, imagine, stickers, file }
 
 /// The web's .composer-panel: 212pt wide, standing on the composer's
 /// trailing end, its body clipped from the button's 56pt circle out to a
@@ -619,6 +634,8 @@ enum PlusAction { case photos, camera, location, drawing, stickers, file }
 struct PlusPanel: View {
     var open: Bool
     var stickers: Bool
+    /// Image Playground (Apple Intelligence), where the device has it.
+    var imagine: Bool = false
     let pick: (PlusAction) -> Void
 
     private var items: [(PlusAction, Sym, LocalizedStringKey)] {
@@ -628,6 +645,7 @@ struct PlusPanel: View {
             (.location, .mappin, "Location"),
             (.drawing, .brush, "Drawing")
         ]
+        if imagine { list.append((.imagine, .sparkles, "Image Playground")) }
         if stickers { list.append((.stickers, .face, "Stickers")) }
         list.append((.file, .doc, "File"))
         return list

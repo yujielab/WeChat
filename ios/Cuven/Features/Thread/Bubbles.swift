@@ -1,4 +1,5 @@
 import SwiftUI
+import QuickLook
 import AVFoundation
 import UIKit
 
@@ -135,6 +136,7 @@ struct BubbleContent: View {
                 .padding(.horizontal, 2)
         } else {
             let half = BodyMetrics.extra / 2
+            VStack(alignment: mine ? .trailing : .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 if let reply = message.reply { quote(reply) }
                 Text(attributed)
@@ -154,6 +156,12 @@ struct BubbleContent: View {
             .background(bg, in: style.shape)
             .shadow(color: Theme.bubbleShadow, radius: 0.25, y: 1)
             .contentShape(style.shape)
+            // The first link's preview under the words (LinkPresentation).
+            if let url = LinkPreviews.firstURL(in: message.body), !message.isRevoked {
+                LinkCard(url: url)
+                    .padding(.top, 4)
+            }
+            }
         }
     }
 
@@ -745,8 +753,36 @@ enum FileOpener {
             let name = m.meta?.name ?? "file"
             let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             try? data.write(to: tmp)
-            await MainActor.run { Share.present([tmp]) }
+            // Quick Look shows it here (with its own share button); what it
+            // can't show goes to the share sheet.
+            await MainActor.run {
+                if QLPreviewController.canPreview(tmp as NSURL) { FilePreview.present(tmp) } else { Share.present([tmp]) }
+            }
         }
+    }
+}
+
+/// A file opened in place (Quick Look): PDFs, documents, images, audio, and more.
+@MainActor
+enum FilePreview {
+    private final class Source: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        init(_ url: URL) { self.url = url }
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
+    }
+    private static var source: Source?
+
+    static func present(_ url: URL) {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.keyWindow?.rootViewController else { return }
+        var top = root
+        while let p = top.presentedViewController { top = p }
+        let s = Source(url)
+        source = s
+        let ql = QLPreviewController()
+        ql.dataSource = s
+        top.present(ql, animated: true)
     }
 }
 

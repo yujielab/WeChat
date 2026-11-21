@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreSpotlight
 
 /// The signed-in shell, as the web lays it out: four columns on one strip
 /// with a window of one column (folded, phone) or two (unfolded, landscape
@@ -45,6 +46,23 @@ struct MainView: View {
             model.pendingRoom = nil
             nav.open(room: room)
         }
+        .onChange(of: model.pendingAction) { _, a in run(a) }
+        .onAppear {
+            if let room = model.pendingRoom { model.pendingRoom = nil; nav.open(room: room) }
+            run(model.pendingAction)
+        }
+        // A conversation picked in Spotlight, or handed on from another device.
+        .onContinueUserActivity(CSSearchableItemActionType) { a in
+            if let id = a.userInfo?[CSSearchableItemActivityIdentifier] as? String { nav.open(room: id) }
+        }
+        .onContinueUserActivity(ChatActivity.type) { a in
+            if let id = a.userInfo?["room"] as? String { nav.open(room: id) }
+        }
+        // Spotlight and Siri know the conversations by name.
+        .task(id: model.rooms.map { "\($0.id)|\($0.title)" }.joined(separator: ",")) {
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled && !model.rooms.isEmpty { ChatDirectory.update(model.rooms) }
+        }
         .onChange(of: visibleRoom) { _, room in
             model.visibleRoom = room
             if let room { model.markRead(room) }
@@ -61,6 +79,19 @@ struct MainView: View {
         }
         // Last, so the sheets and the call overlay see it too.
         .environment(nav)
+    }
+
+    private func run(_ a: PendingAction?) {
+        guard let a else { return }
+        model.pendingAction = nil
+        switch a {
+        case .search:
+            nav.switchPage(.chats)
+            nav.toList()
+            withAnimation(Motion.ui) { nav.searching = true }
+        case .newMoment: withAnimation(Motion.move) { nav.composeMoment = true }
+        case .newGroup: withAnimation(Motion.move) { nav.newGroup = true }
+        }
     }
 
     private var visibleRoom: String? {

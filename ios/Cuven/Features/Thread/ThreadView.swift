@@ -162,6 +162,14 @@ struct ThreadView: View {
             }
         }
         .background(FrameProbe(box: rootProbe))
+        // The open conversation, for Siri suggestions and Spotlight's "recent".
+        .userActivity(ChatActivity.type) { a in
+            a.title = room?.title
+            a.userInfo = ["room": roomId]
+            a.targetContentIdentifier = roomId
+            a.isEligibleForPrediction = true
+            a.isEligibleForSearch = false
+        }
         .onReceive(NotificationCenter.default.publisher(for: .automationFocus)) { _ in
             // Lift the latest message from the other side, as a long press would.
             if let m = model.messages(roomId).last(where: { $0.sender != model.me?.id && $0.type == "text" }) {

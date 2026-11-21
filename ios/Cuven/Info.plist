@@ -57,6 +57,10 @@
 	<string>To save photos from your chats to your library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>To turn what you say into text in the message field.</string>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>us.cuven.app.chat</string>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Clarinetta-Light.otf</string>

@@ -18,7 +18,9 @@ struct CuvenApp: App {
                     if motion == "reduce", t.animation != nil { t.animation = .easeOut(duration: 0.15) }
                 }
                 .task {
+                    CuvenTips.configure()
                     AppDelegate.model = model
+                    PendingRoute.deliver(to: model)
                     Automation.prepare(model)
                     await model.launch()
                     await Automation.signIn(model)

@@ -51,6 +51,7 @@ struct MomentEditor: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(model.me?.name ?? "").font(.headlineC)
                             TextField("What's new?", text: $text, axis: .vertical)
+                                .writingToolsBehavior(.complete)
                                 .font(AppFont.make(20, .regular))
                                 .lineLimit(3...)
                                 .focused($focused)

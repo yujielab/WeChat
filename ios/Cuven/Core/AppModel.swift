@@ -65,6 +65,8 @@ final class AppModel {
     var appActive = true
     /// A conversation to open (a notification was tapped).
     var pendingRoom: String?
+    /// Something a shortcut, Siri or a key command asked for (App/SystemIntegration.swift).
+    var pendingAction: PendingAction?
 
     // Device-only settings.
     var livePreview: Bool { didSet { UserDefaults.standard.set(livePreview, forKey: "ui:livePreview") } }
@@ -186,6 +188,7 @@ final class AppModel {
     }
 
     func signOutLocally() {
+        ChatDirectory.clear()
         socket.stop()
         api.clearSession()
         DiskCache.clear(api: api)

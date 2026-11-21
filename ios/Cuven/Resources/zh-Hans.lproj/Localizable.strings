@@ -427,3 +427,10 @@
 "Summarise again" = "重新总结";
 "Couldn't summarise this conversation right now." = "暂时无法总结这段对话。";
 "Made on this iPhone by Apple Intelligence." = "由 Apple 智能在这台 iPhone 上生成。";
+"Image Playground" = "图乐园";
+"Hold to record a voice message" = "按住录制语音消息";
+"Touch and hold the empty message field. Let go to send, or slide up first to cancel." = "按住空的输入框说话，松开发送；先上滑再松开则取消。";
+"Open Chat" = "打开聊天";
+"New Moment" = "发动态";
+"Search Chats" = "搜索聊天";
+"Group chat" = "群聊";

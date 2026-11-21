@@ -1,6 +1,7 @@
 import SwiftUI
 import Photos
 import Translation
+import NaturalLanguage
 
 /// Long-press on a message (views/thread.js, css/overlays.css): the
 /// conversation blurs away, the message lifts out exactly as it was, when
@@ -46,8 +47,11 @@ struct FocusMenu: View {
                 model.show(String(localized: "Copied"))
             })
             main.append(Action(id: "select", title: "Select text", sym: .doc, keepsOpen: true) { selecting = true })
-            // The system's translation, on the device (Translation).
-            main.append(Action(id: "translate", title: "Translate", sym: .globe, keepsOpen: true) { translating = true })
+            // The system's translation (Translation), offered when the words
+            // are in another language than yours (Natural Language).
+            if Self.foreign(m.body) {
+                main.append(Action(id: "translate", title: "Translate", sym: .globe, keepsOpen: true) { translating = true })
+            }
         }
         // A voice message's words, recognised on the device (Speech).
         if m.type == "voice", !m.isRevoked, Transcripts.shared.text[m.id] == nil {
@@ -186,6 +190,16 @@ struct FocusMenu: View {
         .sheet(isPresented: $selecting, onDismiss: { close() }) {
             SelectTextSheet(text: m.body)
         }
+    }
+
+    /// Written in a language other than the ones this iPhone is set to.
+    static func foreign(_ text: String) -> Bool {
+        let r = NLLanguageRecognizer()
+        r.processString(text)
+        guard let lang = r.dominantLanguage, lang != .undetermined else { return true }
+        let code = lang.rawValue.split(separator: "-").first.map(String.init) ?? lang.rawValue
+        let mine = Locale.preferredLanguages.compactMap { Locale(identifier: $0).language.languageCode?.identifier }
+        return !mine.contains(code)
     }
 
     private var when: String {
