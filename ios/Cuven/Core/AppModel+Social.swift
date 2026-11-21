@@ -174,13 +174,14 @@ extension AppModel {
                     let p = Media.prepare(img, maxSide: 2048, png: false)
                     let up = try await api.upload(kind: "moment", data: p.data, contentType: "image/jpeg", name: "moment",
                                                   width: Double(p.size.width), height: Double(p.size.height))
-                    var m: [String: Any] = ["url": up.url, "type": "image/jpeg", "w": Int(p.size.width), "h": Int(p.size.height)]
+                    // The server takes "image" or "video" here (hub.js momentMedia), not a MIME type.
+                    var m: [String: Any] = ["url": up.url, "type": "image", "w": Int(p.size.width), "h": Int(p.size.height)]
                     if !item.alt.isEmpty { m["alt"] = item.alt }
                     media.append(m)
                 } else if let v = item.videoData {
                     let up = try await api.upload(kind: "moment", data: v, contentType: "video/mp4", name: "moment",
                                                   width: Double(item.size.width), height: Double(item.size.height))
-                    media.append(["url": up.url, "type": "video/mp4", "w": Int(item.size.width), "h": Int(item.size.height)])
+                    media.append(["url": up.url, "type": "video", "w": Int(item.size.width), "h": Int(item.size.height)])
                 }
             }
             var body: [String: Any] = ["text": text, "media": media, "audience": audience, "comments": comments, "tags": tags]
