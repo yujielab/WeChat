@@ -34,9 +34,18 @@ struct PageScaffold<Header: View, Content: View>: View {
     var subtitle: String? = nil
     /// What the bar shows behind it once the title is up (a cover, blurred).
     var barBackdrop: AnyView? = nil
+    /// A cover at the top of the page, drawn behind the scroll view across
+    /// the whole screen (under the Duo's system column and the status bar)
+    /// and moved with the scrolling; the content leaves `coverHeight` of
+    /// room for it. Pulled down, it stretches.
+    var cover: AnyView? = nil
+    var coverHeight: CGFloat = 0
     var onScroll: ((CGFloat) -> Void)? = nil
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
+
+    /// Read only by the cover, so scrolling redraws nothing else.
+    @State private var scroll = PageScroll()
 
     private var railed: Bool { ctx.usesRail }
     /// The bar sits on a cover (or a cover blurred behind it).
@@ -52,6 +61,9 @@ struct PageScaffold<Header: View, Content: View>: View {
     var body: some View {
         ZStack(alignment: .top) {
             background
+            if let cover {
+                CoverLayer(cover: cover, height: ctx.insets.top + coverHeight, frame: coverFrame, scroll: scroll)
+            }
             ScrollView {
                 content
                     .frame(maxWidth: maxWidth)
@@ -61,6 +73,7 @@ struct PageScaffold<Header: View, Content: View>: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+                if cover != nil { scroll.y = y }
                 onScroll?(y)
             }
             .safeAreaBar(edge: .top, spacing: 0) { barSlot }
@@ -101,6 +114,15 @@ struct PageScaffold<Header: View, Content: View>: View {
                 ColumnBar(back: back, actions: actions, footActions: footActions)
             }
         }
+    }
+
+    /// Across the whole screen, unless the page is held to a readable width
+    /// in the middle of a wide display; then over that width.
+    private var coverFrame: (x: CGFloat, width: CGFloat) {
+        let W = ctx.size.width
+        let room = W - ctx.insets.leading - trailing
+        guard room > maxWidth else { return (0, W) }
+        return (ctx.insets.leading + (room - maxWidth) / 2, maxWidth)
     }
 
     @ViewBuilder
@@ -185,11 +207,11 @@ struct PageScaffold<Header: View, Content: View>: View {
 extension PageScaffold where Header == EmptyView {
     init(title: PageTitle = .none, titleShown: Bool = true, back: BarItem? = nil, actions: [BarItem] = [],
          footActions: [BarItem] = [], background: Color = Theme.bg, maxWidth: CGFloat = 680, underBar: Bool = false,
-         subtitle: String? = nil, barBackdrop: AnyView? = nil,
+         subtitle: String? = nil, barBackdrop: AnyView? = nil, cover: AnyView? = nil, coverHeight: CGFloat = 0,
          onScroll: ((CGFloat) -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.init(title: title, titleShown: titleShown, back: back, actions: actions, footActions: footActions,
                   background: background, maxWidth: maxWidth, underBar: underBar, subtitle: subtitle, barBackdrop: barBackdrop,
-                  onScroll: onScroll, header: { EmptyView() }, content: content)
+                  cover: cover, coverHeight: coverHeight, onScroll: onScroll, header: { EmptyView() }, content: content)
     }
 }
 
@@ -202,22 +224,30 @@ extension ColumnContext {
     }
 }
 
-/// A cover runs on under the Duo's rail to the screen's edge, the rail's
-/// glass floating over it, as long as the page isn't held to a readable
-/// width in the middle of a wider display.
-struct BleedUnderRail: ViewModifier {
-    @Environment(\.column) private var ctx
-    var maxWidth: CGFloat = 680
-
-    func body(content: Content) -> some View {
-        let bleed = ctx.usesRail ? ctx.pageTrailing : 0
-        let room = ctx.size.width - ctx.insets.leading - ctx.pageTrailing
-        content.padding(.trailing, bleed > 0 && room <= maxWidth ? -bleed : 0)
-    }
+/// How far a page has scrolled, kept apart so that only what follows it
+/// (a cover) is redrawn as it changes.
+@Observable final class PageScroll {
+    var y: CGFloat = 0
 }
 
-extension View {
-    func bleedsUnderRail(maxWidth: CGFloat = 680) -> some View { modifier(BleedUnderRail(maxWidth: maxWidth)) }
+/// A page's cover behind its scroll view: it moves up with the content and,
+/// pulled past the top, grows downward from the top edge.
+private struct CoverLayer: View {
+    let cover: AnyView
+    let height: CGFloat
+    let frame: (x: CGFloat, width: CGFloat)
+    let scroll: PageScroll
+
+    var body: some View {
+        let y = scroll.y
+        cover
+            .frame(width: frame.width, height: max(height, height - y))
+            .clipped()
+            .offset(x: frame.x, y: min(0, -y))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }
 
 // MARK: - The layer

@@ -31,13 +31,15 @@ struct ProfileView: View {
                          underBar: true,
                          subtitle: page.map { String(localized: "\($0.count) posts") },
                          barBackdrop: AnyView(cover(height: coverH)),
+                         cover: AnyView(coverArt),
+                         coverHeight: coverH,
                          onScroll: { y in
                              let past = y > coverH - 60
                              if past != scrolled { withAnimation(.easeOut(duration: 0.22)) { scrolled = past } }
                          }) {
                 LazyVStack(spacing: 0) {
-                    cover(height: coverH)
-                        .bleedsUnderRail()
+                    // Room for the cover, which is drawn behind the page.
+                    Color.clear.frame(height: coverH)
                     identity
                     tabs
                     if tab == 0 {
@@ -84,6 +86,14 @@ struct ProfileView: View {
 
     /// The cover across the top: theirs, or a deep ribbon of light.
     private func cover(height: CGFloat) -> some View {
+        coverArt
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            .clipped()
+    }
+
+    /// The cover's picture, filling whatever frame it is given.
+    private var coverArt: some View {
         Group {
             if let c = user?.cover, !c.isEmpty, !c.hasPrefix("preset:") {
                 RemoteImage(c, maxPixel: 1600)
@@ -99,8 +109,7 @@ struct ProfileView: View {
                 }
             }
         }
-        .frame(height: height)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
     }
 
