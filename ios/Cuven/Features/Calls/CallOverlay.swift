@@ -5,6 +5,10 @@ import WebRTC
 /// capsule at the top with who and how long, and one dark glass capsule of
 /// controls at the bottom; it shrinks to a pill so the chat stays usable.
 struct CallOverlay: View {
+    /// The app's own frame and insets (StripGeometry's), like every other
+    /// layer: on the Duo the call stands clear of the system's column.
+    let size: CGSize
+    let insets: EdgeInsets
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pip: CGSize = .zero
@@ -13,7 +17,7 @@ struct CallOverlay: View {
     private var calls: CallManager { model.calls }
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack(alignment: .topLeading) {
             if calls.active {
                 if calls.expanded {
                     full
@@ -31,59 +35,73 @@ struct CallOverlay: View {
     // MARK: full screen
 
     private var full: some View {
-        GeometryReader { geo in
+        let bottomGap = max(insets.bottom, 16) + 12
+        return ZStack(alignment: .topLeading) {
+            background
+                .frame(width: size.width, height: size.height)
+            if calls.video, let remote = calls.remoteVideo, calls.remoteCam {
+                CallVideoView(track: remote, mirror: false, fill: true)
+                    .frame(width: size.width, height: size.height)
+                    .transition(.opacity)
+            }
+
+            // Who, the status, the controls: in the app's own column.
             ZStack {
-                background
-                if calls.video, let remote = calls.remoteVideo, calls.remoteCam {
-                    CallVideoView(track: remote, mirror: false, fill: true)
-                        .ignoresSafeArea()
-                        .transition(.opacity)
-                } else {
+                if !(calls.video && calls.remoteVideo != nil && calls.remoteCam) {
                     VStack(spacing: 18) {
                         Avatar(user: calls.peerUser ?? User(id: calls.roomId ?? "", display: calls.title), size: 132)
                             .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
                             .scaleEffect(calls.phase == .incoming || calls.phase == .outgoing ? 1.04 : 1)
                             .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: calls.phase)
                         Text(calls.title).font(AppFont.make(30, .bold)).foregroundStyle(.white)
+                            .lineLimit(1).minimumScaleFactor(0.6)
                         Text(statusLine).font(.subheadC.monospacedDigit()).foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
                             .contentTransition(.numericText())
                         if !calls.remoteMic && calls.phase == .live {
                             Label("Muted", systemImage: "mic.slash.fill").font(.footnoteC).foregroundStyle(.white.opacity(0.7))
                         }
                     }
-                    .frame(maxHeight: .infinity)
+                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.bottom, 80)
                 }
 
-                // Your own picture, small and rounder, drag it to a corner.
-                if calls.video, let local = calls.localVideo, !calls.camOff, calls.phase != .incoming {
-                    CallVideoView(track: local, mirror: calls.frontCamera, fill: true)
-                        .frame(width: 112, height: 160)
-                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 1))
-                        .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
-                        .offset(pip)
-                        .gesture(DragGesture().onChanged { pip = $0.translation }.onEnded { v in
-                            let x: CGFloat = v.predictedEndLocation.x < geo.size.width / 2 ? -(geo.size.width - 112 - 40) : 0
-                            let y: CGFloat = v.predictedEndLocation.y > geo.size.height / 2 ? geo.size.height - 160 - 260 : 0
-                            withAnimation(Motion.move) { pip = CGSize(width: x, height: y) }
-                        })
-                        .padding(.top, geo.safeAreaInsets.top + 70)
-                        .padding(.trailing, max(geo.safeAreaInsets.trailing, 16) + 4)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                        .transition(.scale.combined(with: .opacity))
-                }
-
                 topCapsule
-                    .padding(.top, geo.safeAreaInsets.top + 8)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, insets.top + 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 controls
-                    .padding(.bottom, max(geo.safeAreaInsets.bottom, 16) + 12)
-                    .padding(.trailing, geo.safeAreaInsets.trailing)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, bottomGap)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
+            .frame(width: max(0, size.width - insets.leading - insets.trailing), height: size.height)
+            .offset(x: insets.leading)
+
+            // Your own picture, small and rounder, drag it to a corner.
+            if calls.video, let local = calls.localVideo, !calls.camOff, calls.phase != .incoming {
+                let w: CGFloat = 112
+                let h: CGFloat = 160
+                let right = size.width - insets.trailing - 16 - w
+                let left = insets.leading + 16
+                let top = insets.top + 70
+                let bottom = size.height - bottomGap - 80 - 16 - h
+                CallVideoView(track: local, mirror: calls.frontCamera, fill: true)
+                    .frame(width: w, height: h)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
+                    .offset(x: right + pip.width, y: top + pip.height)
+                    .gesture(DragGesture().onChanged { pip = $0.translation }.onEnded { v in
+                        let x: CGFloat = v.predictedEndLocation.x < size.width / 2 ? left - right : 0
+                        let y: CGFloat = v.predictedEndLocation.y > size.height / 2 ? bottom - top : 0
+                        withAnimation(Motion.move) { pip = CGSize(width: x, height: y) }
+                    })
+                    .transition(.scale.combined(with: .opacity))
             }
         }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .clipped()
         .preferredColorScheme(.dark)
     }
 
@@ -95,7 +113,7 @@ struct CallOverlay: View {
                 RemoteImage(avatar, maxPixel: 400).blur(radius: 60).opacity(0.45)
             }
         }
-        .ignoresSafeArea()
+        .clipped()
     }
 
     private var statusLine: String {
@@ -148,7 +166,8 @@ struct CallOverlay: View {
                         control(.video, slashed: calls.camOff, "Camera", on: !calls.camOff) { calls.toggleCamera() }
                         control(.cameraRotate, "Flip camera", on: true) { calls.flip() }
                     } else {
-                        control(calls.speaker ? .speaker : .speakerOff, "Speaker", on: calls.speaker) { calls.toggleSpeaker() }
+                        control(.speaker, "Speaker", on: !calls.speaker) { calls.toggleSpeaker() }
+                            .accessibilityAddTraits(calls.speaker ? .isSelected : [])
                     }
                     control(.mic, slashed: calls.muted, "Microphone", on: !calls.muted) { calls.toggleMute() }
                     roundButton(.phoneDown, "End call", color: Theme.red, size: 60) { calls.hangUp() }
@@ -199,7 +218,9 @@ struct CallOverlay: View {
             .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
         }
         .buttonStyle(.press(0.95))
-        .padding(.top, 6)
+        .padding(.top, max(insets.top, 6) + 2)
+        .frame(width: max(0, size.width - insets.leading - insets.trailing))
+        .offset(x: insets.leading)
         .accessibilityLabel("Return to call")
     }
 }

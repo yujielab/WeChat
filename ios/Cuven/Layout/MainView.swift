@@ -38,7 +38,6 @@ struct MainView: View {
         .ignoresSafeArea()
         .background(SafeAreaReader { safe = $0 }.ignoresSafeArea())
         .modifier(HingeWatcher(posture: $posture))
-        .overlay { CallOverlay() }
         .task { await Automation.drive(model, nav) }
         .onChange(of: model.pendingRoom) { _, room in
             guard let room else { return }
@@ -138,6 +137,12 @@ struct MainView: View {
                 PhotoViewer(item: item, nav: nav, insets: insets)
                     .zIndex(40)
             }
+
+            // A call over everything but the toasts, in the app's own frame.
+            CallOverlay(size: size, insets: insets)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .allowsHitTesting(model.calls.active)
+                .zIndex(45)
 
             if let toast = model.toast {
                 ToastView(toast: toast)
