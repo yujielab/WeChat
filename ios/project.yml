@@ -34,9 +34,12 @@ targets:
       - path: Cuven
         excludes:
           - "**/*.md"
+      - path: Shared
     dependencies:
       - package: Lottie
       - package: WebRTC
+      # Calls in the Dynamic Island and on the Lock Screen (Live Activities).
+      - target: CuvenWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: us.cuven.app
@@ -49,6 +52,27 @@ targets:
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         CODE_SIGN_STYLE: Automatic
+        SWIFT_EMIT_LOC_STRINGS: YES
+      configs:
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: -O
+          SWIFT_COMPILATION_MODE: wholemodule
+
+  CuvenWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CuvenWidgets
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: us.cuven.app.widgets
+        PRODUCT_NAME: CuvenWidgets
+        INFOPLIST_FILE: CuvenWidgets/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
         SWIFT_EMIT_LOC_STRINGS: YES
       configs:
         Release:

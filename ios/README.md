@@ -130,6 +130,8 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
   Siri 建议里（NSUserActivity）；消息里的链接显示预览卡片（LinkPresentation）；文件在 App 内用 Quick Look 预览；
   只有外语消息才显示“翻译”（Natural Language 识别语言）；输入框和发动态支持写作工具（Writing Tools）；“+”里的
   图乐园（Image Playground）生成图片发送；“按住录语音”用系统提示（TipKit）告诉新用户一次。
+- **通话实时活动**（ActivityKit + WidgetKit，`CuvenWidgets` 扩展）：通话进行时显示在灵动岛（iPhone Duo 上从外屏摄像头区域展开）
+  和锁屏上：对方、计时或“正在呼叫…”，以及静音和挂断按钮（`LiveActivityIntent`，在 App 里执行）。
 - **语音消息**：按住空输入框录音；播放可暂停后接着播、点波形跳到那里、1× / 1.5× / 2× 倍速、播放时倒计时，
   贴近耳朵自动换到听筒；对方连续的几条未听语音会一条接一条播完，没听过的带小红点。
 - **聊天列表**：便签（24 小时的一句话，浮在头像上的思考气泡）、筛选胶囊（选中滑过去）、左右滑：

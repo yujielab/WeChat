@@ -1,4 +1,5 @@
 import SwiftUI
+import ActivityKit
 import AVFoundation
 import WebRTC
 
@@ -43,6 +44,8 @@ final class CallManager {
     @ObservationIgnored private var peers = Set<String>()
     @ObservationIgnored private var pullTries = 0
     @ObservationIgnored private let sounds = CallSounds()
+    /// The call in the Dynamic Island and on the Lock Screen.
+    @ObservationIgnored private var activity: Activity<CallActivityAttributes>?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     private static let ringSeconds: Double = 45
@@ -52,6 +55,9 @@ final class CallManager {
         let center = NotificationCenter.default
         // Voice messages don't play over a call.
         AudioPlayback.shared.callActive = { [weak self] in self?.active ?? false }
+        // The Live Activity's buttons.
+        CallControl.hangUp = { [weak self] in self?.hangUp() }
+        CallControl.toggleMute = { [weak self] in self?.toggleMute() }
         observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.updateRoute() }
         })
@@ -92,6 +98,7 @@ final class CallManager {
             expanded = true
         }
         send(["kind": "invite", "media": video ? "video" : "audio"])
+        startActivity()
         ringTimer = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.ringSeconds))
             guard let self, !Task.isCancelled, self.callId == id, !self.answered else { return }
@@ -158,6 +165,7 @@ final class CallManager {
         default:
             break
         }
+        syncActivity()
     }
 
     private func incoming(_ e: [String: Any]) {
@@ -187,6 +195,7 @@ final class CallManager {
         send(["kind": "ringing"])
         AudioPlayback.shared.stop()
         sounds.ring()
+        startActivity()
         ringTimer = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.ringSeconds))
             guard let self, !Task.isCancelled, self.callId == id, !self.answered else { return }
@@ -203,6 +212,7 @@ final class CallManager {
         answered = true
         status = String(localized: "Connecting…")
         withAnimation(Motion.ui) { phase = .connecting }
+        syncActivity()
         Task { await begin() }
     }
 
@@ -303,6 +313,7 @@ final class CallManager {
         Haptics.success()
         withAnimation(Motion.ui) { phase = .live }
         updateProximity()
+        syncActivity()
     }
 
     // MARK: - Controls
@@ -312,6 +323,7 @@ final class CallManager {
         engine?.setMicEnabled(!muted)
         sendState()
         Haptics.tap()
+        syncActivity()
     }
 
     func toggleCamera() {
@@ -333,6 +345,35 @@ final class CallManager {
         try? AVAudioSession.sharedInstance().overrideOutputAudioPort(speaker ? .speaker : .none)
         Haptics.tap()
         updateRoute()
+    }
+
+    // MARK: - Live Activity
+
+    /// The call in the Dynamic Island (on iPhone Duo it grows out of the
+    /// outer camera's region) and on the Lock Screen, with Mute and End.
+    private func startActivity() {
+        guard activity == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let name = title.isEmpty ? String(localized: "Call") : title
+        let initials = String(name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased()
+        let attributes = CallActivityAttributes(name: name, initials: initials.isEmpty ? "·" : initials, video: video)
+        activity = try? Activity.request(attributes: attributes, content: .init(state: activityState, staleDate: nil))
+    }
+
+    private var activityState: CallActivityAttributes.ContentState {
+        .init(status: phase == .live ? "" : status, liveSince: liveAt, muted: muted)
+    }
+
+    private func syncActivity() {
+        guard let activity else { return }
+        let state = activityState
+        Task { await activity.update(.init(state: state, staleDate: nil)) }
+    }
+
+    private func endActivity() {
+        guard let a = activity else { return }
+        activity = nil
+        let state = CallActivityAttributes.ContentState(status: status, liveSince: nil, muted: muted)
+        Task { await a.end(.init(state: state, staleDate: nil), dismissalPolicy: .after(.now + 2)) }
     }
 
     // MARK: - Sound route, the screen
@@ -388,6 +429,7 @@ final class CallManager {
         engine = nil
         status = text
         withAnimation(Motion.ui) { phase = .ending }
+        endActivity()
         if heard { sounds.ended() } else { sounds.stop() }
         updateProximity()
         UIApplication.shared.isIdleTimerDisabled = false

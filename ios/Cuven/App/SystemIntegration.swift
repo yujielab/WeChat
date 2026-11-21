@@ -2,11 +2,11 @@ import SwiftUI
 import AppIntents
 import CoreSpotlight
 import UniformTypeIdentifiers
-import TipKit
 
 // The system around the app (Apple Developer Documentation): Siri and
 // Shortcuts (App Intents), Spotlight (Core Spotlight), Handoff and
-// suggestions (NSUserActivity), and tips for what's easy to miss (TipKit).
+// suggestions (NSUserActivity). Tips (TipKit) are in Tips.swift: TipKit's
+// own @Parameter macro would shadow App Intents' in the same file.
 
 /// Where an intent, a Spotlight result or a notification wants to go,
 /// held until the main view is there to take it.
@@ -160,21 +160,4 @@ enum ChatDirectory {
 /// The activity a conversation advertises while open (Handoff, suggestions).
 enum ChatActivity {
     static let type = "us.cuven.app.chat"
-}
-
-// MARK: - Tips
-
-/// Recording is hidden in a gesture: said once, in the system's own tip.
-struct HoldToTalkTip: Tip {
-    var title: Text { Text("Hold to record a voice message") }
-    var message: Text? { Text("Touch and hold the empty message field. Let go to send, or slide up first to cancel.") }
-    var image: Image? { Image(systemName: "waveform") }
-    var options: [any TipOption] { [Tips.MaxDisplayCount(2)] }
-}
-
-enum CuvenTips {
-    static func configure() {
-        if Automation.active { Tips.hideAllTipsForTesting() }
-        try? Tips.configure([.displayFrequency(.immediate)])
-    }
 }
