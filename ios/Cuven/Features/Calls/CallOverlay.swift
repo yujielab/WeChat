@@ -1,4 +1,5 @@
 import SwiftUI
+import AVKit
 import WebRTC
 
 /// The call screen: their picture (or their photo on a dark field), a dark
@@ -13,6 +14,14 @@ struct CallOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pip: CGSize = .zero
     @Namespace private var ns
+    /// A live video call: a tap hides the controls (and they hide by
+    /// themselves after a while); another brings them back.
+    @State private var chromeHidden = false
+    @State private var hideTask: Task<Void, Never>?
+    /// The small picture tapped: yours big, theirs small.
+    @State private var swapped = false
+    /// Theirs fitted whole rather than filling the screen (double-tap).
+    @State private var fitted = false
 
     private var calls: CallManager { model.calls }
 
@@ -34,63 +43,101 @@ struct CallOverlay: View {
 
     // MARK: full screen
 
+    private var remoteShowing: Bool { calls.video && calls.remoteVideo != nil && calls.remoteCam }
+    private var localShowing: Bool { calls.video && calls.localVideo != nil && !calls.camOff && calls.phase != .incoming }
+    /// Before they're on, your own camera fills the screen behind who you're calling.
+    private var previewing: Bool { localShowing && !remoteShowing && calls.phase != .live }
+    private var liveVideo: Bool { remoteShowing && calls.phase == .live }
+    private var columnWidth: CGFloat { max(0, size.width - insets.leading - insets.trailing) }
+
     private var full: some View {
         let bottomGap = max(insets.bottom, 16) + 12
         return ZStack(alignment: .topLeading) {
             background
                 .frame(width: size.width, height: size.height)
-            if calls.video, let remote = calls.remoteVideo, calls.remoteCam {
-                CallVideoView(track: remote, mirror: false, fill: true)
+
+            // The big picture: theirs, yours when swapped, or yours while it rings.
+            if let big = bigVideo {
+                CallVideoView(track: big.track, mirror: big.mirror, fill: !(big.remote && fitted))
                     .frame(width: size.width, height: size.height)
+                    .background(Color.black)
+                    .overlay {
+                        if previewing {
+                            LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.15), .black.opacity(0.6)],
+                                           startPoint: .top, endPoint: .bottom)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        guard big.remote else { return }
+                        withAnimation(Motion.ui) { fitted.toggle() }
+                        Haptics.selection()
+                    }
+                    .onTapGesture { toggleChrome() }
                     .transition(.opacity)
+                    .id(big.remote ? "remote" : "local")
             }
 
             // Who, the status, the controls: in the app's own column.
             ZStack {
-                if !(calls.video && calls.remoteVideo != nil && calls.remoteCam) {
-                    VStack(spacing: 18) {
-                        Avatar(user: calls.peerUser ?? User(id: calls.roomId ?? "", display: calls.title), size: 132)
-                            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
-                            .scaleEffect(calls.phase == .incoming || calls.phase == .outgoing ? 1.04 : 1)
-                            .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: calls.phase)
-                        Text(calls.title).font(AppFont.make(30, .bold)).foregroundStyle(.white)
-                            .lineLimit(1).minimumScaleFactor(0.6)
-                        Text(statusLine).font(.subheadC.monospacedDigit()).foregroundStyle(.white.opacity(0.75))
-                            .multilineTextAlignment(.center)
-                            .contentTransition(.numericText())
-                        if !calls.remoteMic && calls.phase == .live {
-                            Label("Muted", systemImage: "mic.slash.fill").font(.footnoteC).foregroundStyle(.white.opacity(0.7))
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.bottom, 80)
+                if !liveVideo && !(remoteShowing && swapped) {
+                    identity
+                        .padding(.horizontal, 20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.bottom, 80)
+                        .allowsHitTesting(false)
                 }
 
-                topCapsule
-                    .padding(.top, insets.top + 8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                VStack(spacing: 8) {
+                    topCapsule
+                    if calls.shaky && calls.phase == .live {
+                        HStack(spacing: 6) {
+                            SymbolView(.wifi, size: 13)
+                            Text("Poor connection").font(.footnoteC)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 28)
+                        .background(Theme.orange.opacity(0.85), in: Capsule())
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+                .padding(.top, insets.top + 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .opacity(chromeHidden ? 0 : 1)
+                .offset(y: chromeHidden ? -16 : 0)
 
                 controls
                     .padding(.bottom, bottomGap)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .opacity(chromeHidden ? 0 : 1)
+                    .offset(y: chromeHidden ? 24 : 0)
+                    .allowsHitTesting(!chromeHidden)
             }
-            .frame(width: max(0, size.width - insets.leading - insets.trailing), height: size.height)
+            .frame(width: columnWidth, height: size.height)
             .offset(x: insets.leading)
+            .animation(Motion.ui, value: chromeHidden)
+            .animation(Motion.ui, value: calls.shaky)
 
-            // Your own picture, small and rounder, drag it to a corner.
-            if calls.video, let local = calls.localVideo, !calls.camOff, calls.phase != .incoming {
+            // The small picture, drag it to a corner; tap it to swap.
+            if let small = smallVideo {
                 let w: CGFloat = 112
                 let h: CGFloat = 160
                 let right = size.width - insets.trailing - 16 - w
                 let left = insets.leading + 16
                 let top = insets.top + 70
-                let bottom = size.height - bottomGap - 80 - 16 - h
-                CallVideoView(track: local, mirror: calls.frontCamera, fill: true)
+                let bottom = size.height - bottomGap - 120 - 16 - h
+                CallVideoView(track: small.track, mirror: small.mirror, fill: true)
                     .frame(width: w, height: h)
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 1))
                     .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
+                    .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .onTapGesture {
+                        Haptics.tap()
+                        withAnimation(Motion.morph) { swapped.toggle() }
+                        showChrome()
+                    }
                     .offset(x: right + pip.width, y: top + pip.height)
                     .gesture(DragGesture().onChanged { pip = $0.translation }.onEnded { v in
                         let x: CGFloat = v.predictedEndLocation.x < size.width / 2 ? left - right : 0
@@ -98,11 +145,86 @@ struct CallOverlay: View {
                         withAnimation(Motion.move) { pip = CGSize(width: x, height: y) }
                     })
                     .transition(.scale.combined(with: .opacity))
+                    .accessibilityLabel(swapped ? "Their video" : "Your video")
+                    .accessibilityHint("Swaps the two pictures")
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipped()
         .preferredColorScheme(.dark)
+        .onChange(of: liveVideo) { _, live in
+            if live { scheduleHide() } else { showChrome(schedule: false) }
+        }
+        .onChange(of: calls.active) { _, on in
+            if !on { swapped = false; fitted = false; chromeHidden = false; hideTask?.cancel() }
+        }
+    }
+
+    private struct Shown { let track: RTCVideoTrack; let mirror: Bool; let remote: Bool }
+
+    private var bigVideo: Shown? {
+        if remoteShowing, let remote = calls.remoteVideo {
+            if swapped, localShowing, let local = calls.localVideo { return Shown(track: local, mirror: calls.frontCamera, remote: false) }
+            return Shown(track: remote, mirror: false, remote: true)
+        }
+        if previewing, let local = calls.localVideo { return Shown(track: local, mirror: calls.frontCamera, remote: false) }
+        return nil
+    }
+
+    private var smallVideo: Shown? {
+        guard remoteShowing, localShowing, let remote = calls.remoteVideo, let local = calls.localVideo else { return nil }
+        return swapped ? Shown(track: remote, mirror: false, remote: true) : Shown(track: local, mirror: calls.frontCamera, remote: false)
+    }
+
+    private var identity: some View {
+        VStack(spacing: 18) {
+            Avatar(user: calls.peerUser ?? User(id: calls.roomId ?? "", display: calls.title), size: 132)
+                .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+                .scaleEffect(calls.phase == .incoming || calls.phase == .outgoing ? 1.04 : 1)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: calls.phase)
+            Text(calls.title).font(AppFont.make(30, .bold)).foregroundStyle(.white)
+                .lineLimit(1).minimumScaleFactor(0.6)
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                Text(statusLine).font(.subheadC.monospacedDigit()).foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .contentTransition(.numericText())
+            }
+            if calls.phase == .live && (!calls.remoteMic || (calls.video && !calls.remoteCam)) {
+                HStack(spacing: 14) {
+                    if !calls.remoteMic {
+                        Label("Muted", systemImage: "mic.slash.fill")
+                    }
+                    if calls.video && !calls.remoteCam {
+                        Label("Camera off", systemImage: "video.slash.fill")
+                    }
+                }
+                .font(.footnoteC)
+                .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+    }
+
+    private func toggleChrome() {
+        guard liveVideo else { return }
+        if chromeHidden { showChrome() } else {
+            hideTask?.cancel()
+            chromeHidden = true
+        }
+    }
+
+    private func showChrome(schedule: Bool = true) {
+        chromeHidden = false
+        if schedule && liveVideo { scheduleHide() } else { hideTask?.cancel() }
+    }
+
+    /// Out of the way after five seconds of watching.
+    private func scheduleHide() {
+        hideTask?.cancel()
+        hideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, liveVideo else { return }
+            chromeHidden = true
+        }
     }
 
     private var background: some View {
@@ -155,34 +277,98 @@ struct CallOverlay: View {
     private var controls: some View {
         if calls.phase == .incoming {
             HStack(spacing: 64) {
-                roundButton(.phoneDown, "Decline", color: Theme.red, size: 72) { calls.decline() }
-                roundButton(calls.video ? .video : .phoneFill, "Accept", color: Theme.green, size: 72) { calls.accept() }
-                    .phaseAnimator([1.0, 1.08]) { v, k in v.scaleEffect(k) } animation: { _ in .easeInOut(duration: 0.6) }
+                captioned(String(localized: "Decline")) {
+                    roundButton(.phoneDown, "Decline", color: Theme.red, size: 72) { calls.decline() }
+                }
+                captioned(String(localized: "call.answer", defaultValue: "Answer")) {
+                    roundButton(calls.video ? .video : .phoneFill, "Accept", color: Theme.green, size: 72) { calls.accept() }
+                        .phaseAnimator([1.0, 1.08]) { v, k in v.scaleEffect(k) } animation: { _ in .easeInOut(duration: 0.6) }
+                }
             }
         } else {
+            // As many buttons as fit the column, each with its word under it (the web's captions).
+            let count = calls.video ? (calls.externalRoute ? 5 : 4) : 3
+            let d = min(60, max(46, (columnWidth - 28 - CGFloat(count - 1) * 12) / CGFloat(count)))
             GlassGroup(spacing: 8) {
-                HStack(spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
                     if calls.video {
-                        control(.video, slashed: calls.camOff, "Camera", on: !calls.camOff) { calls.toggleCamera() }
-                        control(.cameraRotate, "Flip camera", on: true) { calls.flip() }
+                        captioned(String(localized: "call.camera", defaultValue: "Camera")) {
+                            control(.video, slashed: calls.camOff, "Camera", on: !calls.camOff, size: d) { calls.toggleCamera() }
+                        }
+                        captioned(String(localized: "call.flip", defaultValue: "Flip")) {
+                            control(.cameraRotate, "Flip camera", on: true, size: d) { calls.flip() }
+                        }
+                        if calls.externalRoute { routeControl(size: d) }
+                    } else if calls.externalRoute {
+                        routeControl(size: d)
                     } else {
-                        control(.speaker, "Speaker", on: !calls.speaker) { calls.toggleSpeaker() }
-                            .accessibilityAddTraits(calls.speaker ? .isSelected : [])
+                        captioned(String(localized: "Speaker")) {
+                            control(.speaker, "Speaker", on: !calls.speaker, size: d) { calls.toggleSpeaker() }
+                                .accessibilityAddTraits(calls.speaker ? .isSelected : [])
+                        }
                     }
-                    control(.mic, slashed: calls.muted, "Microphone", on: !calls.muted) { calls.toggleMute() }
-                    roundButton(.phoneDown, "End call", color: Theme.red, size: 60) { calls.hangUp() }
+                    captioned(String(localized: "call.mute", defaultValue: "Mute")) {
+                        control(.mic, slashed: calls.muted, "Microphone", on: !calls.muted, size: d) { calls.toggleMute() }
+                            .accessibilityAddTraits(calls.muted ? .isSelected : [])
+                    }
+                    captioned(String(localized: "call.end", defaultValue: "End")) {
+                        roundButton(.phoneDown, "End call", color: Theme.red, size: d) { calls.hangUp() }
+                    }
                 }
-                .padding(10)
-                .glass(Capsule(), tint: .black.opacity(0.35), interactive: false)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+                .glass(RoundedRectangle(cornerRadius: 34, style: .continuous), tint: .black.opacity(0.35), interactive: false)
             }
         }
     }
 
-    private func control(_ sym: Sym, slashed: Bool = false, _ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
+    /// A control with its word under it.
+    private func captioned<V: View>(_ caption: String, @ViewBuilder _ content: () -> V) -> some View {
+        VStack(spacing: 6) {
+            content()
+            Text(caption)
+                .font(.caption2C)
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+                .fixedSize()
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// AirPods, a car, headphones connected: the button opens the system's
+    /// list of where the sound can go, showing where it goes now.
+    private func routeControl(size d: CGFloat) -> some View {
+        let symbol: String = switch calls.route {
+        case .bluetooth: "airpods"
+        case .headphones: "headphones"
+        case .car: "car.fill"
+        case .speaker: "speaker.wave.2.fill"
+        case .receiver: "iphone"
+        case .other: "hifispeaker.fill"
+        }
+        let lit = calls.route != .receiver
+        return captioned(String(localized: "call.audio", defaultValue: "Audio")) {
+            ZStack {
+                Image(systemName: symbol)
+                    .font(.system(size: d * 0.36, weight: .semibold))
+                    .foregroundStyle(lit ? .black : .white)
+                    .frame(width: d, height: d)
+                    .background(lit ? Color.white : Color.white.opacity(0.16), in: Circle())
+                    .contentTransition(.symbolEffect(.replace))
+                RoutePicker()
+                    .frame(width: d, height: d)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Audio output")
+        }
+    }
+
+    private func control(_ sym: Sym, slashed: Bool = false, _ title: LocalizedStringKey, on: Bool, size d: CGFloat = 60, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            SymbolView(sym, size: 26, slashed: slashed)
+            SymbolView(sym, size: d * 0.43, slashed: slashed)
                 .foregroundStyle(on ? .white : .black)
-                .frame(width: 60, height: 60)
+                .frame(width: d, height: d)
                 .background(on ? Color.white.opacity(0.16) : Color.white, in: Circle())
                 .animation(Motion.quick, value: on)
         }
@@ -235,6 +421,8 @@ struct CallVideoView: UIViewRepresentable {
         let v = RTCMTLVideoView(frame: .zero)
         v.videoContentMode = fill ? .scaleAspectFill : .scaleAspectFit
         v.clipsToBounds = true
+        // Taps go to SwiftUI (show the controls, swap, fit).
+        v.isUserInteractionEnabled = false
         track.add(v)
         context.coordinator.track = track
         v.transform = mirror ? CGAffineTransform(scaleX: -1, y: 1) : .identity
@@ -248,6 +436,8 @@ struct CallVideoView: UIViewRepresentable {
             context.coordinator.track = track
         }
         v.transform = mirror ? CGAffineTransform(scaleX: -1, y: 1) : .identity
+        let mode: UIView.ContentMode = fill ? .scaleAspectFill : .scaleAspectFit
+        if v.videoContentMode != mode { v.videoContentMode = mode }
     }
 
     static func dismantleUIView(_ v: RTCMTLVideoView, coordinator: Coordinator) {
@@ -259,4 +449,19 @@ struct CallVideoView: UIViewRepresentable {
     final class Coordinator {
         var track: RTCVideoTrack?
     }
+}
+
+/// The system's audio route button (AirPods, speaker, car…), drawn clear so
+/// our own button shows through; it only takes the tap and opens the list.
+struct RoutePicker: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let v = AVRoutePickerView()
+        v.prioritizesVideoDevices = false
+        v.tintColor = .clear
+        v.activeTintColor = .clear
+        v.backgroundColor = .clear
+        return v
+    }
+
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
 }

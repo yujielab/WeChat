@@ -392,3 +392,17 @@
 "Release to cancel" = "松开取消";
 "Double-tap to type. Touch and hold to record a voice message." = "轻点两下输入，按住录制语音消息。";
 "Type" = "输入";
+"call.answer" = "接听";
+"call.camera" = "摄像头";
+"call.flip" = "翻转";
+"call.mute" = "静音";
+"call.end" = "挂断";
+"call.audio" = "音频";
+"Poor connection" = "网络不佳";
+"Camera off" = "摄像头已关闭";
+"Audio output" = "音频输出";
+"Their video" = "对方的画面";
+"Your video" = "你的画面";
+"Swaps the two pictures" = "交换两个画面";
+"Playback speed" = "播放速度";
+"Not played" = "未播放";

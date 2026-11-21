@@ -27,6 +27,12 @@ final class CallManager {
     var remoteVideo: RTCVideoTrack?
     var localVideo: RTCVideoTrack?
     var frontCamera = true
+    /// Where the call's sound goes, as the system has it.
+    enum Route: Equatable { case receiver, speaker, bluetooth, headphones, car, other }
+    var route: Route = .receiver
+    /// Something besides the phone itself to talk through (AirPods, a car,
+    /// headphones): then the route is picked from the system's list.
+    var externalRoute = false
 
     private unowned let model: AppModel
     @ObservationIgnored private var engine: RTCEngine?
@@ -36,12 +42,23 @@ final class CallManager {
     @ObservationIgnored private var published = false
     @ObservationIgnored private var peers = Set<String>()
     @ObservationIgnored private var pullTries = 0
-    @ObservationIgnored private var ringer: AVAudioPlayer?
+    @ObservationIgnored private let sounds = CallSounds()
+    @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     private static let ringSeconds: Double = 45
 
     init(model: AppModel) {
         self.model = model
+        let center = NotificationCenter.default
+        // Voice messages don't play over a call.
+        AudioPlayback.shared.callActive = { [weak self] in self?.active ?? false }
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.updateRoute() }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] n in
+            let ended = (n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap { AVAudioSession.InterruptionType(rawValue: $0) } == .ended
+            Task { @MainActor in if ended { self?.resumeAudio() } }
+        })
     }
 
     var active: Bool { phase != .idle }
@@ -62,6 +79,7 @@ final class CallManager {
         guard model.callsEnabled else { return model.show(String(localized: "Calls aren't available right now"), error: true) }
         guard model.connected else { return model.show(String(localized: "Still connecting…"), error: true) }
         reset()
+        AudioPlayback.shared.stop()
         let id = "\(Int(Date().timeIntervalSince1970 * 1000))\(Int.random(in: 0..<1000))"
         roomId = room.id
         callId = id
@@ -101,6 +119,7 @@ final class CallManager {
             if let from { peers.insert(from) }
             answered = true
             ringTimer?.cancel()
+            sounds.stop()
             status = String(localized: "Connecting…")
             if phase == .outgoing { withAnimation(Motion.ui) { phase = .connecting } }
             announce()
@@ -166,8 +185,8 @@ final class CallManager {
             expanded = true
         }
         send(["kind": "ringing"])
-        ring()
-        Haptics.warning()
+        AudioPlayback.shared.stop()
+        sounds.ring()
         ringTimer = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.ringSeconds))
             guard let self, !Task.isCancelled, self.callId == id, !self.answered else { return }
@@ -178,7 +197,7 @@ final class CallManager {
 
     func accept() {
         guard phase == .incoming else { return }
-        stopRing()
+        sounds.stop()
         ringTimer?.cancel()
         send(["kind": "accept"])
         answered = true
@@ -189,7 +208,7 @@ final class CallManager {
 
     func decline() {
         guard phase == .incoming else { return }
-        stopRing()
+        sounds.stop()
         send(["kind": "decline"])
         finish(String(localized: "Declined"), notify: false)
     }
@@ -218,6 +237,7 @@ final class CallManager {
             return
         }
         configureAudio()
+        if isCaller && !answered && phase == .outgoing { sounds.ringback() }
         var ice: [[String: Any]] = [["urls": "stun:stun.cloudflare.com:3478"]]
         if let data = try? await model.api.raw("POST", "/rtc/turn", json: [:]),
            let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -279,8 +299,10 @@ final class CallManager {
         guard answered, liveAt == nil, active else { return }
         liveAt = Date()
         status = ""
+        sounds.stop()
         Haptics.success()
         withAnimation(Motion.ui) { phase = .live }
+        updateProximity()
     }
 
     // MARK: - Controls
@@ -310,6 +332,47 @@ final class CallManager {
         speaker.toggle()
         try? AVAudioSession.sharedInstance().overrideOutputAudioPort(speaker ? .speaker : .none)
         Haptics.tap()
+        updateRoute()
+    }
+
+    // MARK: - Sound route, the screen
+
+    /// What the system is playing through now, and whether there's more
+    /// than the phone to choose from; the earpiece turns the screen off
+    /// against your cheek.
+    private func updateRoute() {
+        let s = AVAudioSession.sharedInstance()
+        let port = s.currentRoute.outputs.first?.portType
+        switch port {
+        case .builtInSpeaker?: route = .speaker
+        case .builtInReceiver?: route = .receiver
+        case .bluetoothHFP?, .bluetoothA2DP?, .bluetoothLE?: route = .bluetooth
+        case .headphones?, .usbAudio?: route = .headphones
+        case .carAudio?: route = .car
+        case nil: route = .receiver
+        default: route = .other
+        }
+        if active { speaker = route == .speaker }
+        let inputs = s.availableInputs ?? []
+        externalRoute = route == .bluetooth || route == .headphones || route == .car || route == .other
+            || inputs.contains { $0.portType == .bluetoothHFP || $0.portType == .headsetMic || $0.portType == .carAudio }
+        updateProximity()
+    }
+
+    /// A voice call held to the ear: the screen goes dark there, so a cheek
+    /// can't press anything.
+    private func updateProximity() {
+        let on = active && !video && route == .receiver && phase != .incoming && phase != .ending
+        if UIDevice.current.isProximityMonitoringEnabled != on { UIDevice.current.isProximityMonitoringEnabled = on }
+    }
+
+    /// After another app (or a phone call) had the sound: take it back.
+    private func resumeAudio() {
+        guard active, phase != .incoming else { return }
+        let s = AVAudioSession.sharedInstance()
+        try? s.setActive(true)
+        if speaker { try? s.overrideOutputAudioPort(.speaker) }
+        updateRoute()
     }
 
     // MARK: - Ending
@@ -319,19 +382,25 @@ final class CallManager {
         if notify {
             send(["kind": "cancel", "media": video ? "video" : "audio", "missed": true, "result": result])
         }
-        stopRing()
+        let heard = engine != nil
         ringTimer?.cancel()
         engine?.close()
         engine = nil
         status = text
         withAnimation(Motion.ui) { phase = .ending }
+        if heard { sounds.ended() } else { sounds.stop() }
+        updateProximity()
+        UIApplication.shared.isIdleTimerDisabled = false
         Task {
             try? await Task.sleep(for: .seconds(1.1))
+            sounds.stop()
             if phase == .ending {
                 withAnimation(Motion.morph) { reset() }
             }
+            if phase == .idle {
+                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            }
         }
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func reset() {
@@ -353,33 +422,24 @@ final class CallManager {
         remoteCam = true
         pullTries = 0
         frontCamera = true
+        sounds.stop()
+        if UIDevice.current.isProximityMonitoringEnabled { UIDevice.current.isProximityMonitoringEnabled = false }
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     private func configureAudio() {
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playAndRecord, mode: video ? .videoChat : .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
         try? s.setActive(true)
-        if video {
+        updateRoute()
+        // A video call is on the speaker, unless something else is connected.
+        if video && !externalRoute {
             speaker = true
             try? s.overrideOutputAudioPort(.speaker)
         }
-    }
-
-    private func ring() {
-        // The system's own tri-tone, looped, quietly, while it rings here.
-        let url = URL(fileURLWithPath: "/System/Library/Audio/UISounds/nano/ringtone_iPhone_Default.caf")
-        if FileManager.default.fileExists(atPath: url.path), let p = try? AVAudioPlayer(contentsOf: url) {
-            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            p.numberOfLoops = -1
-            p.volume = 0.7
-            p.play()
-            ringer = p
-        }
-    }
-
-    private func stopRing() {
-        ringer?.stop()
-        ringer = nil
+        // A video call keeps the screen on.
+        UIApplication.shared.isIdleTimerDisabled = video
+        updateRoute()
     }
 
     static func permission(video: Bool) async -> Bool {

@@ -416,77 +416,270 @@ struct FrameProbe: UIViewRepresentable {
 
 // MARK: - Voice
 
+/// Voice messages, one at a time: pause and pick up where it stopped, tap
+/// the waveform to jump, 1× / 1.5× / 2×, to the ear for the earpiece, and
+/// on into the next ones they sent that you haven't heard.
 @MainActor
 @Observable
 final class AudioPlayback {
     static let shared = AudioPlayback()
-    var playing: String?
+    /// The message loaded, playing or paused.
+    var current: String?
+    var paused = false
     var progress: Double = 0
-    @ObservationIgnored private var player: AVPlayer?
-    @ObservationIgnored private var observer: Any?
+    var elapsed: Double = 0
+    var rate: Float = {
+        let r = UserDefaults.standard.float(forKey: "ui:voiceRate")
+        return [1, 1.5, 2].contains(r) ? r : 1
+    }()
+    /// Others' voice messages heard on this device (a dot marks the rest).
+    var heard: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "voice:heard") ?? [])
+    /// Set by the calls: nothing plays over a call.
+    @ObservationIgnored var callActive: () -> Bool = { false }
 
-    func toggle(_ m: Message) {
-        if playing == m.id {
-            stop()
-            return
+    @ObservationIgnored private var player: AVPlayer?
+    @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var nearObserver: NSObjectProtocol?
+    @ObservationIgnored private var queue: [Message] = []
+    @ObservationIgnored private var total: Double = 0
+
+    /// Playing (not paused) this message.
+    func isPlaying(_ id: String) -> Bool { current == id && !paused }
+
+    func toggle(_ m: Message, then next: [Message] = []) {
+        if current == m.id {
+            paused ? resume() : pause()
+        } else {
+            play(m, from: 0, then: next)
         }
+    }
+
+    /// Tapped somewhere along the waveform.
+    func seek(_ m: Message, to fraction: Double, then next: [Message] = []) {
+        let f = max(0, min(1, fraction))
+        guard current == m.id, let player else { return play(m, from: f, then: next) }
+        let d = duration(of: player.currentItem)
+        player.seek(to: CMTime(seconds: d * f, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        progress = f
+        elapsed = d * f
+        if paused { resume() }
+    }
+
+    func cycleRate() {
+        rate = rate == 1 ? 1.5 : (rate == 1.5 ? 2 : 1)
+        UserDefaults.standard.set(rate, forKey: "ui:voiceRate")
+        if let player, !paused { player.rate = rate }
+        Haptics.selection()
+    }
+
+    private func play(_ m: Message, from fraction: Double, then next: [Message]) {
         stop()
-        guard let url = m.meta?.url, let asset = AuthorizedAsset.make(url) else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        guard !callActive(), let url = m.meta?.url, let asset = AuthorizedAsset.make(url) else { return }
+        useSpeaker()
         let item = AVPlayerItem(asset: asset)
+        item.audioTimePitchAlgorithm = .timeDomain
         let p = AVPlayer(playerItem: item)
         player = p
-        playing = m.id
-        progress = 0
-        let total = m.meta?.dur ?? 0
-        observer = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.05, preferredTimescale: 600), queue: .main) { [weak self] t in
+        current = m.id
+        paused = false
+        queue = next
+        total = m.meta?.dur ?? 0
+        progress = fraction
+        elapsed = total * fraction
+        markHeard(m)
+        timeObserver = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.05, preferredTimescale: 600), queue: .main) { [weak self] t in
             Task { @MainActor in
-                guard let self else { return }
-                let d = item.duration.seconds.isFinite && item.duration.seconds > 0 ? item.duration.seconds : total
+                guard let self, self.player === p else { return }
+                let d = self.duration(of: item)
+                self.elapsed = min(d, max(0, t.seconds))
                 self.progress = d > 0 ? min(1, t.seconds / d) : 0
-                if d > 0 && t.seconds >= d - 0.05 { self.stop() }
             }
         }
-        p.play()
+        endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: item, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.finished() }
+        }
+        if fraction > 0, total > 0 {
+            p.seek(to: CMTime(seconds: total * fraction, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+        p.playImmediately(atRate: rate)
+        listenForEar(true)
+        Haptics.soft()
+    }
+
+    private func pause() {
+        player?.pause()
+        paused = true
+        listenForEar(false)
+    }
+
+    private func resume() {
+        guard let player else { return }
+        try? AVAudioSession.sharedInstance().setActive(true)
+        player.playImmediately(atRate: rate)
+        paused = false
+        listenForEar(true)
+    }
+
+    /// The end of one: on into the next they sent, if any, else done.
+    private func finished() {
+        if !queue.isEmpty {
+            let next = queue.removeFirst()
+            let rest = queue
+            play(next, from: 0, then: rest)
+        } else {
+            stop()
+        }
     }
 
     func stop() {
-        if let observer { player?.removeTimeObserver(observer) }
-        observer = nil
+        if let timeObserver { player?.removeTimeObserver(timeObserver) }
+        timeObserver = nil
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        endObserver = nil
         player?.pause()
+        let had = player != nil
         player = nil
-        playing = nil
+        current = nil
+        paused = false
         progress = 0
+        elapsed = 0
+        queue = []
+        listenForEar(false)
+        if had && !callActive() {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
+    }
+
+    private func duration(of item: AVPlayerItem?) -> Double {
+        if let s = item?.duration.seconds, s.isFinite, s > 0 { return s }
+        return total
+    }
+
+    private func markHeard(_ m: Message) {
+        guard !heard.contains(m.id) else { return }
+        heard.insert(m.id)
+        // Only the latest few hundred are kept.
+        let kept = Array(heard.suffix(400))
+        UserDefaults.standard.set(kept, forKey: "voice:heard")
+    }
+
+    // MARK: To the ear
+
+    private func useSpeaker() {
+        let s = AVAudioSession.sharedInstance()
+        try? s.setCategory(.playback, mode: .spokenAudio)
+        try? s.setActive(true)
+    }
+
+    /// Held to the ear (the proximity sensor), it plays through the earpiece
+    /// and the screen goes dark; taken away, back to the speaker.
+    private func listenForEar(_ on: Bool) {
+        UIDevice.current.isProximityMonitoringEnabled = on
+        if on, nearObserver == nil {
+            nearObserver = NotificationCenter.default.addObserver(forName: UIDevice.proximityStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.earChanged() }
+            }
+        } else if !on, let nearObserver {
+            NotificationCenter.default.removeObserver(nearObserver)
+            self.nearObserver = nil
+        }
+    }
+
+    private func earChanged() {
+        guard player != nil, !callActive() else { return }
+        let s = AVAudioSession.sharedInstance()
+        if UIDevice.current.proximityState {
+            // Without "default to speaker", play-and-record goes to the earpiece.
+            try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP])
+            try? s.overrideOutputAudioPort(.none)
+        } else {
+            try? s.setCategory(.playback, mode: .spokenAudio)
+        }
+        try? s.setActive(true)
+        if !paused { player?.rate = rate }
     }
 }
 
 struct VoiceBubble: View {
     let message: Message
     let mine: Bool
+    @Environment(AppModel.self) private var model
     private var playback: AudioPlayback { AudioPlayback.shared }
 
+    private var duration: Double { message.meta?.dur ?? 0 }
+    private var waveWidth: CGFloat { min(160, max(60, CGFloat(duration > 0 ? duration : 4) * 7)) }
+
     var body: some View {
-        let active = playback.playing == message.id
+        let loaded = playback.current == message.id
+        let active = loaded && !playback.paused
         let ink = mine ? Theme.bubbleOutText : Theme.label
         let paper = mine ? Theme.bubbleOut : Theme.bubbleIn
+        let text = mine ? Theme.bubbleOutText : Theme.bubbleInText
         HStack(spacing: 10) {
-            Button { playback.toggle(message) } label: {
+            Button { playback.toggle(message, then: following) } label: {
                 SymbolView(active ? .pause : .play, size: 13)
                     .foregroundStyle(paper)
                     .offset(x: active ? 0 : 1)
                     .frame(width: 30, height: 30)
                     .background(ink, in: Circle())
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.press(0.9))
             .accessibilityLabel(active ? "Pause" : "Play")
-            Waveform(seed: message.id, progress: active ? playback.progress : 0,
-                     color: mine ? Theme.bubbleOutText : Theme.bubbleInText)
-                .frame(width: min(160, max(60, CGFloat(message.meta?.dur ?? 4) * 7)), height: 26)
-            Text(Fmt.duration(message.meta?.dur ?? 0))
+
+            Waveform(seed: message.id, progress: loaded ? playback.progress : 0, color: text)
+                .frame(width: waveWidth, height: 26)
+                .contentShape(Rectangle())
+                .onTapGesture { location in
+                    playback.seek(message, to: Double(location.x / waveWidth), then: following)
+                }
+                .accessibilityHidden(true)
+
+            // Counting down while it plays.
+            Text(Fmt.duration(loaded ? max(0, duration - playback.elapsed) : duration))
                 .font(.footnoteC.monospacedDigit())
-                .foregroundStyle((mine ? Theme.bubbleOutText : Theme.bubbleInText).opacity(0.8))
+                .foregroundStyle(text.opacity(0.8))
+                .contentTransition(.numericText(countsDown: true))
+
+            if loaded {
+                Button { playback.cycleRate() } label: {
+                    Text(rateLabel)
+                        .font(AppFont.make(12, .bold).monospacedDigit())
+                        .foregroundStyle(text)
+                        .padding(.horizontal, 7)
+                        .frame(minWidth: 34, minHeight: 22)
+                        .background(text.opacity(0.14), in: Capsule())
+                }
+                .buttonStyle(.press(0.9))
+                .accessibilityLabel("Playback speed")
+                .accessibilityValue(Text(rateLabel))
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            } else if !mine && !playback.heard.contains(message.id) {
+                Circle().fill(Theme.red).frame(width: 7, height: 7)
+                    .accessibilityLabel("Not played")
+                    .transition(.opacity)
+            }
         }
+        .animation(Motion.quick, value: loaded)
+    }
+
+    private var rateLabel: String {
+        playback.rate == 1 ? "1×" : (playback.rate == 1.5 ? "1.5×" : "2×")
+    }
+
+    /// Their voice messages straight after this one that you haven't heard:
+    /// they play on, one after another.
+    private var following: [Message] {
+        guard !mine else { return [] }
+        let list = model.messages(message.room)
+        guard let i = list.firstIndex(where: { $0.id == message.id }), i + 1 < list.count else { return [] }
+        var out: [Message] = []
+        for m in list[(i + 1)...] {
+            guard m.type == "voice", m.sender == message.sender else { break }
+            if !playback.heard.contains(m.id) { out.append(m) }
+        }
+        return out
     }
 }
 
