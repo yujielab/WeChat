@@ -56,7 +56,7 @@ struct PageScaffold<Header: View, Content: View>: View {
                 content
                     .frame(maxWidth: maxWidth)
                     .frame(maxWidth: .infinity)
-                    .padding(.trailing, railRoom)
+                    .padding(.trailing, trailing)
                     .padding(.bottom, bottomRoom)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -65,9 +65,10 @@ struct PageScaffold<Header: View, Content: View>: View {
             }
             .safeAreaBar(edge: .top, spacing: 0) { barSlot }
             .scrollEdgeEffectStyle(.soft, for: .top)
-            // Only the system's own column here: the scroll view clips at its
-            // horizontal safe area, and a cover has to reach under the rail.
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: 0, trailing: ctx.insets.trailing))
+            // No trailing safe area on the scroll view itself: it clips there,
+            // and a cover has to reach under the rail (which sits in the
+            // system's column). The content and the bar keep clear instead.
+            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: 0, trailing: 0))
 
             if underBar {
                 bar
@@ -104,11 +105,8 @@ struct PageScaffold<Header: View, Content: View>: View {
 
     @ViewBuilder
     private var barSlot: some View {
-        if !underBar { bar.padding(.trailing, railRoom) }
+        if !underBar { bar.padding(.trailing, trailing) }
     }
-
-    /// What the rail and its gap take beyond the system's column.
-    private var railRoom: CGFloat { max(0, trailing - ctx.insets.trailing) }
 
     /// The floating bar: the title, any header (a search field, tabs), and,
     /// without the Duo's column, the controls either side.
@@ -212,9 +210,9 @@ struct BleedUnderRail: ViewModifier {
     var maxWidth: CGFloat = 680
 
     func body(content: Content) -> some View {
-        let extra = ctx.pageTrailing - ctx.insets.trailing
+        let bleed = ctx.usesRail ? ctx.pageTrailing : 0
         let room = ctx.size.width - ctx.insets.leading - ctx.pageTrailing
-        content.padding(.trailing, extra > 0 && room <= maxWidth ? -extra : 0)
+        content.padding(.trailing, bleed > 0 && room <= maxWidth ? -bleed : 0)
     }
 }
 
