@@ -56,7 +56,7 @@ struct SettingsView: View {
                 GroupCard {
                     segmentRow("Appearance", [("light", "Light"), ("dark", "Dark"), ("system", "Auto")], $model.appearance)
                     CellSeparator()
-                    segmentRow("Liquid Glass", [("clear", "Clear"), ("tinted", "Tinted")], $glassTint)
+                    segmentRow("Liquid Glass", [("clear", LocalizedStringKey(String(localized: "glass.clear", defaultValue: "Clear"))), ("tinted", "Tinted")], $glassTint)
                     CellSeparator()
                     segmentRow("Composer glow", [("off", "Off"), ("ocean", "Ocean"), ("dawn", "Dawn"), ("aurora", "Aurora")], $model.composerGlow)
                     CellSeparator()
