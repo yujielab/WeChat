@@ -30,13 +30,15 @@ im.crop((0, 0, w * scale, h * scale)).save(f)
 PY
 }
 
-shoot() { # name screen [appearance] [wait] [signin] [emulate]
-  local N=$1 S=$2 L=${3:-light} W=${4:-6} SIGN=${5:-1} E=${6:-}
+shoot() { # name screen [appearance] [wait] [signin] [emulate] [language]
+  local N=$1 S=$2 L=${3:-light} W=${4:-6} SIGN=${5:-1} E=${6:-} LG=${7:-}
   t 30 xcrun simctl terminate "$U" us.cuven.app 2>/dev/null || true
   local envs=(SIMCTL_CHILD_CUVEN_SERVER=http://localhost:8787 SIMCTL_CHILD_CUVEN_SCREEN="$S" SIMCTL_CHILD_CUVEN_APPEARANCE="$L")
   [ "$SIGN" = 1 ] && envs+=(SIMCTL_CHILD_CUVEN_USER=alice SIMCTL_CHILD_CUVEN_PASS=cuven-demo)
   [ -n "$E" ] && envs+=(SIMCTL_CHILD_CUVEN_EMULATE="$E")
-  if ! env "${envs[@]}" perl -e 'alarm shift; exec @ARGV' 180 xcrun simctl launch "$U" us.cuven.app >/dev/null; then
+  local args=()
+  [ "$LG" = zh ] && args=(-AppleLanguages "(zh-Hans)" -AppleLocale zh_CN)
+  if ! env "${envs[@]}" perl -e 'alarm shift; exec @ARGV' 180 xcrun simctl launch "$U" us.cuven.app "${args[@]}" >/dev/null; then
     echo "launch failed for $N"
     return
   fi
@@ -63,6 +65,13 @@ if [ "$KIND" = phone ]; then
   shoot 07-sidebar sidebar light 10
   shoot 08-search search light 11
   shoot 09-thread-dark thread dark 10
+  # In Chinese: nothing cut short or wrapping where it shouldn't.
+  shoot 10-zh-list list light 12 1 "" zh
+  shoot 11-zh-thread thread light 10 1 "" zh
+  shoot 12-zh-sidebar sidebar light 10 1 "" zh
+  shoot 13-zh-moments moments light 11 1 "" zh
+  shoot 14-zh-settings settings light 11 1 "" zh
+  shoot 15-zh-friends friends light 11 1 "" zh
 else
   # The outer display (folded).
   shoot outer-00-auth auth light 10 0 outer
@@ -85,6 +94,11 @@ else
   shoot outer-19-filters filters light 11 1 outer
   shoot outer-20-profile profile light 11 1 outer
   shoot outer-21-editprofile editprofile light 11 1 outer
+  shoot outer-30-zh-list list light 12 1 outer zh
+  shoot outer-31-zh-settings settings light 11 1 outer zh
+  shoot outer-32-zh-you me light 11 1 outer zh
+  shoot outer-33-zh-filters filters light 11 1 outer zh
+  shoot outer-34-zh-note note light 11 1 outer zh
   # The inner display (open).
   shoot inner-01-list list light 16 1 inner
   shoot inner-02-thread thread light 10 1 inner
