@@ -139,7 +139,7 @@ async function refresh() {
   setPresence(boot.presence)
   applyBoot(boot)
   shell?.setMe(state.me)
-  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers, assist: boot.assist, prefs: boot.prefs }))
+  storage(BOOT_CACHE, JSON.stringify({ me: boot.me, rooms: boot.rooms, contacts: boot.contacts, calls: boot.calls, vapid: boot.vapid, stickers: boot.stickers, maps: boot.maps, assist: boot.assist, prefs: boot.prefs }))
   // Once per launch: keep this device's push subscription current.
   if (!pushSynced) {
     pushSynced = true
@@ -156,6 +156,7 @@ function applyBoot(boot) {
   state.calls = boot.calls || { enabled: false }
   state.vapid = boot.vapid || null
   state.stickers = Boolean(boot.stickers)
+  state.maps = Boolean(boot.maps)
   state.assist = Boolean(boot.assist)
   setPrefs(boot.prefs)
 }

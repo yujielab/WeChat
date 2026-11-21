@@ -213,6 +213,22 @@ npx wrangler deploy
 查看最后的错误：缺少 `Hub` 类 / namespace 通常与迁移链有关；R2 bucket 不存在则需先创建上述桶。
 `wrangler deploy --dry-run` 只验证本地打包，不验证线上迁移状态、账号权限或 R2 桶是否存在。
 
+### 位置消息的地图缩略图（可选，Apple Maps）
+
+iOS 应用自己用 MapKit 画位置的地图，不需要任何配置。网页端要显示地图缩略图，需要一把 MapKit 密钥，由服务器签名
+Apple Maps Web Snapshots 的地址（src/maps.js），密钥不会到浏览器：
+
+1. 在 Apple Developer 账号里创建一个 Maps ID 和一把启用 MapKit JS 的密钥（.p8）。
+2. 设置三个密钥并重新部署：
+
+   ```bash
+   npx wrangler secret put MAPKIT_TEAM_ID
+   npx wrangler secret put MAPKIT_KEY_ID
+   npx wrangler secret put MAPKIT_PRIVATE_KEY   # 粘贴 .p8 文件的全部内容
+   ```
+
+未配置时网页上的位置仍然显示为带名称、地址的卡片，点开是 Apple 地图。
+
 ### 开启语音 / 视频通话（Cloudflare Realtime）
 
 1. 在 Cloudflare 仪表盘创建一个 **Realtime（Calls）** 应用，拿到 App ID 和 App Secret。

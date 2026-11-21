@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import Translation
 
 /// Long-press on a message (views/thread.js, css/overlays.css): the
 /// conversation blurs away, the message lifts out exactly as it was, when
@@ -18,6 +19,7 @@ struct FocusMenu: View {
 
     @State private var shown = false
     @State private var selecting = false
+    @State private var translating = false
     private let reactions = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
 
     private var m: Message { target.message }
@@ -44,6 +46,12 @@ struct FocusMenu: View {
                 model.show(String(localized: "Copied"))
             })
             main.append(Action(id: "select", title: "Select text", sym: .doc, keepsOpen: true) { selecting = true })
+            // The system's translation, on the device (Translation).
+            main.append(Action(id: "translate", title: "Translate", sym: .globe, keepsOpen: true) { translating = true })
+        }
+        // A voice message's words, recognised on the device (Speech).
+        if m.type == "voice", !m.isRevoked, Transcripts.shared.text[m.id] == nil {
+            main.append(Action(id: "transcribe", title: "Convert to Text", sym: .doc) { Transcripts.shared.transcribe(m) })
         }
         if model.canEdit(m) { main.append(Action(id: "edit", title: "Edit", sym: .compose) { onEdit(m) }) }
         if m.isVisual, let url = m.meta?.url {
@@ -173,6 +181,8 @@ struct FocusMenu: View {
             }
         }
         .onAppear { withAnimation(Motion.ui) { shown = true } }
+        .translationPresentation(isPresented: $translating, text: m.body)
+        .onChange(of: translating) { _, on in if !on { close() } }
         .sheet(isPresented: $selecting, onDismiss: { close() }) {
             SelectTextSheet(text: m.body)
         }

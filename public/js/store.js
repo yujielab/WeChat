@@ -31,6 +31,7 @@ export const state = {
   socket: false,
   calls: { enabled: false },
   stickers: false,
+  maps: false, // Apple Maps snapshots for shared places (src/maps.js)
   assist: false,
   // Backdrops (views/backdrops.js): for every conversation, each one's own, and calls;
   // and whether friends see when you've read their messages (Settings › Messages).
@@ -93,6 +94,7 @@ export function previewText(m, room) {
   let body = m.type === 'text' ? m.body
     : m.type === 'call' ? callPreview(m)
     : m.type === 'sticker' ? `[Sticker]${m.meta?.emoji ? ` ${m.meta.emoji}` : ''}`
+    : m.type === 'location' ? `📍 ${m.meta?.name || 'Location'}`
     : { image: '[Photo]', drawing: '[Drawing]', voice: '[Voice]', video: '[Video]', file: '[File]', system: m.body }[m.type] || '[Message]'
   if (room?.kind === 'group' && m.type !== 'system' && m.sender !== state.me?.id) {
     const who = nameOf(m.sender, room.id)

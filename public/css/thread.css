@@ -1217,3 +1217,15 @@ mark.kw { background: none; color: inherit; font: inherit; padding: 0; }
 @keyframes glow-breathe { from { opacity: calc(.45 * var(--glow-k, 1)); } to { opacity: calc(.95 * var(--glow-k, 1)); } }
 :root[data-motion="reduce"] .composer-glow > i { animation: none; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion="full"]) .composer-glow > i { animation: none; } }
+
+/* A shared place (views/bubbles.js locationBubble): a small Apple Maps
+   snapshot (or a pin on a plain field), the name and address under it. */
+.bubble.place { display: flex; flex-direction: column; width: 248px; max-width: 100%; padding: 0; overflow: hidden; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); color: var(--label); text-decoration: none; }
+.place-map { position: relative; height: 140px; display: grid; place-items: center; background: var(--fill-3, var(--field)); color: var(--red); }
+.place-map .icon { width: 30px; height: 30px; }
+.place-map img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 160ms ease-out; }
+.place-map.ready img { opacity: 1; }
+.place-text { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; }
+.place-name { font-weight: var(--w-semibold); font-size: var(--t-subhead); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-address { font-size: var(--t-footnote); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bubble.place:active { transform: scale(var(--press-scale)); }

@@ -48,6 +48,8 @@ export function renderBubble(m, ctx) {
       return callBubble(m)
     case 'sticker':
       return stickerBubble(m)
+    case 'location':
+      return locationBubble(m)
     default:
       return textBubble(m)
   }
@@ -205,6 +207,32 @@ function videoBubble(m, ctx) {
      h('span', { class: 'media-play glass glass-clear glass-btn' }, icon('play')))
   if (m.dur) el.append(h('span', { class: 'media-badge' }, duration(m.dur)))
   return el
+}
+
+// A shared place: a small map (Apple Maps, signed by the server when it has
+// a MapKit key; otherwise a pin on a plain field), its name and address;
+// it opens in Apple Maps.
+function locationBubble(m) {
+  const p = m.meta || {}
+  const lat = Number(p.lat)
+  const lng = Number(p.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return textBubble(m)
+  const name = p.name || 'Location'
+  const href = `https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(name)}`
+  const map = h('div', { class: 'place-map', 'aria-hidden': 'true' }, icon('mappin'))
+  if (state.maps) {
+    const dark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches)
+    const img = h('img', { alt: '', loading: 'lazy', decoding: 'async', draggable: false,
+      src: `/api/map/snapshot?lat=${lat}&lng=${lng}&w=248&h=140&scheme=${dark ? 'dark' : 'light'}` })
+    img.addEventListener('load', () => map.classList.add('ready'), { once: true })
+    img.addEventListener('error', () => img.remove(), { once: true })
+    map.append(img)
+  }
+  return h('a', { class: 'bubble place', href, target: '_blank', rel: 'noopener', dataset: { kind: 'location' }, 'aria-label': `Location: ${name}${p.address ? `, ${p.address}` : ''}` },
+    map,
+    h('span', { class: 'place-text' },
+      h('span', { class: 'place-name' }, name),
+      p.address ? h('span', { class: 'place-address' }, p.address) : null))
 }
 
 // A sticker stands on its own, without a bubble behind it.

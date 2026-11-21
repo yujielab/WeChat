@@ -117,7 +117,9 @@ struct BubbleContent: View {
                 case "video": video
                 case "file": file
                 case "call": call
-                default: text
+                case "location": LocationBubble(message: message, mine: mine)
+                default:
+                    if message.isLocation { LocationBubble(message: message, mine: mine) } else { text }
                 }
             }
         }
@@ -616,6 +618,7 @@ struct VoiceBubble: View {
         let ink = mine ? Theme.bubbleOutText : Theme.label
         let paper = mine ? Theme.bubbleOut : Theme.bubbleIn
         let text = mine ? Theme.bubbleOutText : Theme.bubbleInText
+        VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 10) {
             Button { playback.toggle(message, then: following) } label: {
                 SymbolView(active ? .pause : .play, size: 13)
@@ -661,7 +664,30 @@ struct VoiceBubble: View {
                     .transition(.opacity)
             }
         }
+        // Converted to text on the device (the message menu's Convert to Text).
+        transcript(color: text)
+        }
         .animation(Motion.quick, value: loaded)
+    }
+
+    @ViewBuilder
+    private func transcript(color: Color) -> some View {
+        let t = Transcripts.shared
+        if let words = t.text[message.id] {
+            Text(words)
+                .font(.subheadC)
+                .foregroundStyle(color)
+                .textSelection(.enabled)
+                .frame(maxWidth: 260, alignment: .leading)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        } else if t.working.contains(message.id) {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini).tint(color)
+                Text("Converting to text…").font(.footnoteC).foregroundStyle(color.opacity(0.8))
+            }
+        } else if t.failed.contains(message.id) {
+            Text("Couldn't convert this one to text").font(.footnoteC).foregroundStyle(color.opacity(0.75))
+        }
     }
 
     private var rateLabel: String {

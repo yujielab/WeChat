@@ -236,6 +236,29 @@ extension AppModel {
         Haptics.tap()
     }
 
+    /// A place: its point, name and address. It goes with a line of text
+    /// and an Apple Maps link too, so a server or web page that doesn't know
+    /// places yet still shows something you can open.
+    func sendLocation(latitude: Double, longitude: Double, name: String, address: String, room: String, replyTo: Message? = nil) {
+        var meta = MessageMeta()
+        meta.lat = latitude; meta.lng = longitude; meta.name = name; meta.address = address
+        let text = Self.locationText(latitude: latitude, longitude: longitude, name: name, address: address)
+        let m = optimistic(room, type: "location", text: text, meta: meta, replyTo: replyTo)
+        let metaDict: [String: Any] = ["lat": latitude, "lng": longitude, "name": name, "address": address]
+        var body: [String: Any] = ["room": room, "type": "location", "meta": metaDict, "text": text, "caption": text]
+        if let replyTo { body["replyTo"] = replyTo.id }
+        enqueue(OutboxItem(cid: m.localId!, room: room, body: body))
+        Haptics.success()
+    }
+
+    static func locationText(latitude: Double, longitude: Double, name: String, address: String) -> String {
+        var q = URLComponents(string: "https://maps.apple.com/")!
+        q.queryItems = [URLQueryItem(name: "ll", value: String(format: "%.6f,%.6f", latitude, longitude)),
+                        URLQueryItem(name: "q", value: name.isEmpty ? String(localized: "Location") : name)]
+        return ["📍 " + (name.isEmpty ? String(localized: "Location") : name), address, q.url?.absoluteString ?? ""]
+            .filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
     /// A photo or drawing: shown at once from the device, then uploaded and sent.
     func sendPicture(_ image: UIImage, room: String, drawing: Bool = false, replyTo: Message? = nil) {
         let prepared = Media.prepare(image, maxSide: 2048, png: drawing)

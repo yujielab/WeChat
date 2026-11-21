@@ -47,6 +47,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>To take photos to send to friends, and to show you in video calls.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>To send where you are, or a place near you, to a chat.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>To record voice messages and dictation, and so you can be heard on calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

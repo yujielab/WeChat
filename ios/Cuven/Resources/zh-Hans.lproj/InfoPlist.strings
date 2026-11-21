@@ -4,3 +4,4 @@
 "NSPhotoLibraryUsageDescription" = "从相册选择照片发送到聊天、动态或作为头像。";
 "NSPhotoLibraryAddUsageDescription" = "把聊天里的照片保存到相册。";
 "NSSpeechRecognitionUsageDescription" = "把你说的话转成文字填进输入框。";
+"NSLocationWhenInUseUsageDescription" = "把你所在的位置或附近的地点发送到聊天。";

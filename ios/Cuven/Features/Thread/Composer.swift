@@ -22,11 +22,14 @@ struct Composer: View {
     @State private var text = ""
     @State private var plusOpen = false
     @State private var suggestion = ""
+    /// Reply ideas from the on-device model, while the field is empty.
+    @State private var ideas: [String] = []
     @State private var recorder = VoiceRecorder()
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotos = false
     @State private var showCamera = false
     @State private var showFiles = false
+    @State private var showLocation = false
     @State private var mentionIds: [String: String] = [:]
     @State private var savedDraft = ""
     @FocusState private var focused: Bool
@@ -56,6 +59,8 @@ struct Composer: View {
         VStack(alignment: .trailing, spacing: 8) {
             if let chips = mentionCandidates, !chips.isEmpty {
                 mentionPicker(chips)
+            } else if text.isEmpty && !ideas.isEmpty && !recorder.isRecording && editing == nil {
+                ideaChips
             } else if !suggestion.isEmpty && !recorder.isRecording {
                 suggestionChip
             }
@@ -93,6 +98,7 @@ struct Composer: View {
                     switch action {
                     case .photos: showPhotos = true
                     case .camera: showCamera = true
+                    case .location: showLocation = true
                     case .drawing: nav.show(.draw)
                     case .stickers: stickersOpen = true
                     case .file: showFiles = true
@@ -146,6 +152,8 @@ struct Composer: View {
         }
         .onChange(of: replyTo?.id) { _, id in if id != nil { focused = true } }
         .task(id: text) { await fetchSuggestion() }
+        .task(id: lastIncomingID) { await fetchIdeas() }
+        .animation(Motion.ui, value: ideas)
         .onReceive(NotificationCenter.default.publisher(for: .automationPlus)) { _ in
             withAnimation(Motion.morph) { plusOpen = true }
         }
@@ -160,6 +168,14 @@ struct Composer: View {
                 if let image { model.sendPicture(image, room: room.id, replyTo: takeReply()) }
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showLocation) {
+            LocationPicker { place in
+                model.sendLocation(latitude: place.latitude, longitude: place.longitude, name: place.name,
+                                   address: place.address, room: room.id, replyTo: takeReply())
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item]) { result in
             if case .success(let url) = result { sendFile(url) }
@@ -328,6 +344,55 @@ struct Composer: View {
         .padding(.leading, showBack ? Self.control + 10 : 0)
         .transition(.opacity.combined(with: .offset(y: 8)).combined(with: .scale(scale: 0.9)))
         .accessibilityLabel(Text("Use suggestion: \(suggestion)"))
+    }
+
+    /// Up to three replies the on-device model thinks of: a tap puts one in
+    /// the field to send or change (it never sends by itself).
+    private var ideaChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ideas, id: \.self) { idea in
+                    Button {
+                        text = idea
+                        ideas = []
+                        focused = true
+                        Haptics.selection()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if idea == ideas.first { SymbolView(.sparkles, size: 13) }
+                            Text(idea).lineLimit(1)
+                        }
+                        .font(.footnoteC)
+                        .foregroundStyle(Theme.label)
+                        .padding(.horizontal, 14)
+                        .frame(height: 36)
+                        .glassCapsule()
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityLabel(Text("Use suggestion: \(idea)"))
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollClipDisabled()
+        .padding(.leading, showBack ? Self.control + 10 : 0)
+        .transition(.opacity.combined(with: .offset(y: 8)))
+    }
+
+    /// The latest message from someone else, if it's the last one: what reply ideas answer.
+    private var lastIncomingID: String? {
+        guard let last = model.messages(room.id).last, last.sender != model.me?.id, !last.isRevoked else { return nil }
+        return last.id
+    }
+
+    private func fetchIdeas() async {
+        ideas = []
+        guard model.predictions, LocalAI.available, lastIncomingID != nil else { return }
+        try? await Task.sleep(for: .milliseconds(350))
+        if Task.isCancelled { return }
+        let lines = LocalAI.lines(model.messages(room.id), me: model.me?.id) { model.name(of: $0) }
+        let found = await LocalAI.replies(to: lines)
+        if !Task.isCancelled && text.isEmpty { ideas = found }
     }
 
     private func isCJK(_ s: String) -> Bool {
@@ -511,7 +576,15 @@ struct Composer: View {
     }
 
     private func fetchSuggestion() async {
-        guard model.assistEnabled, model.predictions, editing == nil, !text.contains("\n") else {
+        // On the device first (Apple's model), else the server's writing help.
+        let local = LocalAI.available
+        guard model.predictions, local || model.assistEnabled, editing == nil, !text.contains("\n") else {
+            if !suggestion.isEmpty { suggestion = "" }
+            return
+        }
+        if !text.isEmpty { ideas = [] }
+        // An empty field has the on-device reply ideas instead.
+        if text.isEmpty && local {
             if !suggestion.isEmpty { suggestion = "" }
             return
         }
@@ -525,14 +598,20 @@ struct Composer: View {
         suggestion = ""
         try? await Task.sleep(for: .milliseconds(450))
         if Task.isCancelled { return }
-        let s = await model.suggest(room: room.id, draft: text)
+        let s: String
+        if local {
+            let lines = LocalAI.lines(model.messages(room.id), me: model.me?.id) { model.name(of: $0) }
+            s = await LocalAI.continuation(of: text, after: lines)
+        } else {
+            s = await model.suggest(room: room.id, draft: text)
+        }
         if !Task.isCancelled { suggestion = s.trimmingCharacters(in: .newlines) }
     }
 }
 
 // MARK: - The "+" panel
 
-enum PlusAction { case photos, camera, drawing, stickers, file }
+enum PlusAction { case photos, camera, location, drawing, stickers, file }
 
 /// The web's .composer-panel: 212pt wide, standing on the composer's
 /// trailing end, its body clipped from the button's 56pt circle out to a
@@ -546,6 +625,7 @@ struct PlusPanel: View {
         var list: [(PlusAction, Sym, LocalizedStringKey)] = [
             (.photos, .photo, "Photo"),
             (.camera, .camera, "Camera"),
+            (.location, .mappin, "Location"),
             (.drawing, .brush, "Drawing")
         ]
         if stickers { list.append((.stickers, .face, "Stickers")) }

@@ -10,8 +10,55 @@ struct ChatInfoView: View {
     @State private var inviting = false
     @State private var confirmLeave = false
     @State private var confirmDelete = false
+    /// The on-device summary of the conversation, once asked for.
+    @State private var summary: String?
+    @State private var summarising = false
 
     private var room: Room? { model.room(roomId) }
+
+    /// What the conversation has been about, a few points, worked out on
+    /// the iPhone by Apple's on-device model (nothing is sent anywhere).
+    private func summaryCard(_ room: Room) -> some View {
+        GroupCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    guard !summarising else { return }
+                    summarising = true
+                    Task {
+                        let lines = LocalAI.lines(model.messages(room.id), me: model.me?.id) { model.name(of: $0) }
+                        let s = await LocalAI.summary(of: lines)
+                        withAnimation(Motion.ui) {
+                            summary = s ?? String(localized: "Couldn't summarise this conversation right now.")
+                            summarising = false
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        CellIcon(sym: .sparkles, tint: Theme.fbBlue)
+                        Text(summary == nil ? "Summarise recent messages" : "Summarise again").font(.bodyC).foregroundStyle(Theme.label)
+                        Spacer(minLength: 0)
+                        if summarising { ProgressView() }
+                    }
+                    .frame(minHeight: 34)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if let summary {
+                    Text(summary)
+                        .font(.subheadC)
+                        .foregroundStyle(Theme.label)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    Text("Made on this iPhone by Apple Intelligence.")
+                        .font(.caption2C).foregroundStyle(Theme.label3)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .padding(.top, 16)
+    }
 
     var body: some View {
         ZStack {
@@ -49,6 +96,8 @@ struct ChatInfoView: View {
                             .padding(.horizontal, 16).frame(minHeight: 58)
                         }
                         .padding(.top, 16)
+
+                        if LocalAI.available { summaryCard(room) }
 
                         if room.isGroup { members(room) }
                         sharedMedia

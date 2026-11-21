@@ -138,9 +138,14 @@ struct MessageMeta: Codable, Hashable {
     var missed: Bool?
     var result: String?
     var caller: String?
+    // location (name is the place's name)
+    var lat: Double?
+    var lng: Double?
+    var address: String?
 
     enum CodingKeys: String, CodingKey {
         case url, w, h, dur, size, name, type, keys, mentions, history, editedAt, id, kind, emoji, set, media, duration, missed, result, caller
+        case lat, lng, address
     }
 
     init() {}
@@ -152,6 +157,7 @@ struct MessageMeta: Codable, Hashable {
         history = c.o(.history); editedAt = c.o(.editedAt)
         id = c.o(.id); kind = c.o(.kind); emoji = c.o(.emoji); set = c.o(.set)
         media = c.o(.media); duration = c.o(.duration); missed = c.o(.missed); result = c.o(.result); caller = c.o(.caller)
+        lat = c.o(.lat); lng = c.o(.lng); address = c.o(.address)
     }
 
     var aspect: CGFloat? {
@@ -251,9 +257,14 @@ struct Message: Codable, Identifiable, Hashable {
         case "file": return meta?.name ?? String(localized: "File")
         case "sticker": return [String(localized: "Sticker"), meta?.emoji ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
         case "call": return CallSummary(meta: meta, mine: false).label
+        case "location": return "📍 " + (meta?.name.flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "Location"))
         default: return body
         }
     }
+
+    /// A place someone shared (a "location" message, or, from a server that
+    /// doesn't know them yet, a text carrying the place in its meta).
+    var isLocation: Bool { meta?.lat != nil && meta?.lng != nil }
 }
 
 /// How a call record reads, from either side (public/js/ui/format.js callSummary).

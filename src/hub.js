@@ -20,6 +20,7 @@ import { routineKey, emptyRoutine, record, setLearning, summarizeRoutine, routin
 import { insightRooms, analyze, photosToRead, describePhoto, allowRefresh } from './insights.js'
 import { geocode, weatherAt } from './weather.js'
 import { explainConfigured, allowExplain, readInput, explainResponse } from './explain.js'
+import { mapsConfigured, snapshotURL, cleanPlace } from './maps.js'
 import { stickersConfigured, readSet, readSets, publicSet, catalog, warmSets, chosenSets, allowedName, allowedSets, sameSet, stickerFile, contentRange, STICKER_ID, STICKER_KINDS, SET_NAME, MAX_CHOSEN } from './stickers.js'
 
 const json = (data, status = 200, headers = {}) =>
@@ -247,6 +248,17 @@ export class Hub {
       return this.grant(this.store.getUser(user.id))
     }
 
+    // --- a small map of a shared place, for the web (src/maps.js): a redirect
+    // to Apple's snapshot, signed here; 404 when no MapKit key is set.
+    if (path === '/api/map/snapshot' && method === 'GET') {
+      if (!mapsConfigured(this.env)) return json({ ok: false, error: 'Maps not configured' }, 404)
+      const lat = Number(url.searchParams.get('lat'))
+      const lng = Number(url.searchParams.get('lng'))
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return json({ ok: false, error: 'Invalid location' }, 400)
+      const dim = (v, d) => Math.max(40, Math.min(640, Math.round(Number(v) || d)))
+      const to = await snapshotURL(this.env, { lat, lng, w: dim(url.searchParams.get('w'), 248), h: dim(url.searchParams.get('h'), 140), dark: url.searchParams.get('scheme') === 'dark' })
+      return new Response(null, { status: 302, headers: { location: to, 'cache-control': 'private, max-age=86400' } })
+    }
     // --- bootstrap (rooms + contacts + presence in one shot)
     if (path === '/api/bootstrap' && method === 'GET') {
       return json({
@@ -259,6 +271,7 @@ export class Hub {
         calls: this.calls.configured(),
         assist: assistConfigured(this.env),
         stickers: stickersConfigured(this.env),
+        maps: mapsConfigured(this.env),
         prefs: readPrefs(this.store.kvGet(`prefs:${user.id}`))
       })
     }
@@ -721,7 +734,7 @@ export class Hub {
   async postMessage(body, user, { tz = null } = {}) {
     const roomId = body.room
     if (!this.store.isMember(roomId, user.id)) return json({ ok: false, error: 'Not allowed to send' }, 403)
-    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing', 'sticker'].includes(body.type) ? body.type : 'text'
+    const type = ['text', 'image', 'voice', 'video', 'file', 'drawing', 'sticker', 'location'].includes(body.type) ? body.type : 'text'
     if (type === 'text' && !String(body.text || '').trim()) return json({ ok: false, error: "Can't send an empty message" }, 400)
     // A sticker is only a reference to one of the packs: its id, kind, emoji
     // and pack (so whoever receives it can load it).
@@ -729,6 +742,14 @@ export class Hub {
       const m = asObject(body.meta)
       if (!STICKER_ID.test(String(m.id || '')) || !STICKER_KINDS.includes(m.kind)) return json({ ok: false, error: 'Invalid sticker' }, 400)
       body.meta = { id: m.id, kind: m.kind, emoji: cleanText(m.emoji, 16), ...(SET_NAME.test(String(m.set || '')) && { set: m.set }) }
+    }
+    // A place: its point, name and address (src/maps.js). Its words (a line
+    // and an Apple Maps link) go along for anything that can't draw a place.
+    if (type === 'location') {
+      const place = cleanPlace(asObject(body.meta), cleanText)
+      if (!place) return json({ ok: false, error: 'Invalid location' }, 400)
+      body.meta = place
+      body.caption = cleanLines(String(body.caption || body.text || ''), 600)
     }
     // A reply names a message in the same conversation; anything else is
     // dropped rather than refused, so the message itself still goes.
@@ -1330,6 +1351,7 @@ export class Hub {
 
   preview(msg) {
     if (msg.type === 'text') return msg.body.slice(0, 120)
+    if (msg.type === 'location') return `📍 ${msg.meta?.name || 'Location'}`
     return { image: '[Photo]', drawing: '[Drawing]', voice: '[Voice]', video: '[Video]', file: '[File]', call: '[Call]', sticker: `[Sticker]${msg.meta?.emoji ? ` ${msg.meta.emoji}` : ''}`, system: msg.body }[msg.type] || '[Message]'
   }
 }
