@@ -38,7 +38,7 @@ shoot() { # name screen [appearance] [wait] [signin] [emulate] [language]
   [ -n "$E" ] && envs+=(SIMCTL_CHILD_CUVEN_EMULATE="$E")
   local args=()
   [ "$LG" = zh ] && args=(-AppleLanguages "(zh-Hans)" -AppleLocale zh_CN)
-  if ! env "${envs[@]}" perl -e 'alarm shift; exec @ARGV' 180 xcrun simctl launch "$U" us.cuven.app "${args[@]}" >/dev/null; then
+  if ! env "${envs[@]}" perl -e 'alarm shift; exec @ARGV' 180 xcrun simctl launch "$U" us.cuven.app ${args[@]+"${args[@]}"} >/dev/null; then
     echo "launch failed for $N"
     return
   fi

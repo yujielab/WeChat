@@ -426,44 +426,80 @@ struct PeopleSections: View {
 struct InviteCard: View {
     @Environment(AppModel.self) private var model
     var dismiss: (() -> Void)?
+    /// In a narrow column (the open Duo's list) Share drops under the words.
+    @State private var width: CGFloat = 400
+
+    private var narrow: Bool { width < 300 }
 
     var body: some View {
-        HStack(spacing: 14) {
-            SymbolView(.personPlus, size: 24)
-                .foregroundStyle(Theme.label)
-                .frame(width: 52, height: 52)
-                .background(Theme.fill2, in: Circle())
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Invite friends").font(.headlineC).foregroundStyle(Theme.label)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Text("Send friends a link to Cuven.").font(.subheadC).foregroundStyle(Theme.label2).lineLimit(2)
-            }
-            .layoutPriority(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 10)
-            ShareLink(item: model.serverURL) {
-                Text("Share")
-                    .font(AppFont.make(13, .semibold))
-                    .foregroundStyle(Color(hex: 0x0062cc))
-                    .padding(.horizontal, 14)
-                    .frame(minWidth: 72, minHeight: 36)
-                    .background(Color.white, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.black, lineWidth: 1))
-                    .fixedSize()
-            }
-            .buttonStyle(.press)
-            if let dismiss {
-                Button(action: dismiss) {
-                    SymbolView(.xmark, size: 16).foregroundStyle(Theme.label2)
-                        .frame(width: 36, height: 36)
-                        .glassCircle()
+        Group {
+            if narrow {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        icon
+                        words
+                        if dismiss != nil { dismissButton }
+                    }
+                    shareButton.padding(.leading, 64)
                 }
-                .buttonStyle(.press(0.9))
-                .accessibilityLabel("Dismiss")
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 8)
+            } else {
+                HStack(spacing: 14) {
+                    icon
+                    words
+                    shareButton
+                    if dismiss != nil { dismissButton }
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 6)
             }
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 4)
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    private var icon: some View {
+        SymbolView(.personPlus, size: 24)
+            .foregroundStyle(Theme.label)
+            .frame(width: 52, height: 52)
+            .background(Theme.fill2, in: Circle())
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("Invite friends").font(.headlineC).foregroundStyle(Theme.label)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            Text("Send friends a link to Cuven.").font(.subheadC).foregroundStyle(Theme.label2).lineLimit(2)
+        }
+        .layoutPriority(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, narrow ? 0 : 10)
+    }
+
+    private var shareButton: some View {
+        ShareLink(item: model.serverURL) {
+            Text("Share")
+                .font(AppFont.make(13, .semibold))
+                .foregroundStyle(Color(hex: 0x0062cc))
+                .padding(.horizontal, 14)
+                .frame(minWidth: 72, minHeight: 36)
+                .background(Color.white, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.black, lineWidth: 1))
+                .fixedSize()
+        }
+        .buttonStyle(.press)
+    }
+
+    private var dismissButton: some View {
+        Button { dismiss?() } label: {
+            SymbolView(.xmark, size: 16).foregroundStyle(Theme.label2)
+                .frame(width: 36, height: 36)
+                .glassCircle()
+        }
+        .buttonStyle(.press(0.9))
+        .accessibilityLabel("Dismiss")
     }
 }
