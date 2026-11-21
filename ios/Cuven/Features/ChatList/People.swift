@@ -111,8 +111,15 @@ struct NoteEditor: View {
     @State private var text = ""
     @State private var sending = false
     @FocusState private var focused: Bool
+    /// The card's height: with the keyboard up it can be short of the
+    /// whole layout, and the photo under the bubble shrinks to stay in view.
+    @State private var room: CGFloat = 400
 
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var tight: Bool { room < 330 }
+    private var avatarSize: CGFloat { room < 270 ? 52 : tight ? 68 : 96 }
+    /// Above the photo, room for the bubble to grow to three lines.
+    private var bubbleRoom: CGFloat { tight ? 64 : 96 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -143,8 +150,24 @@ struct NoteEditor: View {
             .padding(.horizontal, 18)
             .frame(minHeight: 56)
 
+            ScrollView {
+                noteBody
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { room = $0 }
+        .onAppear {
+            text = model.myNote?.text ?? ""
+            focused = true
+        }
+    }
+
+    private var noteBody: some View {
+        VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                Avatar(user: model.me, size: 96).padding(.top, 76)
+                Avatar(user: model.me, size: avatarSize).padding(.top, bubbleRoom - avatarSize * 0.21)
                 TextField("Share a thought…", text: $text, axis: .vertical)
                     .font(.bodyC)
                     .multilineTextAlignment(.center)
@@ -158,10 +181,11 @@ struct NoteEditor: View {
                     .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
                     .shadow(color: .black.opacity(0.14), radius: 8, y: 6)
-                    .frame(height: 96, alignment: .bottom)
+                    .frame(height: bubbleRoom, alignment: .bottom)
                     .onChange(of: text) { _, v in if v.count > 60 { text = String(v.prefix(60)) } }
             }
-            .padding(.top, 28)
+            .padding(.top, tight ? 8 : 28)
+            .animation(Motion.ui, value: avatarSize)
 
             Text("\(text.count)/60")
                 .font(.captionC.monospacedDigit())
@@ -190,15 +214,11 @@ struct NoteEditor: View {
                     .frame(height: 44)
                 }
                 .buttonStyle(.press)
-                .padding(.top, 18)
+                .padding(.top, tight ? 8 : 18)
             }
-            Spacer(minLength: 18)
         }
         .frame(maxWidth: .infinity)
-        .onAppear {
-            text = model.myNote?.text ?? ""
-            focused = true
-        }
+        .padding(.bottom, 18)
     }
 
     private func close() {

@@ -140,6 +140,7 @@ struct SettingsView: View {
                 Text(title).font(.bodyC).foregroundStyle(Theme.label)
                 InkSegmented(options: options, selection: value).fixedSize()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)

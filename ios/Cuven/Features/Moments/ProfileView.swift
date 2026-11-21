@@ -37,6 +37,7 @@ struct ProfileView: View {
                          }) {
                 LazyVStack(spacing: 0) {
                     cover(height: coverH)
+                        .bleedsUnderRail()
                     identity
                     tabs
                     if tab == 0 {

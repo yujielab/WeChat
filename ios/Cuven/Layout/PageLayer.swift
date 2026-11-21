@@ -43,10 +43,7 @@ struct PageScaffold<Header: View, Content: View>: View {
     private var overCover: Bool { underBar && barBackdrop != nil }
 
     /// Content runs up to the rail and its gap, or the system's column.
-    private var trailing: CGFloat {
-        guard railed, let rail = ctx.rail else { return ctx.insets.trailing }
-        return max(ctx.insets.trailing, rail.centerFromEdge + Bar.railWidth / 2 + 12)
-    }
+    private var trailing: CGFloat { ctx.pageTrailing }
 
     private var bottomRoom: CGFloat {
         railed ? max(ctx.insets.bottom, 16) + 24 : max(ctx.insets.bottom, 16) + 24
@@ -190,6 +187,33 @@ extension PageScaffold where Header == EmptyView {
                   background: background, maxWidth: maxWidth, underBar: underBar, subtitle: subtitle, barBackdrop: barBackdrop,
                   onScroll: onScroll, header: { EmptyView() }, content: content)
     }
+}
+
+extension ColumnContext {
+    /// Where a full-screen page's content stops at the trailing edge: before
+    /// the Duo's rail and the gap after it, or at the system's column.
+    var pageTrailing: CGFloat {
+        guard usesRail, let rail else { return insets.trailing }
+        return max(insets.trailing, rail.centerFromEdge + Bar.railWidth / 2 + 12)
+    }
+}
+
+/// A cover runs on under the Duo's rail to the screen's edge, the rail's
+/// glass floating over it, as long as the page isn't held to a readable
+/// width in the middle of a wider display.
+struct BleedUnderRail: ViewModifier {
+    @Environment(\.column) private var ctx
+    var maxWidth: CGFloat = 680
+
+    func body(content: Content) -> some View {
+        let extra = ctx.pageTrailing - ctx.insets.trailing
+        let room = ctx.size.width - ctx.insets.leading - ctx.pageTrailing
+        content.padding(.trailing, extra > 0 && room <= maxWidth ? -extra : 0)
+    }
+}
+
+extension View {
+    func bleedsUnderRail(maxWidth: CGFloat = 680) -> some View { modifier(BleedUnderRail(maxWidth: maxWidth)) }
 }
 
 // MARK: - The layer
