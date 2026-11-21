@@ -18,12 +18,6 @@ struct SidebarView: View {
             Theme.paper
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Home")
-                        .font(.largeTitleC)
-                        .tracking(-0.68)
-                        .foregroundStyle(Theme.fbBlueTitle)
-                        .padding(.bottom, 18)
-
                     Button { withAnimation(Motion.move) { nav.settingsOpen = true } } label: {
                         HStack(spacing: 12) {
                             Avatar(user: model.me, size: 52)
@@ -66,10 +60,22 @@ struct SidebarView: View {
                     }
                     .padding(.top, 20)
                 }
-                .padding(.top, 30)
+                .padding(.top, 4)
                 .padding(.leading, inset)
                 .padding(.trailing, ctx.usesRail ? 12 : inset)
                 .padding(.bottom, 20)
+            }
+            // Home floats at the top like every page's title.
+            .safeAreaBar(edge: .top, spacing: 0) {
+                Text("Home")
+                    .font(.largeTitleC)
+                    .tracking(-0.68)
+                    .foregroundStyle(Theme.fbBlueTitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 30)
+                    .padding(.bottom, 14)
+                    .padding(.leading, inset)
+                    .padding(.trailing, ctx.usesRail ? 12 : inset)
             }
             .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
                                         bottom: ctx.usesRail ? max(ctx.insets.bottom, 16) + 24 : ctx.barClearance + 20,

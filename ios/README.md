@@ -13,6 +13,10 @@ Web 端（`public/`）作为界面与交互的参照。不是网页套壳：没�
 - 依赖（Swift Package）：[lottie-spm](https://github.com/airbnb/lottie-spm)（动画表情）、
   [WebRTC](https://github.com/stasel/WebRTC)（语音 / 视频通话）。
 - 字体：Clarinetta（由 `public/fonts` 转成 OTF 并补全字体名表），中文自动回落苹方；跟随“动态字体”。
+- **全屏页面**：动态、回忆、朋友、我、设置、个人主页和各个编辑页都占满整屏，标题浮在页面上方的栏里，
+  内容从它下面滚过（系统的柔和滚动边缘）；Duo 上返回、操作按钮在系统列的玻璃栏里，其他机型在浮动栏两侧。
+  个人主页的封面一直铺到屏幕边缘，滚过封面后标题栏垫上模糊的封面。
+- **界面语言**：英文与简体中文（`Resources/zh-Hans.lproj/Localizable.strings`），跟随系统语言。
 
 ## 拿到 IPA
 

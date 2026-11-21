@@ -33,13 +33,6 @@ struct ChatListView: View {
         ZStack {
             Theme.bg
             List {
-                Group {
-                    if nav.searching { searchHead } else { header }
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-
                 if !nav.searching && !besideSidebar {
                     NotesRow()
                         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 4, trailing: 0))
@@ -102,6 +95,14 @@ struct ChatListView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            // The title (or the search field) floats at the top, the list
+            // scrolling on under it through the system's soft edge.
+            .safeAreaBar(edge: .top, spacing: 0) {
+                Group {
+                    if nav.searching { searchHead } else { header }
+                }
+                .padding(.bottom, nav.searching ? 6 : 4)
+            }
             .scrollEdgeEffectStyle(.soft, for: .top)
             .environment(\.defaultMinListRowHeight, 1)
             .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.contentBottom,
