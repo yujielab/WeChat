@@ -1,0 +1,6 @@
+/* Why Cuven asks: shown in the system's permission prompts. */
+"NSCameraUsageDescription" = "拍照发送给朋友，或在视频通话中使用摄像头。";
+"NSMicrophoneUsageDescription" = "录制语音消息、语音输入，以及在通话中说话。";
+"NSPhotoLibraryUsageDescription" = "从相册选择照片发送到聊天、动态或作为头像。";
+"NSPhotoLibraryAddUsageDescription" = "把聊天里的照片保存到相册。";
+"NSSpeechRecognitionUsageDescription" = "把你说的话转成文字填进输入框。";

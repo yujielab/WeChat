@@ -302,14 +302,26 @@ struct PillButton: View {
 /// The web's toast: a glass capsule at the top, centred.
 struct ToastView: View {
     let toast: Toast
+    var onUndo: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 8) {
             if toast.isError { SymbolView(.exclaim, size: 18).foregroundStyle(Theme.red) }
             Text(toast.text).font(.subheadMediumC).foregroundStyle(Theme.label).lineLimit(2)
+            if toast.undo != nil {
+                Button(action: onUndo) {
+                    Text("Undo").font(.subheadBoldC).foregroundStyle(Theme.blueText)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press(0.94))
+            }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.leading, 18)
+        .padding(.trailing, toast.undo == nil ? 18 : 8)
+        .padding(.vertical, toast.undo == nil ? 12 : 6)
+        .frame(minHeight: 44)
         .glassCapsule(interactive: false)
         .padding(.horizontal, 24)
     }

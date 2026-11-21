@@ -17,6 +17,11 @@ struct Toast: Identifiable, Equatable {
     let id = UUID()
     var text: String
     var isError = false
+    /// Puts back what was just done (HIG, Design principles: help people
+    /// recover from mistakes); the toast stays a little longer with it.
+    var undo: (() -> Void)? = nil
+
+    static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
 }
 
 /// The whole app's state: the session, the conversation list, open threads,
@@ -268,13 +273,21 @@ final class AppModel {
     var requests: [User] { contacts.filter { $0.state == "pending_in" } }
     var sentRequests: [User] { contacts.filter { $0.state == "pending_out" } }
 
-    func show(_ text: String, error: Bool = false) {
-        withAnimation(.snappy) { toast = Toast(text: text, isError: error) }
+    func show(_ text: String, error: Bool = false, undo: (() -> Void)? = nil) {
+        withAnimation(.snappy) { toast = Toast(text: text, isError: error, undo: undo) }
         let id = toast?.id
         Task {
-            try? await Task.sleep(for: .seconds(2.6))
+            try? await Task.sleep(for: .seconds(undo == nil ? 2.6 : 5))
             if toast?.id == id { withAnimation(.smooth) { toast = nil } }
         }
+    }
+
+    /// The toast's Undo: does it and lets the toast go.
+    func undoToast() {
+        guard let undo = toast?.undo else { return }
+        withAnimation(.smooth) { toast = nil }
+        undo()
+        Haptics.tap()
     }
 
     func persist() {

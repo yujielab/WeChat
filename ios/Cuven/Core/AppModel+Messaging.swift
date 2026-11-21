@@ -38,7 +38,11 @@ extension AppModel {
     /// Delete for me: gone from this device; they'll still see it.
     func deleteLocally(_ m: Message) {
         if m.local == .failed { discardFailed(m); return }
-        hiddenMessages.insert(m.id)
+        withAnimation(Motion.ui) { _ = hiddenMessages.insert(m.id) }
+        // Only on this device, so it comes straight back with Undo.
+        show(String(localized: "Deleted for you"), undo: { [weak self] in
+            withAnimation(Motion.ui) { _ = self?.hiddenMessages.remove(m.id) }
+        })
     }
 
     func loadThread(_ room: String) async {
@@ -436,11 +440,25 @@ extension AppModel {
     }
 
     func deleteChat(_ room: String) async {
+        let index = rooms.firstIndex { $0.id == room }
+        let kept = index.map { rooms[$0] }
         withAnimation(.smooth(duration: 0.3)) { rooms.removeAll { $0.id == room } }
         do { try await api.post("/api/room/\(room)/flags", ["hidden": true]) } catch {
             show(error.userMessage, error: true)
             await refreshRooms()
+            return
         }
+        // Gone at once, and put back with one tap.
+        show(String(localized: "Chat deleted"), undo: { [weak self] in
+            guard let self else { return }
+            if let kept, !self.rooms.contains(where: { $0.id == room }) {
+                withAnimation(.smooth(duration: 0.3)) { self.rooms.insert(kept, at: min(index ?? 0, self.rooms.count)) }
+            }
+            Task {
+                try? await self.api.post("/api/room/\(room)/flags", ["hidden": false])
+                await self.refreshRooms()
+            }
+        })
     }
 
     func leaveGroup(_ room: String) async {

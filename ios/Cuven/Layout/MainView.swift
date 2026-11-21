@@ -38,6 +38,7 @@ struct MainView: View {
         .ignoresSafeArea()
         .background(SafeAreaReader { safe = $0 }.ignoresSafeArea())
         .modifier(HingeWatcher(posture: $posture))
+        .background { KeyCommands(nav: nav) }
         .task { await Automation.drive(model, nav) }
         .onChange(of: model.pendingRoom) { _, room in
             guard let room else { return }
@@ -148,7 +149,7 @@ struct MainView: View {
                 .zIndex(45)
 
             if let toast = model.toast {
-                ToastView(toast: toast)
+                ToastView(toast: toast) { model.undoToast() }
                     .frame(width: size.width - insets.trailing)
                     .padding(.top, max(insets.top, 12) + 6)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -491,5 +492,45 @@ struct PageCapsule: View {
         .glass(RoundedRectangle(cornerRadius: 26, style: .continuous), interactive: false)
         .animation(Motion.ui, value: nav.page)
         .animation(Motion.ui, value: nav.active)
+    }
+}
+
+/// A hardware keyboard on the Duo (HIG, Design principles: support a variety
+/// of input methods): Esc steps back out of whatever is open, ⌘F searches,
+/// ⌘N starts a group, ⌘1–⌘5 go to Chats, Moments, Memories, Friends and You.
+private struct KeyCommands: View {
+    let nav: Nav
+
+    var body: some View {
+        ZStack {
+            Button("Back") { back() }.keyboardShortcut(.cancelAction)
+            Button("Search") {
+                nav.switchPage(.chats)
+                nav.toList()
+                withAnimation(Motion.ui) { nav.searching = true }
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            Button("New group") { withAnimation(Motion.move) { nav.newGroup = true } }
+                .keyboardShortcut("n", modifiers: .command)
+            Button("Chats") { nav.switchPage(.chats) }.keyboardShortcut("1", modifiers: .command)
+            Button("Moments") { nav.switchPage(.moments) }.keyboardShortcut("2", modifiers: .command)
+            Button("Memories") { nav.switchPage(.memories) }.keyboardShortcut("3", modifiers: .command)
+            Button("Friends") { nav.switchPage(.friends) }.keyboardShortcut("4", modifiers: .command)
+            Button("You") { nav.switchPage(.me) }.keyboardShortcut("5", modifiers: .command)
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func back() {
+        if nav.searching {
+            withAnimation(Motion.ui) { nav.searching = false }
+        } else if nav.sheeted {
+            nav.closeTop()
+        } else if nav.room != nil, nav.columns == 1, nav.isVisible(.chat) {
+            nav.backFromChat()
+        }
     }
 }

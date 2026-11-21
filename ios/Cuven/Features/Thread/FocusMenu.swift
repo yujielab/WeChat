@@ -17,7 +17,6 @@ struct FocusMenu: View {
     let onEdit: (Message) -> Void
 
     @State private var shown = false
-    @State private var confirmDelete = false
     @State private var selecting = false
     private let reactions = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
 
@@ -55,7 +54,8 @@ struct FocusMenu: View {
         if model.canUnsend(m) {
             danger.append(Action(id: "unsend", title: "Unsend", sym: .undo) { Task { await model.revoke(m) } })
         }
-        danger.append(Action(id: "delete", title: "Delete for me", sym: .trash, destructive: true, keepsOpen: true) { confirmDelete = true })
+        // Undoable, so no question first (HIG: no alerts for undoable actions).
+        danger.append(Action(id: "delete", title: "Delete for me", sym: .trash, destructive: true) { model.deleteLocally(m) })
         return [main, danger].filter { !$0.isEmpty }
     }
 
@@ -173,17 +173,6 @@ struct FocusMenu: View {
             }
         }
         .onAppear { withAnimation(Motion.ui) { shown = true } }
-        // A choice about an action you started: an action sheet, not an alert
-        // (HIG, Alerts / Action sheets), its destructive button named for what it does.
-        .confirmationDialog("Delete for me?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete for me", role: .destructive) {
-                model.deleteLocally(m)
-                close()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("They’ll still see it.")
-        }
         .sheet(isPresented: $selecting, onDismiss: { close() }) {
             SelectTextSheet(text: m.body)
         }
