@@ -3,10 +3,11 @@ import PhotosUI
 import AVFoundation
 import UniformTypeIdentifiers
 
-/// The message field and everything that comes out of it: the "+" that
-/// turns into Send when there's something to send, the attachments panel
-/// growing from that button, voice recording, replies and edits, @mentions
-/// in groups and the writing help's suggestion.
+/// The message field and everything that comes out of it: the "+" in the
+/// field and the attachments panel growing from it, Send once there's
+/// something to send, a voice message recorded by holding the empty field
+/// (release to send, slide up or away to cancel), replies and edits,
+/// @mentions in groups and the writing help's suggestion.
 struct Composer: View {
     let room: Room
     @Binding var replyTo: Message?
@@ -29,8 +30,19 @@ struct Composer: View {
     @State private var mentionIds: [String: String] = [:]
     @State private var savedDraft = ""
     @FocusState private var focused: Bool
+    /// Holding the field to talk: the finger is down past the hold, and
+    /// whether it has slid far enough to cancel on release.
+    @State private var holding = false
+    @State private var cancelArmed = false
+    @State private var holdEnded = Date.distantPast
+    /// Resets by itself when the system cancels the hold (onEnded never comes).
+    @GestureState private var pressing = false
 
     private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// Send (or ✓) only once there's something to send or an edit to save.
+    private var showsSend: Bool { canSend || editing != nil }
+    /// The empty field records while held.
+    private var holdToTalk: Bool { text.isEmpty && editing == nil }
     private var showBack: Bool { nav.columns == 1 && !ctx.usesRail }
 
     /// The composer's controls are 56pt (the web's .field and .composer-action).
@@ -53,13 +65,20 @@ struct Composer: View {
                     }
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
-                if recorder.isRecording {
-                    recordingBar
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                } else {
-                    field
+                // The field stays put while recording (it holds the gesture);
+                // the recording shows over it.
+                field
+                    .overlay {
+                        if recorder.isRecording {
+                            recordingBar
+                                .allowsHitTesting(false)
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        }
+                    }
+                if showsSend {
+                    trailingButton
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
-                trailingButton
             }
             .overlay(alignment: .bottomTrailing) {
                 ZStack(alignment: .bottomTrailing) {
@@ -86,7 +105,7 @@ struct Composer: View {
                             .glassCircle()
                     }
                     .buttonStyle(.press(0.9))
-                    .padding(.trailing, Self.control + 10 + 7)
+                    .padding(.trailing, 7)
                     .padding(.bottom, 7)
                     .transition(.identity)
                     .accessibilityLabel("Close")
@@ -99,6 +118,7 @@ struct Composer: View {
         .padding(.trailing, ctx.usesRail ? ctx.insets.trailing + margin : max(ctx.insets.trailing, margin))
         .animation(Motion.morph, value: plusOpen)
         .animation(Motion.ui, value: canSend)
+        .animation(Motion.ui, value: showsSend)
         .animation(Motion.move, value: replyTo?.id)
         .animation(Motion.move, value: editing?.id)
         .animation(Motion.ui, value: suggestion)
@@ -170,6 +190,32 @@ struct Composer: View {
                     .padding(.vertical, 9 + BodyMetrics.extra / 2)
                     .frame(minHeight: 42)
                     .onSubmit { send() }
+                    .overlay {
+                        if holdToTalk {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .gesture(holdGesture)
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    guard !holding, !recorder.isRecording, Date().timeIntervalSince(holdEnded) > 0.4 else { return }
+                                    focused = true
+                                })
+                                .onChange(of: pressing) { _, down in
+                                    guard !down else { return }
+                                    // Let a normal release finish first; whatever is left was cancelled.
+                                    DispatchQueue.main.async {
+                                        guard holding else { return }
+                                        recorder.cancel()
+                                        holding = false
+                                        cancelArmed = false
+                                        holdEnded = Date()
+                                    }
+                                }
+                                .accessibilityElement()
+                                .accessibilityLabel("Message")
+                                .accessibilityHint("Double-tap to type. Touch and hold to record a voice message.")
+                                .accessibilityAction(named: "Type") { focused = true }
+                        }
+                    }
                 if editing == nil {
                     Button {
                         Haptics.tap()
@@ -199,38 +245,19 @@ struct Composer: View {
         .zIndex(2)
     }
 
-    /// One button after the field: the mic while it's empty; Send, filled
-    /// with ink, once there's something to send; ✓ while editing.
+    /// After the field once there's something to send: Send, filled with
+    /// ink; ✓ while editing.
     private var trailingButton: some View {
-        let filled = canSend || editing != nil || recorder.isRecording
-        return Button {
-            if canSend || editing != nil || recorder.isRecording {
-                send()
-            } else {
-                Haptics.press()
-                if plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
-                recorder.start()
-            }
-        } label: {
-            ZStack {
-                SymbolView(.mic, size: 22)
-                    .foregroundStyle(Theme.label)
-                    .opacity(filled ? 0 : 1)
-                    .scaleEffect(filled ? 0.8 : 1)
-                SymbolView(editing != nil ? .check : .arrowUp, size: 22, weight: 2.5)
-                    .foregroundStyle(Theme.onInk)
-                    .opacity(filled ? 1 : 0)
-                    .scaleEffect(filled ? 1 : 0.8)
-            }
-            .frame(width: Self.control, height: Self.control)
-            .background {
-                Circle().fill(Theme.ink).opacity(filled ? 1 : 0)
-            }
-            .glassCircle(interactive: !filled)
+        Button { send() } label: {
+            SymbolView(editing != nil ? .check : .arrowUp, size: 22, weight: 2.5)
+                .foregroundStyle(Theme.onInk)
+                .frame(width: Self.control, height: Self.control)
+                .background(Circle().fill(Theme.ink))
+                .glassCircle(interactive: false)
         }
         .buttonStyle(.press(0.9))
         .opacity(plusOpen ? 0 : 1)
-        .accessibilityLabel(editing != nil ? "Save" : (canSend || recorder.isRecording ? "Send" : "Record voice message"))
+        .accessibilityLabel(editing != nil ? "Save" : "Send")
     }
 
     // MARK: strips, chips
@@ -341,27 +368,73 @@ struct Composer: View {
 
     // MARK: voice
 
+    /// While the field is held: the time, the level, and what letting go
+    /// will do (send, or, slid up or away, cancel).
     private var recordingBar: some View {
         HStack(spacing: 12) {
-            Button {
-                recorder.cancel()
-                Haptics.warning()
-            } label: {
+            if cancelArmed {
                 SymbolView(.trash, size: 20).foregroundStyle(Theme.red)
-                    .frame(width: 42, height: 42)
+                    .frame(width: 24)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Circle().fill(Theme.red).frame(width: 9, height: 9)
+                    .opacity(recorder.blink ? 1 : 0.25)
+                    .frame(width: 24)
             }
-            .buttonStyle(.press(0.9))
-            .accessibilityLabel("Discard recording")
-            Circle().fill(Theme.red).frame(width: 9, height: 9)
-                .opacity(recorder.blink ? 1 : 0.25)
             Text(Fmt.duration(recorder.elapsed)).font(.subheadMediumC.monospacedDigit()).foregroundStyle(Theme.label)
             LevelMeter(levels: recorder.levels).frame(height: 26)
+                .opacity(cancelArmed ? 0.35 : 1)
+            Text(cancelArmed ? "Release to cancel" : "Slide up to cancel")
+                .font(.footnoteC)
+                .foregroundStyle(cancelArmed ? Theme.red : Theme.label2)
+                .lineLimit(1)
+                .fixedSize()
         }
-        .padding(.leading, 7)
+        .padding(.leading, 16)
         .padding(.trailing, 18)
-        .frame(height: Self.control)
-        .frame(maxWidth: .infinity)
-        .glass(Capsule(), interactive: false)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Over the field's words and "+", which stay underneath holding the gesture.
+        .background(Theme.bg, in: Capsule())
+        .glass(Capsule(), tint: cancelArmed ? Theme.red.opacity(0.12) : nil, interactive: false)
+        .animation(Motion.quick, value: cancelArmed)
+    }
+
+    /// Touch and hold the empty field to record; let go to send it, or slide
+    /// up (or back toward the leading edge) first to cancel.
+    private var holdGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.3, maximumDistance: 14)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+            .updating($pressing) { value, state, _ in
+                if case .second(true, _) = value { state = true }
+            }
+            .onChanged { value in
+                guard case .second(true, let drag) = value else { return }
+                if !holding {
+                    holding = true
+                    cancelArmed = false
+                    Haptics.press()
+                    if plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
+                    recorder.start()
+                }
+                let t = drag?.translation ?? .zero
+                let armed = t.height < -64 || t.width < -110
+                if armed != cancelArmed {
+                    cancelArmed = armed
+                    Haptics.selection()
+                }
+            }
+            .onEnded { value in
+                guard case .second(true, _) = value, holding else { return }
+                if cancelArmed || !recorder.isRecording {
+                    recorder.cancel()
+                    if cancelArmed { Haptics.warning() }
+                } else {
+                    finishRecording()
+                }
+                holding = false
+                cancelArmed = false
+                holdEnded = Date()
+            }
     }
 
     private func finishRecording() {
@@ -559,10 +632,15 @@ final class VoiceRecorder {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var url: URL?
 
+    /// Still wanted when the permission answer comes back (the finger may
+    /// have lifted, or the system's prompt cancelled the hold).
+    @ObservationIgnored private var wanted = false
+
     func start() {
+        wanted = true
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             Task { @MainActor in
-                guard granted, let self else { return }
+                guard granted, let self, self.wanted, !self.isRecording else { return }
                 self.begin()
             }
         }
@@ -605,6 +683,7 @@ final class VoiceRecorder {
     }
 
     func finish() -> (Data, Double)? {
+        wanted = false
         guard let r = recorder, let url else { return nil }
         let d = r.currentTime
         r.stop()
@@ -617,6 +696,7 @@ final class VoiceRecorder {
     }
 
     func cancel() {
+        wanted = false
         recorder?.stop()
         recorder?.deleteRecording()
         recorder = nil
