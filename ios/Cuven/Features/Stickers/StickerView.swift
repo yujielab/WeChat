@@ -2,7 +2,8 @@ import SwiftUI
 import Lottie
 
 /// A Telegram sticker: still (WebP), animated (Lottie, played only while on
-/// screen) or video (its still picture; iOS can't play WebM).
+/// screen and the app is in front, as on the web) or video (its still
+/// picture; iOS can't play WebM).
 struct StickerView: View {
     let id: String
     let kind: String
@@ -23,7 +24,7 @@ struct StickerView: View {
         self.size = size
     }
 
-    init(sticker: Sticker, set: String?, size: CGFloat = 72, animate: Bool = false) {
+    init(sticker: Sticker, set: String?, size: CGFloat = 72, animate: Bool = true) {
         id = sticker.id
         kind = sticker.kind
         emoji = sticker.emoji
@@ -63,16 +64,21 @@ struct LottieSticker<Fallback: View>: View {
     @ViewBuilder var fallback: () -> Fallback
     @State private var animation: LottieAnimation?
     @State private var tried = false
+    /// Plays only while on screen (a grid keeps cells it scrolled past).
+    @State private var onScreen = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
             if let animation {
-                LottiePlayer(animation: animation)
+                LottiePlayer(animation: animation, playing: onScreen && scenePhase == .active)
                     .transition(.opacity)
             } else {
                 fallback()
             }
         }
+        .onAppear { onScreen = true }
+        .onDisappear { onScreen = false }
         .task(id: path) {
             guard animation == nil, !tried else { return }
             tried = true
@@ -100,11 +106,18 @@ final class LottieCache: @unchecked Sendable {
 
 struct LottiePlayer: UIViewRepresentable {
     let animation: LottieAnimation
+    var playing = true
+
+    final class Coordinator { var view: LottieAnimationView? }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> UIView {
+        // A plain container, so the animation's own size (often 512pt)
+        // never pushes on the layout; the sticker's frame decides.
         let container = UIView()
         container.backgroundColor = .clear
-        let v = LottieAnimationView(animation: animation)
+        container.isUserInteractionEnabled = false
+        let v = LottieAnimationView(animation: animation, configuration: LottieConfiguration(renderingEngine: .automatic))
         v.contentMode = .scaleAspectFit
         v.loopMode = .loop
         v.backgroundBehavior = .pauseAndRestore
@@ -116,9 +129,21 @@ struct LottiePlayer: UIViewRepresentable {
             v.topAnchor.constraint(equalTo: container.topAnchor),
             v.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
-        v.play()
+        context.coordinator.view = v
+        if playing { v.play() }
         return container
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {}
+    func updateUIView(_ uiView: UIView, context: Context) {
+        guard let v = context.coordinator.view else { return }
+        if playing {
+            if !v.isAnimationPlaying { v.play() }
+        } else if v.isAnimationPlaying {
+            v.pause()
+        }
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.view?.stop()
+    }
 }

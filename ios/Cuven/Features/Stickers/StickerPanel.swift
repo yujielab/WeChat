@@ -22,7 +22,8 @@ struct StickerPanel: View {
                         } label: {
                             Group {
                                 if let first = s.stickers.first {
-                                    StickerView(sticker: first, set: s.name, size: 34)
+                                    // The pack's face stays still; its stickers below move.
+                                    StickerView(sticker: first, set: s.name, size: 34, animate: false)
                                 } else {
                                     Text(String(s.title.prefix(1)))
                                 }
@@ -54,14 +55,15 @@ struct StickerPanel: View {
                 ScrollView {
                     Text(set.title).font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.top, 12)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                    // As many columns as fit (the web's minmax(76px, 1fr)).
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 6)], spacing: 6) {
                         ForEach(set.stickers) { st in
                             Button {
                                 model.sendSticker(st, set: set.name, room: roomId, replyTo: replyTo)
                                 replyTo = nil
                                 dismiss()
                             } label: {
-                                StickerView(sticker: st, set: set.name, size: 72, animate: false)
+                                StickerView(sticker: st, set: set.name, size: 72)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 80)
                             }

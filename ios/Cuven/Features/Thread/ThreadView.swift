@@ -163,6 +163,9 @@ struct ThreadView: View {
         }
         .sheet(isPresented: $stickersOpen) {
             StickerPanel(roomId: roomId, replyTo: $replyTo)
+                // The sheet runs across the Duo's system column; so do the
+                // packs, rather than stopping short and leaving a strip.
+                .ignoresSafeArea(.container, edges: ctx.usesRail ? .trailing : [])
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
