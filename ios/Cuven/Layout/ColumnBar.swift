@@ -4,6 +4,9 @@ import SwiftUI
 struct BarItem: Identifiable {
     let id: String
     let sym: Sym
+    /// A system symbol in place of `sym`, where the web's set has none (a
+    /// gear for Settings: the ellipsis is kept for overflow, as the HIG asks).
+    var system: String? = nil
     let title: LocalizedStringKey
     var badge: Int = 0
     var badgeInk = false
@@ -95,7 +98,7 @@ struct ColumnBar<Center: View>: View {
     }
 
     private func icon(_ item: BarItem, size: CGFloat = Bar.height) -> some View {
-        GlassIconButton(sym: item.sym, title: item.title, tint: item.tint, foreground: item.foreground,
+        GlassIconButton(sym: item.sym, system: item.system, title: item.title, tint: item.tint, foreground: item.foreground,
                         badge: item.badge, badgeInk: item.badgeInk, size: size, action: item.action)
     }
 
@@ -112,7 +115,7 @@ struct ColumnBar<Center: View>: View {
                         Haptics.tap()
                         item.action()
                     } label: {
-                        SymbolView(item.sym, size: 22)
+                        BarGlyph(sym: item.sym, system: item.system, size: 22)
                             .foregroundStyle(item.foreground)
                             .frame(width: axis == .horizontal ? size - 4 : 44, height: axis == .horizontal ? size : 44)
                             .overlay(alignment: .topTrailing) {

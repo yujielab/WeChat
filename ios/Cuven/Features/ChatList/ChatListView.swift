@@ -8,9 +8,15 @@ struct ChatListView: View {
     @State private var query = ""
     @State private var found: [User] = []
     @FocusState private var searchFocused: Bool
+    /// The search button and the search field are one piece of glass.
+    @Namespace private var searchGlass
 
     /// Unfolded, the list leads a window: it drops its filters for a button in its bar.
     private var leadingTwoUp: Bool { ctx.twoUp && !ctx.isRightmost }
+    /// The open Duo (the system's column beside the other pane): the list's
+    /// search and filter sit at the top of its own pane, as in Mail, rather
+    /// than in a bar at its foot.
+    private var listControlsOnTop: Bool { leadingTwoUp && ctx.systemColumn }
     private var besideSidebar: Bool { nav.columns == 2 && nav.leading == .sidebar }
     private var inset: CGFloat { 22 }
 
@@ -98,8 +104,12 @@ struct ChatListView: View {
             // The title (or the search field) floats at the top, the list
             // scrolling on under it through the system's soft edge.
             .safeAreaBar(edge: .top, spacing: 0) {
-                Group {
-                    if nav.searching { searchHead } else { header }
+                // Search opens out of its button: the circle's glass grows into
+                // the field, and folds back when it's done (HIG: Liquid Glass morphs).
+                GlassGroup(spacing: 0) {
+                    Group {
+                        if nav.searching { searchHead } else { header }
+                    }
                 }
                 .padding(.bottom, nav.searching ? 6 : 4)
             }
@@ -138,7 +148,7 @@ struct ChatListView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 8)
-            if ctx.usesRail && !leadingTwoUp {
+            if (ctx.usesRail && !leadingTwoUp) || listControlsOnTop {
                 // Search beside the title, in blue glass, as tall as it.
                 Button {
                     Haptics.tap()
@@ -147,7 +157,7 @@ struct ChatListView: View {
                     SymbolView(.search, size: 18, weight: 2.4)
                         .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
-                        .blueGlass(Circle())
+                        .glass(Circle(), tint: Theme.fbBlue.opacity(0.8), interactive: true, morph: "search", in: searchGlass)
                 }
                 .buttonStyle(.press(0.94))
                 .accessibilityLabel("Search")
@@ -168,6 +178,21 @@ struct ChatListView: View {
                 }
                 .buttonStyle(.press)
                 .accessibilityLabel("Moments")
+            }
+            if listControlsOnTop {
+                // The list's filter, with the list it filters (HIG: controls
+                // near the content they affect, at the top of the pane).
+                Button {
+                    Haptics.tap()
+                    withAnimation(Motion.bouncy) { nav.filterCard = .list }
+                } label: {
+                    SymbolView(.filter, size: 18)
+                        .foregroundStyle(nav.filter == .all ? Theme.label : .white)
+                        .frame(width: 40, height: 40)
+                        .glassCircle(tint: nav.filter == .all ? nil : Theme.fbBlue.opacity(0.8))
+                }
+                .buttonStyle(.press(0.94))
+                .accessibilityLabel("Filter")
             }
             if leadingTwoUp || (!ctx.usesRail && ctx.rail == nil && ctx.twoUp) {
                 Button { withAnimation(Motion.move) { nav.settingsOpen = true } } label: {
@@ -199,10 +224,10 @@ struct ChatListView: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 44)
-        .glassCapsule(interactive: false)
+        .glass(Capsule(), interactive: false, morph: "search", in: searchGlass)
         .padding(.horizontal, 14)
         .padding(.top, 14)
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        .transition(.opacity)
     }
 
     private var requestsLink: some View {
@@ -290,7 +315,7 @@ struct ChatListView: View {
             ColumnBar(back: nav.searching
                 ? BarItem(id: "cancel", sym: .xmark, title: "Cancel search") { withAnimation(Motion.ui) { nav.searching = false } }
                 : (besideSidebar ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() }))
-        } else if !nav.searching {
+        } else if !nav.searching && !listControlsOnTop {
             ColumnBar(back: (nav.columns == 1 && !leadingTwoUp) ? BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() } : nil,
                       actions: leadingTwoUp ? [BarItem(id: "filter", sym: .filter, title: "Filter", tint: nav.filter == .all ? nil : Theme.fbBlue.opacity(0.8),
                                                         foreground: nav.filter == .all ? Theme.label : .white) {

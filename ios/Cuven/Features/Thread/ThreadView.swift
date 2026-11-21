@@ -71,8 +71,10 @@ struct ThreadView: View {
                         }
 
 
+                        // At the oldest end: loads more as it comes into view (the
+                        // heading's room is the bar below).
                         Color.clear
-                            .frame(height: headerHeight + ctx.insets.top + 8)
+                            .frame(height: 1)
                             .onAppear {
                                 Task { await model.loadOlder(roomId) }
                             }
@@ -82,6 +84,15 @@ struct ThreadView: View {
                     .animation(Motion.message, value: msgs.last?.id)
                     .animation(Motion.quick, value: typers.map(\.key))
                 }
+                // The heading's room, as a bar at the list's far end (the top,
+                // once flipped): what scrolls under it blurs progressively
+                // (the system's soft scroll edge), no gradient, no hard line.
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    Color.clear
+                        .frame(height: headerHeight + ctx.insets.top + 8)
+                        .allowsHitTesting(false)
+                }
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .scaleEffect(x: 1, y: -1)
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
@@ -118,15 +129,6 @@ struct ThreadView: View {
                 }
             }
 
-            // The top fades the messages out under the heading.
-            VStack(spacing: 0) {
-                LinearGradient(stops: [.init(color: Theme.bg, location: 0), .init(color: Theme.bg.opacity(0.94), location: 0.55),
-                                       .init(color: Theme.bg.opacity(0), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(height: headerHeight + ctx.insets.top + 18)
-                Spacer()
-            }
-            .allowsHitTesting(false)
 
             if let room {
                 ThreadHeader(room: room)

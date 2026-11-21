@@ -136,6 +136,9 @@ enum Automation {
         switch screen {
         case "sidebar": nav.toSidebar()
         case "thread": if let first { nav.open(room: first) }
+        case "thread-long":
+            // The longest conversation, scrolled so its messages run under the heading.
+            if let long = model.rooms.first(where: { !$0.isGroup && $0.peer?.username == "bob" })?.id ?? first { nav.open(room: long) }
         case "info":
             if let first {
                 nav.open(room: first)

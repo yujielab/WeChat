@@ -141,7 +141,8 @@ struct MainView: View {
             }
 
             // A call over everything but the toasts, in the app's own frame.
-            CallOverlay(size: size, insets: insets)
+            CallOverlay(size: size, insets: insets,
+                        fold: geo.posture == .half ? geo.fold : nil)
                 .frame(width: size.width, height: size.height, alignment: .topLeading)
                 .allowsHitTesting(model.calls.active)
                 .zIndex(45)
@@ -347,7 +348,8 @@ struct StripGeometry {
         let f = frame(c)
         return ColumnContext(column: c, insets: ins, isLeftmost: left, isRightmost: right,
                              rail: right ? rail : nil, size: CGSize(width: f.width, height: size.height),
-                             twoUp: columns == 2, keyboard: keyboard, capsule: right ? capsule : 0)
+                             twoUp: columns == 2, keyboard: keyboard, capsule: right ? capsule : 0,
+                             systemColumn: rail != nil)
     }
 
     /// Where a page's sheet stands (css/overlays.css .sheet): folded, the

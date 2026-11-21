@@ -10,6 +10,13 @@ struct StickerPanel: View {
     @State private var catalog: [StickerPack] = []
     @State private var selected: String = ""
     @State private var loading = true
+    /// The panel's width, for an even number of columns (HIG: so a fold
+    /// down the middle divides the grid cleanly).
+    @State private var width: CGFloat = 375
+    private var columns: Int {
+        let fit = max(4, Int((width - 24) / 84))
+        return fit % 2 == 0 ? fit : fit - 1
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,8 +62,8 @@ struct StickerPanel: View {
                 ScrollView {
                     Text(set.title).font(.footnoteC.weight(.semibold)).foregroundStyle(Theme.label2)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.top, 12)
-                    // As many columns as fit (the web's minmax(76px, 1fr)).
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 6)], spacing: 6) {
+                    // As many columns as fit (the web's minmax(76px, 1fr)), an even number.
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columns), spacing: 6) {
                         ForEach(set.stickers) { st in
                             Button {
                                 model.sendSticker(st, set: set.name, room: roomId, replyTo: replyTo)
@@ -78,6 +85,7 @@ struct StickerPanel: View {
                 ContentUnavailableView("No sticker packs", systemImage: "face.smiling", description: Text("Tap + to add some."))
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .task {
             sets = await model.stickerSets()
             selected = sets.first?.name ?? "+"

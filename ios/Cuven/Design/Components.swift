@@ -106,6 +106,7 @@ enum Bar {
 
 struct GlassIconButton: View {
     let sym: Sym
+    var system: String? = nil
     let title: LocalizedStringKey
     var tint: Color? = nil
     var foreground: Color = Theme.label
@@ -119,7 +120,7 @@ struct GlassIconButton: View {
             Haptics.tap()
             action()
         } label: {
-            SymbolView(sym, size: 22)
+            BarGlyph(sym: sym, system: system, size: 22)
                 .foregroundStyle(foreground)
                 .frame(width: size, height: size)
                 .contentShape(Circle())
@@ -333,5 +334,22 @@ struct SkeletonBar: View {
 extension View {
     @ViewBuilder func `if`<V: View>(_ condition: Bool, transform: (Self) -> V) -> some View {
         if condition { transform(self) } else { self }
+    }
+}
+
+/// A bar item's glyph: the web's own, or a system symbol where it has none.
+struct BarGlyph: View {
+    let sym: Sym
+    var system: String? = nil
+    var size: CGFloat = 22
+
+    var body: some View {
+        if let system {
+            Image(systemName: system)
+                .font(.system(size: size * 0.86, weight: .medium))
+                .frame(width: size, height: size)
+        } else {
+            SymbolView(sym, size: size)
+        }
     }
 }

@@ -266,6 +266,9 @@ struct ColumnContext: Equatable {
     var capsule: CGFloat = 0
     /// A full-screen page's own context (its rail shows while the strip's step aside).
     var onPage = false
+    /// The device puts its controls in a system column (iPhone Duo), even
+    /// when that column belongs to the pane beside this one.
+    var systemColumn = false
 
     /// Controls stand in the system's column on the trailing edge (iPhone Duo).
     var usesRail: Bool { rail != nil && isRightmost }

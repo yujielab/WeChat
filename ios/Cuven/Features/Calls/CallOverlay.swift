@@ -10,6 +10,9 @@ struct CallOverlay: View {
     /// layer: on the Duo the call stands clear of the system's column.
     let size: CGSize
     let insets: EdgeInsets
+    /// The fold of a half-open Duo: the call then takes one side each (HIG:
+    /// an overlay arrangement moves its views to either side of the fold).
+    var fold: CGRect? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pip: CGSize = .zero
@@ -28,7 +31,10 @@ struct CallOverlay: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             if calls.active {
-                if calls.expanded {
+                if calls.expanded, let fold = sideFold {
+                    folded(fold)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else if calls.expanded {
                     full
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
@@ -39,6 +45,62 @@ struct CallOverlay: View {
         }
         .animation(Motion.morph, value: calls.active)
         .animation(Motion.morph, value: calls.expanded)
+    }
+
+    // MARK: half open
+
+    /// A fold down the middle of the open display (book pose).
+    private var sideFold: CGRect? {
+        guard let fold, fold.minX > 80, fold.maxX < size.width - 80, fold.height >= size.height * 0.8 else { return nil }
+        return fold
+    }
+
+    /// Book pose: their picture (or who they are) on the leading side, and on
+    /// the trailing side the status, your own picture and the controls, so
+    /// nothing sits in the fold and neither covers the other.
+    private func folded(_ fold: CGRect) -> some View {
+        let leadW = fold.minX
+        let trailW = max(0, size.width - fold.maxX - insets.trailing)
+        return ZStack(alignment: .topLeading) {
+            background.frame(width: size.width, height: size.height)
+            HStack(spacing: 0) {
+                ZStack {
+                    if remoteShowing, let remote = calls.remoteVideo {
+                        CallVideoView(track: remote, mirror: false, fill: !fitted)
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) { withAnimation(Motion.ui) { fitted.toggle() } }
+                    } else {
+                        identity.padding(.horizontal, 20)
+                    }
+                }
+                .frame(width: leadW, height: size.height)
+                .clipped()
+
+                Color.clear.frame(width: fold.width)
+
+                VStack(spacing: 16) {
+                    topCapsule
+                        .padding(.top, insets.top + 8)
+                    if remoteShowing {
+                        Text(calls.title).font(AppFont.make(22, .bold)).foregroundStyle(.white).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    if localShowing, let local = calls.localVideo {
+                        CallVideoView(track: local, mirror: calls.frontCamera, fill: true)
+                            .frame(width: min(trailW - 40, 220), height: min(trailW - 40, 220) * 4 / 3)
+                            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 1))
+                    }
+                    Spacer(minLength: 8)
+                    controls
+                        .padding(.bottom, max(insets.bottom, 16) + 12)
+                }
+                .frame(width: trailW, height: size.height)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .clipped()
+        .preferredColorScheme(.dark)
     }
 
     // MARK: full screen

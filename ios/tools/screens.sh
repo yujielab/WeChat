@@ -81,6 +81,7 @@ else
   shoot outer-03-search search light 11 1 outer
   shoot outer-04-thread thread light 10 1 outer
   shoot outer-04-thread-dark thread dark 10 1 outer
+  shoot outer-06-thread-long thread-long light 12 1 outer
   shoot outer-05-plus plus light 11 1 outer
   shoot outer-07-menu focus light 12 1 outer
   shoot outer-08-details info light 11 1 outer

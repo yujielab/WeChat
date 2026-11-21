@@ -68,7 +68,7 @@ struct ProfileView: View {
     private var actionItems: [BarItem] {
         if isMe {
             return [BarItem(id: "new", sym: .plus, title: "New moment") { nav.composeMoment = true },
-                    BarItem(id: "settings", sym: .ellipsis, title: "Settings") { withAnimation(Motion.move) { nav.settingsOpen = true } }]
+                    BarItem(id: "settings", sym: .ellipsis, system: "gearshape", title: "Settings") { withAnimation(Motion.move) { nav.settingsOpen = true } }]
         }
         guard let user else { return [] }
         return [BarItem(id: "message", sym: .bubble, title: "Message") {

@@ -48,6 +48,10 @@ struct PageScaffold<Header: View, Content: View>: View {
     @State private var scroll = PageScroll()
     /// The floating bar's height, for the room under a cover.
     @State private var barHeight: CGFloat = 64
+    /// A large title, scrolled past, settles small in the middle (iOS's
+    /// large-title behaviour).
+    @State private var collapsed = false
+    private var isLarge: Bool { if case .large = title { return true } else { return false } }
     /// Moved only by the screenshot automation.
     @State private var position = ScrollPosition(edge: .top)
 
@@ -89,6 +93,10 @@ struct PageScaffold<Header: View, Content: View>: View {
             }
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
                 if cover != nil { scroll.y = y }
+                if isLarge {
+                    let c = y > 18
+                    if c != collapsed { withAnimation(.smooth(duration: 0.3)) { collapsed = c } }
+                }
                 onScroll?(y)
             }
             .safeAreaBar(edge: .top, spacing: 0) { barSlot }
@@ -161,7 +169,7 @@ struct PageScaffold<Header: View, Content: View>: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 if !railed, let back {
-                    GlassIconButton(sym: back.sym, title: back.title, tint: overCover ? .black.opacity(0.45) : back.tint,
+                    GlassIconButton(sym: back.sym, system: back.system, title: back.title, tint: overCover ? .black.opacity(0.45) : back.tint,
                                     foreground: overCover ? .white : back.foreground) { back.action() }
                 }
                 titleView
@@ -172,7 +180,7 @@ struct PageScaffold<Header: View, Content: View>: View {
                     GlassGroup(spacing: 8) {
                         HStack(spacing: 8) {
                             ForEach(actions + footActions) { item in
-                                GlassIconButton(sym: item.sym, title: item.title, tint: overCover ? .black.opacity(0.45) : item.tint,
+                                GlassIconButton(sym: item.sym, system: item.system, title: item.title, tint: overCover ? .black.opacity(0.45) : item.tint,
                                                 foreground: overCover ? .white : item.foreground,
                                                 badge: item.badge, badgeInk: item.badgeInk) { item.action() }
                             }
@@ -211,13 +219,17 @@ struct PageScaffold<Header: View, Content: View>: View {
                 .padding(.trailing, !railed && back != nil && (actions + footActions).isEmpty ? 54 : 0)
                 .padding(.leading, !railed && back == nil && !(actions + footActions).isEmpty ? 54 : 0)
         case .large(let t, let color):
+            // Scrolled, it shrinks to the inline size and moves to the middle.
             Text(t)
                 .font(AppFont.make(28, .bold))
                 .tracking(-0.56)
-                .foregroundStyle(color)
+                .foregroundStyle(collapsed ? Theme.label : color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .scaleEffect(collapsed ? 20.0 / 28.0 : 1, anchor: collapsed ? .center : .leading)
+                .frame(maxWidth: .infinity, alignment: collapsed ? .center : .leading)
+                .padding(.trailing, collapsed && !railed && back != nil && (actions + footActions).isEmpty ? 54 : 0)
+                .padding(.leading, collapsed && !railed && back == nil && !(actions + footActions).isEmpty ? 54 : 0)
         case .wordmark(let t, let color):
             Text(t)
                 .font(AppFont.make(30, .heavy))
