@@ -166,6 +166,10 @@ enum Automation {
             nav.filterCard = .memories
         case "profile":
             if let peer = model.rooms.first(where: { !$0.isGroup })?.peer { nav.profile = peer.id }
+        case "profile-scrolled":
+            if let peer = model.rooms.first(where: { !$0.isGroup })?.peer { nav.profile = peer.id }
+            try? await Task.sleep(for: .seconds(2))
+            NotificationCenter.default.post(name: .automationScroll, object: nil)
         case "editprofile":
             nav.settingsOpen = true
             try? await Task.sleep(for: .milliseconds(500))
@@ -191,4 +195,5 @@ enum Automation {
 extension Notification.Name {
     static let automationPlus = Notification.Name("cuven.automation.plus")
     static let automationFocus = Notification.Name("cuven.automation.focus")
+    static let automationScroll = Notification.Name("cuven.automation.scroll")
 }

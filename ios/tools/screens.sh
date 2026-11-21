@@ -93,6 +93,7 @@ else
   shoot outer-18-group group light 10 1 outer
   shoot outer-19-filters filters light 11 1 outer
   shoot outer-20-profile profile light 11 1 outer
+  shoot outer-22-profile-scrolled profile-scrolled light 14 1 outer
   shoot outer-21-editprofile editprofile light 11 1 outer
   shoot outer-30-zh-list list light 12 1 outer zh
   shoot outer-31-zh-settings settings light 11 1 outer zh

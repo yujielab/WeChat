@@ -73,6 +73,8 @@ post b /api/note '{"text":"Saturday hike ⛰️"}' >/dev/null
 post d /api/note '{"text":"Coffee anyone?"}' >/dev/null
 post b /api/moments '{"text":"First snow of the year on the ridge. Who is coming up next weekend?","media":[],"audience":"friends"}' >/dev/null
 post d /api/moments '{"text":"New café around the corner has the best flat white in town ☕️","media":[],"audience":"everyone"}' >/dev/null
+post d /api/moments '{"text":"Saturday plan: up early, coffee, then the long loop round the lake.","media":[],"audience":"everyone"}' >/dev/null
+post d /api/moments '{"text":"Finally fixed the bike. It only took three weekends and one very patient friend.","media":[],"audience":"everyone"}' >/dev/null
 LAST=$(get a "/api/messages?room=$R1&limit=1" | jq -r '.messages[-1].id')
 post a /api/react "{\"id\":\"$LAST\",\"emoji\":\"❤️\"}" >/dev/null
 

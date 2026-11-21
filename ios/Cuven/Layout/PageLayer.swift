@@ -48,6 +48,8 @@ struct PageScaffold<Header: View, Content: View>: View {
     @State private var scroll = PageScroll()
     /// The floating bar's height, for the room under a cover.
     @State private var barHeight: CGFloat = 64
+    /// Moved only by the screenshot automation.
+    @State private var position = ScrollPosition(edge: .top)
 
     private var railed: Bool { ctx.usesRail }
     /// The bar sits on a cover (or a cover blurred behind it).
@@ -81,6 +83,10 @@ struct PageScaffold<Header: View, Content: View>: View {
                     .padding(.bottom, bottomRoom)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollPosition($position)
+            .onReceive(NotificationCenter.default.publisher(for: .automationScroll)) { _ in
+                withAnimation(Motion.move) { position.scrollTo(y: coverHeight + 120) }
+            }
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
                 if cover != nil { scroll.y = y }
                 onScroll?(y)
