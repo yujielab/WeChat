@@ -9,7 +9,6 @@ struct SettingsView: View {
     @Environment(Nav.self) private var nav
     @Environment(\.column) private var ctx
     @AppStorage("ui:glass") private var glassMode = "auto"
-    @AppStorage("ui:glassTint") private var glassTint = "tinted"
     @AppStorage("ui:motion") private var motion = "system"
     @AppStorage("ui:time-format") private var timeFormat = "system"
     @State private var confirmSignOut = false
@@ -45,20 +44,11 @@ struct SettingsView: View {
                 GroupCard {
                     Button { withAnimation(Motion.move) { nav.changingPassword = true } } label: { Cell(icon: .lock, title: "Change password", chevron: true) }
                         .buttonStyle(CellButtonStyle())
-                    CellSeparator(leading: 58)
-                    Cell(icon: .globe, title: "Server") {
-                        Text(model.serverURL.host ?? model.serverURL.absoluteString)
-                            .font(.bodyC).foregroundStyle(Theme.label2).lineLimit(1)
-                    }
                 }
 
                 GroupTitle(text: "Display & interaction")
                 GroupCard {
                     segmentRow("Appearance", [("light", "Light"), ("dark", "Dark"), ("system", "Auto")], $model.appearance)
-                    CellSeparator()
-                    segmentRow("Liquid Glass", [("clear", LocalizedStringKey(String(localized: "glass.clear", defaultValue: "Clear"))), ("tinted", "Tinted")], $glassTint)
-                    CellSeparator()
-                    segmentRow("Composer glow", [("off", "Off"), ("ocean", "Ocean"), ("dawn", "Dawn"), ("aurora", "Aurora")], $model.composerGlow)
                     CellSeparator()
                     toggleRow("Reduce transparency", isOn: Binding(get: { glassMode == "solid" }, set: { glassMode = $0 ? "solid" : "auto" }))
                     CellSeparator()

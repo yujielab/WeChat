@@ -26,7 +26,6 @@
 "Allow the microphone (and camera) in Settings to make calls" = "请在“设置”里允许麦克风（和相机）以进行通话";
 "Alt text" = "图片描述";
 "Appearance" = "外观";
-"Aurora" = "极光";
 "Automatic" = "跟随系统";
 "Back" = "返回";
 "Bio" = "签名";
@@ -57,7 +56,6 @@
 "Clear what the writing help remembers" = "清除智能输入记住的内容";
 "Close" = "关闭";
 "Comments are off" = "评论已关闭";
-"Composer glow" = "输入框弥散光";
 "Connecting…" = "正在连接…";
 "Connection failed" = "连接失败";
 "Connection lost" = "连接中断";
@@ -69,7 +67,6 @@
 "Current password" = "当前密码";
 "Cuven for iOS — native, designed for iPhone Duo." = "Cuven iOS 原生版，为 iPhone Duo 设计。";
 "Dark" = "深色";
-"Dawn" = "晨曦";
 "Decline" = "拒绝";
 "Declined" = "已拒绝";
 "Delete" = "删除";
@@ -176,7 +173,6 @@
 "Not sent · " = "未发送 · ";
 "Nothing here" = "这里什么都没有";
 "Notified" = "已通过通知提醒";
-"Ocean" = "海洋";
 "Off" = "关闭";
 "Oldest first" = "最早在前";
 "On this server" = "此服务器上的用户";
@@ -213,7 +209,6 @@
 "Reply" = "回复";
 "Reply to %@…" = "回复 %@…";
 "Replying to %@" = "回复 %@";
-"Request failed (%lld)" = "请求失败（%lld）";
 "Requested" = "已请求";
 "Requested · @%@" = "已请求 · @%@";
 "Requests" = "请求";
@@ -235,7 +230,6 @@
 "Send again" = "重新发送";
 "Sending…" = "发送中…";
 "Sent" = "已发送";
-"Server" = "服务器";
 "Settings" = "设置";
 "Share" = "分享";
 "Share a link to this server" = "分享这个服务器的链接";
@@ -261,19 +255,16 @@
 "Tag people" = "圈人";
 "Tap + to add some." = "点 + 添加一些。";
 "Tap to chat" = "点一下开始聊天";
-"That doesn't look like a server address" = "这看起来不像服务器地址";
 "This is the start of the group" = "群聊从这里开始";
 "This is the start of your conversation" = "你们的对话从这里开始";
 "This month" = "本月";
 "Today %@" = "今天 %@";
 "Undo" = "撤销";
-"Unexpected response from the server" = "服务器返回了意外的内容";
 "Unmute" = "取消免打扰";
 "Unpin" = "取消置顶";
 "Unread" = "未读";
 "Unsend" = "撤回";
 "Upload failed" = "上传失败";
-"Use" = "使用";
 "Use suggestion: %@" = "采用建议：%@";
 "Username" = "用户名";
 "Version" = "版本";
@@ -342,12 +333,10 @@
 "Friend" = "朋友";
 "Friends see it on your photo for 24 hours." = "朋友会在你的头像上看到它，保留 24 小时。";
 "Friends see what you write as you write it." = "朋友会实时看到你正在输入的内容。";
-"glass.clear" = "透明";
 "Haptic feedback" = "触感反馈";
 "Hide" = "隐藏";
 "Highlight keywords" = "高亮关键词";
 "Like" = "赞";
-"Liquid Glass" = "液态玻璃";
 "Log in" = "登录";
 "Log out" = "退出登录";
 "Log out of Cuven?" = "要退出 Cuven 吗？";
@@ -387,7 +376,6 @@
 "System" = "跟随系统";
 "They’ll still see it." = "对方仍会看到。";
 "Time format" = "时间格式";
-"Tinted" = "着色";
 "Today" = "今天";
 "Today at %@" = "今天 %@";
 "Typing suggestions" = "输入建议";
@@ -399,3 +387,4 @@
 "Your moment" = "你的动态";
 "iPhone Duo held like a book: the list and the chat meet at the fold." = "像书一样横握 iPhone Duo：列表和聊天在折痕处相接。";
 "more" = "更多";
+"Something went wrong. Try again." = "出了点问题，请重试。";

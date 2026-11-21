@@ -13,6 +13,17 @@ struct APIError: LocalizedError {
     static let offline = APIError(message: String(localized: "No network connection"), status: 0)
 }
 
+extension Error {
+    /// What a person sees when something fails: the server's own words for
+    /// a request it turned down, otherwise a plain sentence; never a system
+    /// error's technical text, a host or a code.
+    var userMessage: String {
+        if let e = self as? APIError { return e.message }
+        if self is URLError { return APIError.offline.message }
+        return String(localized: "Something went wrong. Try again.")
+    }
+}
+
 enum Keychain {
     private static let service = "us.cuven.session"
 
@@ -158,7 +169,11 @@ final class APIClient: @unchecked Sendable {
             await MainActor.run { self.onUnauthorized?() }
         }
         if !(200..<300).contains(http.statusCode) || (obj?["ok"] as? Bool) == false {
-            let msg = (obj?["error"] as? String) ?? String(localized: "Request failed (\(http.statusCode))")
+            // What the server says about a request it turned down (4xx) is
+            // written for people; a failure on its side (5xx) shows nothing of
+            // its internals, nor a status code.
+            let said = http.statusCode < 500 ? obj?["error"] as? String : nil
+            let msg = said ?? String(localized: "Something went wrong. Try again.")
             throw APIError(message: msg, status: http.statusCode)
         }
         return data
@@ -189,7 +204,7 @@ final class APIClient: @unchecked Sendable {
             #if DEBUG
             print("decode \(T.self) failed:", error)
             #endif
-            throw APIError(message: String(localized: "Unexpected response from the server"), status: 0)
+            throw APIError(message: String(localized: "Something went wrong. Try again."), status: 0)
         }
     }
 

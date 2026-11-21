@@ -242,7 +242,7 @@ final class CallManager {
             if answered { announce() }
             pullWanted()
         } catch {
-            model.show(error.localizedDescription, error: true)
+            model.show(error.userMessage, error: true)
             hangUp()
         }
     }

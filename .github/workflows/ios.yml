@@ -205,7 +205,7 @@ jobs:
 
             **安装**：下载下面的 `Cuven.ipa`。它是未签名的，用 Sideloadly / AltStore / SideStore 以自己的 Apple ID 签名安装（免费账号 7 天后需重签），或用 TrollStore 直接安装。配置了签名密钥时还会附带 `Cuven-signed.ipa`。
 
-            默认连接 `https://wechat.cuven.us`，可在登录页下方改成自己的服务器。说明见 [ios/README.md](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/ios/README.md)。
+            说明见 [ios/README.md](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/ios/README.md)。
 
             构建：${{ github.sha }}
           files: |

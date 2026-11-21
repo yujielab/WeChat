@@ -143,7 +143,7 @@ struct MomentsPage: View {
                 fresh = false
             }
         } catch {
-            model.show(error.localizedDescription, error: true)
+            model.show(error.userMessage, error: true)
         }
         loading = false
     }

@@ -67,7 +67,6 @@ final class AppModel {
     var highlights: Bool { didSet { UserDefaults.standard.set(highlights, forKey: "ui:highlights") } }
     var haptics: Bool { didSet { UserDefaults.standard.set(haptics, forKey: "ui:haptics"); Haptics.enabled = haptics } }
     var appearance: String { didSet { UserDefaults.standard.set(appearance, forKey: "ui:appearance") } }
-    var composerGlow: String { didSet { UserDefaults.standard.set(composerGlow, forKey: "ui:glow") } }
     var bookLayout: Bool { didSet { UserDefaults.standard.set(bookLayout, forKey: "ui:book") } }
 
     /// Messages deleted on this device only ("Delete for me").
@@ -93,7 +92,6 @@ final class AppModel {
         highlights = d.object(forKey: "ui:highlights") as? Bool ?? true
         haptics = d.object(forKey: "ui:haptics") as? Bool ?? true
         appearance = d.string(forKey: "ui:appearance") ?? "light"
-        composerGlow = d.string(forKey: "ui:glow") ?? "ocean"
         bookLayout = d.bool(forKey: "ui:book")
         Haptics.enabled = haptics
         ImageStore.shared.api = api
@@ -140,7 +138,7 @@ final class AppModel {
             signOutLocally()
         } catch {
             if me == nil { phase = .signedOut }
-            else { show(error.localizedDescription, error: true) }
+            else { show(error.userMessage, error: true) }
         }
     }
 

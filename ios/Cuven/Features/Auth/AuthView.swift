@@ -7,9 +7,7 @@ struct AuthView: View {
     @State private var display = ""
     @State private var password = ""
     @State private var code = ""
-    @State private var server = ""
     @State private var needsCode = false
-    @State private var showServer = false
     @State private var busy = false
     @State private var error: String?
     @State private var appear = false
@@ -17,7 +15,7 @@ struct AuthView: View {
     @FocusState private var focus: Field?
 
     enum Mode: String, CaseIterable { case signIn, register }
-    enum Field: Hashable { case user, display, password, code, server }
+    enum Field: Hashable { case user, display, password, code }
 
     var body: some View {
         GeometryReader { proxy in
@@ -79,9 +77,6 @@ struct AuthView: View {
                     .padding(.top, 26)
                     .modifier(Reveal(step: 2, on: appear))
 
-                    serverRow
-                        .padding(.top, 28)
-                        .modifier(Reveal(step: 3, on: appear))
                     Spacer(minLength: 20)
                 }
                 .padding(.horizontal, 24)
@@ -98,7 +93,6 @@ struct AuthView: View {
         .animation(Motion.ui, value: error)
         .animation(Motion.ui, value: needsCode)
         .task {
-            server = model.serverURL.absoluteString
             appear = true
             needsCode = await model.authStatus()?.needsCode ?? false
         }
@@ -200,56 +194,6 @@ struct AuthView: View {
         }
     }
 
-    private var serverRow: some View {
-        VStack(spacing: 10) {
-            Button {
-                withAnimation(Motion.ui) { showServer.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    SymbolView(.globe, size: 15)
-                    Text(model.serverURL.host ?? "Server")
-                    SymbolView(.chevronDown, size: 12).rotationEffect(.degrees(showServer ? 180 : 0))
-                }
-                .font(.footnoteC)
-                .foregroundStyle(Theme.label2)
-                .padding(.horizontal, 18)
-                .frame(minHeight: 44)
-                .overlay(Capsule().strokeBorder(Theme.separator, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            if showServer {
-                HStack {
-                    TextField("https://your-server", text: $server)
-                        .font(.subheadC)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($focus, equals: .server)
-                        .onSubmit { applyServer() }
-                    Button("Use") { applyServer() }
-                        .font(.subheadBoldC)
-                        .foregroundStyle(Theme.label)
-                }
-                .padding(.horizontal, 18)
-                .frame(height: 52)
-                .background(Theme.bg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-
-    private func applyServer() {
-        if model.setServer(server) {
-            server = model.serverURL.absoluteString
-            focus = nil
-            Haptics.success()
-            Task { needsCode = await model.authStatus()?.needsCode ?? false }
-        } else {
-            error = String(localized: "That doesn't look like a server address")
-        }
-    }
-
     private func advance(from f: Field) {
         switch f {
         case .user: focus = mode == .register ? .display : .password
@@ -279,7 +223,7 @@ struct AuthView: View {
                 }
                 Haptics.success()
             } catch {
-                self.error = error.localizedDescription
+                self.error = error.userMessage
                 Haptics.error()
             }
             busy = false

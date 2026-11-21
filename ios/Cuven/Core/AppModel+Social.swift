@@ -17,7 +17,7 @@ extension AppModel {
             Haptics.success()
             return r.state
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return nil
         }
     }
@@ -27,14 +27,14 @@ extension AppModel {
             try await api.post("/api/contacts/accept", ["user": user.id])
             await refreshContacts()
             Haptics.success()
-        } catch { show(error.localizedDescription, error: true) }
+        } catch { show(error.userMessage, error: true) }
     }
 
     func removeContact(_ user: User) async {
         do {
             try await api.post("/api/contacts/remove", ["user": user.id])
             await refreshContacts()
-        } catch { show(error.localizedDescription, error: true) }
+        } catch { show(error.userMessage, error: true) }
     }
 
     /// Opens (or creates) the one-to-one chat with someone; returns its id.
@@ -47,7 +47,7 @@ extension AppModel {
             indexUsers()
             return room.id
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return nil
         }
     }
@@ -59,7 +59,7 @@ extension AppModel {
             if roomIndex(room.id) == nil { withAnimation { rooms = sortRooms(rooms + [room]) } }
             return room.id
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return nil
         }
     }
@@ -79,14 +79,14 @@ extension AppModel {
             let r: NoteResponse = try await api.post("/api/note", ["text": text])
             withAnimation(.smooth) { myNote = r.mine }
             Haptics.success()
-        } catch { show(error.localizedDescription, error: true) }
+        } catch { show(error.userMessage, error: true) }
     }
 
     func clearNote() async {
         do {
             try await api.delete("/api/note")
             withAnimation(.smooth) { myNote = nil }
-        } catch { show(error.localizedDescription, error: true) }
+        } catch { show(error.userMessage, error: true) }
     }
 
     func replyToNote(_ note: FriendNote, text: String) async -> String? {
@@ -138,7 +138,7 @@ extension AppModel {
         do {
             return try await api.post("/api/moments/\(m.id)/comments", ["text": text], as: MomentResponse.self).moment
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return nil
         }
     }
@@ -154,7 +154,7 @@ extension AppModel {
             momentsVersion += 1
             return true
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return false
         }
     }
@@ -190,7 +190,7 @@ extension AppModel {
             Haptics.success()
             return true
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return false
         }
     }
@@ -219,7 +219,7 @@ extension AppModel {
             persist()
             return true
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return false
         }
     }
@@ -232,7 +232,7 @@ extension AppModel {
             ImageStore.shared.put(square, for: up.url)
             return await updateProfile(avatar: up.url)
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return false
         }
     }
@@ -245,7 +245,7 @@ extension AppModel {
             ImageStore.shared.put(p.image, for: up.url)
             return await updateProfile(cover: up.url)
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return false
         }
     }
@@ -261,7 +261,7 @@ extension AppModel {
             show(String(localized: "Password changed"))
             return true
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return false
         }
     }
@@ -285,7 +285,7 @@ extension AppModel {
         do {
             return try await api.post("/api/stickers/mine", added ? ["add": name] : ["remove": name], as: StickersResponse.self).sets
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             return nil
         }
     }

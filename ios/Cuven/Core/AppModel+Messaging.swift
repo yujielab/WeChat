@@ -375,7 +375,7 @@ extension AppModel {
             let r: MsgResponse = try await api.post("/api/react", ["id": m.id, "emoji": next])
             replace(r.msg)
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
         }
     }
 
@@ -384,7 +384,7 @@ extension AppModel {
             let r: MsgResponse = try await api.post("/api/edit", ["id": m.id, "text": text])
             replace(r.msg)
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
         }
     }
 
@@ -393,7 +393,7 @@ extension AppModel {
             let r: MsgResponse = try await api.post("/api/revoke", ["id": m.id])
             replace(r.msg)
         } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
         }
     }
 
@@ -432,13 +432,13 @@ extension AppModel {
             }
             rooms = sortRooms(rooms)
         }
-        do { try await api.post("/api/room/\(room)/flags", body) } catch { show(error.localizedDescription, error: true) }
+        do { try await api.post("/api/room/\(room)/flags", body) } catch { show(error.userMessage, error: true) }
     }
 
     func deleteChat(_ room: String) async {
         withAnimation(.smooth(duration: 0.3)) { rooms.removeAll { $0.id == room } }
         do { try await api.post("/api/room/\(room)/flags", ["hidden": true]) } catch {
-            show(error.localizedDescription, error: true)
+            show(error.userMessage, error: true)
             await refreshRooms()
         }
     }
@@ -447,14 +447,14 @@ extension AppModel {
         do {
             try await api.post("/api/room/\(room)/leave")
             withAnimation { rooms.removeAll { $0.id == room } }
-        } catch { show(error.localizedDescription, error: true) }
+        } catch { show(error.userMessage, error: true) }
     }
 
     func invite(_ users: [String], to room: String) async {
         do {
             try await api.post("/api/room/\(room)/invite", ["members": users])
             await loadMembers(room)
-        } catch { show(error.localizedDescription, error: true) }
+        } catch { show(error.userMessage, error: true) }
     }
 
     // MARK: - Writing help (Workers AI)

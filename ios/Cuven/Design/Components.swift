@@ -8,8 +8,6 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
     var interactive: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage("ui:glass") private var glassMode = "auto"
-    /// Liquid Glass: "clear" is more see-through; "tinted" lifts the contrast.
-    @AppStorage("ui:glassTint") private var glassTint = "tinted"
 
     func body(content: Content) -> some View {
         if reduceTransparency || glassMode == "solid" {
@@ -23,7 +21,8 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
 
     private func makeGlass() -> Glass {
         var g = Glass.regular
-        if let tint { g = g.tint(tint) } else if glassTint == "tinted" { g = g.tint(Theme.glassFrost) }
+        // Clear Liquid Glass throughout; a tint only where a control asks for one.
+        if let tint { g = g.tint(tint) }
         if interactive { g = g.interactive() }
         return g
     }

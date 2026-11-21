@@ -59,8 +59,9 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
 
 ## 连接服务器
 
-登录页下方的服务器地址默认是 `https://wechat.cuven.us`，可改成你自己部署的 Worker 地址
-（会记住）。不需要改后端：
+应用里不显示也不能修改服务器地址：服务器写在 `Core/AppModel.swift` 的 `defaultServer`，自己部署时改这里再构建
+（截图用的 CI 通过环境变量 `CUVEN_SERVER` 指向本地 hub）。服务器出错时界面只显示“出了点问题，请重试”，
+不显示状态码或内部信息。不需要改后端：
 
 - 会话：服务器下发的 `cfm_session` Cookie 存进**钥匙串**（按服务器分别保存），每个请求手动带上；
 - 同源校验：Worker 只接受带本站 `Origin` 的写请求和 WebSocket 升级，原生端每个请求都带上同样的 `Origin`；
@@ -106,7 +107,7 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
 - **输入框**：56pt 的胶囊，“+”在框内右端，按下从按钮处长出 212pt 的附件卡片（照片、相机、手绘、表情、文件），
   “+”转成“×”；框外是麦克风圆钮，有字时原位变成墨色的发送（编辑时是 ✓）；回复 / 编辑时框顶出现一条引用，
   框变成圆角矩形；智能续写以建议胶囊给出；群聊里输入 @ 弹出成员列表。
-- **输入框弥散光**：四团柔和的光沿各自轨迹缓慢漂移（Ocean / Dawn / Aurora / Off），聚焦时更亮，“减少动态效果”时静止。
+- **玻璃**：全部是透明（Clear）的 Liquid Glass，不再提供着色选项；输入框后面没有弥散光。
 - **照片**：从气泡放大到全屏、下拉缩回原处；双指 / 双击缩放；分享与保存。
 - **手绘板**（PencilKit）：钢笔、马克笔、荧光笔、铅笔、橡皮站成一排（手里那支升高，笔尖是当前颜色），
   五色 + 色轮、粗细、空白 / 横线 / 方格纸，独立的撤销 / 重做。
@@ -138,7 +139,7 @@ ios/
   Cuven/
     App/                      入口、根视图、通知点击
     Core/                     APIClient（Cookie / Origin）、WebSocket、模型、AppModel（状态 + 发送队列）、图片缓存
-    Design/                   颜色与字体、玻璃、按压、头像、弥散光、格式化
+    Design/                   颜色与字体、玻璃、按压、头像、通话背景光、格式化
     Layout/                   iPhone Duo 栏带（Nav、MainView、ColumnBar、安全区与键盘）
     Features/
       Auth/ ChatList/ Sidebar/ Thread/ Details/ Draw/ Stickers/

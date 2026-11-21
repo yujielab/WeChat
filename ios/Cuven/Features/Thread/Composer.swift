@@ -97,12 +97,6 @@ struct Composer: View {
         .padding(.top, 12)
         .padding(.leading, max(ctx.insets.leading, margin))
         .padding(.trailing, ctx.usesRail ? ctx.insets.trailing + margin : max(ctx.insets.trailing, margin))
-        .background(alignment: .bottom) {
-            GlowField(palette: model.composerGlow, intensity: focused ? 1.5 : 0.9)
-                .frame(height: 240)
-                .offset(y: 90)
-                .allowsHitTesting(false)
-        }
         .animation(Motion.morph, value: plusOpen)
         .animation(Motion.ui, value: canSend)
         .animation(Motion.move, value: replyTo?.id)

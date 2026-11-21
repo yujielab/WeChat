@@ -100,7 +100,6 @@ enum Theme {
 
     static let scrim = Color.token(0x000000, 0x000000, 0.32, 0.6)
     static let imageOutline = Color.token(0x000000, 0xffffff, 0.08, 0.12)
-    static let glassFrost = Color.token(0xececf0, 0x48484e, 0.5, 0.5)
     static let glassSolid = Color.token(0xffffff, 0x121214)
     static let glassRim = Color.token(0xffffff, 0xffffff, 0.95, 0.2)
 

@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Four soft lights drifting on their own paths behind the composer
-/// (Settings › Composer glow: Off / Ocean / Dawn / Aurora). Brighter while
-/// typing; still when Reduce Motion is on.
+/// Four soft lights drifting on their own paths behind a call. Still when
+/// Reduce Motion is on.
 struct GlowField: View {
     var palette: String = "ocean"
     var intensity: Double = 1
