@@ -96,13 +96,18 @@ struct ThreadView: View {
                 }
                 .overlay(alignment: .bottom) {
                     if !atBottom {
-                        jumpPill(newCount: max(0, msgs.count - seenCount)) {
+                        let newCount = max(0, msgs.count - seenCount)
+                        // The web's .jump: a round button at the trailing end, clear
+                        // of the composer; "↓ New messages" is a pill in the middle.
+                        jumpPill(newCount: newCount) {
                             withAnimation(Motion.move) { proxy.scrollTo("bottom", anchor: .top) }
                         }
+                        .frame(maxWidth: .infinity, alignment: newCount > 0 ? .center : .trailing)
+                        .padding(.horizontal, newCount > 0 ? 0 : side + 2)
                         .padding(.bottom, bottomRoom)
                         .padding(.leading, ctx.insets.leading)
                         .padding(.trailing, contentTrailing)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)).combined(with: .offset(y: 8)))
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)).combined(with: .offset(y: 12)))
                     }
                 }
                 .animation(Motion.ui, value: atBottom)
@@ -260,7 +265,7 @@ struct ThreadView: View {
             }
             .foregroundStyle(Theme.label)
             .padding(.horizontal, newCount > 0 ? 14 : 0)
-            .frame(minWidth: 36, minHeight: 36)
+            .frame(minWidth: newCount > 0 ? 36 : 44, minHeight: newCount > 0 ? 36 : 44)
             .glassCapsule()
             .contentShape(Capsule().inset(by: -4))
         }
