@@ -46,6 +46,8 @@ struct PageScaffold<Header: View, Content: View>: View {
 
     /// Read only by the cover, so scrolling redraws nothing else.
     @State private var scroll = PageScroll()
+    /// The floating bar's height, for the room under a cover.
+    @State private var barHeight: CGFloat = 64
 
     private var railed: Bool { ctx.usesRail }
     /// The bar sits on a cover (or a cover blurred behind it).
@@ -65,7 +67,14 @@ struct PageScaffold<Header: View, Content: View>: View {
                 CoverLayer(cover: cover, height: ctx.insets.top + coverHeight, frame: coverFrame, scroll: scroll)
             }
             ScrollView {
-                content
+                VStack(spacing: 0) {
+                    // Room for the cover drawn behind, less the floating bar
+                    // (which already holds the content down by its height).
+                    if cover != nil {
+                        Color.clear.frame(height: max(0, coverHeight - barHeight))
+                    }
+                    content
+                }
                     .frame(maxWidth: maxWidth)
                     .frame(maxWidth: .infinity)
                     .padding(.trailing, trailing)
@@ -83,33 +92,6 @@ struct PageScaffold<Header: View, Content: View>: View {
             // system's column). The content and the bar keep clear instead.
             .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: 0, trailing: 0))
 
-            if underBar {
-                bar
-                    .padding(.top, ctx.insets.top)
-                    .padding(.leading, ctx.insets.leading)
-                    .padding(.trailing, trailing)
-                    .background {
-                        if titleShown {
-                            if let barBackdrop {
-                                barBackdrop
-                                    .blur(radius: 18)
-                                    .overlay(Color.black.opacity(0.35))
-                                    .clipped()
-                                    .ignoresSafeArea()
-                                    .transition(.opacity)
-                            } else {
-                                Rectangle().fill(.ultraThinMaterial)
-                                    .overlay(background.opacity(0.86))
-                                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.7),
-                                                                 .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
-                                    .ignoresSafeArea()
-                                    .transition(.opacity)
-                            }
-                        }
-                    }
-                    .animation(.easeOut(duration: 0.22), value: titleShown)
-            }
-
             if railed {
                 ColumnBar(back: back, actions: actions, footActions: footActions)
             }
@@ -125,9 +107,46 @@ struct PageScaffold<Header: View, Content: View>: View {
         return (ctx.insets.leading + (room - maxWidth) / 2, maxWidth)
     }
 
-    @ViewBuilder
+    /// The floating bar, always in the system's bar slot so what scrolls
+    /// under it blurs progressively (the soft scroll edge). Over a cover, once
+    /// the title is up, the cover shows behind it, blurred, and dissolves
+    /// downward rather than stopping at an edge.
     private var barSlot: some View {
-        if !underBar { bar.padding(.trailing, trailing) }
+        bar
+            .padding(.trailing, trailing)
+            .background(alignment: .top) { if underBar { coverBackdrop } }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+            .animation(.easeOut(duration: 0.22), value: titleShown)
+    }
+
+    /// How far below the bar its backdrop fades out.
+    private let backdropFade: CGFloat = 56
+
+    @ViewBuilder
+    private var coverBackdrop: some View {
+        if titleShown {
+            let h = ctx.insets.top + barHeight + backdropFade
+            let solidTo = max(0, (ctx.insets.top + barHeight - 18) / h)
+            Group {
+                if let barBackdrop {
+                    barBackdrop
+                        .blur(radius: 22, opaque: true)
+                        .overlay(Color.black.opacity(0.32))
+                } else {
+                    Rectangle().fill(.ultraThinMaterial).overlay(background.opacity(0.86))
+                }
+            }
+            .frame(height: h)
+            .clipped()
+            .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: solidTo),
+                                         .init(color: .black.opacity(0.55), location: solidTo + (1 - solidTo) * 0.45),
+                                         .init(color: .clear, location: 1)],
+                                 startPoint: .top, endPoint: .bottom))
+            .padding(.top, -ctx.insets.top)
+            .padding(.leading, -ctx.insets.leading)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+        }
     }
 
     /// The floating bar: the title, any header (a search field, tabs), and,

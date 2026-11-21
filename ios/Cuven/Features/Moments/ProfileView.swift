@@ -29,7 +29,7 @@ struct ProfileView: View {
                          actions: actionItems,
                          background: Theme.paper,
                          underBar: true,
-                         subtitle: page.map { String(localized: "\($0.count) posts") },
+                         subtitle: page.map { String(localized: "\($0.count ?? 0) posts") },
                          barBackdrop: AnyView(cover(height: coverH)),
                          cover: AnyView(coverArt),
                          coverHeight: coverH,
@@ -38,8 +38,6 @@ struct ProfileView: View {
                              if past != scrolled { withAnimation(.easeOut(duration: 0.22)) { scrolled = past } }
                          }) {
                 LazyVStack(spacing: 0) {
-                    // Room for the cover, which is drawn behind the page.
-                    Color.clear.frame(height: coverH)
                     identity
                     tabs
                     if tab == 0 {
