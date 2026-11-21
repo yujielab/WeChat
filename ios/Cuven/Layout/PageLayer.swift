@@ -100,7 +100,12 @@ struct PageScaffold<Header: View, Content: View>: View {
                 onScroll?(y)
             }
             .safeAreaBar(edge: .top, spacing: 0) { barSlot }
-            .scrollEdgeEffectStyle(.automatic, for: .top)
+            // Always the soft, progressive edge: `.automatic` can resolve to
+            // the hard style (a frosted band with a line under it). Over a
+            // cover the page draws its own (the cover, blurred, dissolving
+            // over what scrolls under it), so the system's is off there.
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectHidden(cover != nil, for: .top)
             // No trailing safe area on the scroll view itself: it clips there,
             // and a cover has to reach under the rail (which sits in the
             // system's column). The content and the bar keep clear instead.
@@ -143,9 +148,18 @@ struct PageScaffold<Header: View, Content: View>: View {
             let solidTo = max(0, (ctx.insets.top + barHeight - 18) / h)
             Group {
                 if let barBackdrop {
-                    barBackdrop
-                        .blur(radius: 22, opaque: true)
-                        .overlay(Color.black.opacity(0.32))
+                    ZStack {
+                        // What scrolls under the fading part is blurred too
+                        // (a material blurs what's behind it), so it goes from
+                        // blurred to sharp rather than showing through.
+                        Rectangle().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                        barBackdrop
+                            .frame(height: h)
+                            .clipped()
+                            .blur(radius: 22, opaque: true)
+                            .overlay(Color.black.opacity(0.32))
+                            .mask(LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom))
+                    }
                 } else {
                     Rectangle().fill(.ultraThinMaterial).overlay(background.opacity(0.86))
                 }

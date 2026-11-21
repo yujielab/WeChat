@@ -92,7 +92,7 @@ struct ThreadView: View {
                         .frame(height: headerHeight + ctx.insets.top + 8)
                         .allowsHitTesting(false)
                 }
-                .scrollEdgeEffectStyle(.automatic, for: .bottom)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .scaleEffect(x: 1, y: -1)
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)

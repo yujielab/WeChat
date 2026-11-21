@@ -121,33 +121,42 @@ struct MomentCard: View {
     }
 
     private var media: some View {
+        // Paged with SwiftUI's own scroll view (not a page TabView, whose
+        // UIKit pager can pick up an edge effect of its own under the bar).
         GeometryReader { geo in
-            TabView(selection: $page) {
-                ForEach(Array(moment.media.enumerated()), id: \.offset) { i, m in
-                    FrameReporting { frame in
-                        ZStack {
-                            if m.isVideo {
-                                InlineVideo(path: m.url)
-                            } else {
-                                RemoteImage(m.url, maxPixel: 1400)
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(Array(moment.media.enumerated()), id: \.offset) { i, m in
+                        FrameReporting { frame in
+                            ZStack {
+                                if m.isVideo {
+                                    InlineVideo(path: m.url)
+                                } else {
+                                    RemoteImage(m.url, maxPixel: 1400)
+                                }
                             }
-                        }
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .clipped()
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { likeBurst() }
-                        .onTapGesture {
-                            guard !m.isVideo else { return }
-                            withAnimation(Motion.morph) {
-                                nav.viewer = ViewerItem(path: m.url, aspect: m.aspect, source: frame(), caption: m.alt ?? "")
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) { likeBurst() }
+                            .onTapGesture {
+                                guard !m.isVideo else { return }
+                                withAnimation(Motion.morph) {
+                                    nav.viewer = ViewerItem(path: m.url, aspect: m.aspect, source: frame(), caption: m.alt ?? "")
+                                }
                             }
+                            .accessibilityLabel(Text(m.alt?.isEmpty == false ? m.alt! : String(localized: "Photo")))
                         }
-                        .accessibilityLabel(Text(m.alt?.isEmpty == false ? m.alt! : String(localized: "Photo")))
+                        .id(i)
                     }
-                    .tag(i)
                 }
+                .scrollTargetLayout()
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .scrollTargetBehavior(.paging)
+            .scrollIndicators(.hidden)
+            .scrollPosition(id: Binding(get: { Optional(page) }, set: { if let v = $0 { page = v } }))
+            .scrollDisabled(moment.media.count < 2)
+            .scrollEdgeEffectHidden(true, for: .all)
         }
         .aspectRatio(aspect, contentMode: .fit)
         .overlay {
