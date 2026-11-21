@@ -81,7 +81,7 @@ struct SidebarView: View {
                                         bottom: ctx.usesRail ? max(ctx.insets.bottom, 16) + 24 : ctx.barClearance + 20,
                                         trailing: ctx.usesRail ? railContent : ctx.insets.trailing))
             .scrollBounceBehavior(.basedOnSize)
-            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectStyle(.automatic, for: .top)
 
             if !(nav.columns == 2 && nav.leading == .sidebar) || ctx.usesRail {
                 ColumnBar(footActions: [

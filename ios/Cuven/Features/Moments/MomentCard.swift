@@ -189,7 +189,7 @@ struct MomentCard: View {
     // MARK: actions
 
     /// Like, comment and share: frosted glass, no edge; with a picture the
-    /// row rests on its lower edge, the dots at the far end.
+    /// row rests on its lower edge, the page dots centred above it.
     private func actions(over: Bool) -> some View {
         HStack(spacing: 4) {
             Button { toggleLike() } label: {
@@ -206,20 +206,25 @@ struct MomentCard: View {
             }
             .accessibilityLabel("Share")
             Spacer(minLength: 0)
+        }
+        // The page dots, centred under the pictures (HIG, Page controls).
+        .overlay(alignment: over ? .bottom : .center) {
             if moment.media.count > 1 {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     ForEach(0..<moment.media.count, id: \.self) { i in
                         Circle()
                             .fill(over ? (i == page ? Color.white : Color.white.opacity(0.55)) : (i == page ? Theme.blue : Theme.label3))
                             .frame(width: 6, height: 6)
-                            .scaleEffect(i == page ? 1.1 : 1)
+                            .scaleEffect(i == page ? 1.15 : 1)
                             .shadow(color: .black.opacity(over ? 0.35 : 0), radius: 1.5)
                     }
                 }
-                .padding(.trailing, 10)
-                .padding(.bottom, over ? 19 : 0)
+                // Over a picture: centred on it, just above the buttons, clear of them.
+                .padding(.bottom, over ? 52 : 0)
                 .animation(.easeOut(duration: 0.2), value: page)
                 .allowsHitTesting(false)
+                .accessibilityElement()
+                .accessibilityLabel(Text("\(page + 1)/\(moment.media.count)"))
             }
         }
         .buttonStyle(.press(0.9))

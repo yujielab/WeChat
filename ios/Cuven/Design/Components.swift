@@ -353,3 +353,28 @@ struct BarGlyph: View {
         }
     }
 }
+
+/// The Clear button at a text field's trailing end, there while it has
+/// text (HIG, Text fields: help people erase their input).
+struct ClearButton: View {
+    @Binding var text: String
+
+    var body: some View {
+        if !text.isEmpty {
+            Button {
+                Haptics.tap()
+                text = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 17))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Theme.label3)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .transition(.opacity.combined(with: .scale(scale: 0.6)))
+            .accessibilityLabel("Clear")
+        }
+    }
+}

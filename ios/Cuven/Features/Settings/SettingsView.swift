@@ -124,17 +124,28 @@ struct SettingsView: View {
             HStack(spacing: 12) {
                 Text(title).font(.bodyC).foregroundStyle(Theme.label).lineLimit(1).fixedSize()
                 Spacer(minLength: 8)
-                InkSegmented(options: options, selection: value).fixedSize()
+                segmented(options, value).fixedSize()
             }
             VStack(alignment: .leading, spacing: 10) {
                 Text(title).font(.bodyC).foregroundStyle(Theme.label)
-                InkSegmented(options: options, selection: value).fixedSize()
+                segmented(options, value)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
         .frame(minHeight: 58)
+    }
+
+    /// The system's segmented control (Liquid Glass in iOS 26): a few closely
+    /// related choices, nouns, one picked (HIG, Segmented controls).
+    private func segmented(_ options: [(String, LocalizedStringKey)], _ value: Binding<String>) -> some View {
+        Picker(selection: value) {
+            ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
+        } label: { EmptyView() }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .onChange(of: value.wrappedValue) { _, _ in Haptics.selection() }
     }
 
     private func toggleRow(_ title: LocalizedStringKey, subtitle: String? = nil, isOn: Binding<Bool>) -> some View {
@@ -146,7 +157,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .toggleStyle(.ink)
+        .toggleStyle(.switch)
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
         .frame(minHeight: 58)

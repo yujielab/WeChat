@@ -100,7 +100,7 @@ struct PageScaffold<Header: View, Content: View>: View {
                 onScroll?(y)
             }
             .safeAreaBar(edge: .top, spacing: 0) { barSlot }
-            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectStyle(.automatic, for: .top)
             // No trailing safe area on the scroll view itself: it clips there,
             // and a cover has to reach under the rail (which sits in the
             // system's column). The content and the bar keep clear instead.

@@ -173,8 +173,10 @@ struct FocusMenu: View {
             }
         }
         .onAppear { withAnimation(Motion.ui) { shown = true } }
-        .alert("Delete for me?", isPresented: $confirmDelete) {
-            Button("Delete", role: .destructive) {
+        // A choice about an action you started: an action sheet, not an alert
+        // (HIG, Alerts / Action sheets), its destructive button named for what it does.
+        .confirmationDialog("Delete for me?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete for me", role: .destructive) {
                 model.deleteLocally(m)
                 close()
             }

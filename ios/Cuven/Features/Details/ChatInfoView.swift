@@ -36,7 +36,7 @@ struct ChatInfoView: View {
                                     Text("Mute").font(.bodyC).foregroundStyle(Theme.label)
                                 }
                             }
-                            .toggleStyle(.ink)
+                            .toggleStyle(.switch)
                             .padding(.horizontal, 16).frame(minHeight: 58)
                             CellSeparator(leading: 56)
                             Toggle(isOn: Binding(get: { room.pinned }, set: { v in Task { await model.setFlag(room.id, pinned: v) } })) {
@@ -45,7 +45,7 @@ struct ChatInfoView: View {
                                     Text("Pin chat").font(.bodyC).foregroundStyle(Theme.label)
                                 }
                             }
-                            .toggleStyle(.ink)
+                            .toggleStyle(.switch)
                             .padding(.horizontal, 16).frame(minHeight: 58)
                         }
                         .padding(.top, 16)

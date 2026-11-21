@@ -113,7 +113,7 @@ struct ChatListView: View {
                 }
                 .padding(.bottom, nav.searching ? 6 : 4)
             }
-            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectStyle(.automatic, for: .top)
             .environment(\.defaultMinListRowHeight, 1)
             .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.contentBottom,
                                         trailing: ctx.usesRail ? ctx.insets.trailing + 10 : ctx.insets.trailing))
@@ -215,6 +215,7 @@ struct ChatListView: View {
                 .focused($searchFocused)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
+            ClearButton(text: $query)
             if !ctx.usesRail {
                 Button("Cancel") { withAnimation(Motion.ui) { nav.searching = false } }
                     .font(.bodyC)

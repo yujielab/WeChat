@@ -44,8 +44,11 @@ struct MemoriesPage: View {
                 HStack(spacing: 8) {
                     SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
                     TextField("Search", text: $query).font(.bodyC).autocorrectionDisabled()
+                        .submitLabel(.search)
+                    ClearButton(text: $query)
                 }
-                .padding(.horizontal, 14).frame(height: 44)
+                .padding(.leading, 14).padding(.trailing, 8).frame(height: 44)
+                .animation(Motion.quick, value: query.isEmpty)
                 .background(Theme.fill2, in: Capsule())
                 .padding(.horizontal, 16).padding(.bottom, 6)
                 tabs
