@@ -44,8 +44,10 @@ struct ThreadView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        // Room for the composer and what's under it (the keyboard
+                        // when it's up), so the newest message rises with them.
                         Color.clear
-                            .frame(height: composerHeight + 12)
+                            .frame(height: bottomRoom)
                             .id("bottom")
                             .onAppear { atBottom = true; seenCount = msgs.count }
                             .onDisappear { atBottom = false; seenCount = msgs.count }
@@ -97,7 +99,7 @@ struct ThreadView: View {
                         jumpPill(newCount: max(0, msgs.count - seenCount)) {
                             withAnimation(Motion.move) { proxy.scrollTo("bottom", anchor: .top) }
                         }
-                        .padding(.bottom, composerHeight + 12)
+                        .padding(.bottom, bottomRoom)
                         .padding(.leading, ctx.insets.leading)
                         .padding(.trailing, contentTrailing)
                         .transition(.opacity.combined(with: .scale(scale: 0.9)).combined(with: .offset(y: 8)))
@@ -190,6 +192,9 @@ struct ThreadView: View {
     private var bottomInset: CGFloat {
         ctx.keyboard > 0 ? ctx.insets.bottom + 8 : max(ctx.insets.bottom, 16)
     }
+
+    /// From the bottom of the screen to just above the composer.
+    private var bottomRoom: CGFloat { composerHeight + bottomInset + 12 }
 
     /// What you send rises from the field; what arrives slides in from their side.
     private func arrival(_ item: ThreadItem) -> AnyTransition {
