@@ -286,7 +286,8 @@ struct PageLayer: View {
     let capsule: CGFloat
     @Environment(Nav.self) private var nav
     @Environment(AppModel.self) private var model
-    @State private var drag: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var drag: CGFloat { nav.pushDrag }
 
     private enum Route: Hashable {
         case profile(String), settings, editProfile, password, newGroup, compose
@@ -310,6 +311,7 @@ struct PageLayer: View {
                 tabPage(nav.page)
                     .environment(\.column, geo.pageContext(capsule: routes.isEmpty ? capsule : 0))
                     .frame(width: geo.size.width, height: geo.size.height)
+                    .modifier(ParallaxUnder(active: routes.count == 1, width: geo.size.width))
                     .id("tab-\(nav.page.rawValue)")
                     .transition(.opacity)
             }
@@ -322,6 +324,8 @@ struct PageLayer: View {
                     .compositingGroup()
                     .shadow(color: .black.opacity(top && drag > 0 ? 0.18 : 0), radius: 18, x: -4)
                     .offset(x: top ? drag : 0)
+                    // The page under the top one steps back a third and dims (iOS's push).
+                    .modifier(ParallaxUnder(active: i == routes.count - 2, width: geo.size.width))
                     .overlay(alignment: .leading) {
                         if top && route != .compose {
                             Color.clear
@@ -330,7 +334,8 @@ struct PageLayer: View {
                                 .gesture(edgeSwipe)
                         }
                     }
-                    .transition(.move(edge: .trailing))
+                    // Reduce Motion: a dissolve instead of a slide (HIG, Motion).
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing))
                     .zIndex(Double(i + 1))
             }
         }
@@ -364,17 +369,40 @@ struct PageLayer: View {
     /// From the leading edge, 1:1 under the finger; let go past a third (or flicked) to go back.
     private var edgeSwipe: some Gesture {
         DragGesture(minimumDistance: 8, coordinateSpace: .global)
-            .onChanged { v in drag = max(0, v.translation.width) }
+            .onChanged { v in nav.pushDrag = max(0, v.translation.width) }
             .onEnded { v in
                 if v.translation.width > geo.size.width * 0.33 || v.predictedEndTranslation.width > geo.size.width * 0.6 {
                     withAnimation(Motion.move) {
-                        drag = 0
+                        nav.pushDrag = 0
                         nav.closeTop()
                     }
                     Haptics.tap()
                 } else {
-                    withAnimation(Motion.move) { drag = 0 }
+                    // Not far enough: it springs back, and what's under steps back again.
+                    withAnimation(Motion.move) { nav.pushDrag = 0 }
                 }
             }
+    }
+}
+
+/// What lies under the top pushed page: a third of the way off toward the
+/// leading edge and a little dimmed while it's covered, coming back as the
+/// page above is swiped away, 1:1 with the finger (HIG: transitions follow
+/// the gesture and can be reversed). Still with Reduce Motion.
+struct ParallaxUnder: ViewModifier {
+    var active: Bool
+    var width: CGFloat
+    @Environment(Nav.self) private var nav
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let covered = active ? max(0, 1 - nav.pushDrag / max(1, width)) : 0
+        content
+            .offset(x: reduceMotion ? 0 : -width * 0.3 * covered)
+            .overlay {
+                Color.black.opacity(0.1 * covered)
+                    .allowsHitTesting(false)
+            }
+            .animation(Motion.move, value: active)
     }
 }

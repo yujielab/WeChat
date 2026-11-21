@@ -96,6 +96,11 @@ final class Nav {
     /// A page pushed over everything (no page capsule): settings, someone's
     /// page, the editors.
     var pushed: Bool { settingsOpen || profile != nil || editingProfile || changingPassword || newGroup || composeMoment }
+    /// How many pages are pushed, one over another.
+    var pushCount: Int { [settingsOpen, profile != nil, editingProfile, changingPassword, newGroup, composeMoment].filter { $0 }.count }
+    /// How far the top pushed page has been dragged back toward the trailing
+    /// edge (the swipe back): what's under it follows.
+    var pushDrag: CGFloat = 0
     /// A full-screen page covers the strip (a capsule page or a pushed one).
     var covered: Bool { page != .chats || pushed }
     /// A small card over the app (a note), the app receding behind it.

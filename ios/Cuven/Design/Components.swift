@@ -6,6 +6,10 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
     var shape: S
     var tint: Color?
     var interactive: Bool
+    /// Glass that morphs: pieces with ids in one GlassGroup flow into one
+    /// another as they appear, go and change (HIG, Materials: Liquid Glass).
+    var morphID: String? = nil
+    var morphSpace: Namespace.ID? = nil
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage("ui:glass") private var glassMode = "auto"
 
@@ -14,6 +18,11 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
             content
                 .background(tint ?? Theme.glassSolid, in: shape)
                 .overlay(shape.strokeBorder(Theme.line, lineWidth: 0.5))
+        } else if let morphID, let morphSpace {
+            content
+                .glassEffect(makeGlass(), in: shape)
+                .glassEffectID(morphID, in: morphSpace)
+                .glassEffectTransition(.matchedGeometry)
         } else {
             content.glassEffect(makeGlass(), in: shape)
         }
@@ -31,6 +40,10 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
 extension View {
     func glass<S: InsettableShape>(_ shape: S, tint: Color? = nil, interactive: Bool = true) -> some View {
         modifier(GlassSurface(shape: shape, tint: tint, interactive: interactive))
+    }
+    /// Glass that morphs with the other pieces of its GlassGroup.
+    func glass<S: InsettableShape>(_ shape: S, tint: Color? = nil, interactive: Bool = true, morph id: String, in space: Namespace.ID) -> some View {
+        modifier(GlassSurface(shape: shape, tint: tint, interactive: interactive, morphID: id, morphSpace: space))
     }
     func glassCapsule(tint: Color? = nil, interactive: Bool = true) -> some View {
         glass(Capsule(), tint: tint, interactive: interactive)

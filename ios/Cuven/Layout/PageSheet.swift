@@ -40,7 +40,8 @@ struct DialogLayer: View {
                     .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
                     .shadow(color: .black.opacity(0.22), radius: 32, y: 24)
                     .overlay(alignment: .top) { if geo.columns == 1 && kind.grabbed { grabber } }
-                    .offset(x: f.minX, y: f.minY + max(0, drag))
+                    // Down it follows the finger; up it gives a little and resists.
+                    .offset(x: f.minX, y: f.minY + (drag >= 0 ? drag : -min(24, sqrt(-drag) * 2.4)))
                     .environment(\.column, geo.sheetContext)
                     .transition(geo.columns == 1
                         ? AnyTransition.offset(y: f.height + 40)

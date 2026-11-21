@@ -106,6 +106,8 @@ struct MainView: View {
                 }
             }
             .frame(width: size.width, height: size.height)
+            // Under the first pushed page (Settings, someone's page…) the strip steps back.
+            .modifier(ParallaxUnder(active: nav.pushCount == 1 && nav.page == .chats, width: size.width))
             // A note's card: the app recedes behind it.
             .clipShape(RoundedRectangle(cornerRadius: receded ? 30 : 0, style: .continuous))
             .scaleEffect(receded ? 0.94 : 1, anchor: .top)

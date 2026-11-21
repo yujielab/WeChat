@@ -30,6 +30,8 @@ struct Composer: View {
     @State private var mentionIds: [String: String] = [:]
     @State private var savedDraft = ""
     @FocusState private var focused: Bool
+    /// The field and Send are one piece of glass: Send flows out of it.
+    @Namespace private var glassSpace
     /// Holding the field to talk: the finger is down past the hold, and
     /// whether it has slid far enough to cancel on release.
     @State private var holding = false
@@ -66,18 +68,22 @@ struct Composer: View {
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
                 // The field stays put while recording (it holds the gesture);
-                // the recording shows over it.
-                field
-                    .overlay {
-                        if recorder.isRecording {
-                            recordingBar
-                                .allowsHitTesting(false)
-                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                // the recording shows over it. Send flows out of the field's
+                // glass and back into it (one GlassGroup, matched ids).
+                GlassGroup(spacing: 10) {
+                    HStack(alignment: .bottom, spacing: 10) {
+                        field
+                            .overlay {
+                                if recorder.isRecording {
+                                    recordingBar
+                                        .allowsHitTesting(false)
+                                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                                }
+                            }
+                        if showsSend {
+                            trailingButton
                         }
                     }
-                if showsSend {
-                    trailingButton
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -238,7 +244,7 @@ struct Composer: View {
         .padding(.top, editingOrReply ? 9 : 7)
         .padding(.bottom, 7)
         .frame(minHeight: Self.control)
-        .glass(shape, interactive: false)
+        .glass(shape, interactive: false, morph: "field", in: glassSpace)
         .overlay(shape.strokeBorder(focused ? Theme.label3 : .clear, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
@@ -252,8 +258,8 @@ struct Composer: View {
             SymbolView(editing != nil ? .check : .arrowUp, size: 22, weight: 2.5)
                 .foregroundStyle(Theme.onInk)
                 .frame(width: Self.control, height: Self.control)
-                .background(Circle().fill(Theme.ink))
-                .glassCircle(interactive: false)
+                // Ink glass, the prominent action (HIG: tint the one primary control).
+                .glass(Circle(), tint: Theme.ink, interactive: true, morph: "send", in: glassSpace)
         }
         .buttonStyle(.press(0.9))
         .opacity(plusOpen ? 0 : 1)
