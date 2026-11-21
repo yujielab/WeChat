@@ -56,6 +56,7 @@ struct PageScaffold<Header: View, Content: View>: View {
                 content
                     .frame(maxWidth: maxWidth)
                     .frame(maxWidth: .infinity)
+                    .padding(.trailing, railRoom)
                     .padding(.bottom, bottomRoom)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -64,7 +65,9 @@ struct PageScaffold<Header: View, Content: View>: View {
             }
             .safeAreaBar(edge: .top, spacing: 0) { barSlot }
             .scrollEdgeEffectStyle(.soft, for: .top)
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: 0, trailing: trailing))
+            // Only the system's own column here: the scroll view clips at its
+            // horizontal safe area, and a cover has to reach under the rail.
+            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: 0, trailing: ctx.insets.trailing))
 
             if underBar {
                 bar
@@ -101,8 +104,11 @@ struct PageScaffold<Header: View, Content: View>: View {
 
     @ViewBuilder
     private var barSlot: some View {
-        if !underBar { bar }
+        if !underBar { bar.padding(.trailing, railRoom) }
     }
+
+    /// What the rail and its gap take beyond the system's column.
+    private var railRoom: CGFloat { max(0, trailing - ctx.insets.trailing) }
 
     /// The floating bar: the title, any header (a search field, tabs), and,
     /// without the Duo's column, the controls either side.

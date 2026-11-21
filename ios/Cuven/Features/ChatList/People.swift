@@ -191,12 +191,14 @@ struct NoteEditor: View {
                 .font(.captionC.monospacedDigit())
                 .foregroundStyle(Theme.label3)
                 .padding(.top, 12)
-            Text("Friends see it on your photo for 24 hours.")
-                .font(.footnoteC)
-                .foregroundStyle(Theme.label2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 300)
-                .padding(.top, 6)
+            if room >= 270 {
+                Text("Friends see it on your photo for 24 hours.")
+                    .font(.footnoteC)
+                    .foregroundStyle(Theme.label2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
+                    .padding(.top, 6)
+            }
 
             if model.myNote != nil {
                 Button(role: .destructive) {
@@ -429,7 +431,7 @@ struct InviteCard: View {
     /// In a narrow column (the open Duo's list) Share drops under the words.
     @State private var width: CGFloat = 400
 
-    private var narrow: Bool { width < 300 }
+    private var narrow: Bool { width < 340 }
 
     var body: some View {
         Group {
