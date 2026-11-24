@@ -196,15 +196,6 @@ extension AppModel {
         }
     }
 
-    // MARK: - Memories
-
-    func memories(before: Int? = nil, type: String? = nil) async -> MemoriesResponse? {
-        var q: [String: String] = ["limit": "60"]
-        if let before { q["before"] = String(before) }
-        if let type { q["type"] = type }
-        return try? await api.get("/api/memories", query: q)
-    }
-
     // MARK: - Profile
 
     func updateProfile(display: String? = nil, bio: String? = nil, avatar: String? = nil, cover: String? = nil) async -> Bool {

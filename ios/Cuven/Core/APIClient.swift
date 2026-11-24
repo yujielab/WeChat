@@ -333,7 +333,6 @@ struct SuggestResponse: Decodable { var text: String? }
 struct TranscribeResponse: Decodable { var text: String? }
 struct MomentsResponse: Decodable { var moments: [Moment] }
 struct MomentResponse: Decodable { var moment: Moment }
-struct MemoriesResponse: Decodable { var memories: [MemoryItem]; var more: Bool? }
 struct AvatarsResponse: Decodable { var recent: [String] }
 struct StickersResponse: Decodable { var sets: [StickerSet] }
 struct CatalogResponse: Decodable { var packs: [StickerPack] }

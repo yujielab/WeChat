@@ -13,7 +13,7 @@ Web 端（`public/`）作为界面与交互的参照。不是网页套壳：没�
 - 依赖（Swift Package）：[lottie-spm](https://github.com/airbnb/lottie-spm)（动画表情）、
   [WebRTC](https://github.com/stasel/WebRTC)（语音 / 视频通话）。
 - 字体：Clarinetta（由 `public/fonts` 转成 OTF 并补全字体名表），中文自动回落苹方；跟随“动态字体”。
-- **全屏页面**：动态、回忆、朋友、我、设置、个人主页和各个编辑页都占满整屏，标题浮在页面上方的栏里，
+- **全屏页面**：动态、朋友、我、设置、个人主页和各个编辑页都占满整屏，标题浮在页面上方的栏里，
   内容从它下面滚过（系统的柔和滚动边缘）；Duo 上返回、操作按钮在系统列的玻璃栏里，其他机型在浮动栏两侧。
   个人主页的封面一直铺到屏幕边缘，滚过封面后标题栏垫上模糊的封面。
 - **界面语言**：英文与简体中文（`Resources/zh-Hans.lproj/Localizable.strings`），跟随系统语言。
@@ -67,7 +67,7 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
 - 同源校验：Worker 只接受带本站 `Origin` 的写请求和 WebSocket 升级，原生端每个请求都带上同样的 `Origin`；
 - 时区：和 Web 端一样带 `x-tz`，作息与习惯按你的时区统计。
 
-账号、消息、联系人、便签、动态、回忆、表情、通话、智能输入与 Web 端完全互通，消息格式（`meta` 字段、
+账号、消息、联系人、便签、动态、表情、通话、智能输入与 Web 端完全互通，消息格式（`meta` 字段、
 `localId` 去重、回复快照、通话记录）与 `public/js` 保持一致。
 
 ## iPhone Duo 适配
@@ -85,14 +85,14 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
   把当前最右一栏的控制竖排进这一列：返回 / 关闭在最上，其后是操作（对话：返回、语音、视频、聊天信息），
   从相机和状态栏下方开始（外屏 170pt、内屏 118pt），正对状态栏时钟的中线；输入框留在这一列之前。
   内屏展开时左栏仍用底部栏、右栏用侧栏。普通 iPhone 横屏两侧安全区一样宽，不会被当成 Duo。
-- **页面胶囊**：Duo 的系统列底部一个竖向胶囊：Chats、Moments、Memories、Friends、You、Menu，
+- **页面胶囊**：Duo 的系统列底部一个竖向胶囊：Chats、Moments、Friends、You、Menu，
   当前页的浅色圆底在切换时滑过去；栏里“开始某件事”的按钮（边栏的 Search、手绘板的撤销 / 重做）站在胶囊正上方。
   页面以纸张样式的 sheet 打开（外屏贴内容区、内屏居中的表单），背后的栏带缩小后退。
 - **铰链与折痕（iOS 27.1+）**：`onHingeChange` 读出合上 / 半折 / 放平，`reservedRegions(kind: .division)`
   读出折痕的位置；半折像书一样时两栏以折痕为界，折痕两侧一层淡阴影。
 - **底部栏**：没有系统列的设备，每一栏的控制在底部 56pt 的栏里，单手可及：
   离开这一栏的按钮在左下角，单个操作是圆，成组的是胶囊，中间是搜索框或输入框；随键盘上移。
-- **网格用偶数列**：回忆、聊天信息里的照片墙都是四列，个人主页图片墙两列瀑布流。
+- **网格用偶数列**：聊天信息里的照片墙是四列，个人主页图片墙两列瀑布流。
 - 每一栏只拿它真正接触到的那条边的安全区（左栏不吃右侧系统列、右栏不吃左侧），所以内容不会被系统列挤压。
 
 ## 界面与动效（与 Web 端一致）
@@ -138,7 +138,6 @@ cd ios && xcodegen generate && open Cuven.xcodeproj
   置顶 / 未读 / 免打扰 / 删除，长按预览最近几条消息。
 - **动态**：Instagram 式信息流、头像环（有新动态带彩色环）、多图左右滑、双击点赞爱心、评论、定时发布、
   谁能看 / 谁能评论、圈人、ALT 描述；个人主页封面、Posts / Media。
-- **回忆**：按月分组的四列网格、本月回顾卡片自动轮播、按聊天或人名搜索。
 - 所有按压都是即时轻压（0.97）+ 弹簧回弹，触感反馈可关；遵循“减少动态效果”“降低透明度”和动态字体。
 
 ## 已知限制
@@ -163,6 +162,6 @@ ios/
     Layout/                   iPhone Duo 栏带（Nav、MainView、ColumnBar、安全区与键盘）
     Features/
       Auth/ ChatList/ Sidebar/ Thread/ Details/ Draw/ Stickers/
-      Contacts/ Moments/ Memories/ Settings/ Viewer/ Calls/
+      Contacts/ Moments/ Settings/ Viewer/ Calls/
     Resources/                图标、强调色、Clarinetta 字体
 ```

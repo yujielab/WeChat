@@ -86,7 +86,6 @@ else
   shoot outer-07-menu focus light 12 1 outer
   shoot outer-08-details info light 11 1 outer
   shoot outer-10-moments moments light 11 1 outer
-  shoot outer-11-memories memories light 11 1 outer
   shoot outer-12-friends friends light 11 1 outer
   shoot outer-13-you me light 11 1 outer
   shoot outer-15-settings settings light 11 1 outer

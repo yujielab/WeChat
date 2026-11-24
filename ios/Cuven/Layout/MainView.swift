@@ -446,8 +446,8 @@ enum Emulation {
 // MARK: - The page capsule (ui/pages.js)
 
 struct PageCapsule: View {
-    /// Six 44pt items, 2pt apart, 4pt in from the glass.
-    static let height: CGFloat = 6 * 44 + 5 * 2 + 8
+    /// Five 44pt items, 2pt apart, 4pt in from the glass.
+    static let height: CGFloat = 5 * 44 + 4 * 2 + 8
     @Environment(AppModel.self) private var model
     let nav: Nav
     @Namespace private var ns
@@ -465,7 +465,6 @@ struct PageCapsule: View {
         [
             Item(id: "chats", page: .chats, sym: .house, title: "Chats", count: 0, dot: false),
             Item(id: "moments", page: .moments, sym: .people, title: "Moments", count: 0, dot: model.momentsDot),
-            Item(id: "memories", page: .memories, sym: .photoStack, title: "Memories", count: 0, dot: false),
             Item(id: "friends", page: .friends, sym: .bell, title: "Friends", count: model.requests.count, dot: false),
             Item(id: "me", page: .me, sym: .personCircle, title: "You", count: 0, dot: false),
             Item(id: "menu", page: nil, sym: .menu, title: "Menu", count: 0, dot: false)
@@ -528,7 +527,7 @@ struct PageCapsule: View {
 
 /// A hardware keyboard on the Duo (HIG, Design principles: support a variety
 /// of input methods): Esc steps back out of whatever is open, ⌘F searches,
-/// ⌘N starts a group, ⌘1–⌘5 go to Chats, Moments, Memories, Friends and You.
+/// ⌘N starts a group, ⌘1–⌘4 go to Chats, Moments, Friends and You.
 private struct KeyCommands: View {
     let nav: Nav
 
@@ -545,9 +544,8 @@ private struct KeyCommands: View {
                 .keyboardShortcut("n", modifiers: .command)
             Button("Chats") { nav.switchPage(.chats) }.keyboardShortcut("1", modifiers: .command)
             Button("Moments") { nav.switchPage(.moments) }.keyboardShortcut("2", modifiers: .command)
-            Button("Memories") { nav.switchPage(.memories) }.keyboardShortcut("3", modifiers: .command)
-            Button("Friends") { nav.switchPage(.friends) }.keyboardShortcut("4", modifiers: .command)
-            Button("You") { nav.switchPage(.me) }.keyboardShortcut("5", modifiers: .command)
+            Button("Friends") { nav.switchPage(.friends) }.keyboardShortcut("3", modifiers: .command)
+            Button("You") { nav.switchPage(.me) }.keyboardShortcut("4", modifiers: .command)
         }
         .opacity(0)
         .frame(width: 0, height: 0)

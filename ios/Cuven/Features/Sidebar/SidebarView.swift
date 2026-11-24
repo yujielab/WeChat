@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The strip's first column (views/sidebar.js, css/columns.css): Home, who
 /// you are (opens Settings), the scopes of the conversation list — only
-/// Unread carries a number — then Moments and Memories. Search stays in
+/// Unread carries a number — then Moments. Search stays in
 /// reach at the foot, or over the page capsule in the Duo's rail.
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
@@ -53,9 +53,6 @@ struct SidebarView: View {
                         row(sym: .photo, title: "Moments", dot: model.momentsDot, current: false) {
                             model.momentsDot = false
                             nav.switchPage(.moments)
-                        }
-                        row(sym: .photoStack, title: "Memories", current: false) {
-                            nav.switchPage(.memories)
                         }
                     }
                     .padding(.top, 20)

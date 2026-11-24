@@ -367,7 +367,7 @@ struct Member: Codable, Identifiable, Hashable {
     var user: User { User(id: id, username: username, display: display, avatar: avatar) }
 }
 
-// MARK: - Notes, people, moments, memories
+// MARK: - Notes, people, moments
 
 struct Note: Codable, Hashable {
     var text: String
@@ -455,36 +455,6 @@ struct Moment: Codable, Hashable, Identifiable {
     }
 
     var date: Date { Date(timeIntervalSince1970: TimeInterval(created) / 1000) }
-}
-
-struct MemoryChat: Codable, Hashable {
-    var name: String
-    var avatar: String
-    var kind: String
-}
-
-struct MemoryItem: Codable, Hashable, Identifiable {
-    var id: String
-    var room: String
-    var chat: MemoryChat?
-    var from: User?
-    var mine: Bool
-    var ts: Int
-    var type: String
-    var url: String
-    var w: Double
-    var h: Double
-    var dur: Double
-
-    enum CodingKeys: String, CodingKey { case id, room, chat, from, mine, ts, type, url, w, h, dur }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = c.v(.id, ""); room = c.v(.room, ""); chat = c.o(.chat); from = c.o(.from); mine = c.v(.mine, false)
-        ts = c.v(.ts, 0); type = c.v(.type, "photo"); url = c.v(.url, ""); w = c.v(.w, 0); h = c.v(.h, 0); dur = c.v(.dur, 0)
-    }
-
-    var date: Date { Date(timeIntervalSince1970: TimeInterval(ts) / 1000) }
 }
 
 // MARK: - Stickers

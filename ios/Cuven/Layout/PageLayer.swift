@@ -9,7 +9,7 @@ import SwiftUI
 
 enum PageTitle {
     case none
-    /// Centred, bold (Settings, Memories, the editors).
+    /// Centred, bold (Settings, the editors).
     case inline(LocalizedStringKey)
     /// At the leading edge, large (Friends, someone's page).
     case large(LocalizedStringKey, Color)
@@ -304,7 +304,7 @@ private struct CoverLayer: View {
 // MARK: - The layer
 
 /// Pages over the strip, each full screen: the capsule's page (Moments,
-/// Memories, Friends, You) and, above it, pages opened from somewhere
+/// Friends, You) and, above it, pages opened from somewhere
 /// (Settings, someone's page, the editors), which slide in from the
 /// trailing edge and back out with a swipe from the leading one.
 struct PageLayer: View {
@@ -373,7 +373,6 @@ struct PageLayer: View {
     private func tabPage(_ p: Page) -> some View {
         switch p {
         case .moments: MomentsPage()
-        case .memories: MemoriesPage()
         case .friends: FriendsPage()
         case .me: ProfileView(userId: model.me?.id ?? "", asPage: true)
         case .chats: EmptyView()

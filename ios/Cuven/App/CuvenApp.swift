@@ -155,7 +155,6 @@ enum Automation {
             }
         case "group": if let g = model.rooms.first(where: { $0.isGroup })?.id { nav.open(room: g) }
         case "moments": nav.switchPage(.moments)
-        case "memories": nav.switchPage(.memories)
         case "requests", "friends": nav.switchPage(.friends)
         case "me": nav.switchPage(.me)
         case "settings": nav.settingsOpen = true
@@ -166,9 +165,9 @@ enum Automation {
             nav.searching = true
         case "note": nav.noteEditor = true
         case "filters":
-            nav.switchPage(.memories)
+            nav.toList()
             try? await Task.sleep(for: .milliseconds(600))
-            nav.filterCard = .memories
+            nav.filterCard = .list
         case "profile":
             if let peer = model.rooms.first(where: { !$0.isGroup })?.peer { nav.profile = peer.id }
         case "profile-scrolled":

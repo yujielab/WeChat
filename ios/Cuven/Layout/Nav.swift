@@ -14,12 +14,12 @@ enum DetailKind: Equatable {
 /// The pages of the capsule (ui/pages.js): Chats and Menu are the strip;
 /// the rest open over it.
 enum Page: String, CaseIterable, Identifiable {
-    case chats, moments, memories, friends, me
+    case chats, moments, friends, me
     var id: String { rawValue }
 }
 
 enum FilterCard: Equatable {
-    case list, memories
+    case list
 }
 
 enum ListFilter: String, CaseIterable, Identifiable {
@@ -83,7 +83,7 @@ final class Nav {
     var newGroup = false
     var editingProfile = false
     var changingPassword = false
-    /// A card of filters over the app (the list's, Memories').
+    /// A card of filters over the app (the list's).
     var filterCard: FilterCard?
 
     var visibleColumns: [Column] {

@@ -76,7 +76,6 @@ struct DialogLayer: View {
         case .noteEditor: h = model.myNote != nil ? 450 : 390
         case .note: h = 400
         case .filters(.list): h = 64 + 1 + 16 + CGFloat(ListFilter.allCases.count) * 52 + 16 + 98
-        case .filters(.memories): h = 64 + 1 + 2 * 40 + 6 * 52 + 16 + 98
         }
         let bottomGap = geo.keyboard > 0 ? geo.keyboard + 8 : max(8, geo.insets.bottom - 18)
         if geo.columns == 1 {
@@ -116,8 +115,6 @@ struct DialogLayer: View {
 struct FilterCardView: View {
     let kind: FilterCard
     @Environment(Nav.self) private var nav
-    @AppStorage("ui:memories-newest") private var newestFirst = true
-    @AppStorage("ui:memories-type") private var memType = "all"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -143,14 +140,6 @@ struct FilterCardView: View {
                     ForEach(ListFilter.allCases) { f in
                         choice(f.title, on: nav.filter == f) { withAnimation(Motion.ui) { nav.filter = f } }
                     }
-                case .memories:
-                    section("Show")
-                    ForEach([("all", "All"), ("photo", "Photos"), ("video", "Videos"), ("drawing", "Drawings")] as [(String, LocalizedStringKey)], id: \.0) { o in
-                        choice(o.1, on: memType == o.0) { memType = o.0 }
-                    }
-                    section("Order")
-                    choice("Newest first", on: newestFirst) { newestFirst = true }
-                    choice("Oldest first", on: !newestFirst) { newestFirst = false }
                 }
             }
             .padding(.vertical, 16)
@@ -163,7 +152,6 @@ struct FilterCardView: View {
                     withAnimation(Motion.ui) {
                         switch kind {
                         case .list: nav.filter = .all
-                        case .memories: memType = "all"; newestFirst = true
                         }
                     }
                 } label: {
