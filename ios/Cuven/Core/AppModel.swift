@@ -76,7 +76,6 @@ final class AppModel {
     var highlights: Bool { didSet { UserDefaults.standard.set(highlights, forKey: "ui:highlights") } }
     var haptics: Bool { didSet { UserDefaults.standard.set(haptics, forKey: "ui:haptics"); Haptics.enabled = haptics } }
     var appearance: String { didSet { UserDefaults.standard.set(appearance, forKey: "ui:appearance") } }
-    var bookLayout: Bool { didSet { UserDefaults.standard.set(bookLayout, forKey: "ui:book") } }
 
     /// Messages deleted on this device only ("Delete for me").
     var hiddenMessages: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "hiddenMessages") ?? []) {
@@ -84,6 +83,9 @@ final class AppModel {
     }
 
     @ObservationIgnored var drafts: [String: String] = [:]
+    /// The message each chat's composer is replying to, kept like the draft
+    /// for when the chat is put away and opened again.
+    @ObservationIgnored var replyDrafts: [String: Message] = [:]
     @ObservationIgnored var outbox: [OutboxItem] = []
     @ObservationIgnored var outboxRunning = false
     @ObservationIgnored var typingSent: [String: (String, Date)] = [:]
@@ -109,7 +111,6 @@ final class AppModel {
         highlights = d.object(forKey: "ui:highlights") as? Bool ?? true
         haptics = d.object(forKey: "ui:haptics") as? Bool ?? true
         appearance = d.string(forKey: "ui:appearance") ?? "light"
-        bookLayout = d.bool(forKey: "ui:book")
         Haptics.enabled = haptics
         ImageStore.shared.api = api
         socket = Socket(api: api)
@@ -251,7 +252,7 @@ final class AppModel {
         me = nil; rooms = []; contacts = []; threads = [:]; members = [:]; notes = []; myNote = nil
         suggested = []; discover = []; presence = []; outbox = []
         forgetFailedSends()
-        drafts = [:]; typing = [:]; typingSent = [:]; lostAt = [:]; needsBootstrap = false
+        drafts = [:]; replyDrafts = [:]; typing = [:]; typingSent = [:]; lostAt = [:]; needsBootstrap = false
         // The last account's previews go too (emptying `rooms` clears the badge).
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         phase = .signedOut

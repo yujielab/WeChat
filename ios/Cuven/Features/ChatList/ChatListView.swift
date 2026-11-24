@@ -10,9 +10,17 @@ struct ChatListView: View {
     @FocusState private var searchFocused: Bool
     /// The search button and the search field are one piece of glass.
     @Namespace private var searchGlass
+    /// Scrolled, the large title settles small in the middle (as the other
+    /// tabs' titles do, PageScaffold's `.large`).
+    @State private var collapsed = false
+    /// The title's own width and the room it has beside the buttons, so the
+    /// small title can sit in the middle without running under them.
+    @State private var titleWidth: CGFloat = 0
+    @State private var titleRoom: CGFloat = 0
 
-    /// Unfolded, the list leads a window: its scopes become a menu in the header.
-    private var leadingTwoUp: Bool { ctx.twoUp && !ctx.isRightmost }
+    /// On the Duo's rail, Search and New chat stand in the system column,
+    /// where every other tab keeps its actions.
+    private var actionsOnRail: Bool { ctx.usesRail }
     /// Where there's no rail, the tabs lie at the list's foot (and leave with it).
     private var tabsAtFoot: Bool { ctx.rail == nil && !ctx.systemColumn && !nav.searching && ctx.keyboard == 0 }
     private var inset: CGFloat { 22 }
@@ -43,12 +51,6 @@ struct ChatListView: View {
                         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 4, trailing: 0))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                    if !leadingTwoUp {
-                        FilterTabs()
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                    }
                 }
 
                 if nav.searching && query.isEmpty {
@@ -103,6 +105,10 @@ struct ChatListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.immediately)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+                let c = y > 18
+                if c != collapsed { withAnimation(.smooth(duration: 0.3)) { collapsed = c } }
+            }
             // The title (or the search field) floats at the top, the list
             // scrolling on under it through the system's soft edge.
             .safeAreaBar(edge: .top, spacing: 0) {
@@ -117,7 +123,8 @@ struct ChatListView: View {
             }
             .scrollEdgeEffectStyle(.soft, for: .top)
             .environment(\.defaultMinListRowHeight, 1)
-            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: ctx.contentBottom,
+            // Room at the foot for the tab bar only while it's there.
+            .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading, bottom: tabsAtFoot ? ctx.contentBottom : max(ctx.insets.bottom, 16) + 8,
                                         trailing: ctx.usesRail ? ctx.insets.trailing + 10 : ctx.insets.trailing))
             .refreshable {
                 await model.refreshRooms()
@@ -138,58 +145,88 @@ struct ChatListView: View {
         .onChange(of: nav.searching) { _, on in
             if on { searchFocused = true } else { query = ""; searchFocused = false }
         }
+        // Going into a chat (a row, a person, a link) puts the keyboard away;
+        // the search itself stays, so Back comes back to its results.
+        .onChange(of: nav.isVisible(.list)) { _, shown in
+            if !shown { searchFocused = false }
+        }
+        .onChange(of: nav.room) { _, _ in searchFocused = false }
     }
 
     // MARK: header
 
+    /// How far the small title moves to stand in the middle of the bar: half
+    /// the room the buttons take (44pt and a 10pt gap each), as far as it
+    /// fits without reaching them.
+    private var titleShift: CGFloat {
+        let buttons: CGFloat = actionsOnRail ? 1 : 3
+        return min(buttons * 27, max(0, (titleRoom - titleWidth * 20 / 28) / 2))
+    }
+
+    /// The title as the other tabs draw theirs (PageScaffold's large title:
+    /// 28pt, the same height, small and centred once scrolled), then the
+    /// scopes, Search and New chat.
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
             Text("Chats")
-                .font(ctx.twoUp ? .title1C : .largeTitleC)
-                .tracking(-0.68)
+                .font(AppFont.make(28, .bold))
+                .tracking(-0.56)
                 .foregroundStyle(Theme.label)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Spacer(minLength: 8)
-            if leadingTwoUp {
-                // Unfolded, the scopes are a menu with the list they filter (HIG: pull-down menus).
-                Menu {
-                    Picker("Filter", selection: Binding(get: { nav.filter }, set: { f in withAnimation(Motion.ui) { nav.filter = f } })) {
-                        ForEach(ListFilter.allCases) { f in Text(f.title).tag(f) }
-                    }
-                } label: {
-                    SymbolView(.filter, size: 18)
-                        .foregroundStyle(nav.filter == .all ? Theme.label : Theme.blue)
-                        .frame(width: 40, height: 40)
-                        .glassCircle()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { titleWidth = $0 }
+                .scaleEffect(collapsed ? 20.0 / 28.0 : 1, anchor: collapsed ? .center : .leading)
+                .frame(maxWidth: .infinity, alignment: collapsed ? .center : .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { titleRoom = $0 }
+                .offset(x: collapsed ? titleShift : 0)
+            // The scopes are a menu with the list they filter (HIG: pull-down menus).
+            Menu {
+                Picker("Filter", selection: Binding(get: { nav.filter }, set: { f in withAnimation(Motion.ui) { nav.filter = f } })) {
+                    ForEach(ListFilter.allCases) { f in filterTitle(f).tag(f) }
                 }
-                .accessibilityLabel("Filter")
-            }
-            // Search, then a new chat: the two things you start from here.
-            Button {
-                withAnimation(Motion.ui) { nav.searching = true }
             } label: {
-                SymbolView(.search, size: 18, weight: 2.2)
-                    .foregroundStyle(Theme.label)
-                    .frame(width: 40, height: 40)
-                    .glass(Circle(), interactive: true, morph: "search", in: searchGlass)
-            }
-            .buttonStyle(.press(0.94))
-            .accessibilityLabel("Search")
-            Button {
-                withAnimation(Motion.move) { nav.newGroup = true }
-            } label: {
-                SymbolView(.compose, size: 19)
-                    .foregroundStyle(Theme.label)
-                    .frame(width: 40, height: 40)
+                SymbolView(.filter, size: 18)
+                    .foregroundStyle(nav.filter == .all ? Theme.label : Theme.blue)
+                    .frame(width: 44, height: 44)
                     .glassCircle()
             }
-            .buttonStyle(.press(0.94))
-            .accessibilityLabel("New chat")
+            .accessibilityLabel("Filter")
+            .accessibilityValue(Text(nav.filter.title))
+            if !actionsOnRail {
+                // Search, then a new chat: the two things you start from here.
+                Button {
+                    withAnimation(Motion.ui) { nav.searching = true }
+                } label: {
+                    SymbolView(.search, size: 18, weight: 2.2)
+                        .foregroundStyle(Theme.label)
+                        .frame(width: 44, height: 44)
+                        .glass(Circle(), interactive: true, morph: "search", in: searchGlass)
+                }
+                .buttonStyle(.press(0.94))
+                .accessibilityLabel("Search")
+                Button {
+                    withAnimation(Motion.move) { nav.newGroup = true }
+                } label: {
+                    SymbolView(.compose, size: 19)
+                        .foregroundStyle(Theme.label)
+                        .frame(width: 44, height: 44)
+                        .glassCircle()
+                }
+                .buttonStyle(.press(0.94))
+                .accessibilityLabel("New chat")
+            }
         }
-        .padding(.leading, inset)
-        .padding(.trailing, inset)
-        .padding(.top, 24)
+        .padding(.horizontal, 18)
+        .frame(minHeight: 60)
+        // The title's centre where the other tabs keep theirs.
+        .padding(.top, ctx.insets.top > 20 ? 0 : 12)
+    }
+
+    /// A scope's name in the menu; Unread also says how many.
+    private func filterTitle(_ f: ListFilter) -> Text {
+        guard f == .unread else { return Text(f.title) }
+        let n = model.rooms.filter { $0.unread > 0 || $0.marked }.count
+        return n > 0 ? Text(verbatim: String(localized: "Unread") + " \(n)") : Text(f.title)
     }
 
     private var searchHead: some View {
@@ -305,11 +342,12 @@ struct ChatListView: View {
     @ViewBuilder
     private var bars: some View {
         if ctx.usesRail {
-            // The Duo: Cancel heads the rail while searching; nothing otherwise
-            // (the tabs are below, Search and New chat beside the title).
+            // The Duo: Search and New chat in the system column, where the
+            // other tabs keep their actions; Cancel heads it while searching.
             ColumnBar(back: nav.searching
                 ? BarItem(id: "cancel", sym: .xmark, title: "Cancel search") { withAnimation(Motion.ui) { nav.searching = false } }
-                : nil)
+                : nil,
+                actions: nav.searching ? [] : railActions)
         } else if tabsAtFoot {
             // No rail: the tabs at the list's foot, leaving with it when a chat opens.
             PageCapsule(nav: nav, axis: .horizontal)
@@ -321,63 +359,12 @@ struct ChatListView: View {
         }
     }
 
-}
-
-// MARK: - Filter tabs (blue glass thumb that slides)
-
-/// The list's scopes; Unread says how many.
-struct FilterTabs: View {
-    @Environment(Nav.self) private var nav
-    @Environment(AppModel.self) private var model
-    @Namespace private var ns
-    @State private var moreAtEnd = false
-
-    private var unread: Int { model.rooms.filter { $0.unread > 0 || $0.marked }.count }
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(ListFilter.allCases) { f in
-                    let on = nav.filter == f
-                    Button {
-                        withAnimation(Motion.ui) { nav.filter = f }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Text(f.title)
-                            if f == .unread, unread > 0 {
-                                Text("\(unread)").monospacedDigit().opacity(on ? 0.9 : 0.75).contentTransition(.numericText())
-                            }
-                        }
-                            .font(AppFont.make(15, on ? .bold : .semibold))
-                            .foregroundStyle(on ? .white : Theme.label2)
-                            .padding(.horizontal, 16)
-                            .frame(height: 44)
-                            .background {
-                                if on {
-                                    Capsule().fill(.clear).frame(height: 36)
-                                        .blueGlass(Capsule())
-                                        .matchedGeometryEffect(id: "thumb", in: ns)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 8)
-        }
-        // Where the row runs past the column, it fades at that edge (list.css data-more).
-        .onScrollGeometryChange(for: Bool.self) { g in
-            g.contentOffset.x + g.containerSize.width < g.contentSize.width - 2
-        } action: { _, v in moreAtEnd = v }
-        .mask {
-            HStack(spacing: 0) {
-                Color.black
-                LinearGradient(colors: [.black, .black.opacity(moreAtEnd ? 0 : 1)], startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 40)
-            }
-        }
+    /// Search and New chat as the rail holds them.
+    private var railActions: [BarItem] {
+        [BarItem(id: "search", sym: .search, title: "Search") { withAnimation(Motion.ui) { nav.searching = true } },
+         BarItem(id: "new", sym: .compose, title: "New chat") { withAnimation(Motion.move) { nav.newGroup = true } }]
     }
+
 }
 
 // MARK: - Row (row-inner: 76pt, 46pt avatar, name 17 semibold, time 13, preview 15)

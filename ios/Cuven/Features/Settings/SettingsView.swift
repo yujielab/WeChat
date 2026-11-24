@@ -54,9 +54,6 @@ struct SettingsView: View {
                     toggleRow("Reduce motion", isOn: Binding(get: { motion == "reduce" }, set: { motion = $0 ? "reduce" : "system" }))
                     CellSeparator()
                     toggleRow("Haptic feedback", isOn: $model.haptics)
-                    CellSeparator()
-                    toggleRow("Book layout", subtitle: String(localized: "iPhone Duo held like a book: the list and the chat meet at the fold."),
-                              isOn: $model.bookLayout)
                 }
 
                 GroupTitle(text: "Messages")

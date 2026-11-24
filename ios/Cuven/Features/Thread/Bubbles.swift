@@ -314,7 +314,7 @@ struct BubbleContent: View {
                     .foregroundStyle(.white)
                     .offset(x: 2)
                     .frame(width: 52, height: 52)
-                    .glassEffect(.regular.tint(.black.opacity(0.25)), in: Circle())
+                    .glass(Circle(), tint: .black.opacity(0.25), interactive: false)
                 if let d = message.meta?.dur {
                     Text(Fmt.duration(d)).font(.system(size: 12, weight: .medium).monospacedDigit()).foregroundStyle(.white)
                         .padding(.horizontal, 7).padding(.vertical, 2)

@@ -68,7 +68,7 @@ struct AuthView: View {
                             }
                             .foregroundStyle(Theme.onInk)
                             .frame(maxWidth: .infinity, minHeight: 52)
-                            .glassEffect(.regular.tint(Theme.ink.opacity(0.88)).interactive(), in: Capsule())
+                            .glass(Capsule(), tint: Theme.ink.opacity(0.88), interactive: true)
                         }
                         .buttonStyle(.press(0.97))
                         .disabled(busy)
@@ -118,7 +118,7 @@ struct AuthView: View {
                         .background {
                             if mode == m {
                                 Capsule().fill(.clear)
-                                    .glassEffect(.regular.tint(Theme.ink.opacity(0.55)), in: Capsule())
+                                    .glass(Capsule(), tint: Theme.ink.opacity(0.55), interactive: false)
                                     .matchedGeometryEffect(id: "mode", in: ns)
                             }
                         }

@@ -16,8 +16,9 @@ struct BarItem: Identifiable {
 }
 
 /// A column's controls where the device wants them (ui/bars.js, rail.css):
-/// - a floating bar at the column's foot: the way out at the leading end, a
-///   field in the middle, actions at the trailing end, all 44pt glass;
+/// - off the rail, the way out top-leading and the actions top-trailing
+///   (where iOS puts them), all 44pt glass, with a field and `footActions`
+///   floating at the foot;
 /// - on iPhone Duo, in the system column: the way out at the head of the
 ///   rail, then the actions (one glass circle each, a capsule for a group),
 ///   centred under the status bar's clock; a field stays at the foot.
@@ -26,8 +27,8 @@ struct ColumnBar<Center: View>: View {
     @Environment(Nav.self) private var nav
     var back: BarItem?
     var actions: [BarItem] = []
-    /// Actions that start something (Search, New): at the foot of the rail,
-    /// over the page capsule; at the trailing end of the bar elsewhere.
+    /// Controls that stay by the content (Undo/Redo): at the foot of the
+    /// rail, over the tabs; at the foot's trailing end elsewhere.
     var footActions: [BarItem] = []
     var groupActions = true
     var center: Center
@@ -164,8 +165,10 @@ extension ColumnContext {
         return base + Bar.foot + 14
     }
 
-    /// Bottom padding for scrolling content: above the bar, or just the safe area where the rail holds the controls.
+    /// Bottom padding for scrolling content: above the bar, or just the safe
+    /// area where the system column holds the controls (iPhone Duo, the pane
+    /// beside it too: its tabs are in that column).
     var contentBottom: CGFloat {
-        usesRail ? max(insets.bottom, 16) + 8 : barClearance
+        usesRail || systemColumn ? max(insets.bottom, 16) + 8 : barClearance
     }
 }

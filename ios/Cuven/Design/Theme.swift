@@ -85,8 +85,6 @@ enum Theme {
     static let brandStrong = Color.token(0x007a4d, 0x00c357)
     static let onBrand = Color.token(0xffffff, 0x000000)
     static let fbBlue = Color(hex: 0x1877f2)
-    static var fbBlueTitle: Color { accent }
-    static var skyTitle: Color { accent }
     static let mention = Color.token(0x0062cc, 0x409cff)
     static var tickRead: Color { accent }
 
@@ -110,7 +108,6 @@ enum Theme {
     // Legacy names used across the app
     static var fillQuiet: Color { fill4 }
     static var systemBlue: Color { blue }
-    static var sky: Color { skyTitle }
 
     /// The web's monogram colors: one of five hues from the name.
     static func avatarHue(_ name: String) -> Double {
@@ -196,8 +193,6 @@ extension Font {
 enum Motion {
     /// Settling (pushes, columns, sheets, surfaces): 400ms, no overshoot.
     static let move = Animation.spring(duration: 0.4, bounce: 0)
-    /// Arrival (a new message, a new post): 480ms, one soft overshoot.
-    static let soft = Animation.spring(duration: 0.48, bounce: 0.18)
     /// --spring-snappy: 266ms, a hair of overshoot.
     static let ui = Animation.spring(duration: 0.266, bounce: 0.05)
     /// --spring-bouncy: 403ms.

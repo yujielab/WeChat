@@ -85,21 +85,16 @@ struct MomentEditor: View {
                 .animation(Motion.ui, value: picks.count)
                 .animation(Motion.ui, value: scheduleOn)
             }
-            // The tools, kept at the foot (over the keyboard when it's up).
-            // Its band and line run the whole width, under the Duo's column
-            // too; the tools themselves keep clear of the rail.
+            // The tools float at the foot in one piece of glass, as the
+            // composer does (over the keyboard when it's up): no band, no
+            // line, the words scrolling on under them. They keep clear of
+            // the Duo's rail.
             .overlay(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    Hairline()
-                    bottomBar
-                        .padding(.top, 10)
-                        .padding(.leading, ctx.insets.leading)
-                        .padding(.trailing, toolsTrailing)
-                        .padding(.bottom, ctx.keyboard > 0 ? 0 : ctx.insets.bottom)
-                }
-                .background(.ultraThinMaterial)
-                .background(Theme.paper.opacity(0.9))
-                .padding(.bottom, ctx.keyboard > 0 ? ctx.keyboard : 0)
+                bottomBar
+                    .glass(RoundedRectangle(cornerRadius: 26, style: .continuous), interactive: false)
+                    .padding(.leading, max(ctx.insets.leading, 16))
+                    .padding(.trailing, max(toolsTrailing, 16))
+                    .padding(.bottom, ctx.keyboard > 0 ? ctx.keyboard + 8 : max(ctx.insets.bottom, 16))
             }
             .overlay(alignment: .top) {
                 if posting {
@@ -246,8 +241,9 @@ struct MomentEditor: View {
                 .accessibilityHidden(text.isEmpty)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
     }
 
     private var audienceLine: String {

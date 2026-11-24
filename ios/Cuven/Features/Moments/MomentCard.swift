@@ -424,6 +424,8 @@ struct InlineVideo: View {
     @State private var looper: AVPlayerLooper?
     @State private var muted = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Under a page, or on a tab page kept while another tab shows: it holds still (and quiet).
+    @Environment(\.contentCovered) private var covered
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -448,7 +450,10 @@ struct InlineVideo: View {
             looper = AVPlayerLooper(player: q, templateItem: item)
             q.isMuted = true
             player = q
-            if !reduceMotion { q.play() }
+            if !reduceMotion && !covered { q.play() }
+        }
+        .onChange(of: covered) { _, c in
+            if c { player?.pause() } else if !reduceMotion { player?.play() }
         }
         .onDisappear {
             player?.pause()

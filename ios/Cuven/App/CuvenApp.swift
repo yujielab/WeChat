@@ -134,7 +134,6 @@ enum Automation {
         guard active else { return }
         if let server = env["CUVEN_SERVER"] { _ = model.setServer(server) }
         if let look = env["CUVEN_APPEARANCE"] { model.appearance = look }
-        if env["CUVEN_BOOK"] == "1" { model.bookLayout = true }
     }
 
     @MainActor

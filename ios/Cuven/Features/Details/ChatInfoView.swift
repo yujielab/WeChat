@@ -112,8 +112,13 @@ struct ChatInfoView: View {
                     .padding(.top, 22)
                     .padding(.bottom, 24)
                 }
-                // Off the rail, Back sits at the top: the content starts under it.
-                .safeAreaPadding(EdgeInsets(top: ctx.insets.top + (ctx.usesRail ? 0 : 52), leading: ctx.insets.leading,
+                // Off the rail, Back floats at the top: the content starts under
+                // it and blurs progressively as it scrolls beneath (no hard edge).
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    if !ctx.usesRail { Color.clear.frame(height: 52).allowsHitTesting(false) }
+                }
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
                                             bottom: max(ctx.insets.bottom, 16) + 20,
                                             trailing: railContent))
             }

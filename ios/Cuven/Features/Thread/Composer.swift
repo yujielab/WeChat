@@ -142,16 +142,27 @@ struct Composer: View {
         .animation(Motion.ui, value: recorder.isRecording)
         .onAppear {
             text = model.drafts[room.id] ?? ""
+            // A reply picked before the chat was put away comes back with it
+            // (as it reads now; not once it's been unsent).
+            if replyTo == nil, let kept = model.replyDrafts[room.id] {
+                let now = model.messages(room.id).first(where: { $0.id == kept.id }) ?? kept
+                if now.isRevoked { model.replyDrafts[room.id] = nil } else { replyTo = now }
+            }
         }
         .onChange(of: text) { _, v in
             // While editing, the field holds the message, not the draft
             // (send and cancel put the draft back, which saves it here).
             if editing == nil {
                 model.drafts[room.id] = v
-                model.sendTyping(v, room: room.id)
+                // Live to the other side only while the chat shows.
+                if shown { model.sendTyping(v, room: room.id) }
             }
             if !v.isEmpty && plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
         }
+        // Covered (its details in its place, someone's page, another tab):
+        // the keyboard goes, and keys typed go nowhere hidden. Not for the
+        // app going to the background, which keeps the field as it was.
+        .onChange(of: shown) { _, s in if !s { focused = false } }
         .onChange(of: editing?.id) { old, _ in
             if let e = editing {
                 // From one edit straight to another: the draft kept is still the one from before.
@@ -163,7 +174,12 @@ struct Composer: View {
                 text = savedDraft
             }
         }
-        .onChange(of: replyTo?.id) { _, id in if id != nil { focused = true } }
+        .onChange(of: replyTo?.id) { _, id in
+            // One picked now brings up the keyboard; one coming back (above) doesn't.
+            if id != nil && id != model.replyDrafts[room.id]?.id { focused = true }
+            // Kept per chat, as the draft is, for when the chat is put away.
+            model.replyDrafts[room.id] = replyTo
+        }
         .task(id: text) { await fetchSuggestion() }
         .task(id: ideasKey) {
             guard onScreen else { return }
@@ -407,11 +423,15 @@ struct Composer: View {
         return last.id
     }
 
+    /// This chat is the one showing, with nothing over it or in its place
+    /// (whether or not the app is in front).
+    private var shown: Bool {
+        nav.room == room.id && nav.isVisible(.chat) && !nav.sheeted
+    }
+
     /// This chat is the one on screen, with the app in front: the only time
     /// the on-device model writes reply ideas for it.
-    private var onScreen: Bool {
-        nav.room == room.id && nav.isVisible(.chat) && !nav.sheeted && scenePhase == .active
-    }
+    private var onScreen: Bool { shown && scenePhase == .active }
 
     /// What the reply ideas answer while on screen ("" for nothing to
     /// answer), nil while not: a chat out of sight never runs the model.

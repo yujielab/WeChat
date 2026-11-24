@@ -8,7 +8,6 @@ struct ProfileView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
-    @Environment(\.column) private var ctx
     @State private var page: ProfilePage?
     @State private var moments: [Moment] = []
     @State private var tab = 0
@@ -67,9 +66,10 @@ struct ProfileView: View {
         .onChange(of: model.momentsVersion) { _, _ in Task { await load() } }
     }
 
-    /// The way out: back from someone's page; none on your own (a tab).
+    /// The way out: back from someone's page to the one under it (as the
+    /// edge swipe goes); none on your own (a tab).
     private var backItem: BarItem? {
-        asPage ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Back") { close() }
+        asPage ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Back") { withAnimation(Motion.move) { nav.popProfile() } }
     }
 
     private var actionItems: [BarItem] {
@@ -195,15 +195,20 @@ struct ProfileView: View {
         }
     }
 
-    /// The web's .mo-pill: 44pt, a hairline just inside (glass here), or ink.
+    /// The web's .mo-pill: 44pt, a hairline just inside (glass here, which
+    /// Reduce transparency turns solid), or ink.
+    @ViewBuilder
     private func pill(_ t: LocalizedStringKey, solid: Bool = false) -> some View {
-        Text(t)
+        let label = Text(t)
             .font(AppFont.make(15, .semibold))
             .foregroundStyle(solid ? Theme.onInk : Theme.label)
             .frame(maxWidth: .infinity)
             .frame(height: 44)
-            .background { if solid { Capsule().fill(Theme.ink) } }
-            .glassEffect(solid ? Glass.identity : Glass.regular.interactive(), in: Capsule())
+        if solid {
+            label.background(Theme.ink, in: Capsule())
+        } else {
+            label.glassCapsule()
+        }
     }
 
     /// Tabs: an icon each; the chosen one also says its name.
@@ -249,7 +254,7 @@ struct ProfileView: View {
                 Button { nav.composeMoment = true } label: {
                     Text("Share a moment").font(AppFont.make(15, .semibold)).foregroundStyle(Theme.onInk)
                         .padding(.horizontal, 18).frame(height: 44)
-                        .glassEffect(.regular.tint(Theme.ink.opacity(0.85)).interactive(), in: Capsule())
+                        .glassCapsule(tint: Theme.ink.opacity(0.85))
                 }
                 .buttonStyle(.press)
                 .padding(.top, 12)

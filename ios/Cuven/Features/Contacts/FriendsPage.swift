@@ -1,12 +1,11 @@
 import SwiftUI
 
 /// Friends (views/people.js openRequests): find people by username, start a
-/// group or invite someone, who wants to add you, what you've sent, and
+/// chat or invite someone, who wants to add you, what you've sent, and
 /// everyone you're friends with.
 struct FriendsPage: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
-    @Environment(\.column) private var ctx
     @State private var query = ""
     @State private var results: [User] = []
     @State private var searching = false
@@ -87,20 +86,16 @@ struct FriendsPage: View {
                     Button {
                         Task { await model.acceptContact(u) }
                     } label: {
-                        Text("Accept")
-                            .font(AppFont.make(15, .semibold))
-                            .foregroundStyle(Theme.onInk)
-                            .padding(.horizontal, 20)
-                            .frame(height: 40)
-                            .glassEffect(.regular.tint(Theme.ink.opacity(0.85)).interactive(), in: Capsule())
+                        RowAction(title: "Accept", ink: true)
                     }
                     .buttonStyle(.press)
+                    // As People you may know's "Don't suggest": a quiet ×.
                     Button {
                         Task { await model.removeContact(u) }
                     } label: {
                         SymbolView(.xmark, size: 16).foregroundStyle(Theme.label2)
-                            .frame(width: 40, height: 40)
-                            .glassCircle()
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle().inset(by: -4))
                     }
                     .buttonStyle(.press(0.9))
                     .accessibilityLabel("Decline")
@@ -110,7 +105,8 @@ struct FriendsPage: View {
         }
 
         GroupCard {
-            Button { nav.newGroup = true } label: { Cell(icon: .people, title: "New group", chevron: true) }
+            // The same New chat as the chat list's compose button (a group starts there too).
+            Button { withAnimation(Motion.move) { nav.newGroup = true } } label: { Cell(icon: .compose, title: "New chat", chevron: true) }
                 .buttonStyle(CellButtonStyle())
             CellSeparator(leading: 58)
             ShareLink(item: model.serverURL, message: Text("Chat with me on Cuven")) {
@@ -129,12 +125,7 @@ struct FriendsPage: View {
                     Button {
                         Task { await model.removeContact(u) }
                     } label: {
-                        Text("Cancel")
-                            .font(AppFont.make(15, .semibold))
-                            .foregroundStyle(Theme.label)
-                            .padding(.horizontal, 20)
-                            .frame(height: 40)
-                            .glassCapsule()
+                        RowAction(title: "Cancel")
                     }
                     .buttonStyle(.press)
                 }
@@ -143,7 +134,7 @@ struct FriendsPage: View {
         }
 
         // Finding people lives here, with your friends (not under the chats).
-        PeopleSections(showsInvite: false)
+        PeopleSections()
             .padding(.top, 18)
 
         if friends.isEmpty && model.requests.isEmpty && model.sentRequests.isEmpty {
@@ -242,14 +233,8 @@ struct FriendsPage: View {
         }
     }
 
-    /// The web's .person-action: 36pt, at least 84 wide, fill-2 or ink.
     private func pill(_ t: LocalizedStringKey, ink: Bool, quiet: Bool = false) -> some View {
-        Text(t)
-            .font(AppFont.make(13, .semibold))
-            .foregroundStyle(ink ? Theme.onInk : (quiet ? Theme.label2 : Theme.label))
-            .padding(.horizontal, 16)
-            .frame(minWidth: 84, minHeight: 36)
-            .background(ink ? Theme.ink : Theme.fill2, in: Capsule())
+        RowAction(title: t, ink: ink, quiet: quiet)
     }
 
     private func refreshResults() async {
@@ -292,37 +277,92 @@ struct FriendsPage: View {
     }
 }
 
-/// A new chat (the compose button in Chats): one friend for a chat with
-/// them, or several (and a name) for a group.
+/// A new chat (the compose button in Chats, New chat on Friends): a friend
+/// tapped opens the chat with them at once; New group picks several (and a
+/// name) for a group.
 struct NewGroupView: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
     @State private var name = ""
     @State private var picked: Set<String> = []
     @State private var creating = false
+    /// Picking several for a group, after New group, rather than one to chat with.
+    @State private var grouping = false
+    @State private var query = ""
 
     private var friends: [User] {
         model.contacts.filter { $0.state == "accepted" }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
     }
 
+    /// The friends the search leaves.
+    private var shown: [User] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return q.isEmpty ? friends : friends.filter { $0.name.lowercased().contains(q) || $0.username.lowercased().contains(q) }
+    }
+
+    private var pageTitle: LocalizedStringKey { grouping ? "New group" : "New chat" }
+
+    /// Cancel leaves; from New group, Back returns to picking one friend.
+    private var backItem: BarItem {
+        if grouping { return BarItem(id: "back", sym: .chevronLeft, title: "Back") { leaveGroup() } }
+        return BarItem(id: "cancel", sym: .xmark, title: "Cancel") { close() }
+    }
+
+    /// ✓ makes the group (a chat, with only one picked); none until New group.
+    private var actionItems: [BarItem] {
+        guard grouping else { return [] }
+        return [BarItem(id: "create", sym: .check, title: picked.count > 1 ? "Create" : "Chat", tint: picked.isEmpty ? nil : Theme.ink.opacity(0.9),
+                        foreground: picked.isEmpty ? Theme.label3 : Theme.onInk) { create() }]
+    }
+
+    /// Search as the people picker has it, in the bar over the list.
+    @ViewBuilder
+    private var searchField: some View {
+        if !friends.isEmpty {
+            HStack(spacing: 8) {
+                SymbolView(.search, size: 17).foregroundStyle(Theme.label3)
+                TextField("Search", text: $query)
+                    .font(.bodyC)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                ClearButton(text: $query)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 44)
+            .glassCapsule(interactive: false)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
+        }
+    }
+
     var body: some View {
-        PageScaffold(title: .inline("New chat"),
-                     back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { close() },
-                     actions: [BarItem(id: "create", sym: .check, title: picked.count > 1 ? "Create" : "Chat", tint: picked.isEmpty ? nil : Theme.ink.opacity(0.9),
-                                       foreground: picked.isEmpty ? Theme.label3 : Theme.onInk) { create() }],
+        PageScaffold(title: .inline(pageTitle),
+                     back: backItem,
+                     actions: actionItems,
                      background: Theme.grouped) {
+            searchField
+        } content: {
             VStack(spacing: 0) {
-                // A name only once it's a group.
-                if picked.count > 1 {
+                if grouping {
+                    // The name is there from the start, so the rows stay
+                    // still under the finger as friends are picked.
                     GroupCard {
-                        TextField("Group name", text: $name)
+                        TextField("Group name (optional)", text: $name)
                             .font(.bodyC)
                             .padding(.horizontal, 16)
                             .frame(minHeight: 58)
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity)
+                    GroupFoot(text: picked.isEmpty ? "Pick friends for the group." : "\(picked.count) selected")
+                } else if !friends.isEmpty {
+                    GroupCard {
+                        Button { withAnimation(Motion.ui) { grouping = true } } label: {
+                            Cell(icon: .people, title: "New group", chevron: true)
+                        }
+                        .buttonStyle(CellButtonStyle())
+                    }
+                    .transition(.opacity)
                 }
-                GroupFoot(text: picked.isEmpty ? "Pick one friend to chat, or several for a group." : "\(picked.count) selected")
                 GroupTitle(text: "Friends")
                 if friends.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
@@ -335,9 +375,15 @@ struct NewGroupView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
+                } else if shown.isEmpty {
+                    Text("No one called “\(query)”")
+                        .font(.subheadC).foregroundStyle(Theme.label2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                 } else {
                     GroupCard {
-                        ForEach(Array(friends.enumerated()), id: \.element.id) { i, u in
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, u in
                             if i > 0 { CellSeparator(leading: 66) }
                             friendRow(u)
                         }
@@ -346,7 +392,7 @@ struct NewGroupView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
-            .animation(Motion.ui, value: picked.count > 1)
+            .animation(Motion.ui, value: grouping)
         }
     }
 
@@ -354,28 +400,65 @@ struct NewGroupView: View {
         withAnimation(Motion.move) { nav.newGroup = false }
     }
 
+    /// Back from New group to a chat with one friend; the picks go.
+    private func leaveGroup() {
+        withAnimation(Motion.ui) {
+            grouping = false
+            picked = []
+            name = ""
+        }
+    }
+
     private func friendRow(_ u: User) -> some View {
         let on = picked.contains(u.id)
         return Button {
-            if on { picked.remove(u.id) } else { picked.insert(u.id) }
+            if grouping {
+                if on { picked.remove(u.id) } else { picked.insert(u.id) }
+                Haptics.selection()
+            } else {
+                chat(with: u)
+            }
         } label: {
             HStack(spacing: 12) {
                 Avatar(user: u, size: 40)
-                Text(u.name).font(.bodyC).foregroundStyle(Theme.label)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(u.name).font(.bodyC).foregroundStyle(Theme.label).lineLimit(1)
+                    Text("@\(u.username)").font(.footnoteC).foregroundStyle(Theme.label2).lineLimit(1)
+                }
                 Spacer(minLength: 0)
-                SymbolView(.check, size: 15, weight: 2.4)
-                    .foregroundStyle(Theme.onInk)
-                    .opacity(on ? 1 : 0)
-                    .frame(width: 26, height: 26)
-                    .background(on ? Theme.ink : .clear, in: Circle())
-                    .overlay(Circle().strokeBorder(on ? .clear : Theme.label3, lineWidth: 1.5))
-                    .animation(.easeOut(duration: 0.14), value: on)
+                if grouping {
+                    SymbolView(.check, size: 15, weight: 2.4)
+                        .foregroundStyle(Theme.onInk)
+                        .opacity(on ? 1 : 0)
+                        .frame(width: 26, height: 26)
+                        .background(on ? Theme.ink : .clear, in: Circle())
+                        .overlay(Circle().strokeBorder(on ? .clear : Theme.label3, lineWidth: 1.5))
+                        .animation(.easeOut(duration: 0.14), value: on)
+                        .transition(.opacity)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
             .contentShape(Rectangle())
         }
         .buttonStyle(CellButtonStyle())
+        .accessibilityAddTraits(grouping && on ? .isSelected : [])
+    }
+
+    /// The chat with one friend (made if it's new), and the page goes.
+    private func chat(with friend: User) {
+        guard !creating else { return }
+        creating = true
+        Task {
+            if let id = await model.openDM(friend) {
+                withAnimation(Motion.move) {
+                    nav.newGroup = false
+                    nav.page = .chats
+                }
+                nav.open(room: id)
+            }
+            creating = false
+        }
     }
 
     private func create() {
@@ -383,21 +466,12 @@ struct NewGroupView: View {
             if picked.isEmpty { model.show(String(localized: "Pick at least one friend")) }
             return
         }
-        creating = true
-        // One friend: the chat with them (made if it's new).
+        // One friend: the chat with them.
         if picked.count == 1, let friend = friends.first(where: { picked.contains($0.id) }) {
-            Task {
-                if let id = await model.openDM(friend) {
-                    withAnimation(Motion.move) {
-                        nav.newGroup = false
-                        nav.page = .chats
-                    }
-                    nav.open(room: id)
-                }
-                creating = false
-            }
+            chat(with: friend)
             return
         }
+        creating = true
         Task {
             if let id = await model.createGroup(name: name.trimmingCharacters(in: .whitespaces), members: Array(picked)) {
                 Haptics.success()
@@ -409,5 +483,24 @@ struct NewGroupView: View {
             }
             creating = false
         }
+    }
+}
+
+/// A person row's action (the web's .person-action): a 36pt capsule at
+/// least 84 wide, ink or fill-2, the same on Friends and in People you may
+/// know. Glass stays for the floating bar controls.
+struct RowAction: View {
+    let title: LocalizedStringKey
+    var ink = false
+    /// Waiting on someone else (Requested): quieter words.
+    var quiet = false
+
+    var body: some View {
+        Text(title)
+            .font(AppFont.make(13, .semibold))
+            .foregroundStyle(ink ? Theme.onInk : (quiet ? Theme.label2 : Theme.label))
+            .padding(.horizontal, 16)
+            .frame(minWidth: 84, minHeight: 36)
+            .background(ink ? Theme.ink : Theme.fill2, in: Capsule())
     }
 }

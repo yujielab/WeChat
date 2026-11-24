@@ -13,12 +13,11 @@ enum PageTitle {
     case inline(LocalizedStringKey)
     /// At the leading edge, large (Friends, someone's page).
     case large(LocalizedStringKey, Color)
-    /// The Moments wordmark: heavy, tracked in, in its own colour.
-    case wordmark(LocalizedStringKey, Color)
 }
 
 struct PageScaffold<Header: View, Content: View>: View {
     @Environment(\.column) private var ctx
+    @Environment(\.pageTab) private var pageTab
     var title: PageTitle = .none
     /// The title can wait until something scrolls away (a cover).
     var titleShown = true
@@ -92,9 +91,10 @@ struct PageScaffold<Header: View, Content: View>: View {
             .onReceive(NotificationCenter.default.publisher(for: .automationScroll)) { _ in
                 withAnimation(Motion.move) { position.scrollTo(y: coverHeight + 120) }
             }
-            // Its tab tapped again: back to the top (only the tab page showing has the tabs' room).
-            .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { _ in
-                guard ctx.capsule > 0 else { return }
+            // Its tab tapped again: back to the top (only that tab's page, and
+            // only while it shows with the tabs' room under it).
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { n in
+                guard ctx.capsule > 0, let pageTab, (n.object as? String) == pageTab.rawValue else { return }
                 withAnimation(Motion.move) { position.scrollTo(edge: .top) }
             }
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
@@ -210,8 +210,9 @@ struct PageScaffold<Header: View, Content: View>: View {
             }
             .padding(.horizontal, 18)
             .frame(minHeight: 60)
-            // The title's centre near 48pt from the top, as the Duo's own apps keep it.
-            .padding(.top, ctx.insets.top > 20 ? 4 : 16)
+            // Its 44pt buttons 8pt under the status bar, the same row as every
+            // other screen's Back (the chat's, Chat info's, the drawing board's).
+            .padding(.top, ctx.insets.top > 20 ? 0 : 12)
             header
         }
         // In line with the content: the same readable width, centred.
@@ -250,13 +251,6 @@ struct PageScaffold<Header: View, Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: collapsed ? .center : .leading)
                 .padding(.trailing, collapsed && !railed && back != nil && (actions + footActions).isEmpty ? 54 : 0)
                 .padding(.leading, collapsed && !railed && back == nil && !(actions + footActions).isEmpty ? 54 : 0)
-        case .wordmark(let t, let color):
-            Text(t)
-                .font(AppFont.make(30, .heavy))
-                .tracking(-1.05)
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -311,25 +305,32 @@ private struct CoverLayer: View {
 
 /// Pages over the strip, each full screen: a tab's page (Moments, Friends,
 /// You) and, above it, pages opened from somewhere. Places you go into
-/// (someone's page, Settings, Change password) push in from the trailing
-/// edge and go back with a swipe from the leading one; things you make
-/// (a moment, a chat, your profile) rise from the foot as modals, with
-/// Cancel to leave (HIG: push for navigation, modal for a task).
+/// (someone's page, Settings) push in from the trailing edge and go back
+/// with a swipe from the leading one; tasks (a moment, a chat, your
+/// profile, a new password) rise from the foot as modals, with Cancel to
+/// leave (HIG: push for navigation, modal for a task). A tab's page, once
+/// opened, is kept as you left it while another tab shows.
 struct PageLayer: View {
     let geo: StripGeometry
     let capsule: CGFloat
     @Environment(Nav.self) private var nav
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Something over this whole layer (it hides behind it too).
+    @Environment(\.contentCovered) private var outerCovered
     private var drag: CGFloat { nav.pushDrag }
 
+    /// The tabs with a page of their own (Chats is the strip).
+    private static let tabs: [Page] = [.moments, .friends, .me]
+
     private enum Route: Hashable {
-        case profile(String), settings, editProfile, password, newGroup, compose
+        /// Someone's page, by the stack entry's key as well as the person.
+        case profile(String, Int), settings, editProfile, password, newGroup, compose
 
         /// A self-contained task with its own Cancel: rises from the foot.
         var modal: Bool {
             switch self {
-            case .editProfile, .newGroup, .compose: return true
+            case .editProfile, .password, .newGroup, .compose: return true
             default: return false
             }
         }
@@ -337,7 +338,7 @@ struct PageLayer: View {
 
     private var routes: [Route] {
         var r: [Route] = []
-        if let p = nav.profile { r.append(.profile(p)) }
+        for p in nav.profiles { r.append(.profile(p.id, p.key)) }
         if nav.settingsOpen { r.append(.settings) }
         if nav.editingProfile { r.append(.editProfile) }
         if nav.changingPassword { r.append(.password) }
@@ -349,18 +350,28 @@ struct PageLayer: View {
     var body: some View {
         let routes = routes
         ZStack(alignment: .topLeading) {
-            if nav.page != .chats {
-                tabPage(nav.page)
-                    .environment(\.column, geo.pageContext(capsule: routes.isEmpty ? capsule : 0))
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .modifier(ParallaxUnder(active: routes.count == 1 && routes.last?.modal != true, width: geo.size.width))
-                    .id("tab-\(nav.page.rawValue)")
-                    .transition(.opacity)
+            // Each tab's page is built on its first visit and then kept, so
+            // it comes back where you left it; only the one showing is seen,
+            // touched and read out, and the others hold their video still.
+            ForEach(Self.tabs, id: \.self) { p in
+                if nav.page == p || nav.visited.contains(p) {
+                    let showing = nav.page == p
+                    tabPage(p)
+                        .environment(\.column, geo.pageContext(capsule: routes.isEmpty ? capsule : 0))
+                        .environment(\.pageTab, p)
+                        .environment(\.contentCovered, outerCovered || !showing || !routes.isEmpty)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .modifier(ParallaxUnder(active: showing && routes.count == 1 && routes.last?.modal != true, width: geo.size.width))
+                        .opacity(showing ? 1 : 0)
+                        .allowsHitTesting(showing)
+                        .accessibilityHidden(!showing)
+                }
             }
             ForEach(Array(routes.enumerated()), id: \.element) { i, route in
                 let top = i == routes.count - 1
                 routeView(route)
                     .environment(\.column, geo.pageContext(capsule: 0))
+                    .environment(\.contentCovered, outerCovered || !top)
                     .frame(width: geo.size.width, height: geo.size.height)
                     .background(Theme.bg)
                     .compositingGroup()
@@ -374,6 +385,8 @@ struct PageLayer: View {
                                 .frame(width: 20)
                                 .contentShape(Rectangle())
                                 .gesture(edgeSwipe)
+                                // A swipe cut short (the page closed under it) can't leave it offset.
+                                .onDisappear { if nav.pushDrag != 0 { withAnimation(Motion.move) { nav.pushDrag = 0 } } }
                         }
                     }
                     // Reduce Motion: a dissolve instead of a slide (HIG, Motion).
@@ -398,7 +411,7 @@ struct PageLayer: View {
     @ViewBuilder
     private func routeView(_ r: Route) -> some View {
         switch r {
-        case .profile(let id): ProfileView(userId: id)
+        case .profile(let id, _): ProfileView(userId: id)
         case .settings: SettingsView()
         case .editProfile: EditProfileSheet()
         case .password: PasswordSheet()

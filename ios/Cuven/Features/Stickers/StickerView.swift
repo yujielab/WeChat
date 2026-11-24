@@ -2,8 +2,8 @@ import SwiftUI
 import Lottie
 
 /// A Telegram sticker: still (WebP), animated (Lottie, played only while on
-/// screen and the app is in front, as on the web) or video (its still
-/// picture; iOS can't play WebM).
+/// screen, uncovered and the app is in front, as on the web) or video (its
+/// still picture; iOS can't play WebM).
 struct StickerView: View {
     let id: String
     let kind: String
@@ -67,11 +67,13 @@ struct LottieSticker<Fallback: View>: View {
     /// Plays only while on screen (a grid keeps cells it scrolled past).
     @State private var onScreen = false
     @Environment(\.scenePhase) private var scenePhase
+    /// Nor under a page, or in a column off screen (still mounted there).
+    @Environment(\.contentCovered) private var covered
 
     var body: some View {
         ZStack {
             if let animation {
-                LottiePlayer(animation: animation, playing: onScreen && scenePhase == .active)
+                LottiePlayer(animation: animation, playing: onScreen && !covered && scenePhase == .active)
                     .transition(.opacity)
             } else {
                 fallback()

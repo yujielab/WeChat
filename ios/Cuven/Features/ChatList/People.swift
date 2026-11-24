@@ -1,8 +1,8 @@
 import SwiftUI
 
-// People in the Messages list (views/people.js, css/people.css): notes along
-// the top — a bubble resting on the top of each photo, yours first — and,
-// under the chats, Suggested and People you may know with a card to invite.
+// People (views/people.js, css/people.css): notes along the top of the
+// Messages list — a bubble resting on the top of each photo, yours first —
+// and, on Friends, People you may know.
 
 // MARK: - Notes
 
@@ -305,33 +305,19 @@ struct NoteSheet: View {
     }
 }
 
-// MARK: - Suggested and People you may know
+// MARK: - People you may know
 
+/// People you may know, on Friends. (Friends you've not messaged yet are in
+/// its Contacts list, so they aren't suggested again here.)
 struct PeopleSections: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
     @State private var requested: Set<String> = []
     @State private var showAll = false
-    @AppStorage("ui:inviteDismissed") private var inviteDismissed = false
-    /// The invite card; off where an Invite friends row already says it.
-    var showsInvite = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !model.suggested.isEmpty {
-                title("Suggested")
-                ForEach(model.suggested) { u in
-                    Button {
-                        Task { if let id = await model.openDM(u) { nav.open(room: id) } }
-                    } label: {
-                        personMain(u, sub: u.reason ?? String(localized: "Tap to chat"))
-                    }
-                    .buttonStyle(.press)
-                    .padding(.horizontal, 22)
-                }
-                .padding(.bottom, 14)
-            }
-            if !model.discover.isEmpty || (showsInvite && !inviteDismissed) {
+            if !model.discover.isEmpty {
                 HStack {
                     title("People you may know")
                     Spacer()
@@ -343,11 +329,6 @@ struct PeopleSections: View {
                             .frame(height: 44)
                             .padding(.trailing, 10)
                     }
-                }
-                if showsInvite && !inviteDismissed {
-                    InviteCard { withAnimation(Motion.ui) { inviteDismissed = true } }
-                        .padding(.horizontal, 10)
-                        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                 }
                 ForEach(showAll ? model.discover : Array(model.discover.prefix(5))) { u in
                     discoverRow(u)
@@ -395,12 +376,7 @@ struct PeopleSections: View {
                     }
                 }
             } label: {
-                Text(done ? "Requested" : "Add")
-                    .font(AppFont.make(13, .semibold))
-                    .foregroundStyle(done ? Theme.label2 : Theme.onInk)
-                    .padding(.horizontal, 16)
-                    .frame(minWidth: 84, minHeight: 36)
-                    .background(done ? Theme.fill2 : Theme.ink, in: Capsule())
+                RowAction(title: done ? "Requested" : "Add", ink: !done, quiet: done)
                     .contentTransition(.opacity)
             }
             .buttonStyle(.press)
@@ -422,88 +398,11 @@ struct PeopleSections: View {
 
     private func subtitle(_ u: User) -> String {
         if let m = u.mutual, m > 0 { return m == 1 ? String(localized: "1 mutual friend") : String(localized: "\(m) mutual friends") }
-        return u.reason ?? "@\(u.username)"
-    }
-}
-
-/// Invite friends: Share is white, a black line just inside its edge, blue words.
-struct InviteCard: View {
-    @Environment(AppModel.self) private var model
-    var dismiss: (() -> Void)?
-    /// In a narrow column (the open Duo's list) Share drops under the words.
-    @State private var width: CGFloat = 400
-
-    private var narrow: Bool { width < 340 }
-
-    var body: some View {
-        Group {
-            if narrow {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        icon
-                        words
-                        if dismiss != nil { dismissButton }
-                    }
-                    shareButton.padding(.leading, 64)
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 4)
-                .padding(.vertical, 8)
-            } else {
-                HStack(spacing: 14) {
-                    icon
-                    words
-                    shareButton
-                    if dismiss != nil { dismissButton }
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 4)
-                .padding(.vertical, 6)
-            }
+        // The server's reasons, in the reader's language (only the known ones).
+        switch u.reason {
+        case "Shares moments"?: return String(localized: "Shares moments")
+        case "New on Cuven"?: return String(localized: "New on Cuven")
+        default: return "@\(u.username)"
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-    }
-
-    private var icon: some View {
-        SymbolView(.personPlus, size: 24)
-            .foregroundStyle(Theme.label)
-            .frame(width: 52, height: 52)
-            .background(Theme.fill2, in: Circle())
-    }
-
-    private var words: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text("Invite friends").font(.headlineC).foregroundStyle(Theme.label)
-                .lineLimit(1).minimumScaleFactor(0.8)
-            Text("Send friends a link to Cuven.").font(.subheadC).foregroundStyle(Theme.label2).lineLimit(2)
-        }
-        .layoutPriority(1)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, narrow ? 0 : 10)
-    }
-
-    private var shareButton: some View {
-        ShareLink(item: model.serverURL) {
-            Text("Share")
-                .font(AppFont.make(13, .semibold))
-                .foregroundStyle(Color(hex: 0x0062cc))
-                .padding(.horizontal, 14)
-                .frame(minWidth: 72, minHeight: 36)
-                .background(Color.white, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.black, lineWidth: 1))
-                .fixedSize()
-        }
-        .buttonStyle(.press)
-    }
-
-    private var dismissButton: some View {
-        Button { dismiss?() } label: {
-            SymbolView(.xmark, size: 16).foregroundStyle(Theme.label2)
-                .frame(width: 36, height: 36)
-                .glassCircle()
-        }
-        .buttonStyle(.press(0.9))
-        .accessibilityLabel("Dismiss")
     }
 }

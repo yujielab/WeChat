@@ -30,20 +30,19 @@ enum ListFilter: String, CaseIterable, Identifiable {
         case .groups: return "Groups"
         }
     }
-    var sym: Sym {
-        switch self {
-        case .all: return .bubble
-        case .unread: return .unread
-        case .direct: return .person
-        case .groups: return .people
-        }
-    }
 }
 
 /// Closed (the outer display), half (partly open like a book: two equal
 /// panes at the fold) or open flat (navigation narrow, conversation wide).
 enum Posture: String {
     case closed, half, flat
+}
+
+/// Someone's page on the stack. Each push has its own key, so the same
+/// person twice (A, then B, then A) is two pages.
+struct ProfileEntry: Hashable {
+    let id: String
+    let key: Int
 }
 
 struct ViewerItem: Identifiable, Equatable {
@@ -66,13 +65,49 @@ final class Nav {
     var active: Column = .list
     var leading: Column = .list
     var columns = 1
-    var page: Page = .chats
+    var page: Page = .chats {
+        didSet {
+            guard page != oldValue else { return }
+            if page != .chats && !visited.contains(page) { visited.insert(page) }
+            // The page left stays mounted (kept as you left it), so a field
+            // in it would hold the keyboard up over the next one: it lets
+            // go, as on iOS when the tab changes.
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+    }
+    /// The tab pages opened so far: each stays as you left it (its scroll,
+    /// its search) while another tab shows.
+    private(set) var visited: Set<Page> = []
     var filter: ListFilter = .all
     var searching = false
 
     // Overlays
     var viewer: ViewerItem?
-    var profile: String?
+    /// Someone's page, one over another: a name on one page pushes the next
+    /// over it, and Back returns to the one before (iOS's push stack).
+    private(set) var profiles: [ProfileEntry] = []
+    @ObservationIgnored private var profileKey = 0
+    /// The page on top. Setting someone pushes their page (unless it's
+    /// already on top); nil closes them all.
+    var profile: String? {
+        get { profiles.last?.id }
+        set {
+            guard let id = newValue else {
+                if !profiles.isEmpty { profiles.removeAll() }
+                return
+            }
+            guard profiles.last?.id != id else { return }
+            profileKey += 1
+            profiles.append(ProfileEntry(id: id, key: profileKey))
+            // A few deep at most: the oldest, long out of sight, goes.
+            if profiles.count > 8 { profiles.removeFirst() }
+        }
+    }
+    /// Back from someone's page to the one under it, or to where it was
+    /// opened from (the caller animates, as with the other pages).
+    func popProfile() {
+        if !profiles.isEmpty { profiles.removeLast() }
+    }
     var settingsOpen = false
     var composeMoment = false
     var noteEditor = false
@@ -94,9 +129,11 @@ final class Nav {
 
     /// A page pushed over everything (no page capsule): settings, someone's
     /// page, the editors.
-    var pushed: Bool { settingsOpen || profile != nil || editingProfile || changingPassword || newGroup || composeMoment }
+    var pushed: Bool { settingsOpen || !profiles.isEmpty || editingProfile || changingPassword || newGroup || composeMoment }
     /// How many pages are pushed, one over another.
-    var pushCount: Int { [settingsOpen, profile != nil, editingProfile, changingPassword, newGroup, composeMoment].filter { $0 }.count }
+    var pushCount: Int {
+        profiles.count + [settingsOpen, editingProfile, changingPassword, newGroup, composeMoment].filter { $0 }.count
+    }
     /// A task (a new moment, a new chat, your profile, a new password) is on
     /// top: it rose from the foot as a modal, so nothing under it steps
     /// sideways as it would under a push.
@@ -122,8 +159,7 @@ final class Nav {
             else if changingPassword { changingPassword = false }
             else if editingProfile { editingProfile = false }
             else if settingsOpen { settingsOpen = false }
-            else if profile != nil { profile = nil }
-            else if page != .chats { page = .chats }
+            else if !profiles.isEmpty { profiles.removeLast() }
         }
     }
 
@@ -168,6 +204,9 @@ final class Nav {
     }
 
     func open(room id: String, keepSearch: Bool = false) {
+        // The details stay only if they were on screen, not when they were
+        // left behind as the list came back.
+        let wasDetail = isVisible(.detail)
         go {
             // Whatever stands over the strip closes, so the chat shows (and is read).
             clearOverlays()
@@ -175,7 +214,7 @@ final class Nav {
             room = id
             page = .chats
             active = .chat
-            leading = columns == 1 ? .chat : (detail != nil ? .chat : .list)
+            leading = columns == 1 ? .chat : (detail != nil && wasDetail ? .chat : .list)
             if !keepSearch { searching = false }
         }
     }
@@ -206,9 +245,8 @@ final class Nav {
         }
     }
 
-    func toList(filter f: ListFilter? = nil) {
+    func toList() {
         go {
-            if let f { filter = f }
             page = .chats
             active = .list
             leading = .list
@@ -282,6 +320,10 @@ private struct ContentCoveredKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct PageTabKey: EnvironmentKey {
+    static let defaultValue: Page? = nil
+}
+
 extension EnvironmentValues {
     var column: ColumnContext {
         get { self[ColumnContextKey.self] }
@@ -292,5 +334,11 @@ extension EnvironmentValues {
     var contentCovered: Bool {
         get { self[ContentCoveredKey.self] }
         set { self[ContentCoveredKey.self] = newValue }
+    }
+    /// The tab whose page this is (nil off the tab pages): tapping that tab
+    /// again takes this page, and only this one, back to the top.
+    var pageTab: Page? {
+        get { self[PageTabKey.self] }
+        set { self[PageTabKey.self] = newValue }
     }
 }

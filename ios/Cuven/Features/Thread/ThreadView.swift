@@ -137,8 +137,15 @@ struct ThreadView: View {
 
 
             if let room {
+                // Under a status bar, the Back row's 44pt buttons start 8pt under
+                // the safe area, as a column's bar does (ColumnBar), so Back
+                // stays put from the chat to its details; the 58pt photo is
+                // centred on that row (it starts 7pt above the buttons). On the
+                // Duo (beside its details too, off the rail) and with no top
+                // inset at all (landscape), the photo keeps its 20pt from the
+                // top rather than meeting the screen's edge.
                 ThreadHeader(room: room, backBadge: otherUnread)
-                    .padding(.top, ctx.insets.top + 20)
+                    .padding(.top, ctx.insets.top + (ctx.usesRail || ctx.systemColumn || ctx.insets.top < 1 ? 20 : 1))
                     .padding(.leading, ctx.insets.leading)
                     .padding(.trailing, contentTrailing)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = max(60, $0) }
@@ -424,6 +431,7 @@ struct ThreadHeader: View {
                         .accessibilityLabel("Call")
                     }
                 }
+                // Centred on the 58pt photo: (58 - 44) / 2.
                 .padding(.top, 7)
                 .padding(.horizontal, 16)
             }

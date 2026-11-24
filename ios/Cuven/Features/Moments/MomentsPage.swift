@@ -5,7 +5,6 @@ import SwiftUI
 struct MomentsPage: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
-    @Environment(\.column) private var ctx
     @State private var moments: [Moment] = []
     @State private var loading = true
     @State private var more = true
@@ -85,6 +84,13 @@ struct MomentsPage: View {
             await reload()
         }
         .onChange(of: model.momentsVersion) { _, _ in fresh = true }
+        // The page is kept while another tab shows, so leaving the tab (not
+        // only going away) is when what's here was seen; coming back to it,
+        // however you came, what's new is seen.
+        .onChange(of: nav.page) { was, now in
+            if was == .moments { seenAt = Date().timeIntervalSince1970 * 1000 }
+            if now == .moments { model.momentsDot = false }
+        }
         .onDisappear { seenAt = Date().timeIntervalSince1970 * 1000 }
     }
 

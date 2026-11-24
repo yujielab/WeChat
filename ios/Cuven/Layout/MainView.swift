@@ -1,10 +1,11 @@
 import SwiftUI
 import CoreSpotlight
 
-/// The signed-in shell, as the web lays it out: four columns on one strip
+/// The signed-in shell, as the web lays it out: three columns on one strip
 /// with a window of one column (folded, phone) or two (unfolded, landscape
-/// Max), the pages as sheets over it while the strip recedes, the page
-/// capsule in the Duo's system column, and the overlays above all of that.
+/// Max, iPad), full-screen pages over it (only a note's card makes it
+/// recede), the tabs in the Duo's system column or at the foot, and the
+/// overlays above all of that.
 struct MainView: View {
     @Environment(AppModel.self) private var model
     @State private var nav = Nav()
@@ -80,6 +81,11 @@ struct MainView: View {
         .onChange(of: scenePhase) { _, phase in
             model.appActive = phase == .active
             if phase == .active, let r = visibleRoom { model.markRead(r) }
+            // A swipe the system cut short (a call, the app sent away) never
+            // ends: what it moved settles back, or nothing would take a touch.
+            if phase != .active && (drag != 0 || nav.pushDrag != 0) {
+                withAnimation(Motion.move) { drag = 0; nav.pushDrag = 0 }
+            }
         }
         .onOpenURL { url in
             if let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -121,10 +127,10 @@ struct MainView: View {
     @ViewBuilder
     private func shell(geo: StripGeometry, size: CGSize, insets: EdgeInsets) -> some View {
         ZStack(alignment: .topLeading) {
-            // What shows round the receded app while a sheet is up.
+            // What shows round the receded app while a note's card is up.
             (receded ? Theme.recede : Theme.bg)
 
-            // The strip, receding while a sheet is up.
+            // The strip, receding while a note's card is up.
             ZStack(alignment: .topLeading) {
                 Theme.bg
                 ForEach(Column.allCases, id: \.self) { col in
@@ -133,6 +139,8 @@ struct MainView: View {
                     let behind = nav.columns == 1 && col < nav.leading
                     columnView(col)
                         .environment(\.column, geo.context(col))
+                        // Under a page, or off screen (behind the column in front): stickers and video hold still.
+                        .environment(\.contentCovered, nav.covered || !geo.isOnScreen(col))
                         .frame(width: f.width, height: size.height)
                         .background(Theme.bg)
                         .overlay {
@@ -156,12 +164,15 @@ struct MainView: View {
                         .frame(width: 18, height: size.height)
                         .contentShape(Rectangle())
                         .gesture(edgeSwipe(width: size.width))
+                        // Taken away mid-swipe, its gesture never ends: the columns settle back.
+                        .onDisappear { if drag != 0 { withAnimation(Motion.move) { drag = 0 } } }
                         .zIndex(11)
                 }
             }
             .frame(width: size.width, height: size.height)
-            // Under the first pushed page (Settings, someone's page…) the strip steps back.
-            .modifier(ParallaxUnder(active: nav.pushCount == 1 && nav.page == .chats, width: size.width))
+            // Under the first pushed page (Settings, someone's page…) the strip
+            // steps back; under a task rising from the foot it stays put.
+            .modifier(ParallaxUnder(active: nav.pushCount == 1 && nav.page == .chats && !nav.modalOnTop, width: size.width))
             // A note's card: the app recedes behind it.
             .clipShape(RoundedRectangle(cornerRadius: receded ? 30 : 0, style: .continuous))
             .scaleEffect(receded ? 0.94 : 1, anchor: .top)
@@ -176,13 +187,13 @@ struct MainView: View {
             // Full-screen pages, then the cards over them (clear of the tabs).
             PageLayer(geo: geo, capsule: geo.rail != nil
                       ? (showsPageCapsule ? PageCapsule.height + Bar.gap + 2 : 0)
-                      : (tabBar(geo: geo, size: size) != nil ? Bar.foot + Bar.gap : 0))
+                      : (footTabsWidth(geo: geo, size: size) != nil ? Bar.foot + Bar.gap : 0))
                 .zIndex(20)
             DialogLayer(geo: geo)
                 .zIndex(25)
 
             // The tabs: upright in the system column (iPhone Duo), or lying at
-            // the foot under the list, sliding away with it when a chat opens.
+            // the foot of a tab page (on Chats they are the list's own).
             if let rail = geo.rail {
                 if showsPageCapsule {
                     PageCapsule(nav: nav)
@@ -192,17 +203,15 @@ struct MainView: View {
                         .transition(.opacity)
                         .zIndex(30)
                 }
-            } else if let bar = tabBar(geo: geo, size: size) {
-                let onScreen = bar.x > -bar.width + 1 && bar.x < size.width - 1
+            } else if let width = footTabsWidth(geo: geo, size: size) {
+                // Padded as the list pads its own (no trailing inset beside a second column).
                 PageCapsule(nav: nav, axis: .horizontal)
                     .padding(.leading, max(insets.leading, 16))
-                    .padding(.trailing, max(insets.trailing, 16))
-                    .frame(width: bar.width)
+                    .padding(.trailing, nav.columns == 2 ? 16 : max(insets.trailing, 16))
+                    .frame(width: width)
                     .padding(.bottom, max(insets.bottom, 16))
                     .frame(width: size.width, height: size.height, alignment: .bottomLeading)
-                    .offset(x: bar.x)
-                    .allowsHitTesting(onScreen && drag == 0)
-                    .accessibilityHidden(!onScreen)
+                    .allowsHitTesting(drag == 0)
                     .transition(.opacity)
                     .zIndex(30)
             }
@@ -240,12 +249,13 @@ struct MainView: View {
         return nav.active == .list
     }
 
-    /// Where the tabs lie over a tab page without a rail (on Chats they are
-    /// the list's own, at its foot); nil where they don't show (a pushed
-    /// page, a card, the keyboard).
-    private func tabBar(geo: StripGeometry, size: CGSize) -> (x: CGFloat, width: CGFloat)? {
+    /// How wide the tabs lie at the foot of a tab page without a rail: as
+    /// wide as the list on two columns, where on Chats they are the list's
+    /// own, so they stay put from tab to tab; nil where they don't show
+    /// (Chats, a pushed page, a card, the keyboard).
+    private func footTabsWidth(geo: StripGeometry, size: CGSize) -> CGFloat? {
         if nav.viewer != nil || keyboard.height > 0 || nav.pushed || nav.dialogUp || nav.page == .chats { return nil }
-        return (0, size.width)
+        return nav.columns == 2 ? geo.frame(.list).width : size.width
     }
 
     /// Only a note's card makes the app recede; pages cover it.
@@ -285,6 +295,15 @@ struct MainView: View {
                     ThreadView(roomId: room).id(room)
                 } else {
                     EmptyChatView()
+                        // Opened for a chat that isn't here (yet, or any more): on
+                        // one column the list is off screen, so a way back, as the
+                        // chat would have. Always there, so it slides with the column.
+                        .overlay {
+                            if nav.columns == 1 {
+                                ColumnBar(back: BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.backFromChat() })
+                            }
+                        }
+                        .accessibilityAction(.escape) { if nav.columns == 1 { nav.backFromChat() } }
                 }
             }
             // Brought back in place, so it slides in whole (no fade from "Pick a chat").
@@ -451,10 +470,10 @@ struct StripGeometry {
                              systemColumn: rail != nil)
     }
 
-    /// Where a page's sheet stands (css/overlays.css .sheet): folded, the
-    /// app's side of the screen 8pt in from each edge (clear of the page
-    /// capsule), at most 560pt, from 26pt under the top to 8pt over the foot;
-    /// unfolded, a form sheet in the middle of the screen itself, at most
+    /// Where a note's card stands (DialogLayer; css/overlays.css .sheet):
+    /// folded, the app's side of the screen 8pt in from each edge (clear of
+    /// the system's column), at most 560pt, from 26pt under the top to 8pt
+    /// over the foot; unfolded, in the middle of the screen itself, at most
     /// 560 × 680pt, never reaching over the system's column.
     var sheetFrame: CGRect {
         let W = size.width, H = size.height
@@ -524,10 +543,15 @@ struct PageCapsule: View {
     var axis: Axis = .vertical
     @Namespace private var ns
 
+    /// The fourth tab's name: its own key, so Chinese reads 我 (the tab) and
+    /// not 你 (the pronoun "You" elsewhere).
+    static var meTitle: String { String(localized: "tab.me", defaultValue: "You") }
+
     private struct Item: Identifiable {
         let page: Page
         let system: String
-        let title: LocalizedStringKey
+        /// Already in the reader's language.
+        let title: String
         let count: Int
         let dot: Bool
         var id: Page { page }
@@ -535,11 +559,11 @@ struct PageCapsule: View {
 
     private var items: [Item] {
         [
-            Item(page: .chats, system: "bubble.left.and.bubble.right", title: "Chats",
+            Item(page: .chats, system: "bubble.left.and.bubble.right", title: String(localized: "Chats"),
                  count: model.rooms.filter { ($0.unread > 0 || $0.marked) && !$0.muted }.count, dot: false),
-            Item(page: .moments, system: "camera.aperture", title: "Moments", count: 0, dot: model.momentsDot),
-            Item(page: .friends, system: "person.2", title: "Friends", count: model.requests.count, dot: false),
-            Item(page: .me, system: "person.crop.circle", title: "You", count: 0, dot: false)
+            Item(page: .moments, system: "camera.aperture", title: String(localized: "Moments"), count: 0, dot: model.momentsDot),
+            Item(page: .friends, system: "person.2", title: String(localized: "Friends"), count: model.requests.count, dot: false),
+            Item(page: .me, system: "person.crop.circle", title: PageCapsule.meTitle, count: 0, dot: false)
         ]
     }
 
@@ -612,7 +636,7 @@ struct PageCapsule: View {
         // The tab you're on: back to its root first, then to its top.
         if nav.profile != nil {
             withAnimation(Motion.move) { nav.profile = nil }
-        } else if item.page == .chats && (nav.active != .list || nav.searching) {
+        } else if item.page == .chats && ((nav.columns == 1 ? nav.active != .list : nav.leading != .list) || nav.searching) {
             withAnimation(Motion.ui) { nav.searching = false }
             nav.toList()
         } else {
@@ -635,7 +659,7 @@ private struct TabGlass: ViewModifier {
 
 /// A hardware keyboard on the Duo (HIG, Design principles: support a variety
 /// of input methods): Esc steps back out of whatever is open, ⌘F searches,
-/// ⌘N starts a group, ⌘1–⌘4 go to Chats, Moments, Friends and You.
+/// ⌘N starts a new chat, ⌘1–⌘4 go to Chats, Moments, Friends and You.
 private struct KeyCommands: View {
     let nav: Nav
 
@@ -654,7 +678,7 @@ private struct KeyCommands: View {
             Button("Chats") { goTo(.chats) }.keyboardShortcut("1", modifiers: .command)
             Button("Moments") { goTo(.moments) }.keyboardShortcut("2", modifiers: .command)
             Button("Friends") { goTo(.friends) }.keyboardShortcut("3", modifiers: .command)
-            Button("You") { goTo(.me) }.keyboardShortcut("4", modifiers: .command)
+            Button(PageCapsule.meTitle) { goTo(.me) }.keyboardShortcut("4", modifiers: .command)
         }
         .opacity(0)
         .frame(width: 0, height: 0)
@@ -669,16 +693,20 @@ private struct KeyCommands: View {
     }
 
     /// From the top down: the photo (over everything), then a page or card,
-    /// then the search, then the conversation.
+    /// then the column you went into (details, the chat), then the search.
+    /// A tab page with nothing over it is a root: Esc leaves it be. The
+    /// drawing board closes only by its own Close, which asks first.
     private func back() {
         if nav.viewer != nil {
             withAnimation(Motion.fade) { nav.viewer = nil }
-        } else if nav.sheeted {
+        } else if nav.pushed || nav.dialogUp {
             nav.closeTop()
+        } else if nav.page != .chats || (nav.active == .detail && nav.detail == .draw) {
+            return
+        } else if nav.canGoBack {
+            nav.back()
         } else if nav.searching {
             withAnimation(Motion.ui) { nav.searching = false }
-        } else if nav.room != nil, nav.columns == 1, nav.isVisible(.chat) {
-            nav.backFromChat()
         }
     }
 }
