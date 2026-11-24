@@ -383,7 +383,6 @@ struct FilterTabs: View {
 // MARK: - Row (row-inner: 76pt, 46pt avatar, name 17 semibold, time 13, preview 15)
 
 struct ChatRow: View {
-    @Environment(AppModel.self) private var model
     let room: Room
     var selected = false
     var compact = false
@@ -391,11 +390,9 @@ struct ChatRow: View {
     var leading = false
 
     var body: some View {
-        let typing = typingLine
         let unread = room.unread > 0 || room.marked
         HStack(spacing: 12) {
-            Avatar(path: room.avatar, name: room.title, size: compact ? 40 : (leading ? 44 : 46),
-                   online: !room.isGroup && model.isOnline(room.peer?.id))
+            ChatRowAvatar(room: room, size: compact ? 40 : (leading ? 44 : 46))
             VStack(alignment: .leading, spacing: compact ? 1 : 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(room.title)
@@ -414,19 +411,7 @@ struct ChatRow: View {
                     }
                 }
                 HStack(alignment: .center, spacing: 6) {
-                    Group {
-                        if let typing {
-                            Text(typing).foregroundStyle(Theme.blueText)
-                        } else if room.mention != nil && room.unread > 0 {
-                            Text("Mentioned you · ").foregroundStyle(Theme.blueText) + Text(preview).foregroundStyle(Theme.label2)
-                        } else {
-                            Text(preview).foregroundStyle(unread ? Theme.label : Theme.label2)
-                        }
-                    }
-                    .font(AppFont.make(compact ? 13 : 15))
-                    .lineSpacing(compact ? 0 : 2)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    ChatRowSubtitle(room: room, compact: compact, unread: unread)
                     if room.pinned && !compact {
                         SymbolView(.pin, size: 13).foregroundStyle(Theme.label3)
                     }
@@ -452,8 +437,48 @@ struct ChatRow: View {
         }
         .contentShape(Rectangle())
         .animation(Motion.quick, value: selected)
-        .animation(Motion.quick, value: typing)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A row's photo and its online dot, on their own: a friend coming online
+/// or going away redraws only the photos, not every row.
+private struct ChatRowAvatar: View {
+    @Environment(AppModel.self) private var model
+    let room: Room
+    let size: CGFloat
+
+    var body: some View {
+        Avatar(path: room.avatar, name: room.title, size: size,
+               online: !room.isGroup && model.isOnline(room.peer?.id))
+    }
+}
+
+/// The line under a row's name (who's typing, a mention, or the last
+/// message), on its own: someone typing in any chat redraws only these
+/// lines, not every whole row in the list.
+private struct ChatRowSubtitle: View {
+    @Environment(AppModel.self) private var model
+    let room: Room
+    let compact: Bool
+    let unread: Bool
+
+    var body: some View {
+        let typing = typingLine
+        Group {
+            if let typing {
+                Text(typing).foregroundStyle(Theme.blueText)
+            } else if room.mention != nil && room.unread > 0 {
+                Text("Mentioned you · ").foregroundStyle(Theme.blueText) + Text(preview).foregroundStyle(Theme.label2)
+            } else {
+                Text(preview).foregroundStyle(unread ? Theme.label : Theme.label2)
+            }
+        }
+        .font(AppFont.make(compact ? 13 : 15))
+        .lineSpacing(compact ? 0 : 2)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(Motion.quick, value: typing)
     }
 
     private var typingLine: String? {

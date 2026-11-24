@@ -12,6 +12,10 @@ struct MainView: View {
     @State private var safe = EdgeInsets()
     @State private var drag: CGFloat = 0
     @State private var posture: Posture = .flat
+    /// On one column, back on the list with the slide over: the conversation
+    /// you left is let go, so it stops redrawing (and its stickers playing)
+    /// off screen. Opening one, or a second column, brings it back.
+    @State private var chatParked = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -58,10 +62,16 @@ struct MainView: View {
         .onContinueUserActivity(ChatActivity.type) { a in
             if let id = a.userInfo?["room"] as? String { nav.open(room: id) }
         }
-        // Spotlight and Siri know the conversations by name.
-        .task(id: model.rooms.map { "\($0.id)|\($0.title)" }.joined(separator: ",")) {
+        // Spotlight and Siri know the conversations by name: indexed again
+        // when one is added, renamed or gone, not each time the order changes.
+        .task(id: Set<String>(model.rooms.prefix(200).map { "\($0.id)|\($0.title)" })) {
             try? await Task.sleep(for: .seconds(2))
             if !Task.isCancelled && !model.rooms.isEmpty { ChatDirectory.update(model.rooms) }
+        }
+        .task(id: [nav.active.rawValue, nav.columns]) {
+            guard nav.active == .list, nav.columns == 1 else { chatParked = false; return }
+            try? await Task.sleep(for: .milliseconds(420))
+            if !Task.isCancelled && nav.active == .list && nav.columns == 1 { chatParked = true }
         }
         .onChange(of: visibleRoom) { _, room in
             model.visibleRoom = room
@@ -268,21 +278,37 @@ struct MainView: View {
         switch col {
         case .list: ChatListView()
         case .chat:
-            if let room = nav.room, model.room(room) != nil {
-                ThreadView(roomId: room).id(room)
-            } else {
-                EmptyChatView()
+            ZStack {
+                if let room = nav.room, model.room(room) != nil, chatMounted {
+                    ThreadView(roomId: room).id(room)
+                } else {
+                    EmptyChatView()
+                }
             }
+            // Brought back in place, so it slides in whole (no fade from "Pick a chat").
+            .animation(nil, value: chatMounted)
         case .detail:
+            // Only while details are open (cleared once they've slid away).
             if let room = nav.room {
                 switch nav.detail {
                 case .draw: DrawView(roomId: room)
-                case .info, .none: ChatInfoView(roomId: room)
+                case .info:
+                    // In place before the push starts, so it slides in whole.
+                    ChatInfoView(roomId: room)
+                        .transition(.asymmetric(insertion: .identity, removal: .opacity))
+                // Clear over the column's own background: its fade out can't veil the details.
+                case .none: Color.clear
                 }
             } else {
                 Theme.bg
             }
         }
+    }
+
+    /// The conversation stays mounted while it shows or might (beside the
+    /// list, behind the details, sliding); only parked is it let go.
+    private var chatMounted: Bool {
+        !chatParked || nav.active != .list || nav.isVisible(.chat)
     }
 
     private func edgeSwipe(width: CGFloat) -> some Gesture {
