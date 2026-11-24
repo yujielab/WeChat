@@ -17,7 +17,7 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var model = model
         PageScaffold(title: .inline("Settings"),
-                     back: BarItem(id: "close", sym: .xmark, title: "Close") { withAnimation(Motion.move) { nav.settingsOpen = false } },
+                     back: BarItem(id: "back", sym: .chevronLeft, title: "Back") { withAnimation(Motion.move) { nav.settingsOpen = false } },
                      background: Theme.paper) {
             VStack(spacing: 0) {
                 Button { withAnimation(Motion.move) { nav.editingProfile = true } } label: {

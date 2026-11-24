@@ -51,7 +51,9 @@ struct Composer: View {
     /// Send (or ✓) only once there's something to send or an edit to save.
     private var showsSend: Bool { canSend || editing != nil }
     /// The empty field records while held.
-    private var holdToTalk: Bool { text.isEmpty && editing == nil }
+    /// Touch and hold the empty field to record, while the keyboard is down;
+    /// with it up the field is the system's own (Paste, selection).
+    private var holdToTalk: Bool { text.isEmpty && editing == nil && !focused }
     private var showBack: Bool { nav.columns == 1 && !ctx.usesRail }
 
     /// The composer's controls are 56pt (the web's .field and .composer-action).
@@ -252,9 +254,9 @@ struct Composer: View {
                                 .accessibilityAction(named: "Type") { focused = true }
                         }
                     }
-                if editing == nil {
+                // Send takes over once there's something to send.
+                if editing == nil && !showsSend {
                     Button {
-                        Haptics.tap()
                         withAnimation(Motion.morph) { plusOpen.toggle() }
                     } label: {
                         SymbolView(.plus, size: 22, weight: 2.2)

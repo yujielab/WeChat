@@ -312,6 +312,7 @@ struct CallOverlay: View {
             Button { withAnimation(Motion.morph) { calls.expanded = false } } label: {
                 SymbolView(.chevronDown, size: 18).foregroundStyle(.white)
                     .frame(width: 34, height: 34)
+                    .contentShape(Rectangle().inset(by: -5))
             }
             .accessibilityLabel("Minimize")
             if calls.video && calls.remoteVideo != nil {

@@ -43,23 +43,25 @@ struct PhotoViewer: View {
                     .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { chrome.toggle() } }
 
                 if chrome && expanded {
-                    HStack {
+                    // Close where iOS puts it (top-leading), Share at the foot's trailing end.
+                    ZStack {
                         Button { close() } label: {
                             SymbolView(.xmark, size: 22).foregroundStyle(.white)
                                 .frame(width: 44, height: 44).glassCircle(tint: .black.opacity(0.3))
                         }
                         .accessibilityLabel("Close")
-                        Spacer()
+                        .padding(.top, max(insets.top, 16) + 4)
+                        .padding(.leading, max(insets.leading, 16))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         Button { share() } label: {
                             SymbolView(.share, size: 22).foregroundStyle(.white)
                                 .frame(width: 44, height: 44).glassCircle(tint: .black.opacity(0.3))
                         }
                         .accessibilityLabel("Share")
+                        .padding(.trailing, max(insets.trailing, 16))
+                        .padding(.bottom, max(insets.bottom, 16))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     }
-                    .padding(.horizontal, max(insets.leading, 16))
-                    .padding(.trailing, max(insets.trailing - 16, 0))
-                    .padding(.bottom, max(insets.bottom, 16))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .opacity(1 - progress)
                     .transition(.opacity)
                 }

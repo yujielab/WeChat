@@ -53,6 +53,7 @@ extension AppModel {
             return
         }
         t.loading = true
+        t.failed = false
         threads[room] = t
         do {
             let r: MessagesResponse = try await api.get("/api/messages", query: ["room": room, "limit": "40"])
@@ -66,6 +67,7 @@ extension AppModel {
             persist()
         } catch {
             threads[room]?.loading = false
+            threads[room]?.failed = true
         }
         if let r = self.room(room), r.isGroup, members[room] == nil { await loadMembers(room) }
     }

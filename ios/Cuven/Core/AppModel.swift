@@ -6,6 +6,8 @@ struct ThreadData {
     var hasMore = true
     var loaded = false
     var loading = false
+    /// The first load failed (offline, server down): the thread offers Retry.
+    var failed = false
 }
 
 struct TypingInfo: Equatable {

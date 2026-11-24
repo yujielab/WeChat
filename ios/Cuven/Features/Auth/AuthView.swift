@@ -114,7 +114,7 @@ struct AuthView: View {
                     Text(m == .signIn ? "Log in" : "Sign up")
                         .font(AppFont.make(13, .semibold)).tracking(0.26)
                         .foregroundStyle(mode == m ? Theme.onInk : Theme.label2)
-                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .background {
                             if mode == m {
                                 Capsule().fill(.clear)

@@ -41,7 +41,7 @@ struct MomentEditor: View {
     var body: some View {
         PageScaffold(title: .inline(scheduleOn ? "Schedule" : "New moment"),
                      back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { if dirty { confirmDiscard = true } else { dismiss() } },
-                     actions: [BarItem(id: "post", sym: .paperplane, title: scheduleOn ? "Schedule" : "Post",
+                     actions: [BarItem(id: "post", sym: .arrowUp, title: scheduleOn ? "Schedule" : "Post",
                                        tint: canPost ? Theme.ink.opacity(0.9) : nil,
                                        foreground: canPost ? Theme.onInk : Theme.label3) { if canPost { post() } }],
                      background: Theme.paper) {
@@ -170,6 +170,7 @@ struct MomentEditor: View {
             } label: {
                 SymbolView(.xmark, size: 14, weight: 2.4).foregroundStyle(.white)
                     .frame(width: 28, height: 28).background(.black.opacity(0.5), in: Circle())
+                    .contentShape(Circle().inset(by: -8))
             }
             .padding(8)
             .accessibilityLabel("Remove")
@@ -182,6 +183,7 @@ struct MomentEditor: View {
                     Label(p.alt.isEmpty ? "ALT" : "ALT", systemImage: p.alt.isEmpty ? "plus" : "checkmark")
                         .font(.caption2C.weight(.bold)).foregroundStyle(.white)
                         .padding(.horizontal, 8).frame(height: 26).background(.black.opacity(0.5), in: Capsule())
+                        .contentShape(Capsule().inset(by: -9))
                 }
                 .padding(8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)

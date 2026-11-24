@@ -144,14 +144,14 @@ final class Nav {
         withAnimation(Motion.move) { change() }
     }
 
-    func open(room id: String) {
+    func open(room id: String, keepSearch: Bool = false) {
         go {
             if room != id { detail = nil }
             room = id
             page = .chats
             active = .chat
             leading = columns == 1 ? .chat : (detail != nil ? .chat : .list)
-            searching = false
+            if !keepSearch { searching = false }
         }
     }
 

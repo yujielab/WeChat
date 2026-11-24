@@ -16,6 +16,7 @@ struct ProfileView: View {
     @State private var failed = false
     @Namespace private var ns
     @State private var scrolled = false
+    @State private var confirmRemove = false
 
     private var isMe: Bool { userId == model.me?.id }
     private var user: User? { page?.user ?? (isMe ? model.me : model.user(userId)) }
@@ -157,13 +158,7 @@ struct ProfileView: View {
                             }
                         }
                     } label: { pill("Message", solid: true) }
-                    let state = model.contacts.first { $0.id == user.id }?.state
-                    Button {
-                        if state == nil { Task { await model.addContact(user) } }
-                    } label: {
-                        pill(state == "accepted" ? "Friends" : (state == "pending_out" ? "Requested" : (state == "pending_in" ? "Accept" : "Add friend")))
-                    }
-                    .disabled(state == "accepted" || state == "pending_out")
+                    relationship(user)
                 }
             }
             .buttonStyle(.press)
@@ -171,6 +166,29 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
+    }
+
+    /// Where you stand with them, and what you can do about it: add, accept,
+    /// take back a request, or (asked first) remove a friend.
+    @ViewBuilder
+    private func relationship(_ user: User) -> some View {
+        switch model.contacts.first(where: { $0.id == user.id })?.state {
+        case "accepted":
+            Menu {
+                Button(role: .destructive) { confirmRemove = true } label: { Label("Remove friend", systemImage: "person.badge.minus") }
+            } label: { pill("Friends") }
+            .confirmationDialog(Text("Remove \(user.name) from your friends?"), isPresented: $confirmRemove, titleVisibility: .visible) {
+                Button("Remove friend", role: .destructive) { Task { await model.removeContact(user) } }
+            }
+        case "pending_out":
+            Menu {
+                Button(role: .destructive) { Task { await model.removeContact(user) } } label: { Label("Cancel request", systemImage: "xmark") }
+            } label: { pill("Requested") }
+        case "pending_in":
+            Button { Task { await model.acceptContact(user) } } label: { pill("Accept") }
+        default:
+            Button { Task { _ = await model.addContact(user) } } label: { pill("Add friend") }
+        }
     }
 
     private func count(_ n: Int, _ word: LocalizedStringKey) -> some View {

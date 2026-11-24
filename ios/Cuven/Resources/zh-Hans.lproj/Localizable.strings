@@ -434,3 +434,7 @@
 "End Call" = "挂断";
 "Mute Microphone" = "静音麦克风";
 "Call back" = "回拨";
+"Remove %@ from your friends?" = "要将 %@ 从朋友中删除吗？";
+"Cancel request" = "撤回请求";
+"Delete this moment?" = "要删除这条动态吗？";
+"Couldn't load messages" = "无法加载消息";

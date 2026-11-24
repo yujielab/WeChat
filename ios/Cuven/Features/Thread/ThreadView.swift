@@ -97,13 +97,27 @@ struct ThreadView: View {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .overlay {
-                    if thread?.loaded != true && msgs.isEmpty {
-                        ThreadSkeleton()
-                            .padding(.top, headerHeight + ctx.insets.top + 20)
-                            .padding(.leading, ctx.insets.leading)
-                            .padding(.trailing, contentTrailing)
-                            .transition(.opacity)
+                    // Loading, couldn't load (with Retry), or nothing said yet.
+                    Group {
+                        if msgs.isEmpty && thread?.failed == true {
+                            VStack(spacing: 12) {
+                                Text("Couldn't load messages").font(.subheadC).foregroundStyle(Theme.label2)
+                                PillButton(title: "Retry", style: .blue) { Task { await model.loadThread(roomId) } }
+                            }
+                            .frame(maxHeight: .infinity)
+                        } else if thread?.loaded != true && msgs.isEmpty {
+                            ThreadSkeleton()
+                                .padding(.top, headerHeight + ctx.insets.top + 20)
+                                .frame(maxHeight: .infinity, alignment: .top)
+                        } else if msgs.isEmpty && typers.isEmpty {
+                            conversationStart
+                                .padding(.top, headerHeight + ctx.insets.top + 24)
+                                .frame(maxHeight: .infinity, alignment: .top)
+                        }
                     }
+                    .padding(.leading, ctx.insets.leading)
+                    .padding(.trailing, contentTrailing)
+                    .transition(.opacity)
                 }
                 .overlay(alignment: .bottom) {
                     if !atBottom {

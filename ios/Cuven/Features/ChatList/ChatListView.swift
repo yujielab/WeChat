@@ -101,6 +101,7 @@ struct ChatListView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.immediately)
             // The title (or the search field) floats at the top, the list
             // scrolling on under it through the system's soft edge.
             .safeAreaBar(edge: .top, spacing: 0) {
@@ -251,8 +252,8 @@ struct ChatListView: View {
     private func rowView(_ room: Room) -> some View {
         let selected = nav.columns == 2 && nav.room == room.id && nav.isVisible(.chat)
         Button {
-            Haptics.selection()
-            nav.open(room: room.id)
+            // From search, Back comes back to the same results.
+            nav.open(room: room.id, keepSearch: nav.searching)
         } label: {
             ChatRow(room: room, selected: selected, compact: nav.searching, leading: ctx.twoUp && !ctx.isRightmost)
         }
@@ -261,9 +262,14 @@ struct ChatListView: View {
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            // A full swipe deletes (with Undo); Mute sits beside it, as in Messages.
             Button(role: .destructive) {
                 Task { await model.deleteChat(room.id) }
             } label: { Label("Delete", systemImage: "trash") }
+            Button {
+                Task { await model.setFlag(room.id, muted: !room.muted) }
+            } label: { Label(room.muted ? "Unmute" : "Mute", systemImage: room.muted ? "bell" : "bell.slash") }
+                .tint(Color.indigo)
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             let unread = room.unread > 0 || room.marked
@@ -499,7 +505,7 @@ struct PersonRow: View {
 
     var body: some View {
         Button {
-            Task { if let id = await model.openDM(user) { nav.open(room: id) } }
+            Task { if let id = await model.openDM(user) { nav.open(room: id, keepSearch: nav.searching) } }
         } label: {
             HStack(spacing: 12) {
                 Avatar(user: user, size: 38, online: model.isOnline(user.id))

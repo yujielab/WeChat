@@ -138,6 +138,7 @@ struct UnreadDivider: View {
 
 struct MessageRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(Nav.self) private var nav
     let message: Message
     let layout: RowLayout
     let width: CGFloat
@@ -248,8 +249,14 @@ struct MessageRow: View {
     private var avatar: some View {
         Group {
             if layout.showAvatar {
-                Avatar(user: model.user(message.sender) ?? User(id: message.sender, display: model.name(of: message.sender)),
-                       size: Self.avatarSize)
+                // Their photo opens their page, as in every messenger.
+                Button { nav.profile = message.sender } label: {
+                    Avatar(user: model.user(message.sender) ?? User(id: message.sender, display: model.name(of: message.sender)),
+                           size: Self.avatarSize)
+                        .contentShape(Circle().inset(by: -6))
+                }
+                .buttonStyle(.press(0.94))
+                .accessibilityLabel(Text(model.name(of: message.sender)))
             } else {
                 Color.clear
             }

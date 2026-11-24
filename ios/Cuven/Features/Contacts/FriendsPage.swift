@@ -12,6 +12,8 @@ struct FriendsPage: View {
     @State private var searching = false
     @State private var adding: Set<String> = []
     @FocusState private var searchFocused: Bool
+    /// The friend about to be removed, asked first.
+    @State private var removing: User?
 
     private var friends: [User] {
         model.contacts.filter { $0.state == "accepted" }
@@ -57,6 +59,14 @@ struct FriendsPage: View {
             .animation(Motion.ui, value: query.isEmpty)
         }
         .refreshable { await model.refreshContacts() }
+        .confirmationDialog(Text("Remove \(removing?.name ?? "") from your friends?"),
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible) {
+            Button("Remove friend", role: .destructive) {
+                if let u = removing { Task { await model.removeContact(u) } }
+                removing = nil
+            }
+        }
         .task(id: query) {
             guard !query.isEmpty else { results = []; return }
             searching = true
@@ -149,9 +159,9 @@ struct FriendsPage: View {
             GroupCard {
                 ForEach(Array(friends.enumerated()), id: \.element.id) { i, u in
                     if i > 0 { CellSeparator(leading: 72) }
-                    Button {
-                        Task { if let id = await model.openDM(u) { nav.open(room: id) } }
-                    } label: {
+                    // A row with a chevron opens their page (which has Message);
+                    // messaging straight away is in the row's menu.
+                    Button { nav.profile = u.id } label: {
                         HStack(spacing: 16) {
                             Avatar(user: u, size: 40, online: model.isOnline(u.id))
                             VStack(alignment: .leading, spacing: 2) {
@@ -167,8 +177,12 @@ struct FriendsPage: View {
                     }
                     .buttonStyle(CellButtonStyle())
                     .contextMenu {
+                        Button {
+                            Task { if let id = await model.openDM(u) { nav.open(room: id) } }
+                        } label: { Label("Message", systemImage: "bubble.left") }
                         Button { nav.profile = u.id } label: { Label("View profile", systemImage: "person.crop.circle") }
-                        Button(role: .destructive) { Task { await model.removeContact(u) } } label: { Label("Remove friend", systemImage: "person.badge.minus") }
+                        Divider()
+                        Button(role: .destructive) { removing = u } label: { Label("Remove friend", systemImage: "person.badge.minus") }
                     }
                 }
             }

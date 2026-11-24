@@ -16,6 +16,7 @@ struct MomentCard: View {
     @State private var showAll = false
     @State private var comment = ""
     @State private var showCounter = false
+    @State private var confirmDelete = false
     @FocusState private var commentFocused: Bool
 
     private var friendsOnly: Bool { moment.audience == "friends" }
@@ -88,10 +89,8 @@ struct MomentCard: View {
             Menu {
                 Button { nav.profile = moment.user.id } label: { Label("View profile", systemImage: "person.crop.circle") }
                 if moment.mine {
-                    Button(role: .destructive) {
-                        Task { if await model.deleteMoment(moment) { onDelete() } }
-                    } label: { Label("Delete", systemImage: "trash") }
-                } else {
+                    Button(role: .destructive) { confirmDelete = true } label: { Label("Delete", systemImage: "trash") }
+                } else if moment.user.friend != false {
                     Button {
                         Task {
                             if let id = await model.openDM(moment.user) {
@@ -107,6 +106,12 @@ struct MomentCard: View {
                     .glassCircle()
             }
             .accessibilityLabel("More")
+            // Gone for good, so asked first (HIG: confirm destructive actions).
+            .confirmationDialog(Text("Delete this moment?"), isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    Task { if await model.deleteMoment(moment) { onDelete() } }
+                }
+            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 6)
@@ -211,7 +216,7 @@ struct MomentCard: View {
             .disabled(!moment.canComment)
             .accessibilityLabel("Comment")
             ShareLink(item: moment.text.isEmpty ? String(localized: "A moment from \(moment.user.name)") : moment.text) {
-                act(sym: .paperplane, count: 0)
+                act(sym: .share, count: 0)
             }
             .accessibilityLabel("Share")
             Spacer(minLength: 0)
