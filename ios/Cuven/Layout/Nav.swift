@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The four columns, in the order they sit on the strip (ui/strip.js).
+/// The three columns, in the order they sit on the strip: the list, the
+/// conversation, and its details (or drawing board).
 enum Column: Int, CaseIterable, Comparable {
-    case sidebar = 0, list, chat, detail
+    case list = 0, chat, detail
     static func < (a: Column, b: Column) -> Bool { a.rawValue < b.rawValue }
 }
 
@@ -16,10 +17,6 @@ enum DetailKind: Equatable {
 enum Page: String, CaseIterable, Identifiable {
     case chats, moments, friends, me
     var id: String { rawValue }
-}
-
-enum FilterCard: Equatable {
-    case list
 }
 
 enum ListFilter: String, CaseIterable, Identifiable {
@@ -83,8 +80,6 @@ final class Nav {
     var newGroup = false
     var editingProfile = false
     var changingPassword = false
-    /// A card of filters over the app (the list's).
-    var filterCard: FilterCard?
 
     var visibleColumns: [Column] {
         (0..<columns).compactMap { Column(rawValue: leading.rawValue + $0) }
@@ -104,15 +99,14 @@ final class Nav {
     /// A full-screen page covers the strip (a capsule page or a pushed one).
     var covered: Bool { page != .chats || pushed }
     /// A small card over the app (a note), the app receding behind it.
-    var dialogUp: Bool { noteEditor || openNote != nil || filterCard != nil }
+    var dialogUp: Bool { noteEditor || openNote != nil }
     /// Anything over the strip: it takes no touches and its rail steps aside.
     var sheeted: Bool { covered || dialogUp }
 
     /// Closes the topmost page or card.
     func closeTop() {
         withAnimation(Motion.move) {
-            if filterCard != nil { filterCard = nil }
-            else if noteEditor { noteEditor = false }
+            if noteEditor { noteEditor = false }
             else if openNote != nil { openNote = nil }
             else if composeMoment { composeMoment = false }
             else if newGroup { newGroup = false }
@@ -130,11 +124,7 @@ final class Nav {
         if n == 1 {
             leading = active
         } else {
-            switch active {
-            case .sidebar: leading = .sidebar
-            case .detail: leading = .chat
-            default: leading = .list
-            }
+            leading = active == .detail ? .chat : .list
         }
         let maxLead = Column.allCases.count - columns
         if leading.rawValue > maxLead { leading = Column(rawValue: maxLead)! }
@@ -181,14 +171,6 @@ final class Nav {
         }
     }
 
-    func toSidebar() {
-        go {
-            page = .chats
-            active = .sidebar
-            leading = .sidebar
-        }
-    }
-
     func toList(filter f: ListFilter? = nil) {
         go {
             if let f { filter = f }
@@ -200,8 +182,8 @@ final class Nav {
 
     /// The edge swipe and the window's own back: one column toward the start.
     var canGoBack: Bool {
-        if columns == 1 { return active != .sidebar }
-        return leading != .sidebar
+        if columns == 1 { return active != .list }
+        return leading != .list
     }
 
     func back() {
@@ -209,39 +191,20 @@ final class Nav {
             switch active {
             case .detail: closeDetail()
             case .chat: backFromChat()
-            case .list: toSidebar()
-            case .sidebar: break
+            case .list: break
             }
         } else {
             switch leading {
             case .chat: closeDetail()
-            case .list: toSidebar()
             default: break
             }
         }
-        Haptics.tap()
     }
 
-    /// The capsule: the new page fades in where the old one fades out.
+    /// The tabs: the new page fades in where the old one fades out (no
+    /// slide: tabs are peers). Chats comes back to where you left it.
     func switchPage(_ p: Page) {
-        if p == .chats {
-            withAnimation(Motion.move) {
-                page = .chats
-                if active == .sidebar { active = .list; leading = .list }
-            }
-        } else {
-            withAnimation(.easeInOut(duration: 0.24)) { page = p }
-        }
-        Haptics.selection()
-    }
-
-    func menu() {
-        withAnimation(Motion.move) {
-            page = .chats
-            active = .sidebar
-            leading = .sidebar
-        }
-        Haptics.selection()
+        withAnimation(Motion.fade) { page = p }
     }
 }
 

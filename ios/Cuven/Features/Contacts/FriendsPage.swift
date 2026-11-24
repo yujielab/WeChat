@@ -22,8 +22,7 @@ struct FriendsPage: View {
 
     var body: some View {
         PageScaffold(title: .large("Friends", Theme.label),
-                     back: ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.switchPage(.chats) } : nil,
-                     actions: [BarItem(id: "group", sym: .people, title: "New group") { nav.newGroup = true }],
+                     back: nil,
                      background: Theme.grouped) {
             HStack(spacing: 10) {
                 SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
@@ -58,7 +57,7 @@ struct FriendsPage: View {
             .animation(Motion.ui, value: model.contacts)
             .animation(Motion.ui, value: query.isEmpty)
         }
-        .refreshable { await model.refreshContacts() }
+        .refreshable { await model.refreshContacts(); await model.loadPeople() }
         .confirmationDialog(Text("Remove \(removing?.name ?? "") from your friends?"),
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
                             titleVisibility: .visible) {
@@ -81,18 +80,6 @@ struct FriendsPage: View {
 
     @ViewBuilder
     private var content: some View {
-        GroupCard {
-            Button { nav.newGroup = true } label: { Cell(icon: .people, title: "New group", chevron: true) }
-                .buttonStyle(CellButtonStyle())
-            CellSeparator(leading: 58)
-            ShareLink(item: model.serverURL, message: Text("Chat with me on Cuven")) {
-                Cell(icon: .personPlus, title: "Invite friends", chevron: true)
-            }
-            .buttonStyle(CellButtonStyle())
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-
         if !model.requests.isEmpty {
             eyebrow("Wants to add you")
             ForEach(model.requests) { u in
@@ -122,6 +109,19 @@ struct FriendsPage: View {
             }
         }
 
+        GroupCard {
+            Button { nav.newGroup = true } label: { Cell(icon: .people, title: "New group", chevron: true) }
+                .buttonStyle(CellButtonStyle())
+            CellSeparator(leading: 58)
+            ShareLink(item: model.serverURL, message: Text("Chat with me on Cuven")) {
+                Cell(icon: .personPlus, title: "Invite friends", chevron: true)
+            }
+            .buttonStyle(CellButtonStyle())
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, model.requests.isEmpty ? 16 : 22)
+
+
         if !model.sentRequests.isEmpty {
             eyebrow("Sent")
             ForEach(model.sentRequests) { u in
@@ -141,6 +141,10 @@ struct FriendsPage: View {
                 .transition(.opacity)
             }
         }
+
+        // Finding people lives here, with your friends (not under the chats).
+        PeopleSections(showsInvite: false)
+            .padding(.top, 18)
 
         if friends.isEmpty && model.requests.isEmpty && model.sentRequests.isEmpty {
             VStack(spacing: 6) {
@@ -288,7 +292,8 @@ struct FriendsPage: View {
     }
 }
 
-/// A new group: a name, and the friends to start it with.
+/// A new chat (the compose button in Chats): one friend for a chat with
+/// them, or several (and a name) for a group.
 struct NewGroupView: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
@@ -301,24 +306,35 @@ struct NewGroupView: View {
     }
 
     var body: some View {
-        PageScaffold(title: .inline("New group"),
+        PageScaffold(title: .inline("New chat"),
                      back: BarItem(id: "cancel", sym: .xmark, title: "Cancel") { close() },
-                     actions: [BarItem(id: "create", sym: .check, title: "Create", tint: picked.isEmpty ? nil : Theme.ink.opacity(0.9),
+                     actions: [BarItem(id: "create", sym: .check, title: picked.count > 1 ? "Create" : "Chat", tint: picked.isEmpty ? nil : Theme.ink.opacity(0.9),
                                        foreground: picked.isEmpty ? Theme.label3 : Theme.onInk) { create() }],
                      background: Theme.grouped) {
             VStack(spacing: 0) {
-                GroupCard {
-                    TextField("Group name", text: $name)
-                        .font(.bodyC)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 58)
+                // A name only once it's a group.
+                if picked.count > 1 {
+                    GroupCard {
+                        TextField("Group name", text: $name)
+                            .font(.bodyC)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 58)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                GroupFoot(text: "\(picked.count) selected")
+                GroupFoot(text: picked.isEmpty ? "Pick one friend to chat, or several for a group." : "\(picked.count) selected")
                 GroupTitle(text: "Friends")
                 if friends.isEmpty {
-                    Text("Add friends first, then start a group with them.")
-                        .font(.subheadC).foregroundStyle(Theme.label2)
-                        .padding(.vertical, 24)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Add friends first, then start a chat with them.")
+                            .font(.subheadC).foregroundStyle(Theme.label2)
+                        PillButton(title: "Find friends", style: .ink) {
+                            close()
+                            nav.switchPage(.friends)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 24)
                 } else {
                     GroupCard {
                         ForEach(Array(friends.enumerated()), id: \.element.id) { i, u in
@@ -330,6 +346,7 @@ struct NewGroupView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
+            .animation(Motion.ui, value: picked.count > 1)
         }
     }
 
@@ -341,7 +358,6 @@ struct NewGroupView: View {
         let on = picked.contains(u.id)
         return Button {
             if on { picked.remove(u.id) } else { picked.insert(u.id) }
-            Haptics.selection()
         } label: {
             HStack(spacing: 12) {
                 Avatar(user: u, size: 40)
@@ -368,6 +384,20 @@ struct NewGroupView: View {
             return
         }
         creating = true
+        // One friend: the chat with them (made if it's new).
+        if picked.count == 1, let friend = friends.first(where: { picked.contains($0.id) }) {
+            Task {
+                if let id = await model.openDM(friend) {
+                    withAnimation(Motion.move) {
+                        nav.newGroup = false
+                        nav.page = .chats
+                    }
+                    nav.open(room: id)
+                }
+                creating = false
+            }
+            return
+        }
         Task {
             if let id = await model.createGroup(name: name.trimmingCharacters(in: .whitespaces), members: Array(picked)) {
                 Haptics.success()

@@ -111,7 +111,7 @@ struct CuvenShortcuts: AppShortcutsProvider {
                     shortTitle: "Open Chat", systemImageName: "bubble.left.and.bubble.right")
         AppShortcut(intent: NewMomentIntent(),
                     phrases: ["New moment in \(.applicationName)", "Share a moment in \(.applicationName)"],
-                    shortTitle: "New Moment", systemImageName: "photo.on.rectangle")
+                    shortTitle: "New Moment", systemImageName: "camera.aperture")
         AppShortcut(intent: SearchChatsIntent(),
                     phrases: ["Search \(.applicationName)"],
                     shortTitle: "Search Chats", systemImageName: "magnifyingglass")

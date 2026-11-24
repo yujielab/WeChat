@@ -313,6 +313,8 @@ struct PeopleSections: View {
     @State private var requested: Set<String> = []
     @State private var showAll = false
     @AppStorage("ui:inviteDismissed") private var inviteDismissed = false
+    /// The invite card; off where an Invite friends row already says it.
+    var showsInvite = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -329,7 +331,7 @@ struct PeopleSections: View {
                 }
                 .padding(.bottom, 14)
             }
-            if !model.discover.isEmpty || !inviteDismissed {
+            if !model.discover.isEmpty || (showsInvite && !inviteDismissed) {
                 HStack {
                     title("People you may know")
                     Spacer()
@@ -342,7 +344,7 @@ struct PeopleSections: View {
                             .padding(.trailing, 10)
                     }
                 }
-                if !inviteDismissed {
+                if showsInvite && !inviteDismissed {
                     InviteCard { withAnimation(Motion.ui) { inviteDismissed = true } }
                         .padding(.horizontal, 10)
                         .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))

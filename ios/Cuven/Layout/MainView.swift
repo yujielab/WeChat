@@ -117,11 +117,21 @@ struct MainView: View {
                 Theme.bg
                 ForEach(Column.allCases, id: \.self) { col in
                     let f = geo.frame(col)
+                    // On one column, the column behind moves at a third of the finger's pace and dims.
+                    let behind = nav.columns == 1 && col < nav.leading
                     columnView(col)
                         .environment(\.column, geo.context(col))
                         .frame(width: f.width, height: size.height)
+                        .background(Theme.bg)
+                        .overlay {
+                            if behind {
+                                Color.black.opacity(0.1 * max(0, 1 - drag / max(1, size.width)))
+                                    .allowsHitTesting(false)
+                            }
+                        }
                         .clipped()
-                        .offset(x: f.minX + drag)
+                        .shadow(color: .black.opacity(col == nav.leading && drag > 0 && nav.columns == 1 ? 0.16 : 0), radius: 16, x: -4)
+                        .offset(x: f.minX + (behind ? drag * 0.3 : drag))
                         .allowsHitTesting(geo.isOnScreen(col) && drag == 0 && !nav.sheeted)
                         .accessibilityHidden(!geo.isOnScreen(col) || nav.sheeted)
                         .zIndex(Double(col.rawValue))
@@ -151,18 +161,36 @@ struct MainView: View {
                     .onTapGesture { closeSheet() }
             }
 
-            // Full-screen pages, then the cards over them.
-            PageLayer(geo: geo, capsule: showsPageCapsule ? PageCapsule.height + Bar.gap + 2 : 0)
+            // Full-screen pages, then the cards over them (clear of the tabs).
+            PageLayer(geo: geo, capsule: geo.rail != nil
+                      ? (showsPageCapsule ? PageCapsule.height + Bar.gap + 2 : 0)
+                      : (tabBar(geo: geo, size: size) != nil ? Bar.foot + Bar.gap : 0))
                 .zIndex(20)
             DialogLayer(geo: geo)
                 .zIndex(25)
 
-            // The page capsule in the system column (iPhone Duo only).
-            if let rail = geo.rail, showsPageCapsule {
-                PageCapsule(nav: nav)
-                    .padding(.trailing, rail.centerFromEdge - Bar.railWidth / 2)
-                    .padding(.bottom, max(insets.bottom, 14))
-                    .frame(width: size.width, height: size.height, alignment: .bottomTrailing)
+            // The tabs: upright in the system column (iPhone Duo), or lying at
+            // the foot under the list, sliding away with it when a chat opens.
+            if let rail = geo.rail {
+                if showsPageCapsule {
+                    PageCapsule(nav: nav)
+                        .padding(.trailing, rail.centerFromEdge - Bar.railWidth / 2)
+                        .padding(.bottom, max(insets.bottom, 14))
+                        .frame(width: size.width, height: size.height, alignment: .bottomTrailing)
+                        .transition(.opacity)
+                        .zIndex(30)
+                }
+            } else if let bar = tabBar(geo: geo, size: size) {
+                let onScreen = bar.x > -bar.width + 1 && bar.x < size.width - 1
+                PageCapsule(nav: nav, axis: .horizontal)
+                    .padding(.leading, max(insets.leading, 16))
+                    .padding(.trailing, max(insets.trailing, 16))
+                    .frame(width: bar.width)
+                    .padding(.bottom, max(insets.bottom, 16))
+                    .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+                    .offset(x: bar.x)
+                    .allowsHitTesting(onScreen && drag == 0)
+                    .accessibilityHidden(!onScreen)
                     .transition(.opacity)
                     .zIndex(30)
             }
@@ -197,7 +225,15 @@ struct MainView: View {
         if nav.viewer != nil || keyboard.height > 0 || nav.pushed || nav.dialogUp { return false }
         if nav.page != .chats { return true }
         if nav.columns == 2 { return !(nav.detail == .draw && nav.isVisible(.detail)) }
-        return nav.active == .list || nav.active == .sidebar
+        return nav.active == .list
+    }
+
+    /// Where the tabs lie over a tab page without a rail (on Chats they are
+    /// the list's own, at its foot); nil where they don't show (a pushed
+    /// page, a card, the keyboard).
+    private func tabBar(geo: StripGeometry, size: CGSize) -> (x: CGFloat, width: CGFloat)? {
+        if nav.viewer != nil || keyboard.height > 0 || nav.pushed || nav.dialogUp || nav.page == .chats { return nil }
+        return (0, size.width)
     }
 
     /// Only a note's card makes the app recede; pages cover it.
@@ -230,7 +266,6 @@ struct MainView: View {
     @ViewBuilder
     private func columnView(_ col: Column) -> some View {
         switch col {
-        case .sidebar: SidebarView()
         case .list: ChatListView()
         case .chat:
             if let room = nav.room, model.room(room) != nil {
@@ -342,13 +377,16 @@ struct StripGeometry {
     func frame(_ c: Column) -> CGRect {
         let W = size.width
         if columns == 1 {
-            return CGRect(x: CGFloat(c.rawValue - leading.rawValue) * W, y: 0, width: W, height: size.height)
+            // iOS's push: what's behind waits a third of the way off, under the one in front.
+            let x = c < leading ? -W * 0.3 : CGFloat(c.rawValue - leading.rawValue) * W
+            return CGRect(x: x, y: 0, width: W, height: size.height)
         }
-        var boxes = [CGRect](repeating: .zero, count: 4)
+        let n = Column.allCases.count
+        var boxes = [CGRect](repeating: .zero, count: n)
         let s = leading.rawValue
         let here = open(leading)
         boxes[s] = CGRect(x: 0, y: 0, width: here.lead, height: size.height)
-        if s + 1 < 4 { boxes[s + 1] = CGRect(x: here.lead + here.gap, y: 0, width: W - here.lead - here.gap, height: size.height) }
+        if s + 1 < n { boxes[s + 1] = CGRect(x: here.lead + here.gap, y: 0, width: W - here.lead - here.gap, height: size.height) }
         var i = s - 1
         while i >= 0 {
             let g = open(Column(rawValue: i)!)
@@ -356,7 +394,7 @@ struct StripGeometry {
             i -= 1
         }
         i = s + 2
-        while i < 4 {
+        while i < n {
             let g = open(Column(rawValue: i - 1)!)
             let prev = boxes[i - 1]
             boxes[i] = CGRect(x: prev.maxX + g.gap, y: 0, width: W - g.lead - g.gap, height: size.height)
@@ -366,6 +404,7 @@ struct StripGeometry {
     }
 
     func isOnScreen(_ c: Column) -> Bool {
+        if columns == 1 { return c == leading }
         let f = frame(c)
         return f.maxX > 1 && f.minX < size.width - 1
     }
@@ -443,85 +482,126 @@ enum Emulation {
     }()
 }
 
-// MARK: - The page capsule (ui/pages.js)
+// MARK: - The tabs
 
+/// The four tabs (HIG, Tab bars): Chats, Moments, Friends, You. On iPhone
+/// Duo, a glass capsule upright in the system column, icons only; elsewhere
+/// it lies at the foot of the screen with each tab's name under its symbol.
+/// Tapping the tab you're on goes back to its root, then to its top.
 struct PageCapsule: View {
-    /// Five 44pt items, 2pt apart, 4pt in from the glass.
-    static let height: CGFloat = 5 * 44 + 4 * 2 + 8
+    /// Four 44pt items, 2pt apart, 4pt in from the glass.
+    static let height: CGFloat = 4 * 44 + 3 * 2 + 8
     @Environment(AppModel.self) private var model
     let nav: Nav
+    var axis: Axis = .vertical
     @Namespace private var ns
 
     private struct Item: Identifiable {
-        let id: String
-        let page: Page?
-        let sym: Sym
+        let page: Page
+        let system: String
         let title: LocalizedStringKey
         let count: Int
         let dot: Bool
+        var id: Page { page }
     }
 
     private var items: [Item] {
         [
-            Item(id: "chats", page: .chats, sym: .house, title: "Chats", count: 0, dot: false),
-            Item(id: "moments", page: .moments, sym: .people, title: "Moments", count: 0, dot: model.momentsDot),
-            Item(id: "friends", page: .friends, sym: .bell, title: "Friends", count: model.requests.count, dot: false),
-            Item(id: "me", page: .me, sym: .personCircle, title: "You", count: 0, dot: false),
-            Item(id: "menu", page: nil, sym: .menu, title: "Menu", count: 0, dot: false)
+            Item(page: .chats, system: "bubble.left.and.bubble.right", title: "Chats",
+                 count: model.rooms.filter { ($0.unread > 0 || $0.marked) && !$0.muted }.count, dot: false),
+            Item(page: .moments, system: "camera.aperture", title: "Moments", count: 0, dot: model.momentsDot),
+            Item(page: .friends, system: "person.2", title: "Friends", count: model.requests.count, dot: false),
+            Item(page: .me, system: "person.crop.circle", title: "You", count: 0, dot: false)
         ]
     }
 
-    private func current(_ item: Item) -> Bool {
-        if nav.settingsOpen { return false }
-        if let p = item.page {
-            if p == .chats { return nav.page == .chats && !(nav.active == .sidebar && nav.isVisible(.sidebar)) }
-            return nav.page == p
-        }
-        return nav.page == .chats && nav.active == .sidebar && nav.isVisible(.sidebar)
-    }
+    private func current(_ item: Item) -> Bool { !nav.settingsOpen && nav.page == item.page }
 
     var body: some View {
-        VStack(spacing: 2) {
+        let layout = axis == .vertical ? AnyLayout(VStackLayout(spacing: 2)) : AnyLayout(HStackLayout(spacing: 0))
+        layout {
             ForEach(items) { item in
                 let on = current(item)
-                Button {
-                    if let p = item.page {
-                        if p == .moments { model.momentsDot = false }
-                        nav.settingsOpen = false
-                        nav.profile = nil
-                        nav.switchPage(p)
-                    } else {
-                        nav.settingsOpen = false
-                        nav.menu()
-                    }
-                } label: {
-                    SymbolView(item.sym, size: 24, weight: on ? 2.1 : nil)
-                        .foregroundStyle(Theme.label)
-                        .frame(width: 44, height: 44)
-                        .background {
-                            if on {
-                                Circle().fill(Theme.fill3).matchedGeometryEffect(id: "thumb", in: ns)
-                            }
-                        }
-                        .overlay(alignment: .topTrailing) {
-                            if item.count > 0 {
-                                Badge(count: item.count, color: Theme.red, text: .white, small: true).offset(x: 2, y: 0)
-                            } else if item.dot {
-                                Circle().fill(Theme.red).frame(width: 9, height: 9).offset(x: -6, y: 7)
-                            }
-                        }
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.press(0.88))
-                .accessibilityLabel(Text(item.title))
-                .accessibilityAddTraits(on ? .isSelected : [])
+                Button { select(item, on: on) } label: { label(item, on: on) }
+                    .buttonStyle(.press(0.9))
+                    .accessibilityLabel(Text(item.title))
+                    .accessibilityValue(item.count > 0 ? Text("\(item.count)") : Text(verbatim: ""))
+                    .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
         .padding(4)
-        .frame(width: Bar.railWidth)
-        .glass(RoundedRectangle(cornerRadius: 26, style: .continuous), interactive: false)
+        .frame(width: axis == .vertical ? Bar.railWidth : nil, height: axis == .horizontal ? Bar.foot : nil)
+        .frame(maxWidth: axis == .horizontal ? 420 : nil)
+        .modifier(TabGlass(vertical: axis == .vertical))
+        .accessibilityElement(children: .contain)
         .animation(Motion.ui, value: nav.page)
-        .animation(Motion.ui, value: nav.active)
+    }
+
+    private func label(_ item: Item, on: Bool) -> some View {
+        let glyph = Image(systemName: item.system)
+            .symbolVariant(on ? .fill : .none)
+            .font(.system(size: axis == .vertical ? 20 : 19, weight: .medium))
+            .frame(width: 30, height: 24)
+            .overlay(alignment: .topTrailing) {
+                if item.count > 0 {
+                    Badge(count: item.count, color: Theme.red, text: .white, small: true).offset(x: 8, y: -6)
+                } else if item.dot {
+                    Circle().fill(Theme.red).frame(width: 8, height: 8).offset(x: 1, y: -1)
+                }
+            }
+        return Group {
+            if axis == .vertical {
+                glyph.frame(width: 44, height: 44)
+            } else {
+                VStack(spacing: 1) {
+                    glyph
+                    Text(item.title).font(AppFont.make(11, .medium)).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: Bar.foot - 8)
+            }
+        }
+        .foregroundStyle(on ? Theme.blue : Theme.label)
+        .background {
+            if on {
+                Group {
+                    if axis == .vertical { Circle().fill(Theme.fill3) } else { Capsule().fill(Theme.fill3) }
+                }
+                .matchedGeometryEffect(id: "thumb", in: ns)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func select(_ item: Item, on: Bool) {
+        if item.page == .moments { model.momentsDot = false }
+        guard on else {
+            nav.settingsOpen = false
+            nav.profile = nil
+            nav.switchPage(item.page)
+            return
+        }
+        // The tab you're on: back to its root first, then to its top.
+        if nav.profile != nil {
+            withAnimation(Motion.move) { nav.profile = nil }
+        } else if item.page == .chats && (nav.active != .list || nav.searching) {
+            withAnimation(Motion.ui) { nav.searching = false }
+            nav.toList()
+        } else {
+            NotificationCenter.default.post(name: .scrollToTop, object: item.page.rawValue)
+        }
+    }
+}
+
+/// The tabs' glass: a rounded column in the rail, a capsule at the foot.
+private struct TabGlass: ViewModifier {
+    let vertical: Bool
+    func body(content: Content) -> some View {
+        if vertical {
+            content.glass(RoundedRectangle(cornerRadius: 26, style: .continuous), interactive: false)
+        } else {
+            content.glass(Capsule(), interactive: false)
+        }
     }
 }
 
@@ -540,7 +620,7 @@ private struct KeyCommands: View {
                 withAnimation(Motion.ui) { nav.searching = true }
             }
             .keyboardShortcut("f", modifiers: .command)
-            Button("New group") { withAnimation(Motion.move) { nav.newGroup = true } }
+            Button("New chat") { withAnimation(Motion.move) { nav.newGroup = true } }
                 .keyboardShortcut("n", modifiers: .command)
             Button("Chats") { nav.switchPage(.chats) }.keyboardShortcut("1", modifiers: .command)
             Button("Moments") { nav.switchPage(.moments) }.keyboardShortcut("2", modifiers: .command)

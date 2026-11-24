@@ -40,6 +40,14 @@ struct ProfileView: View {
                          }) {
                 LazyVStack(spacing: 0) {
                     identity
+                    if page == nil && failed {
+                        VStack(spacing: 12) {
+                            Text("Couldn't load this page").font(.subheadC).foregroundStyle(Theme.label2)
+                            PillButton(title: "Retry", style: .blue) { Task { await load() } }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    }
                     tabs
                     if tab == 0 {
                         if moments.isEmpty && page != nil { emptyPosts }
@@ -59,28 +67,17 @@ struct ProfileView: View {
         .onChange(of: model.momentsVersion) { _, _ in Task { await load() } }
     }
 
-    /// The way out: back from someone's page; on your own (a capsule page)
-    /// only where there's no capsule to leave by.
+    /// The way out: back from someone's page; none on your own (a tab).
     private var backItem: BarItem? {
-        if !asPage { return BarItem(id: "back", sym: .chevronLeft, title: "Back") { close() } }
-        return ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { close() } : nil
+        asPage ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Back") { close() }
     }
 
     private var actionItems: [BarItem] {
         if isMe {
-            return [BarItem(id: "new", sym: .plus, title: "New moment") { nav.composeMoment = true },
-                    BarItem(id: "settings", sym: .ellipsis, system: "gearshape", title: "Settings") { withAnimation(Motion.move) { nav.settingsOpen = true } }]
+            return [BarItem(id: "settings", sym: .ellipsis, system: "gearshape", title: "Settings") { withAnimation(Motion.move) { nav.settingsOpen = true } }]
         }
-        guard let user else { return [] }
-        return [BarItem(id: "message", sym: .bubble, title: "Message") {
-            Task {
-                if let id = await model.openDM(user) {
-                    close()
-                    nav.switchPage(.chats)
-                    nav.open(room: id)
-                }
-            }
-        }]
+        // Someone else's page: Message is the pill under their name.
+        return []
     }
 
     /// The cover across the top: theirs, or a deep ribbon of light.
@@ -326,6 +323,7 @@ struct ProfileView: View {
 
     private func load() async {
         guard !userId.isEmpty else { return }
+        failed = false
         do {
             let p = try await model.profilePage(userId)
             withAnimation(Motion.ui) {

@@ -62,8 +62,9 @@ struct PageScaffold<Header: View, Content: View>: View {
     /// Content runs up to the rail and its gap, or the system's column.
     private var trailing: CGFloat { ctx.pageTrailing }
 
+    /// The foot's room: the safe area, and the tab bar where it lies over a tab page.
     private var bottomRoom: CGFloat {
-        railed ? max(ctx.insets.bottom, 16) + 24 : max(ctx.insets.bottom, 16) + 24
+        max(ctx.insets.bottom, 16) + 24 + (railed ? 0 : ctx.capsule)
     }
 
     var body: some View {
@@ -90,6 +91,11 @@ struct PageScaffold<Header: View, Content: View>: View {
             .scrollPosition($position)
             .onReceive(NotificationCenter.default.publisher(for: .automationScroll)) { _ in
                 withAnimation(Motion.move) { position.scrollTo(y: coverHeight + 120) }
+            }
+            // Its tab tapped again: back to the top (only the tab page showing has the tabs' room).
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { _ in
+                guard ctx.capsule > 0 else { return }
+                withAnimation(Motion.move) { position.scrollTo(edge: .top) }
             }
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
                 if cover != nil { scroll.y = y }
@@ -303,10 +309,12 @@ private struct CoverLayer: View {
 
 // MARK: - The layer
 
-/// Pages over the strip, each full screen: the capsule's page (Moments,
-/// Friends, You) and, above it, pages opened from somewhere
-/// (Settings, someone's page, the editors), which slide in from the
-/// trailing edge and back out with a swipe from the leading one.
+/// Pages over the strip, each full screen: a tab's page (Moments, Friends,
+/// You) and, above it, pages opened from somewhere. Places you go into
+/// (someone's page, Settings, Change password) push in from the trailing
+/// edge and go back with a swipe from the leading one; things you make
+/// (a moment, a chat, your profile) rise from the foot as modals, with
+/// Cancel to leave (HIG: push for navigation, modal for a task).
 struct PageLayer: View {
     let geo: StripGeometry
     let capsule: CGFloat
@@ -317,6 +325,14 @@ struct PageLayer: View {
 
     private enum Route: Hashable {
         case profile(String), settings, editProfile, password, newGroup, compose
+
+        /// A self-contained task with its own Cancel: rises from the foot.
+        var modal: Bool {
+            switch self {
+            case .editProfile, .newGroup, .compose: return true
+            default: return false
+            }
+        }
     }
 
     private var routes: [Route] {
@@ -337,7 +353,7 @@ struct PageLayer: View {
                 tabPage(nav.page)
                     .environment(\.column, geo.pageContext(capsule: routes.isEmpty ? capsule : 0))
                     .frame(width: geo.size.width, height: geo.size.height)
-                    .modifier(ParallaxUnder(active: routes.count == 1, width: geo.size.width))
+                    .modifier(ParallaxUnder(active: routes.count == 1 && routes.last?.modal != true, width: geo.size.width))
                     .id("tab-\(nav.page.rawValue)")
                     .transition(.opacity)
             }
@@ -351,9 +367,9 @@ struct PageLayer: View {
                     .shadow(color: .black.opacity(top && drag > 0 ? 0.18 : 0), radius: 18, x: -4)
                     .offset(x: top ? drag : 0)
                     // The page under the top one steps back a third and dims (iOS's push).
-                    .modifier(ParallaxUnder(active: i == routes.count - 2, width: geo.size.width))
+                    .modifier(ParallaxUnder(active: i == routes.count - 2 && routes.last?.modal != true, width: geo.size.width))
                     .overlay(alignment: .leading) {
-                        if top && route != .compose {
+                        if top && !route.modal {
                             Color.clear
                                 .frame(width: 20)
                                 .contentShape(Rectangle())
@@ -361,11 +377,11 @@ struct PageLayer: View {
                         }
                     }
                     // Reduce Motion: a dissolve instead of a slide (HIG, Motion).
-                    .transition(reduceMotion ? .opacity : .move(edge: .trailing))
+                    .transition(reduceMotion ? .opacity : .move(edge: route.modal ? .bottom : .trailing))
                     .zIndex(Double(i + 1))
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: nav.page)
+        .animation(Motion.fade, value: nav.page)
         .animation(Motion.move, value: routes)
     }
 
@@ -401,7 +417,6 @@ struct PageLayer: View {
                         nav.pushDrag = 0
                         nav.closeTop()
                     }
-                    Haptics.tap()
                 } else {
                     // Not far enough: it springs back, and what's under steps back again.
                     withAnimation(Motion.move) { nav.pushDrag = 0 }

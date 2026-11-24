@@ -62,13 +62,11 @@ if [ "$KIND" = phone ]; then
   shoot 04-focus focus light 12
   shoot 05-plus plus light 11
   shoot 06-info info light 11
-  shoot 07-sidebar sidebar light 10
   shoot 08-search search light 11
   shoot 09-thread-dark thread dark 10
   # In Chinese: nothing cut short or wrapping where it shouldn't.
   shoot 10-zh-list list light 12 1 "" zh
   shoot 11-zh-thread thread light 10 1 "" zh
-  shoot 12-zh-sidebar sidebar light 10 1 "" zh
   shoot 13-zh-moments moments light 11 1 "" zh
   shoot 14-zh-settings settings light 11 1 "" zh
   shoot 15-zh-friends friends light 11 1 "" zh
@@ -77,7 +75,6 @@ else
   shoot outer-00-auth auth light 10 0 outer
   shoot outer-01-list list light 16 1 outer
   shoot outer-01-list-dark list dark 12 1 outer
-  shoot outer-02-sidebar sidebar light 10 1 outer
   shoot outer-03-search search light 11 1 outer
   shoot outer-04-thread thread light 10 1 outer
   shoot outer-04-thread-dark thread dark 10 1 outer
@@ -90,15 +87,14 @@ else
   shoot outer-13-you me light 11 1 outer
   shoot outer-15-settings settings light 11 1 outer
   shoot outer-16-note note light 11 1 outer
+  shoot outer-17-newchat newchat light 11 1 outer
   shoot outer-18-group group light 10 1 outer
-  shoot outer-19-filters filters light 11 1 outer
   shoot outer-20-profile profile light 11 1 outer
   shoot outer-22-profile-scrolled profile-scrolled light 14 1 outer
   shoot outer-21-editprofile editprofile light 11 1 outer
   shoot outer-30-zh-list list light 12 1 outer zh
   shoot outer-31-zh-settings settings light 11 1 outer zh
   shoot outer-32-zh-you me light 11 1 outer zh
-  shoot outer-33-zh-filters filters light 11 1 outer zh
   shoot outer-34-zh-note note light 11 1 outer zh
   # The inner display (open).
   shoot inner-01-list list light 16 1 inner
@@ -107,7 +103,6 @@ else
   shoot inner-03-details info light 11 1 inner
   shoot inner-04-draw draw light 18 1 inner
   shoot inner-10-moments moments light 11 1 inner
-  shoot inner-14-menu sidebar light 10 1 inner
   shoot inner-15-settings settings light 11 1 inner
 fi
 

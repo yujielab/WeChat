@@ -11,13 +11,10 @@ struct ChatListView: View {
     /// The search button and the search field are one piece of glass.
     @Namespace private var searchGlass
 
-    /// Unfolded, the list leads a window: it drops its filters for a button in its bar.
+    /// Unfolded, the list leads a window: its scopes become a menu in the header.
     private var leadingTwoUp: Bool { ctx.twoUp && !ctx.isRightmost }
-    /// The open Duo (the system's column beside the other pane): the list's
-    /// search and filter sit at the top of its own pane, as in Mail, rather
-    /// than in a bar at its foot.
-    private var listControlsOnTop: Bool { leadingTwoUp && ctx.systemColumn }
-    private var besideSidebar: Bool { nav.columns == 2 && nav.leading == .sidebar }
+    /// Where there's no rail, the tabs lie at the list's foot (and leave with it).
+    private var tabsAtFoot: Bool { ctx.rail == nil && !ctx.systemColumn && !nav.searching && ctx.keyboard == 0 }
     private var inset: CGFloat { 22 }
 
     private var filtered: [Room] {
@@ -38,20 +35,16 @@ struct ChatListView: View {
     var body: some View {
         ZStack {
             Theme.bg
+            ScrollViewReader { proxy in
             List {
-                if !nav.searching && !besideSidebar {
+                if !nav.searching {
                     NotesRow()
+                        .id("top")
                         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 4, trailing: 0))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                    if leadingTwoUp {
-                        requestsLink.frame(maxWidth: .infinity, alignment: .trailing)
-                            .padding(.trailing, inset)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 6, trailing: 0))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                    } else {
-                        FilterTabs(requests: requestsLink)
+                    if !leadingTwoUp {
+                        FilterTabs()
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -92,12 +85,20 @@ struct ChatListView: View {
                     }
                 }
 
-                if !nav.searching && nav.filter == .all && !besideSidebar {
-                    PeopleSections()
-                        .listRowInsets(EdgeInsets(top: 18, leading: 0, bottom: 0, trailing: 0))
+                if nav.searching && !query.trimmingCharacters(in: .whitespaces).isEmpty && filtered.isEmpty && found.isEmpty {
+                    Text("No results for “\(query.trimmingCharacters(in: .whitespaces))”")
+                        .font(.subheadC)
+                        .foregroundStyle(Theme.label2)
+                        .padding(.horizontal, inset)
+                        .padding(.vertical, 18)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
+            }
+            // Its tab tapped again: back to the top.
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { n in
+                guard (n.object as? String) == Page.chats.rawValue else { return }
+                withAnimation(Motion.move) { proxy.scrollTo("top", anchor: .top) }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -124,6 +125,7 @@ struct ChatListView: View {
                 await model.loadPeople()
             }
             .animation(Motion.ui, value: nav.searching)
+            }
 
             bars
         }
@@ -142,66 +144,48 @@ struct ChatListView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text(besideSidebar ? nav.filter.title : "Messages")
+            Text("Chats")
                 .font(ctx.twoUp ? .title1C : .largeTitleC)
                 .tracking(-0.68)
-                .foregroundStyle(Theme.fbBlueTitle)
+                .foregroundStyle(Theme.label)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 8)
-            if (ctx.usesRail && !leadingTwoUp) || listControlsOnTop {
-                // Search beside the title, in blue glass, as tall as it.
-                Button {
-                    Haptics.tap()
-                    withAnimation(Motion.ui) { nav.searching = true }
-                } label: {
-                    SymbolView(.search, size: 18, weight: 2.4)
-                        .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .glass(Circle(), tint: Theme.fbBlue.opacity(0.8), interactive: true, morph: "search", in: searchGlass)
-                }
-                .buttonStyle(.press(0.94))
-                .accessibilityLabel("Search")
-            }
-            if !ctx.usesRail && !leadingTwoUp {
-                // Moments, beside the title where there's no page capsule.
-                Button {
-                    model.momentsDot = false
-                    nav.switchPage(.moments)
-                } label: {
-                    SymbolView(.photo, size: 20)
-                        .foregroundStyle(Theme.label)
-                        .frame(width: 44, height: 44)
-                        .glassCircle()
-                        .overlay(alignment: .topTrailing) {
-                            if model.momentsDot { Circle().fill(Theme.red).frame(width: 9, height: 9).offset(x: -4, y: 4) }
-                        }
-                }
-                .buttonStyle(.press)
-                .accessibilityLabel("Moments")
-            }
-            if listControlsOnTop {
-                // The list's filter, with the list it filters (HIG: controls
-                // near the content they affect, at the top of the pane).
-                Button {
-                    Haptics.tap()
-                    withAnimation(Motion.bouncy) { nav.filterCard = .list }
+            if leadingTwoUp {
+                // Unfolded, the scopes are a menu with the list they filter (HIG: pull-down menus).
+                Menu {
+                    Picker("Filter", selection: Binding(get: { nav.filter }, set: { f in withAnimation(Motion.ui) { nav.filter = f } })) {
+                        ForEach(ListFilter.allCases) { f in Text(f.title).tag(f) }
+                    }
                 } label: {
                     SymbolView(.filter, size: 18)
-                        .foregroundStyle(nav.filter == .all ? Theme.label : .white)
+                        .foregroundStyle(nav.filter == .all ? Theme.label : Theme.blue)
                         .frame(width: 40, height: 40)
-                        .glassCircle(tint: nav.filter == .all ? nil : Theme.fbBlue.opacity(0.8))
+                        .glassCircle()
                 }
-                .buttonStyle(.press(0.94))
                 .accessibilityLabel("Filter")
             }
-            if leadingTwoUp || (!ctx.usesRail && ctx.rail == nil && ctx.twoUp) {
-                Button { withAnimation(Motion.move) { nav.settingsOpen = true } } label: {
-                    Avatar(user: model.me, size: 40)
-                }
-                .buttonStyle(.press(0.94))
-                .accessibilityLabel("Settings")
+            // Search, then a new chat: the two things you start from here.
+            Button {
+                withAnimation(Motion.ui) { nav.searching = true }
+            } label: {
+                SymbolView(.search, size: 18, weight: 2.2)
+                    .foregroundStyle(Theme.label)
+                    .frame(width: 40, height: 40)
+                    .glass(Circle(), interactive: true, morph: "search", in: searchGlass)
             }
+            .buttonStyle(.press(0.94))
+            .accessibilityLabel("Search")
+            Button {
+                withAnimation(Motion.move) { nav.newGroup = true }
+            } label: {
+                SymbolView(.compose, size: 19)
+                    .foregroundStyle(Theme.label)
+                    .frame(width: 40, height: 40)
+                    .glassCircle()
+            }
+            .buttonStyle(.press(0.94))
+            .accessibilityLabel("New chat")
         }
         .padding(.leading, inset)
         .padding(.trailing, inset)
@@ -230,20 +214,6 @@ struct ChatListView: View {
         .padding(.horizontal, 14)
         .padding(.top, 14)
         .transition(.opacity)
-    }
-
-    private var requestsLink: some View {
-        Button { nav.switchPage(.friends) } label: {
-            HStack(spacing: 6) {
-                Text("Requests").font(AppFont.make(16, .semibold)).foregroundStyle(Theme.label)
-                if !model.requests.isEmpty {
-                    Badge(count: model.requests.count, color: Theme.red, text: .white)
-                }
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 44)
-        }
-        .buttonStyle(.press)
     }
 
     // MARK: rows
@@ -300,17 +270,34 @@ struct ChatListView: View {
         }
     }
 
+    /// Nothing to show: say why, and offer the one next step.
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(nav.filter == .all ? "Chats show up here once you send or receive a message." : "Nothing here")
-                .font(.subheadC)
-                .foregroundStyle(Theme.label2)
-            if nav.filter == .all {
-                PillButton(title: "Start", style: .blue) { nav.switchPage(.friends) }
+        VStack(alignment: .leading, spacing: 6) {
+            switch nav.filter {
+            case .all:
+                Text("No chats yet").font(.headlineC).foregroundStyle(Theme.label)
+                Text("Message a friend or start a group.").font(.subheadC).foregroundStyle(Theme.label2)
+                PillButton(title: model.contacts.contains { $0.state == "accepted" } ? "New chat" : "Find friends", style: .ink) {
+                    if model.contacts.contains(where: { $0.state == "accepted" }) {
+                        withAnimation(Motion.move) { nav.newGroup = true }
+                    } else {
+                        nav.switchPage(.friends)
+                    }
+                }
+                .padding(.top, 10)
+            default:
+                Text(nav.filter == .unread ? "No unread chats" : (nav.filter == .direct ? "No direct chats" : "No group chats"))
+                    .font(.subheadC).foregroundStyle(Theme.label2)
+                Button("Show all") { withAnimation(Motion.ui) { nav.filter = .all } }
+                    .font(.subheadBoldC)
+                    .foregroundStyle(Theme.blueText)
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, inset)
-        .padding(.vertical, 18)
+        .padding(.vertical, 24)
     }
 
     // MARK: bars
@@ -318,33 +305,19 @@ struct ChatListView: View {
     @ViewBuilder
     private var bars: some View {
         if ctx.usesRail {
-            // The Duo: Back heads the rail (Cancel while searching); Search is beside the title.
+            // The Duo: Cancel heads the rail while searching; nothing otherwise
+            // (the tabs are below, Search and New chat beside the title).
             ColumnBar(back: nav.searching
                 ? BarItem(id: "cancel", sym: .xmark, title: "Cancel search") { withAnimation(Motion.ui) { nav.searching = false } }
-                : (besideSidebar ? nil : BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() }))
-        } else if !nav.searching && !listControlsOnTop {
-            ColumnBar(back: (nav.columns == 1 && !leadingTwoUp) ? BarItem(id: "back", sym: .chevronLeft, title: "Sidebar") { nav.toSidebar() } : nil,
-                      actions: leadingTwoUp ? [BarItem(id: "filter", sym: .filter, title: "Filter", tint: nav.filter == .all ? nil : Theme.fbBlue.opacity(0.8),
-                                                        foreground: nav.filter == .all ? Theme.label : .white) {
-                          withAnimation(Motion.bouncy) { nav.filterCard = .list }
-                      }] : []) {
-                Button {
-                    Haptics.tap()
-                    withAnimation(Motion.ui) { nav.searching = true }
-                } label: {
-                    HStack(spacing: 9) {
-                        SymbolView(.search, size: 18).foregroundStyle(Theme.label2)
-                        Text("Search chats and contacts").font(.calloutC).foregroundStyle(Theme.label2).lineLimit(1)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 17)
-                    .frame(height: Bar.foot)
-                    .background(Theme.surface, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
-                }
-                .buttonStyle(.press)
-            }
+                : nil)
+        } else if tabsAtFoot {
+            // No rail: the tabs at the list's foot, leaving with it when a chat opens.
+            PageCapsule(nav: nav, axis: .horizontal)
+                .padding(.leading, max(ctx.insets.leading, 16))
+                .padding(.trailing, max(ctx.insets.trailing, 16))
+                .padding(.bottom, max(ctx.insets.bottom, 16))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .transition(.opacity)
         }
     }
 
@@ -352,11 +325,14 @@ struct ChatListView: View {
 
 // MARK: - Filter tabs (blue glass thumb that slides)
 
-struct FilterTabs<Trailing: View>: View {
+/// The list's scopes; Unread says how many.
+struct FilterTabs: View {
     @Environment(Nav.self) private var nav
-    let requests: Trailing
+    @Environment(AppModel.self) private var model
     @Namespace private var ns
     @State private var moreAtEnd = false
+
+    private var unread: Int { model.rooms.filter { $0.unread > 0 || $0.marked }.count }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -364,10 +340,14 @@ struct FilterTabs<Trailing: View>: View {
                 ForEach(ListFilter.allCases) { f in
                     let on = nav.filter == f
                     Button {
-                        Haptics.selection()
                         withAnimation(Motion.ui) { nav.filter = f }
                     } label: {
-                        Text(f.title)
+                        HStack(spacing: 5) {
+                            Text(f.title)
+                            if f == .unread, unread > 0 {
+                                Text("\(unread)").monospacedDigit().opacity(on ? 0.9 : 0.75).contentTransition(.numericText())
+                            }
+                        }
                             .font(AppFont.make(15, on ? .bold : .semibold))
                             .foregroundStyle(on ? .white : Theme.label2)
                             .padding(.horizontal, 16)
@@ -382,8 +362,6 @@ struct FilterTabs<Trailing: View>: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Rectangle().fill(Theme.line).frame(width: 1, height: 20).padding(.horizontal, 6)
-                requests
             }
             .padding(.horizontal, 22)
             .padding(.vertical, 8)

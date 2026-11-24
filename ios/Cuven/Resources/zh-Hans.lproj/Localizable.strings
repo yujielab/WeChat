@@ -438,3 +438,14 @@
 "Cancel request" = "撤回请求";
 "Delete this moment?" = "要删除这条动态吗？";
 "Couldn't load messages" = "无法加载消息";
+"Couldn't load this page" = "无法加载此页面";
+"No chats yet" = "还没有聊天";
+"Message a friend or start a group." = "给朋友发消息，或发起群聊。";
+"Find friends" = "寻找朋友";
+"No unread chats" = "没有未读聊天";
+"No direct chats" = "没有单聊";
+"No group chats" = "没有群聊";
+"Show all" = "显示全部";
+"No results for “%@”" = "没有“%@”的结果";
+"Pick one friend to chat, or several for a group." = "选一位朋友聊天，或选多位发起群聊。";
+"Add friends first, then start a chat with them." = "先添加朋友，再和他们聊天。";

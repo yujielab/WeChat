@@ -145,7 +145,7 @@ struct ThreadView: View {
 
 
             if let room {
-                ThreadHeader(room: room)
+                ThreadHeader(room: room, backBadge: otherUnread)
                     .padding(.top, ctx.insets.top + 20)
                     .padding(.leading, ctx.insets.leading)
                     .padding(.trailing, contentTrailing)
@@ -314,13 +314,16 @@ struct ThreadView: View {
 // MARK: - Heading
 
 /// Their photo large in the middle with their name on a white pill over its
-/// foot (how they are after a dot), then the details' (i) in blue; the
-/// calls at the start of the row (in the rail on the Duo).
+/// foot (how they are after a dot); tapping either opens the details. Back at
+/// the top-leading corner and the call at the top-trailing one, where iOS
+/// puts them (in the rail on the Duo).
 struct ThreadHeader: View {
     @Environment(AppModel.self) private var model
     @Environment(Nav.self) private var nav
     @Environment(\.column) private var ctx
     let room: Room
+    /// Unread elsewhere, on the Back button.
+    var backBadge = 0
 
     private var sub: String? {
         if let t = model.typing[room.id], !t.isEmpty { return String(localized: "typing…") }
@@ -332,45 +335,45 @@ struct ThreadHeader: View {
     var body: some View {
         let typing = !(model.typing[room.id]?.isEmpty ?? true)
         ZStack(alignment: .top) {
-            if !ctx.usesRail && model.callsEnabled {
+            if !ctx.usesRail {
                 HStack(spacing: 0) {
-                    ForEach(Self.callItems(room: room, model: model)) { item in
-                        Button {
-                            Haptics.tap()
-                            item.action()
+                    if nav.columns == 1 {
+                        GlassIconButton(sym: .chevronLeft, title: "Back", badge: backBadge, badgeInk: true) { nav.backFromChat() }
+                    }
+                    Spacer(minLength: 0)
+                    if model.callsEnabled {
+                        // One call button, asking voice or video: a slip can't dial.
+                        Menu {
+                            ForEach(Self.callItems(room: room, model: model)) { item in
+                                Button(action: item.action) {
+                                    Label(item.title, systemImage: item.id == "video" ? "video" : "phone")
+                                }
+                            }
                         } label: {
-                            SymbolView(item.sym, size: 22)
+                            SymbolView(.phone, size: 21)
                                 .foregroundStyle(Theme.label)
-                                .frame(width: 46, height: 44)
-                                .contentShape(Rectangle())
+                                .frame(width: 44, height: 44)
+                                .glassCircle()
                         }
-                        .buttonStyle(.press(0.9))
-                        .accessibilityLabel(Text(item.title))
+                        .accessibilityLabel("Call")
                     }
                 }
-                .padding(.horizontal, 3)
-                .glassCapsule()
                 .padding(.top, 7)
-                .padding(.leading, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
             }
 
             VStack(spacing: -10) {
-                Button {
-                    if let peer = room.peer, !room.isGroup { nav.profile = peer.id } else { nav.show(.info) }
-                } label: {
+                Button { nav.show(.info) } label: {
                     Avatar(path: room.avatar, name: room.title, id: room.peer?.id ?? room.id, size: 58, room: room.isGroup,
                            online: !room.isGroup && model.isOnline(room.peer?.id))
                         .background(Circle().fill(Theme.elevated).padding(-3).opacity(room.isGroup ? 0 : 1))
                         .shadow(color: .black.opacity(0.22), radius: 12, y: 10)
                 }
                 .buttonStyle(.press(0.96))
-                .accessibilityLabel(Text(room.title))
+                .accessibilityHidden(true)
 
-                HStack(spacing: 0) {
-                    Button {
-                        if let peer = room.peer, !room.isGroup { nav.profile = peer.id } else { nav.show(.info) }
-                    } label: {
+                Button { nav.show(.info) } label: {
+                    HStack(spacing: 0) {
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
                             Text(room.title)
                                 .font(AppFont.make(15, .bold))
@@ -389,20 +392,17 @@ struct ThreadHeader: View {
                         .padding(.trailing, 4)
                         .padding(.top, 5)
                         .padding(.bottom, 6)
-                    }
-                    .buttonStyle(.plain)
-                    Button { nav.show(.info) } label: {
                         SymbolView(.info, size: 18)
-                            .foregroundStyle(Theme.fbBlue)
+                            .foregroundStyle(Theme.blue)
                             .padding(.leading, 3)
                             .padding(.trailing, 9)
-                            .frame(maxHeight: .infinity)
-                            .contentShape(Rectangle().inset(by: -6))
                     }
-                    .buttonStyle(.press(0.9))
-                    .accessibilityLabel("Chat info")
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contentShape(Capsule())
                 }
-                .fixedSize(horizontal: false, vertical: true)
+                .buttonStyle(.press(0.96))
+                .accessibilityLabel(Text(room.title))
+                .accessibilityHint("Chat info")
                 .background(Theme.elevated, in: Capsule())
                 .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
                 .shadow(color: .black.opacity(0.16), radius: 8, y: 6)

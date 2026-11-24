@@ -136,7 +136,6 @@ enum Automation {
         for _ in 0..<40 where model.rooms.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
         let first = model.rooms.first { !$0.isGroup }?.id ?? model.rooms.first?.id
         switch screen {
-        case "sidebar": nav.toSidebar()
         case "thread": if let first { nav.open(room: first) }
         case "thread-long":
             // The longest conversation, scrolled so its messages run under the heading.
@@ -164,10 +163,6 @@ enum Automation {
             try? await Task.sleep(for: .milliseconds(300))
             nav.searching = true
         case "note": nav.noteEditor = true
-        case "filters":
-            nav.toList()
-            try? await Task.sleep(for: .milliseconds(600))
-            nav.filterCard = .list
         case "profile":
             if let peer = model.rooms.first(where: { !$0.isGroup })?.peer { nav.profile = peer.id }
         case "profile-scrolled":
@@ -200,4 +195,6 @@ extension Notification.Name {
     static let automationPlus = Notification.Name("cuven.automation.plus")
     static let automationFocus = Notification.Name("cuven.automation.focus")
     static let automationScroll = Notification.Name("cuven.automation.scroll")
+    /// The tab you're on was tapped again: its page scrolls to the top (object: the page's rawValue).
+    static let scrollToTop = Notification.Name("cuven.scrollToTop")
 }

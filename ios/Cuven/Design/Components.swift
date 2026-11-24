@@ -116,10 +116,7 @@ struct GlassIconButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button {
-            Haptics.tap()
-            action()
-        } label: {
+        Button(action: action) {
             BarGlyph(sym: sym, system: system, size: 22)
                 .foregroundStyle(foreground)
                 .frame(width: size, height: size)
@@ -388,5 +385,21 @@ struct ClearButton: View {
             .transition(.opacity.combined(with: .scale(scale: 0.6)))
             .accessibilityLabel("Clear")
         }
+    }
+}
+
+/// The web's :active background on rows and cards (no scale).
+struct FillPressStyle: ButtonStyle {
+    var radius: CGFloat
+    var fill: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(fill)
+                    .opacity(configuration.isPressed ? 1 : 0)
+            }
+            .animation(configuration.isPressed ? nil : Motion.quick, value: configuration.isPressed)
     }
 }

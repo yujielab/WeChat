@@ -54,7 +54,6 @@ struct Composer: View {
     /// Touch and hold the empty field to record, while the keyboard is down;
     /// with it up the field is the system's own (Paste, selection).
     private var holdToTalk: Bool { text.isEmpty && editing == nil && !focused }
-    private var showBack: Bool { nav.columns == 1 && !ctx.usesRail }
 
     /// The composer's controls are 56pt (the web's .field and .composer-action).
     static let control: CGFloat = 56
@@ -72,12 +71,6 @@ struct Composer: View {
             }
 
             HStack(alignment: .bottom, spacing: 10) {
-                if showBack {
-                    GlassIconButton(sym: .chevronLeft, title: "Back", badge: otherUnread, badgeInk: true, size: Self.control) {
-                        nav.backFromChat()
-                    }
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
-                }
                 // The field stays put while recording (it holds the gesture);
                 // the recording shows over it. Send flows out of the field's
                 // glass and back into it (one GlassGroup, matched ids).
@@ -194,10 +187,6 @@ struct Composer: View {
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item]) { result in
             if case .success(let url) = result { sendFile(url) }
         }
-    }
-
-    private var otherUnread: Int {
-        model.rooms.filter { $0.id != room.id && !$0.muted }.reduce(0) { $0 + $1.unread }
     }
 
     // MARK: field
@@ -357,7 +346,6 @@ struct Composer: View {
         }
         .buttonStyle(.press)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, showBack ? Self.control + 10 : 0)
         .transition(.opacity.combined(with: .offset(y: 8)).combined(with: .scale(scale: 0.9)))
         .accessibilityLabel(Text("Use suggestion: \(suggestion)"))
     }
@@ -391,7 +379,6 @@ struct Composer: View {
             .padding(.vertical, 2)
         }
         .scrollClipDisabled()
-        .padding(.leading, showBack ? Self.control + 10 : 0)
         .transition(.opacity.combined(with: .offset(y: 8)))
     }
 

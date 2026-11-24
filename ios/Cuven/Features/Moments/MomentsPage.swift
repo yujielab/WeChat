@@ -30,7 +30,7 @@ struct MomentsPage: View {
 
     var body: some View {
         PageScaffold(title: .wordmark("Moments", Theme.skyTitle),
-                     back: ctx.rail == nil ? BarItem(id: "back", sym: .chevronLeft, title: "Back") { nav.switchPage(.chats) } : nil,
+                     back: nil,
                      actions: [BarItem(id: "new", sym: .plus, title: "New moment") { nav.composeMoment = true }],
                      background: Theme.paper) {
             LazyVStack(spacing: 0) {
@@ -76,7 +76,11 @@ struct MomentsPage: View {
         }
         .refreshable { await reload() }
         .animation(Motion.ui, value: fresh)
-        .task { await reload() }
+        .task {
+            // However you got here (the tab, ⌘2, a shortcut), what's new is seen.
+            model.momentsDot = false
+            await reload()
+        }
         .onChange(of: model.momentsVersion) { _, _ in fresh = true }
         .onDisappear { seenAt = Date().timeIntervalSince1970 * 1000 }
     }
