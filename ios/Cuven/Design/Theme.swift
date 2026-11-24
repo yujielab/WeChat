@@ -48,9 +48,10 @@ enum Theme {
     static let bg = Color.token(0xffffff, 0x000000)
     static let paper = Color.token(0xf5f5f7, 0x000000)
     static let surface = Color.token(0xffffff, 0x0f0f11)
-    static let elevated = Color.token(0xffffff, 0x121214)
+    /// Cards on the grouped background (Apple's secondary grouped background in the dark).
+    static let elevated = Color.token(0xffffff, 0x1c1c1e)
     static let grouped = Color.token(0xf5f5f7, 0x000000)
-    static let grouped2 = Color.token(0xffffff, 0x121214)
+    static let grouped2 = Color.token(0xffffff, 0x1c1c1e)
     static let field = Color.token(0xf2f2f5, 0x111113)
     static let line = Color.token(0xe5e5ea, 0xf0f0fa, 1, 0.13)
 
@@ -68,7 +69,10 @@ enum Theme {
     static let fill4 = Color.token(0x747480, 0x767680, 0.08, 0.18)
 
     // Colors
-    static let blue = Color.token(0x007aff, 0x0a84ff)
+    /// The one accent: your messages, what's selected, what's new. Blue is
+    /// status and selection; actions are ink.
+    static let accent = Color.token(0x1877f2, 0x2d88ff)
+    static var blue: Color { accent }
     static let blueText = Color.token(0x0062cc, 0x0a84ff)
     static let red = Color.token(0xff3b30, 0xff453a)
     static let redText = Color.token(0xd70015, 0xff453a)
@@ -81,10 +85,10 @@ enum Theme {
     static let brandStrong = Color.token(0x007a4d, 0x00c357)
     static let onBrand = Color.token(0xffffff, 0x000000)
     static let fbBlue = Color(hex: 0x1877f2)
-    static let fbBlueTitle = Color.token(0x1877f2, 0x2d88ff)
-    static let skyTitle = Color.token(0x0099ff, 0x4cc2ff)
+    static var fbBlueTitle: Color { accent }
+    static var skyTitle: Color { accent }
     static let mention = Color.token(0x0062cc, 0x409cff)
-    static let tickRead = Color.token(0x007dff, 0x27a8ff)
+    static var tickRead: Color { accent }
 
     // Ink: primary actions are ink, not blue.
     static let ink = Color.token(0x000000, 0xf5f5fa)
@@ -187,9 +191,13 @@ extension Font {
 
 // MARK: - Motion (tokens.css: durations and the sampled springs)
 
+/// One small vocabulary: springs for whatever the finger moved or a place you
+/// go to, short ease-outs for colour and opacity (exits faster than entries).
 enum Motion {
-    /// --spring-smooth: columns and surfaces, ~367ms, no overshoot.
-    static let move = Animation.spring(duration: 0.367, bounce: 0)
+    /// Settling (pushes, columns, sheets, surfaces): 400ms, no overshoot.
+    static let move = Animation.spring(duration: 0.4, bounce: 0)
+    /// Arrival (a new message, a new post): 480ms, one soft overshoot.
+    static let soft = Animation.spring(duration: 0.48, bounce: 0.18)
     /// --spring-snappy: 266ms, a hair of overshoot.
     static let ui = Animation.spring(duration: 0.266, bounce: 0.05)
     /// --spring-bouncy: 403ms.

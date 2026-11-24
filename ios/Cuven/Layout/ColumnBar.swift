@@ -112,7 +112,6 @@ struct ColumnBar<Center: View>: View {
             layout {
                 ForEach(items) { item in
                     Button {
-                        Haptics.tap()
                         item.action()
                     } label: {
                         BarGlyph(sym: item.sym, system: item.system, size: 22)

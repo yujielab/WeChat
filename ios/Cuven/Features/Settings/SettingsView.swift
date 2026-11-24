@@ -34,7 +34,6 @@ struct SettingsView: View {
                     }
                     .padding(20)
                     .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
                 }
                 .buttonStyle(.press)
                 .accessibilityLabel("\(model.me?.name ?? ""), edit profile")

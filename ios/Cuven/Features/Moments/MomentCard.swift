@@ -101,9 +101,9 @@ struct MomentCard: View {
                     } label: { Label("Message", systemImage: "bubble.left") }
                 }
             } label: {
-                SymbolView(.ellipsis, size: 20).foregroundStyle(Theme.label)
+                SymbolView(.ellipsis, size: 20).foregroundStyle(Theme.label2)
                     .frame(width: 44, height: 44)
-                    .glassCircle()
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("More")
             // Gone for good, so asked first (HIG: confirm destructive actions).
@@ -207,16 +207,16 @@ struct MomentCard: View {
     private func actions(over: Bool) -> some View {
         HStack(spacing: 4) {
             Button { toggleLike() } label: {
-                act(sym: .heart, count: moment.likes.count, on: moment.liked)
+                act(sym: .heart, count: moment.likes.count, on: moment.liked, over: over)
             }
             .accessibilityLabel(moment.liked ? "Unlike" : "Like")
             Button { commentFocused = true } label: {
-                act(sym: .bubble, count: moment.comments.count)
+                act(sym: .bubble, count: moment.comments.count, over: over)
             }
             .disabled(!moment.canComment)
             .accessibilityLabel("Comment")
             ShareLink(item: moment.text.isEmpty ? String(localized: "A moment from \(moment.user.name)") : moment.text) {
-                act(sym: .share, count: 0)
+                act(sym: .share, count: 0, over: over)
             }
             .accessibilityLabel("Share")
             Spacer(minLength: 0)
@@ -249,7 +249,8 @@ struct MomentCard: View {
         .frame(minHeight: over ? 0 : 48)
     }
 
-    private func act(sym: Sym, count: Int, on: Bool = false) -> some View {
+    /// Glass only where it floats over a picture; plain under words.
+    private func act(sym: Sym, count: Int, on: Bool = false, over: Bool) -> some View {
         HStack(spacing: 6) {
             SymbolView(sym, size: 25, filled: on)
                 .foregroundStyle(on ? Theme.red : Theme.label)
@@ -264,10 +265,9 @@ struct MomentCard: View {
                     .contentTransition(.numericText())
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, over ? 12 : 8)
         .frame(minWidth: 44, minHeight: 44)
-        .glassCapsule()
-        .shadow(color: .black.opacity(0.12), radius: 7, y: 4)
+        .modifier(OverPicture(on: over))
     }
 
     /// The words under a picture: two lines, with "more" for the rest.
@@ -455,5 +455,13 @@ struct InlineVideo: View {
             player = nil
             looper = nil
         }
+    }
+}
+
+/// The like, comment and share controls' glass, only over a picture.
+private struct OverPicture: ViewModifier {
+    let on: Bool
+    func body(content: Content) -> some View {
+        if on { content.glassCapsule() } else { content }
     }
 }

@@ -1,8 +1,8 @@
 import SwiftUI
 
-// Grouped lists as the web draws them (css/overlays.css): cards with a flat
-// face and a 1pt hairline, no tint and no shadow; 58pt cells; monochrome
-// 30pt icon tiles; eyebrows in small tracked caps; the iOS switch in ink.
+// Grouped lists as iOS draws them: cards with a flat face on the grouped
+// background, no outline, tint or shadow; 58pt cells; monochrome 30pt icon
+// tiles; eyebrows in small tracked caps; the iOS switch in ink.
 
 /// A card of cells.
 struct GroupCard<Content: View>: View {
@@ -13,7 +13,6 @@ struct GroupCard<Content: View>: View {
         VStack(spacing: 0) { content }
             .background(Theme.elevated)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
     }
 }
 
@@ -65,7 +64,6 @@ struct CellIcon: View {
             .foregroundStyle(tint)
             .frame(width: 30, height: 30)
             .background(Theme.field, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
     }
 }
 
@@ -159,7 +157,6 @@ struct InkSegmented<Value: Hashable>: View {
             ForEach(Array(options.enumerated()), id: \.offset) { _, o in
                 let on = o.0 == selection
                 Button {
-                    Haptics.selection()
                     withAnimation(Motion.ui) { selection = o.0 }
                 } label: {
                     Text(o.1)

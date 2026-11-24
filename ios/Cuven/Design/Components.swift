@@ -263,7 +263,6 @@ struct PillButton: View {
 
     var body: some View {
         Button {
-            Haptics.tap()
             action()
         } label: {
             Text(title)
@@ -371,7 +370,6 @@ struct ClearButton: View {
     var body: some View {
         if !text.isEmpty {
             Button {
-                Haptics.tap()
                 text = ""
             } label: {
                 Image(systemName: "xmark.circle.fill")

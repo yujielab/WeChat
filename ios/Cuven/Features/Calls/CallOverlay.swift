@@ -242,8 +242,6 @@ struct CallOverlay: View {
         VStack(spacing: 18) {
             Avatar(user: calls.peerUser ?? User(id: calls.roomId ?? "", display: calls.title), size: 132)
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
-                .scaleEffect(calls.phase == .incoming || calls.phase == .outgoing ? 1.04 : 1)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: calls.phase)
             Text(calls.title).font(AppFont.make(30, .bold)).foregroundStyle(.white)
                 .lineLimit(1).minimumScaleFactor(0.6)
             TimelineView(.periodic(from: .now, by: 1)) { _ in
@@ -345,7 +343,6 @@ struct CallOverlay: View {
                 }
                 captioned(String(localized: "call.answer", defaultValue: "Answer")) {
                     roundButton(calls.video ? .video : .phoneFill, "Accept", color: Theme.green, size: 72) { calls.accept() }
-                        .phaseAnimator([1.0, 1.08]) { v, k in v.scaleEffect(k) } animation: { _ in .easeInOut(duration: 0.6) }
                 }
             }
         } else {

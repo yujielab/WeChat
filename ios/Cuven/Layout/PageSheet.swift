@@ -32,8 +32,7 @@ struct DialogLayer: View {
                     .frame(width: f.width, height: f.height, alignment: .top)
                     .background(kind.grabbed ? Theme.paper : Theme.elevated)
                     .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.22), radius: 32, y: 24)
+                    .shadow(color: .black.opacity(0.14), radius: 24, y: 10)
                     .overlay(alignment: .top) { if geo.columns == 1 && kind.grabbed { grabber } }
                     // Down it follows the finger; up it gives a little and resists.
                     .offset(x: f.minX, y: f.minY + (drag >= 0 ? drag : -min(24, sqrt(-drag) * 2.4)))

@@ -212,7 +212,6 @@ struct ProfileView: View {
             ForEach(0..<2, id: \.self) { i in
                 let on = tab == i
                 Button {
-                    Haptics.selection()
                     withAnimation(.spring(duration: 0.34, bounce: 0.1)) { tab = i }
                 } label: {
                     HStack(spacing: 8) {

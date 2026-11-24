@@ -143,7 +143,6 @@ struct PhotoViewer: View {
             else { scale = 2.5 }
             baseScale = scale
         }
-        Haptics.tap()
     }
 
     private func close() {

@@ -29,7 +29,7 @@ struct MomentsPage: View {
     }
 
     var body: some View {
-        PageScaffold(title: .wordmark("Moments", Theme.skyTitle),
+        PageScaffold(title: .large("Moments", Theme.label),
                      back: nil,
                      actions: [BarItem(id: "new", sym: .plus, title: "New moment") { nav.composeMoment = true }],
                      background: Theme.paper) {
@@ -43,9 +43,9 @@ struct MomentsPage: View {
                             SymbolView(.arrowUp, size: 15, weight: 2.4)
                             Text("New moments").font(.subheadBoldC)
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.blue)
                         .padding(.horizontal, 16).frame(height: 36)
-                        .background(Theme.skyTitle, in: Capsule())
+                        .glassCapsule()
                     }
                     .buttonStyle(.press)
                     .padding(.vertical, 8)
@@ -55,10 +55,13 @@ struct MomentsPage: View {
                     ForEach(0..<2, id: \.self) { _ in MomentSkeleton() }
                 } else if moments.isEmpty {
                     VStack(spacing: 6) {
-                        SymbolView(.photo, size: 34).foregroundStyle(Theme.label3).padding(.bottom, 6)
+                        Image(systemName: "camera.aperture").font(.system(size: 30, weight: .light))
+                            .foregroundStyle(Theme.label3).padding(.bottom, 6)
                         Text("No moments yet").font(.headlineC).foregroundStyle(Theme.label)
                         Text("Share a photo or a few words with your friends.")
                             .font(.subheadC).lineSpacing(3).foregroundStyle(Theme.label2).multilineTextAlignment(.center)
+                        PillButton(title: "Share a moment", style: .ink) { nav.composeMoment = true }
+                            .padding(.top, 12)
                     }
                     .padding(.horizontal, 28)
                     .padding(.vertical, 48)
@@ -118,13 +121,8 @@ struct MomentsPage: View {
     private func person<Mark: View>(user: User?, name: String, fresh: Bool, @ViewBuilder badge: () -> Mark) -> some View {
         VStack(spacing: 6) {
             ZStack {
-                if fresh {
-                    Circle().fill(AngularGradient(colors: [Theme.blue, Theme.indigo, Color(hex: 0xbf5af2), Color(hex: 0xff375f), Theme.orange, Theme.blue],
-                                                  center: .center, angle: .degrees(200 - 90)))
-                    Circle().fill(Theme.paper).padding(2.5)
-                } else {
-                    Circle().strokeBorder(Theme.line, lineWidth: 1)
-                }
+                // New: one accent ring; seen: a hairline. The photo never moves.
+                Circle().strokeBorder(fresh ? Theme.blue : Theme.separator, lineWidth: fresh ? 2.5 : 0.5)
                 Avatar(user: user, size: 64)
             }
             .frame(width: 74, height: 74)
