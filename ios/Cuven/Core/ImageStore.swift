@@ -13,6 +13,10 @@ final class ImageStore: @unchecked Sendable {
     private let cache = NSCache<NSString, UIImage>()
     private let lock = NSLock()
     private var inflight: [String: Task<UIImage?, Never>] = [:]
+    /// One download per address, however many sizes want it at the same time.
+    private var dataInflight: [String: Task<Data?, Never>] = [:]
+    /// Addresses the hub just said no to (gone, no access): not asked again for a minute.
+    private var refused: [String: Date] = [:]
 
     init() {
         cache.totalCostLimit = 160 << 20
@@ -31,14 +35,45 @@ final class ImageStore: @unchecked Sendable {
     }
 
     func data(_ path: String) async -> Data? {
-        guard let api, let req = api.mediaRequest(path) else { return nil }
+        await fetch(path).data
+    }
+
+    /// The bytes, or nil; `refused` when the hub answered and said no.
+    private func fetch(_ path: String) async -> (data: Data?, refused: Bool) {
+        guard let api, let req = api.mediaRequest(path) else { return (nil, false) }
         do {
             let (data, response) = try await api.session.data(for: req)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
-            return data
+            guard let http = response as? HTTPURLResponse else { return (nil, false) }
+            guard (200..<300).contains(http.statusCode) else {
+                return (nil, http.statusCode == 403 || http.statusCode == 404 || http.statusCode == 410)
+            }
+            return (data, false)
         } catch {
-            return nil
+            return (nil, false)
         }
+    }
+
+    /// The bytes for image(), shared by every size asked for at once.
+    private func sharedData(_ path: String) async -> Data? {
+        let task = lock.withLock { () -> Task<Data?, Never>? in
+            if let at = refused[path] {
+                if Date().timeIntervalSince(at) < 60 { return nil }
+                refused[path] = nil
+            }
+            if let running = dataInflight[path] { return running }
+            let t = Task<Data?, Never> { [weak self] in
+                guard let self else { return nil }
+                let got = await self.fetch(path)
+                if got.refused { self.lock.withLock { self.refused[path] = Date() } }
+                return got.data
+            }
+            dataInflight[path] = t
+            return t
+        }
+        guard let task else { return nil }
+        let data = await task.value
+        lock.withLock { dataInflight[path] = nil }
+        return data
     }
 
     func image(_ path: String, maxPixel: CGFloat) async -> UIImage? {
@@ -47,7 +82,7 @@ final class ImageStore: @unchecked Sendable {
         let task: Task<UIImage?, Never> = lock.withLock {
             if let running = inflight[k] { return running }
             let t = Task<UIImage?, Never> { [weak self] in
-                guard let self, let data = await self.data(path) else { return nil }
+                guard let self, let data = await self.sharedData(path) else { return nil }
                 let img = Self.decode(data, maxPixel: maxPixel)
                 if let img { self.cache.setObject(img, forKey: k as NSString, cost: img.cost) }
                 return img
@@ -76,17 +111,28 @@ final class ImageStore: @unchecked Sendable {
     func videoThumbnail(_ path: String, maxPixel: CGFloat) async -> UIImage? {
         let k = key(path, maxPixel) + "#v"
         if let hit = cache.object(forKey: k as NSString) { return hit }
-        guard let asset = AuthorizedAsset.make(path) else { return nil }
-        let gen = AVAssetImageGenerator(asset: asset)
-        gen.appliesPreferredTrackTransform = true
-        gen.maximumSize = CGSize(width: maxPixel, height: maxPixel)
-        let img: UIImage? = await withCheckedContinuation { cont in
-            gen.generateCGImageAsynchronously(for: CMTime(seconds: 0.1, preferredTimescale: 600)) { cg, _, _ in
-                cont.resume(returning: cg.map { UIImage(cgImage: $0) })
+        // One generator per still, however many views want it at once.
+        let task: Task<UIImage?, Never> = lock.withLock {
+            if let running = inflight[k] { return running }
+            let t = Task<UIImage?, Never> { [weak self] in
+                guard let self, let asset = AuthorizedAsset.make(path) else { return nil }
+                let gen = AVAssetImageGenerator(asset: asset)
+                gen.appliesPreferredTrackTransform = true
+                gen.maximumSize = CGSize(width: maxPixel, height: maxPixel)
+                let img: UIImage? = await withCheckedContinuation { cont in
+                    gen.generateCGImageAsynchronously(for: CMTime(seconds: 0.1, preferredTimescale: 600)) { cg, _, _ in
+                        cont.resume(returning: cg.map { UIImage(cgImage: $0) })
+                    }
+                }
+                if let img { self.cache.setObject(img, forKey: k as NSString, cost: img.cost) }
+                return img
             }
+            inflight[k] = t
+            return t
         }
-        if let img { cache.setObject(img, forKey: k as NSString, cost: img.cost) }
-        return img
+        let result = await task.value
+        lock.withLock { inflight[k] = nil }
+        return result
     }
 }
 

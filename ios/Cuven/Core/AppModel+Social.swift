@@ -171,7 +171,8 @@ extension AppModel {
             var media: [[String: Any]] = []
             for item in items {
                 if let img = item.image {
-                    let p = Media.prepare(img, maxSide: 2048, png: false)
+                    // Scaled and encoded off the main thread.
+                    let p = await Task.detached(priority: .userInitiated) { Media.prepare(img, maxSide: 2048, png: false) }.value
                     let up = try await api.upload(kind: "moment", data: p.data, contentType: "image/jpeg", name: "moment",
                                                   width: Double(p.size.width), height: Double(p.size.height))
                     // The server takes "image" or "video" here (hub.js momentMedia), not a MIME type.
@@ -217,7 +218,7 @@ extension AppModel {
     }
 
     func uploadAvatar(_ image: UIImage) async -> Bool {
-        let square = Media.squareCrop(image, side: 512)
+        let square = await Task.detached(priority: .userInitiated) { Media.squareCrop(image, side: 512) }.value
         guard let data = square.jpegData(compressionQuality: 0.88) else { return false }
         do {
             let up = try await api.upload(kind: "avatar", data: data, contentType: "image/jpeg", name: "avatar", width: 512, height: 512)
@@ -230,7 +231,7 @@ extension AppModel {
     }
 
     func uploadCover(_ image: UIImage) async -> Bool {
-        let p = Media.prepare(image, maxSide: 2048, png: false)
+        let p = await Task.detached(priority: .userInitiated) { Media.prepare(image, maxSide: 2048, png: false) }.value
         do {
             let up = try await api.upload(kind: "cover", data: p.data, contentType: "image/jpeg", name: "cover",
                                           width: Double(p.size.width), height: Double(p.size.height))
@@ -259,8 +260,16 @@ extension AppModel {
     }
 
     func setReceipts(_ on: Bool) async {
+        let old = prefs.receipts
         prefs.receipts = on
-        if let r: PrefsResponse = try? await api.post("/api/prefs", ["receipts": on]) { prefs = r.prefs }
+        do {
+            let r: PrefsResponse = try await api.post("/api/prefs", ["receipts": on])
+            prefs = r.prefs
+        } catch {
+            // It didn't take: the switch shows what's still in effect.
+            prefs.receipts = old
+            show(error.userMessage, error: true)
+        }
     }
 
     // MARK: - Stickers

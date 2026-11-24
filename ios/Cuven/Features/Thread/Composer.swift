@@ -583,8 +583,9 @@ struct Composer: View {
                 continue
             }
             guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
-            if let img = UIImage(data: data) {
-                model.sendPicture(img, room: room.id, replyTo: reply)
+            // Scaled and encoded off the main thread, never decoded in full.
+            if let p = await Task.detached(priority: .userInitiated, operation: { Media.prepare(data: data, maxSide: 2048) }).value {
+                model.sendPrepared(p, room: room.id, replyTo: reply)
                 reply = nil
             }
         }

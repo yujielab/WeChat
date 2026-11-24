@@ -13,10 +13,16 @@ final class Socket {
     private var pingTimer: Timer?
     private var stopped = true
     private var generation = 0
+    /// Attempts in a row that ended before the hub said hello.
+    private var failsBeforeOpen = 0
 
     var onEvent: (([String: Any]) -> Void)?
     var onOpen: (() -> Void)?
     var onClose: (() -> Void)?
+    /// Turned away (4001: the session is gone) or failing again and again
+    /// before hello: an HTTP request finds out whether it's the session (its
+    /// 401 signs out) or only the network.
+    var onStuck: (() -> Void)?
     private(set) var connected = false
 
     init(api: APIClient) {
@@ -26,9 +32,14 @@ final class Socket {
         }
     }
 
+    /// Once per session: started again while it's running (a bootstrap that
+    /// had to be retried), a live connection isn't torn down; one that's
+    /// down tries again now rather than at the end of its backoff.
     func start() {
+        guard stopped else { wake(); return }
         stopped = false
         retry = 0
+        failsBeforeOpen = 0
         open()
     }
 
@@ -91,6 +102,7 @@ final class Socket {
                         if !self.connected {
                             self.connected = true
                             self.retry = 0
+                            self.failsBeforeOpen = 0
                             self.startPing()
                             self.onOpen?()
                         }
@@ -98,7 +110,7 @@ final class Socket {
                     }
                     self.receive(t, gen)
                 case .failure:
-                    self.closed(gen)
+                    self.closed(gen, t)
                 }
             }
         }
@@ -111,7 +123,7 @@ final class Socket {
         }
     }
 
-    private func closed(_ gen: Int) {
+    private func closed(_ gen: Int, _ t: URLSessionWebSocketTask) {
         guard gen == generation else { return }
         pingTimer?.invalidate()
         let was = connected
@@ -119,6 +131,9 @@ final class Socket {
         task = nil
         if was { onClose?() }
         guard !stopped else { return }
+        if was { failsBeforeOpen = 0 } else { failsBeforeOpen += 1 }
+        // The second failure in a row, then about once a minute.
+        if !was && (t.closeCode.rawValue == 4001 || failsBeforeOpen % 6 == 2) { onStuck?() }
         let delay = min(10.0, 0.6 * pow(2.0, Double(retry)))
         retry += 1
         let work = DispatchWorkItem { [weak self] in

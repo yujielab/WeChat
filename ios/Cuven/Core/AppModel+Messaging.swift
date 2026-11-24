@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import ImageIO
 
 struct PendingMedia {
     var data: Data
@@ -59,7 +60,10 @@ extension AppModel {
             let r: MessagesResponse = try await api.get("/api/messages", query: ["room": room, "limit": "40"])
             var cur = threads[room] ?? ThreadData()
             let locals = cur.messages.filter { $0.isLocal }
-            cur.messages = merge(r.messages, locals)
+            // What came over the socket while the page was on its way (newer than all of it) stays.
+            let end = r.messages.last?.ts ?? Int.max
+            let newer = cur.messages.filter { !$0.isLocal && $0.ts > end }
+            cur.messages = merge(r.messages + newer, locals)
             cur.hasMore = r.messages.count >= 40
             cur.loaded = true
             cur.loading = false
@@ -89,12 +93,31 @@ extension AppModel {
     }
 
     func loadNewer(_ room: String) async {
-        guard let t = threads[room], let last = t.messages.last(where: { !$0.isLocal }) else { return }
-        guard let r: MessagesResponse = try? await api.get("/api/messages", query: ["room": room, "after": String(last.ts), "limit": "100"]) else { return }
-        guard !r.messages.isEmpty else { return }
-        var cur = threads[room] ?? ThreadData()
-        cur.messages = merge(cur.messages + r.messages, [])
-        threads[room] = cur
+        guard var after = threads[room]?.messages.last(where: { !$0.isLocal })?.ts else {
+            // Nothing from the hub here yet (a new chat; written to while the
+            // connection was down, which catch-up skips): its latest page.
+            guard let r: MessagesResponse = try? await api.get("/api/messages", query: ["room": room, "limit": "40"]),
+                  !r.messages.isEmpty, var cur = threads[room] else { return }
+            cur.messages = merge(r.messages + cur.messages.filter { !$0.isLocal }, cur.messages.filter { $0.isLocal })
+            cur.hasMore = r.messages.count >= 40
+            threads[room] = cur
+            return
+        }
+        // A page at a time: the hub sends at most 100, the oldest first.
+        for _ in 0..<5 {
+            guard let r: MessagesResponse = try? await api.get("/api/messages", query: ["room": room, "after": String(after), "limit": "100"]) else { return }
+            if !r.messages.isEmpty {
+                guard var cur = threads[room] else { return }
+                cur.messages = merge(cur.messages + r.messages, [])
+                threads[room] = cur
+            }
+            guard r.messages.count >= 100, let newest = r.messages.last?.ts, newest > after else { return }
+            after = newest
+        }
+        // Further behind than that: it starts again from the latest page rather than keep a hole.
+        guard threads[room] != nil else { return }
+        threads[room]?.loaded = false
+        await loadThread(room)
     }
 
     /// Server messages (deduplicated by id, newest copy wins) plus local ones, in time order.
@@ -132,7 +155,8 @@ extension AppModel {
         if threads[msg.room] != nil || t.loaded { threads[msg.room] = t }
 
         let mine = msg.sender == me?.id
-        typing[msg.room]?[msg.sender] = nil
+        // Written only when there's something to clear: every write tells each typing reader.
+        if typing[msg.room]?[msg.sender] != nil { typing[msg.room]?[msg.sender] = nil }
 
         guard let i = roomIndex(msg.room) else {
             Task { await refreshRooms() }
@@ -145,7 +169,7 @@ extension AppModel {
         if isNew && !mine && !msg.isSystem && !msg.isRevoked {
             if visibleRoom == msg.room && appActive {
                 r.lastRead = msg.ts
-                socket.send(["t": "read", "room": msg.room, "ts": msg.ts])
+                sendRead(msg.room, ts: msg.ts)
             } else {
                 r.unread += 1
                 r.marked = false
@@ -176,7 +200,9 @@ extension AppModel {
         threads[room] = t
     }
 
-    func markRead(_ room: String) {
+    /// `force` sends it again even when this device already counts it read
+    /// (the connection is back, and the last one may not have got through).
+    func markRead(_ room: String, force: Bool = false) {
         guard let i = roomIndex(room) else { return }
         let last = threads[room]?.messages.last(where: { !$0.isLocal })?.ts ?? rooms[i].last?.ts ?? 0
         if rooms[i].unread > 0 || rooms[i].marked || rooms[i].mention != nil {
@@ -184,9 +210,21 @@ extension AppModel {
             rooms[i].marked = false
             rooms[i].mention = nil
         }
-        if last > rooms[i].lastRead || last == 0 {
+        if last > rooms[i].lastRead || last == 0 || force {
             rooms[i].lastRead = max(rooms[i].lastRead, last)
-            socket.send(["t": "read", "room": room, "ts": last > 0 ? last : Int(Date().timeIntervalSince1970 * 1000)])
+            sendRead(room, ts: last > 0 ? last : Int(Date().timeIntervalSince1970 * 1000))
+        }
+    }
+
+    /// Over the socket while it's up, otherwise over HTTP: a read isn't
+    /// dropped while the socket reconnects (this device already counts it).
+    private func sendRead(_ room: String, ts: Int) {
+        if socket.connected {
+            socket.send(["t": "read", "room": room, "ts": ts])
+        } else {
+            Task {
+                try? await api.post("/api/room/\(room)/read", ["ts": ts])
+            }
         }
     }
 
@@ -263,7 +301,12 @@ extension AppModel {
 
     /// A photo or drawing: shown at once from the device, then uploaded and sent.
     func sendPicture(_ image: UIImage, room: String, drawing: Bool = false, replyTo: Message? = nil) {
-        let prepared = Media.prepare(image, maxSide: 2048, png: drawing)
+        sendPrepared(Media.prepare(image, maxSide: 2048, png: drawing), room: room, drawing: drawing, replyTo: replyTo)
+    }
+
+    /// One already scaled and encoded (Media.prepare, which can run off the
+    /// main thread): shown at once from the device, then uploaded and sent.
+    func sendPrepared(_ prepared: Media.Prepared, room: String, drawing: Bool = false, replyTo: Message? = nil) {
         var meta = MessageMeta()
         meta.w = Double(prepared.size.width); meta.h = Double(prepared.size.height)
         let type = drawing ? "drawing" : "image"
@@ -306,6 +349,11 @@ extension AppModel {
 
     private static var failedItems: [String: OutboxItem] = [:]
 
+    /// Signed out: sends that failed for good go with the account.
+    func forgetFailedSends() { Self.failedItems = [:] }
+    /// The one try-again that's waiting (a lost connection, the hub busy).
+    private static var outboxRetry: Task<Void, Never>? = nil
+
     func retry(_ m: Message) {
         guard let cid = m.localId, let item = Self.failedItems.removeValue(forKey: cid) else { return }
         updateMessage(m.room, m.id) { $0.local = .sending }
@@ -334,14 +382,24 @@ extension AppModel {
                     if var media = item.media, media.uploaded == nil {
                         let localMsgId = "local:\(item.cid)"
                         let roomId = item.room
+                        // The ring moves in steps: each change re-renders the conversation.
+                        var shown = -1.0
+                        var shownAt = Date.distantPast
                         let up = try await api.upload(kind: media.kind, data: media.data, contentType: media.contentType,
                                                       room: item.room, name: media.name, width: media.w, height: media.h,
                                                       duration: media.dur, localId: item.cid) { [weak self] p in
+                            let now = Date()
+                            guard p >= 1 || (p - shown >= 0.02 && now.timeIntervalSince(shownAt) >= 0.1) else { return }
+                            shown = p
+                            shownAt = now
                             self?.updateMessage(roomId, localMsgId) { $0.progress = p }
                         }
                         media.uploaded = up
                         item.media = media
-                        outbox[0] = item
+                        // Found again by its cid after every wait, never by place:
+                        // signing out meanwhile (a 401 does that) empties the queue.
+                        guard let i = outboxIndex(item.cid) else { continue }
+                        outbox[i] = item
                     }
                     var body = item.body
                     body["localId"] = item.cid
@@ -356,25 +414,48 @@ extension AppModel {
                         body["meta"] = meta
                     }
                     let r: SendResponse = try await api.post("/api/messages", body)
-                    outbox.removeFirst()
+                    guard let i = outboxIndex(item.cid) else { continue }
+                    outbox.remove(at: i)
                     landed(r.msg, cid: item.cid)
                 } catch let e as APIError {
-                    if e.status == 0 && item.attempts < 4 {
+                    guard let i = outboxIndex(item.cid) else { continue }
+                    // No network: it waits, first in line, for as long as that
+                    // takes; the hub busy or slow: a few minutes. Everything
+                    // behind it waits too (order is kept), and the socket
+                    // coming back tries again at once (onOpen). Status 0 is
+                    // also an answer that couldn't be read, which won't change.
+                    let offline = e.status == 0 && e.message == APIError.offline.message
+                    let busy = e.status >= 500 || e.status == 408 || e.status == 429
+                    if offline || (busy && item.attempts < 8) {
                         item.attempts += 1
-                        outbox[0] = item
-                        try? await Task.sleep(for: .seconds(Double(item.attempts) * 1.5))
-                        continue
+                        outbox[i] = item
+                        retryOutbox(after: min(30, 2 * pow(2.0, Double(item.attempts - 1))))
+                        outboxRunning = false
+                        return
                     }
-                    outbox.removeFirst()
+                    outbox.remove(at: i)
                     Self.failedItems[item.cid] = item
                     updateMessage(item.room, "local:\(item.cid)") { $0.local = .failed; $0.progress = nil }
                     show(e.message, error: true)
                     Haptics.error()
                 } catch {
-                    outbox.removeFirst()
+                    guard let i = outboxIndex(item.cid) else { continue }
+                    outbox.remove(at: i)
                 }
             }
             outboxRunning = false
+        }
+    }
+
+    private func outboxIndex(_ cid: String) -> Int? { outbox.firstIndex { $0.cid == cid } }
+
+    /// The queue runs again after `seconds`; one such wait at a time.
+    private func retryOutbox(after seconds: Double) {
+        Self.outboxRetry?.cancel()
+        Self.outboxRetry = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            runOutbox()
         }
     }
 
@@ -391,6 +472,8 @@ extension AppModel {
     func react(_ m: Message, _ emoji: String) async {
         let mine = m.reactions.first { $0.users.contains(me?.id ?? "") }?.emoji
         let next = mine == emoji ? "" : emoji
+        // What it was, put back if the hub doesn't take it.
+        let before = threads[m.room]?.messages.first(where: { $0.id == m.id })?.reactions
         // Show it at once; the hub's answer replaces it.
         updateMessage(m.room, m.id) { msg in
             for i in msg.reactions.indices { msg.reactions[i].users.removeAll { $0 == self.me?.id } }
@@ -404,6 +487,7 @@ extension AppModel {
             let r: MsgResponse = try await api.post("/api/react", ["id": m.id, "emoji": next])
             replace(r.msg)
         } catch {
+            if let before { updateMessage(m.room, m.id) { $0.reactions = before } }
             show(error.userMessage, error: true)
         }
     }
@@ -450,6 +534,7 @@ extension AppModel {
 
     func setFlag(_ room: String, pinned: Bool? = nil, muted: Bool? = nil, unread: Bool? = nil) async {
         guard let i = roomIndex(room) else { return }
+        let before = rooms[i]
         var body: [String: Any] = [:]
         withAnimation(.smooth(duration: 0.3)) {
             if let pinned { rooms[i].pinned = pinned; body["pinned"] = pinned }
@@ -461,7 +546,24 @@ extension AppModel {
             }
             rooms = sortRooms(rooms)
         }
-        do { try await api.post("/api/room/\(room)/flags", body) } catch { show(error.userMessage, error: true) }
+        do { try await api.post("/api/room/\(room)/flags", body) } catch {
+            // It didn't take: the chat goes back to how it was.
+            if let j = roomIndex(room) {
+                withAnimation(.smooth(duration: 0.3)) {
+                    if pinned != nil { rooms[j].pinned = before.pinned }
+                    if muted != nil { rooms[j].muted = before.muted }
+                    // Unless something new came in meanwhile (that's unread on its own).
+                    if unread != nil, rooms[j].last?.id == before.last?.id {
+                        rooms[j].marked = before.marked
+                        rooms[j].unread = before.unread
+                        rooms[j].mention = before.mention
+                        rooms[j].lastRead = before.lastRead
+                    }
+                    rooms = sortRooms(rooms)
+                }
+            }
+            show(error.userMessage, error: true)
+        }
     }
 
     func deleteChat(_ room: String) async {
@@ -530,5 +632,22 @@ enum Media {
         }
         let data = png ? (out.pngData() ?? Data()) : (out.jpegData(compressionQuality: 0.84) ?? Data())
         return Prepared(image: out, data: data, size: target)
+    }
+
+    /// A photo straight from its file, decoded at the size it's sent at
+    /// (never in full) and made JPEG; safe off the main thread. Nil when
+    /// ImageIO can't read it.
+    static func prepare(data: Data, maxSide: CGFloat) -> Prepared? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let opts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxSide
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+        let image = UIImage(cgImage: cg)
+        guard let jpeg = image.jpegData(compressionQuality: 0.84) else { return nil }
+        return Prepared(image: image, data: jpeg, size: CGSize(width: cg.width, height: cg.height))
     }
 }

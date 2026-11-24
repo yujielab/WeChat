@@ -91,6 +91,8 @@ private struct EmulatedDisplay: ViewModifier {
 
 struct SplashView: View {
     @State private var appear = false
+    /// Still here after a few seconds: say why (no connection yet, retrying).
+    @State private var waiting = false
 
     var body: some View {
         ZStack {
@@ -101,8 +103,21 @@ struct SplashView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .scaleEffect(appear ? 1 : 0.86)
                 .opacity(appear ? 1 : 0)
+            if waiting {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for a connection…").font(.footnoteC).foregroundStyle(Theme.label2)
+                }
+                .padding(.bottom, 48)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .transition(.opacity)
+            }
         }
         .onAppear { withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { appear = true } }
+        .task {
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation(Motion.fade) { waiting = true }
+        }
     }
 }
 

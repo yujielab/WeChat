@@ -41,7 +41,7 @@ final class AppModel {
     var connected = false
 
     var me: User?
-    var rooms: [Room] = []
+    var rooms: [Room] = [] { didSet { syncBadge() } }
     var contacts: [User] = []
     var presence: Set<String> = []
     var callsEnabled = false
@@ -89,6 +89,14 @@ final class AppModel {
     @ObservationIgnored var typingSent: [String: (String, Date)] = [:]
     @ObservationIgnored private var typingSweep: Timer?
     @ObservationIgnored var calls: CallManager!
+    /// The bootstrap at launch didn't get through (offline, a 5xx): it runs
+    /// again once the socket connects, or when the socket can't.
+    @ObservationIgnored private var needsBootstrap = false
+    @ObservationIgnored private var bootstrapping = false
+    /// Where each open conversation stood when the connection dropped.
+    @ObservationIgnored private var lostAt: [String: Int] = [:]
+    /// What the app icon's badge says now.
+    @ObservationIgnored private var iconBadge = -1
 
     var serverURL: URL { api.base }
 
@@ -108,11 +116,25 @@ final class AppModel {
         calls = CallManager(model: self)
         socket.onEvent = { [weak self] e in self?.handle(e) }
         socket.onOpen = { [weak self] in
-            self?.connected = true
-            self?.catchUp()
-            self?.runOutbox()
+            guard let self else { return }
+            self.connected = true
+            self.catchUp()
+            self.runOutbox()
+            if self.needsBootstrap { Task { await self.retryBootstrap() } }
         }
-        socket.onClose = { [weak self] in self?.connected = false }
+        socket.onClose = { [weak self] in
+            guard let self else { return }
+            self.connected = false
+            self.lostAt = self.threadAnchors()
+        }
+        // Turned away before hello: an HTTP request tells a lost session
+        // (its 401 signs out) from a lost network.
+        socket.onStuck = { [weak self] in
+            guard let self else { return }
+            Task {
+                if self.needsBootstrap { await self.retryBootstrap() } else { await self.refreshRooms() }
+            }
+        }
         api.onUnauthorized = { [weak self] in self?.sessionExpired() }
         typingSweep = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sweepTyping() }
@@ -130,7 +152,9 @@ final class AppModel {
     // MARK: - Session
 
     func launch() async {
-        if let cached = DiskCache.load(api: api) {
+        // Read and decoded off the main thread, so the first frame isn't held up.
+        let cached = await Task.detached(priority: .userInitiated) { [api] in DiskCache.load(api: api) }.value
+        if let cached {
             me = cached.me
             rooms = cached.rooms
             for (k, v) in cached.threads { threads[k] = ThreadData(messages: v, hasMore: true, loaded: false) }
@@ -146,9 +170,35 @@ final class AppModel {
         } catch let e as APIError where e.status == 401 {
             signOutLocally()
         } catch {
-            if me == nil { phase = .signedOut }
-            else { show(error.userMessage, error: true) }
+            // Offline, or the server is having a moment: the socket keeps
+            // trying on its own, and the bootstrap runs again once it gets
+            // through. Only a 401 means signing in again.
+            needsBootstrap = true
+            socket.start()
+            if me != nil {
+                show(error.userMessage, error: true)
+            } else {
+                // Nothing to show yet: the splash stays while it's tried again.
+                var wait = 2.0
+                while needsBootstrap && phase == .launching && !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(wait))
+                    await retryBootstrap()
+                    wait = min(wait * 2, 30)
+                }
+            }
         }
+    }
+
+    /// The bootstrap again, after it didn't get through at launch.
+    private func retryBootstrap() async {
+        guard needsBootstrap, !bootstrapping else { return }
+        bootstrapping = true
+        defer { bootstrapping = false }
+        do {
+            try await bootstrap()
+        } catch let e as APIError where e.status == 401 {
+            if phase != .signedOut { signOutLocally() }
+        } catch {}
     }
 
     func setServer(_ text: String) -> Bool {
@@ -190,17 +240,24 @@ final class AppModel {
     }
 
     func signOutLocally() {
+        // A call ends with the session; its hang-up still goes out on the socket.
+        if calls.active { calls.hangUp() }
         ChatDirectory.clear()
         socket.stop()
         api.clearSession()
         DiskCache.clear(api: api)
         me = nil; rooms = []; contacts = []; threads = [:]; members = [:]; notes = []; myNote = nil
         suggested = []; discover = []; presence = []; outbox = []
+        forgetFailedSends()
+        drafts = [:]; typing = [:]; typingSent = [:]; lostAt = [:]; needsBootstrap = false
+        // The last account's previews go too (emptying `rooms` clears the badge).
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         phase = .signedOut
     }
 
     func bootstrap() async throws {
         let b: Bootstrap = try await api.get("/api/bootstrap")
+        needsBootstrap = false
         me = b.me
         rooms = sortRooms(b.rooms)
         contacts = b.contacts
@@ -219,17 +276,76 @@ final class AppModel {
     }
 
     func catchUp() {
+        // Where each open conversation stood (when the connection dropped, or
+        // now), taken before anything arriving now (the outbox landing, live
+        // messages) moves it past what was missed.
+        let now = threadAnchors()
+        let anchors = Dictionary(uniqueKeysWithValues: now.map { ($0.key, min($0.value, lostAt[$0.key] ?? $0.value)) })
+        lostAt = [:]
         Task {
             await refreshRooms()
-            for (room, t) in threads where t.loaded {
-                await loadNewer(room)
+            // A read sent into a connection that had died is sent again now.
+            if let r = visibleRoom, appActive { markRead(r, force: true) }
+            for (room, after) in anchors {
+                await loadMissed(room, after: after)
             }
         }
     }
 
+    /// The newest message from the server in each loaded conversation.
+    private func threadAnchors() -> [String: Int] {
+        var out: [String: Int] = [:]
+        for (room, t) in threads where t.loaded {
+            if let last = t.messages.last(where: { !$0.isLocal }) { out[room] = last.ts }
+        }
+        return out
+    }
+
+    /// Everything after `after`, a page at a time (the hub sends at most 100).
+    private func loadMissed(_ room: String, after: Int) async {
+        var from = after
+        for _ in 0..<20 {
+            guard let r: MessagesResponse = try? await api.get("/api/messages", query: ["room": room, "after": String(from), "limit": "100"]),
+                  let newest = r.messages.map(\.ts).max(), var cur = threads[room] else { return }
+            // Deduplicated by id (the newest copy wins), in time order.
+            var at: [String: Int] = [:]
+            var list: [Message] = []
+            for m in cur.messages + r.messages {
+                if let i = at[m.id] { list[i] = m } else { at[m.id] = list.count; list.append(m) }
+            }
+            cur.messages = list.sorted { $0.ts == $1.ts ? $0.id < $1.id : $0.ts < $1.ts }
+            threads[room] = cur
+            guard r.messages.count >= 100, newest > from else { return }
+            from = newest
+        }
+        // Further behind than that: it starts again from the latest page rather than keep a hole.
+        guard threads[room] != nil else { return }
+        threads[room]?.loaded = false
+        await loadThread(room)
+    }
+
     func refreshRooms() async {
         guard let r: RoomsResponse = try? await api.get("/api/rooms") else { return }
-        withAnimation(.smooth(duration: 0.3)) { rooms = sortRooms(r.rooms) }
+        // What changed here while the list was on its way (a message, a read)
+        // is newer than the server's copy of it: that part stays.
+        let old = Dictionary(rooms.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let fresh = r.rooms.map { room -> Room in
+            guard let o = old[room.id] else { return room }
+            var f = room
+            if o.lastRead > f.lastRead {
+                f.lastRead = o.lastRead
+                if (f.last?.ts ?? 0) <= o.lastRead { f.unread = o.unread; f.mention = o.mention; f.marked = o.marked }
+            }
+            if let last = o.last, !last.isLocal, last.ts > (f.last?.ts ?? 0) {
+                f.last = last
+                f.ts = max(f.ts, o.ts)
+                f.unread = o.unread
+                if f.mention == nil { f.mention = o.mention }
+            }
+            if o.peerRead > f.peerRead { f.peerRead = o.peerRead; f.peerReadAt = o.peerReadAt }
+            return f
+        }
+        withAnimation(.smooth(duration: 0.3)) { rooms = sortRooms(fresh) }
         indexUsers()
         persist()
     }
@@ -297,7 +413,11 @@ final class AppModel {
 
     func persist() {
         guard let me else { return }
-        let snapshot = DiskCache.Snapshot(me: me, rooms: rooms, threads: threads.mapValues { Array($0.messages.filter { !$0.isLocal }.suffix(60)) })
+        // The conversations near the top only: the snapshot stays small, and
+        // ones deleted or left aren't carried along.
+        let keep = Set(rooms.prefix(30).map(\.id))
+        let kept = threads.filter { keep.contains($0.key) }
+        let snapshot = DiskCache.Snapshot(me: me, rooms: rooms, threads: kept.mapValues { Array($0.messages.filter { !$0.isLocal }.suffix(60)) })
         DiskCache.save(snapshot, api: api)
     }
 
@@ -400,7 +520,15 @@ final class AppModel {
         content.userInfo = ["room": room.id]
         let req = UNNotificationRequest(identifier: msg.id, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)
-        UNUserNotificationCenter.current().setBadgeCount(unreadTotal) { _ in }
+    }
+
+    /// The app icon's badge follows the unread count, down as well as up
+    /// (there's no APNs badge from the server).
+    private func syncBadge() {
+        let n = unreadTotal
+        guard n != iconBadge else { return }
+        iconBadge = n
+        UNUserNotificationCenter.current().setBadgeCount(n) { _ in }
     }
 }
 
@@ -423,15 +551,18 @@ enum DiskCache {
         return try? JSONDecoder().decode(Snapshot.self, from: data)
     }
 
+    /// Writes (and the clear at sign-out) in order: an older snapshot never lands last.
+    private static let queue = DispatchQueue(label: "cuven.snapshot", qos: .utility)
+
     static func save(_ s: Snapshot, api: APIClient) {
         guard let u = url(api: api) else { return }
-        DispatchQueue.global(qos: .utility).async {
+        queue.async {
             if let data = try? JSONEncoder().encode(s) { try? data.write(to: u, options: .atomic) }
         }
     }
 
     static func clear(api: APIClient) {
         guard let u = url(api: api) else { return }
-        try? FileManager.default.removeItem(at: u)
+        queue.async { try? FileManager.default.removeItem(at: u) }
     }
 }

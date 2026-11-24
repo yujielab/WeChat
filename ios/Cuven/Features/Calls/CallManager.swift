@@ -263,8 +263,11 @@ final class CallManager {
     // MARK: - Media
 
     private func begin() async {
+        // Tied to this call: if it ended while this waited (and the next one
+        // was dialled meanwhile), nothing is built for it.
+        let id = callId
         let granted = await Self.permission(video: video)
-        guard active, let me = model.me?.id else { return }
+        guard active, phase != .ending, callId == id, engine == nil, let me = model.me?.id else { return }
         guard granted else {
             model.show(String(localized: "Allow the microphone (and camera) in Settings to make calls"), error: true)
             fail()
@@ -278,7 +281,7 @@ final class CallManager {
            let servers = obj["iceServers"] as? [[String: Any]], !servers.isEmpty {
             ice = servers
         }
-        guard active else { return }
+        guard active, phase != .ending, callId == id, engine == nil else { return }
         let e = RTCEngine(api: model.api, me: me, video: video)
         engine = e
         e.onRemoteVideo = { [weak self] track in
@@ -292,10 +295,13 @@ final class CallManager {
         e.setMicEnabled(!muted)
         do {
             _ = try await e.publish()
+            guard callId == id, engine === e else { e.close(); return }
             published = true
             if answered { announce() }
             pullWanted()
         } catch {
+            // A call that has already ended (or been replaced) isn't failed again.
+            guard callId == id, engine === e else { e.close(); return }
             model.show(error.userMessage, error: true)
             fail()
         }
