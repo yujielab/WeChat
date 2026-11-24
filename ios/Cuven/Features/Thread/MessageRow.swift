@@ -354,6 +354,15 @@ struct MessageRow: View {
     }
 }
 
+/// A row is the same row while what it shows is (`.equatable()` in the
+/// thread): its callbacks hold only the message, compared here, and the
+/// thread's own state, so they can't tell two equal rows apart.
+extension MessageRow: Equatable {
+    static func == (a: MessageRow, b: MessageRow) -> Bool {
+        a.message == b.message && a.layout == b.layout && a.width == b.width && a.highlighted == b.highlighted
+    }
+}
+
 /// The heart from a double tap: rises out of the bubble and dissolves (560ms).
 struct HeartBurst: View {
     let trigger: Int

@@ -90,6 +90,12 @@ extension Theme {
     static let chipAccent = Color.token(0x0062cc, 0x27a8ff)
 }
 
+/// The one link detector, made once (building one compiles its patterns;
+/// it's immutable, so every bubble shares it).
+enum LinkDetect {
+    static let detector: NSDataDetector? = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+}
+
 // MARK: - Content
 
 /// What a message shows inside (or instead of) its bubble.
@@ -167,7 +173,7 @@ struct BubbleContent: View {
 
     private var attributed: AttributedString {
         var s = AttributedString(message.body)
-        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+        if let detector = LinkDetect.detector {
             let ns = message.body as NSString
             for match in detector.matches(in: message.body, range: NSRange(location: 0, length: ns.length)) {
                 guard let url = match.url, let r = Range(match.range, in: message.body),
@@ -460,6 +466,8 @@ final class AudioPlayback {
     }()
     /// Others' voice messages heard on this device (a dot marks the rest).
     var heard: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "voice:heard") ?? [])
+    /// The same, in the order heard, so what's dropped past the cap is the oldest.
+    @ObservationIgnored private var heardOrder: [String] = UserDefaults.standard.stringArray(forKey: "voice:heard") ?? []
     /// Set by the calls: nothing plays over a call.
     @ObservationIgnored var callActive: () -> Bool = { false }
 
@@ -586,8 +594,9 @@ final class AudioPlayback {
         guard !heard.contains(m.id) else { return }
         heard.insert(m.id)
         // Only the latest few hundred are kept.
-        let kept = Array(heard.suffix(400))
-        UserDefaults.standard.set(kept, forKey: "voice:heard")
+        heardOrder.append(m.id)
+        if heardOrder.count > 400 { heardOrder.removeFirst(heardOrder.count - 400) }
+        UserDefaults.standard.set(heardOrder, forKey: "voice:heard")
     }
 
     // MARK: To the ear

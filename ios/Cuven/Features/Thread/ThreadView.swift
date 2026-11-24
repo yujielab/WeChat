@@ -24,6 +24,7 @@ struct ThreadView: View {
     @State private var headerHeight: CGFloat = 92
     @State private var stickersOpen = false
     @State private var seenCount = 0
+    @State private var memo = ThreadRowsMemo()
 
     private var room: Room? { model.room(roomId) }
     /// The thread's sides: the row's 4pt inside an 18pt margin.
@@ -31,10 +32,7 @@ struct ThreadView: View {
 
     var body: some View {
         let msgs = model.messages(roomId)
-        let items = ThreadBuilder.items(msgs, me: model.me?.id, isGroup: room?.isGroup ?? false,
-                                        peerRead: room?.peerRead ?? 0, peerReadAt: room?.peerReadAt ?? 0,
-                                        receipts: model.prefs.receipts, unreadFrom: unreadFrom)
-        let typers = (model.typing[roomId] ?? [:]).sorted { $0.key < $1.key }
+        let items = rows(msgs)
         let thread = model.threads[roomId]
         let contentWidth = ctx.size.width - ctx.insets.leading - contentTrailing - side * 2
 
@@ -52,12 +50,7 @@ struct ThreadView: View {
                             .onAppear { atBottom = true; seenCount = msgs.count }
                             .onDisappear { atBottom = false; seenCount = msgs.count }
 
-                        ForEach(typers, id: \.key) { t in
-                            LiveTypingBubble(uid: t.key, text: t.value.text, showName: room?.isGroup ?? false)
-                                .padding(.horizontal, side)
-                                .scaleEffect(x: 1, y: -1)
-                                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomLeading)))
-                        }
+                        LiveTypers(roomId: roomId, isGroup: room?.isGroup ?? false, side: side)
 
                         ForEach(items.reversed()) { item in
                             row(item, proxy: proxy, width: contentWidth)
@@ -82,7 +75,6 @@ struct ThreadView: View {
                     .padding(.leading, ctx.insets.leading)
                     .padding(.trailing, contentTrailing)
                     .animation(Motion.message, value: msgs.last?.id)
-                    .animation(Motion.quick, value: typers.map(\.key))
                 }
                 // The heading's room, as a bar at the list's far end (the top,
                 // once flipped): what scrolls under it blurs progressively
@@ -109,7 +101,7 @@ struct ThreadView: View {
                             ThreadSkeleton()
                                 .padding(.top, headerHeight + ctx.insets.top + 20)
                                 .frame(maxHeight: .infinity, alignment: .top)
-                        } else if msgs.isEmpty && typers.isEmpty {
+                        } else if msgs.isEmpty && (model.typing[roomId]?.isEmpty ?? true) {
                             conversationStart
                                 .padding(.top, headerHeight + ctx.insets.top + 24)
                                 .frame(maxHeight: .infinity, alignment: .top)
@@ -217,6 +209,23 @@ struct ThreadView: View {
         model.rooms.filter { $0.id != roomId && !$0.muted }.reduce(0) { $0 + $1.unread }
     }
 
+    /// The rows, built again only when what they're built from changes (not
+    /// for the composer growing, the keyboard, or another room's news).
+    private func rows(_ msgs: [Message]) -> [ThreadItem] {
+        let key = ThreadRowsKey(msgs: msgs, me: model.me?.id, isGroup: room?.isGroup ?? false,
+                                peerRead: room?.peerRead ?? 0, peerReadAt: room?.peerReadAt ?? 0,
+                                receipts: model.prefs.receipts, unreadFrom: unreadFrom,
+                                today: Calendar.current.startOfDay(for: Date()),
+                                clock: UserDefaults.standard.string(forKey: "ui:time-format"))
+        if memo.key != key {
+            memo.items = ThreadBuilder.items(msgs, me: key.me, isGroup: key.isGroup,
+                                             peerRead: key.peerRead, peerReadAt: key.peerReadAt,
+                                             receipts: key.receipts, unreadFrom: key.unreadFrom)
+            memo.key = key
+        }
+        return memo.items
+    }
+
     /// max(safe-bottom, 16) at the foot; 8 above the keyboard.
     private var bottomInset: CGFloat {
         ctx.keyboard > 0 ? ctx.insets.bottom + 8 : max(ctx.insets.bottom, 16)
@@ -268,6 +277,7 @@ struct ThreadView: View {
                                if highlight == id { highlight = nil }
                            }
                        })
+                .equatable()
                 .padding(.horizontal, side)
         }
     }
@@ -308,6 +318,62 @@ struct ThreadView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
+    }
+}
+
+/// What a thread's rows are built from. The marks also name the day
+/// ("Today") and follow Settings › Time format, so those are in it too.
+struct ThreadRowsKey: Equatable {
+    var msgs: [Message]
+    var me: String?
+    var isGroup: Bool
+    var peerRead: Int
+    var peerReadAt: Int
+    var receipts: Bool
+    var unreadFrom: Int?
+    var today: Date
+    var clock: String?
+}
+
+/// The rows last built, and from what (kept across body runs, never observed).
+final class ThreadRowsMemo {
+    var key: ThreadRowsKey?
+    var items: [ThreadItem] = []
+}
+
+/// Who's writing right now, live: its own view, so their keystrokes (in
+/// this room or any other) redraw these bubbles, not the whole conversation.
+/// Someone new is let in through `shown` inside an animation, so the rows
+/// above slide up with their bubble (an `.animation` on these bubbles alone
+/// would leave the rows to jump); someone gone leaves at once, in the same
+/// update as the message they sent.
+struct LiveTypers: View {
+    @Environment(AppModel.self) private var model
+    let roomId: String
+    let isGroup: Bool
+    let side: CGFloat
+    /// Who's been let in.
+    @State private var shown: Set<String> = []
+
+    var body: some View {
+        let live = model.typing[roomId] ?? [:]
+        let typers = live.filter { shown.contains($0.key) }.sorted { $0.key < $1.key }
+        VStack(spacing: 0) {
+            ForEach(typers, id: \.key) { t in
+                LiveTypingBubble(uid: t.key, text: t.value.text, showName: isGroup)
+                    .padding(.horizontal, side)
+                    .scaleEffect(x: 1, y: -1)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomLeading)))
+            }
+        }
+        .animation(Motion.quick, value: typers.map(\.key))
+        .onChange(of: Set(live.keys), initial: true) { old, now in
+            if old != now && !now.isSubset(of: shown) {
+                withAnimation(Motion.quick) { shown = now }
+            } else {
+                shown = now
+            }
+        }
     }
 }
 
