@@ -71,17 +71,33 @@ struct ColumnBar<Center: View>: View {
             .opacity(nav.sheeted && !ctx.onPage ? 0 : 1)
             .animation(.easeOut(duration: 0.16), value: nav.sheeted)
         } else {
-            GlassGroup(spacing: Bar.gap) {
-                HStack(alignment: .bottom, spacing: Bar.gap) {
-                    if let back { icon(back, size: Bar.foot).transition(.scale(scale: 0.6).combined(with: .opacity)) }
-                    if hasCenter { center.frame(maxWidth: .infinity) } else { Spacer(minLength: 0) }
-                    if !(actions + footActions).isEmpty { group(actions + footActions, axis: .horizontal, size: Bar.foot) }
+            ZStack {
+                // The way out and the actions at the top, where iOS puts them.
+                if back != nil || !actions.isEmpty {
+                    HStack(spacing: Bar.gap) {
+                        if let back { icon(back).transition(.scale(scale: 0.6).combined(with: .opacity)) }
+                        Spacer(minLength: 0)
+                        if !actions.isEmpty { group(actions, axis: .horizontal) }
+                    }
+                    .padding(.top, ctx.insets.top + 8)
+                    .padding(.leading, max(ctx.insets.leading, 16))
+                    .padding(.trailing, max(ctx.insets.trailing, 16))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                // A field, and what starts something, at the foot.
+                if hasCenter || !footActions.isEmpty {
+                    GlassGroup(spacing: Bar.gap) {
+                        HStack(alignment: .bottom, spacing: Bar.gap) {
+                            if hasCenter { center.frame(maxWidth: .infinity) } else { Spacer(minLength: 0) }
+                            if !footActions.isEmpty { group(footActions, axis: .horizontal, size: Bar.foot) }
+                        }
+                    }
+                    .padding(.leading, max(ctx.insets.leading, 16))
+                    .padding(.trailing, max(ctx.insets.trailing, 16))
+                    .padding(.bottom, bottomPad)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
             }
-            .padding(.leading, max(ctx.insets.leading, 16))
-            .padding(.trailing, max(ctx.insets.trailing, 16))
-            .padding(.bottom, bottomPad)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .animation(Motion.ui, value: back?.id)
         }
     }

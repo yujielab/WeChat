@@ -61,11 +61,12 @@ struct DrawView: View {
                           footActions: [BarItem(id: "undo", sym: .undo, title: "Undo") { board.undo() },
                                         BarItem(id: "redo", sym: .redo, title: "Redo") { board.redo() }])
             } else {
+                // Close and Send either side of the title; Undo and Redo at the foot by the tools.
                 ColumnBar(back: BarItem(id: "close", sym: .xmark, title: "Close") { close() },
-                          actions: [BarItem(id: "undo", sym: .undo, title: "Undo") { board.undo() },
-                                    BarItem(id: "redo", sym: .redo, title: "Redo") { board.redo() },
-                                    BarItem(id: "send", sym: .arrowUp, title: "Send", tint: board.isEmpty ? nil : Color(hex: 0x000000),
+                          actions: [BarItem(id: "send", sym: .arrowUp, title: "Send", tint: board.isEmpty ? nil : Color(hex: 0x000000),
                                             foreground: board.isEmpty ? Color(hex: 0x8e8e93) : .white) { send() }],
+                          footActions: [BarItem(id: "undo", sym: .undo, title: "Undo") { board.undo() },
+                                        BarItem(id: "redo", sym: .redo, title: "Redo") { board.redo() }],
                           groupActions: false)
             }
         }

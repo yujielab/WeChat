@@ -34,7 +34,7 @@ struct ChatInfoView: View {
                     }
                 } label: {
                     HStack(spacing: 12) {
-                        CellIcon(sym: .sparkles, tint: Theme.fbBlue)
+                        CellIcon(sym: .sparkles)
                         Text(summary == nil ? "Summarise recent messages" : "Summarise again").font(.bodyC).foregroundStyle(Theme.label)
                         Spacer(minLength: 0)
                         if summarising { ProgressView() }
@@ -67,19 +67,10 @@ struct ChatInfoView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         profile(room)
-                        if let peer = room.peer, !room.isGroup {
-                            GroupCard {
-                                Button { nav.profile = peer.id } label: {
-                                    Cell(icon: .photo, iconTint: Theme.fbBlue, title: "Moments", chevron: true)
-                                }
-                                .buttonStyle(CellButtonStyle())
-                            }
-                            .padding(.top, 16)
-                        }
                         GroupCard {
                             Toggle(isOn: Binding(get: { room.muted }, set: { v in Task { await model.setFlag(room.id, muted: v) } })) {
                                 HStack(spacing: 12) {
-                                    CellIcon(sym: .bell, tint: Theme.fbBlue, slashed: true)
+                                    CellIcon(sym: .bell, slashed: true)
                                     Text("Mute").font(.bodyC).foregroundStyle(Theme.label)
                                 }
                             }
@@ -88,7 +79,7 @@ struct ChatInfoView: View {
                             CellSeparator(leading: 56)
                             Toggle(isOn: Binding(get: { room.pinned }, set: { v in Task { await model.setFlag(room.id, pinned: v) } })) {
                                 HStack(spacing: 12) {
-                                    CellIcon(sym: .pin, tint: Theme.fbBlue)
+                                    CellIcon(sym: .pin)
                                     Text("Pin chat").font(.bodyC).foregroundStyle(Theme.label)
                                 }
                             }
@@ -121,8 +112,9 @@ struct ChatInfoView: View {
                     .padding(.top, 22)
                     .padding(.bottom, 24)
                 }
-                .safeAreaPadding(EdgeInsets(top: ctx.insets.top, leading: ctx.insets.leading,
-                                            bottom: ctx.usesRail ? max(ctx.insets.bottom, 16) + 20 : ctx.barClearance,
+                // Off the rail, Back sits at the top: the content starts under it.
+                .safeAreaPadding(EdgeInsets(top: ctx.insets.top + (ctx.usesRail ? 0 : 52), leading: ctx.insets.leading,
+                                            bottom: max(ctx.insets.bottom, 16) + 20,
                                             trailing: railContent))
             }
             ColumnBar(back: BarItem(id: "close", sym: nav.columns == 1 ? .chevronLeft : .xmark,
@@ -184,12 +176,17 @@ struct ChatInfoView: View {
                     }
                 }
                 Spacer(minLength: 0)
+                // A one-to-one chat's card opens their page (their moments are there).
+                if !room.isGroup {
+                    SymbolView(.chevronRight, size: 16).foregroundStyle(Theme.label3)
+                }
             }
             .padding(20)
             .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
         }
         .buttonStyle(.press)
         .disabled(room.isGroup)
+        .accessibilityHint(room.isGroup ? Text(verbatim: "") : Text("View profile"))
     }
 
     /// Members: photos in a grid, then a way to add more.
