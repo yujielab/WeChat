@@ -97,6 +97,10 @@ final class Nav {
     var pushed: Bool { settingsOpen || profile != nil || editingProfile || changingPassword || newGroup || composeMoment }
     /// How many pages are pushed, one over another.
     var pushCount: Int { [settingsOpen, profile != nil, editingProfile, changingPassword, newGroup, composeMoment].filter { $0 }.count }
+    /// A task (a new moment, a new chat, your profile, a new password) is on
+    /// top: it rose from the foot as a modal, so nothing under it steps
+    /// sideways as it would under a push.
+    var modalOnTop: Bool { composeMoment || newGroup || editingProfile || changingPassword }
     /// How far the top pushed page has been dragged back toward the trailing
     /// edge (the swipe back): what's under it follows.
     var pushDrag: CGFloat = 0
@@ -274,9 +278,19 @@ private struct ColumnContextKey: EnvironmentKey {
     static let defaultValue = ColumnContext()
 }
 
+private struct ContentCoveredKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var column: ColumnContext {
         get { self[ColumnContextKey.self] }
         set { self[ColumnContextKey.self] = newValue }
+    }
+    /// Something covers this content (a page over it, or it's a tab page
+    /// that isn't showing): video and animation hold still.
+    var contentCovered: Bool {
+        get { self[ContentCoveredKey.self] }
+        set { self[ContentCoveredKey.self] = newValue }
     }
 }
