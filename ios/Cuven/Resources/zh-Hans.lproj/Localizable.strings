@@ -452,3 +452,5 @@
 "Video is too long to send" = "视频太长，无法发送";
 "Preparing video…" = "正在处理视频…";
 "Waiting for a connection…" = "正在等待网络连接…";
+"Answered on another device" = "已在其他设备上接听";
+"You can't record during a call" = "通话中无法录音";

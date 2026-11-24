@@ -72,7 +72,9 @@ struct PhotoViewer: View {
             if item.isVideo, let asset = AuthorizedAsset.make(item.path) {
                 let p = AVPlayer(playerItem: AVPlayerItem(asset: asset))
                 player = p
-                try? AVAudioSession.sharedInstance().setCategory(.playback)
+                // Over a call the call's sound stays as it is (playback alone
+                // would take its microphone away).
+                if !model.calls.active { try? AVAudioSession.sharedInstance().setCategory(.playback) }
                 p.play()
             }
             withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Motion.morph) { expanded = true }

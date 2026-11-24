@@ -96,11 +96,13 @@ struct MainView: View {
         model.pendingAction = nil
         switch a {
         case .search:
+            nav.clearOverlays()
             nav.switchPage(.chats)
             nav.toList()
             withAnimation(Motion.ui) { nav.searching = true }
-        case .newMoment: withAnimation(Motion.move) { nav.composeMoment = true }
-        case .newGroup: withAnimation(Motion.move) { nav.newGroup = true }
+        // An editor opens over the pages, but under the photo and the cards: they close.
+        case .newMoment: withAnimation(Motion.move) { nav.clearCards(); nav.composeMoment = true }
+        case .newGroup: withAnimation(Motion.move) { nav.clearCards(); nav.newGroup = true }
         }
     }
 
@@ -641,17 +643,18 @@ private struct KeyCommands: View {
         ZStack {
             Button("Back") { back() }.keyboardShortcut(.cancelAction)
             Button("Search") {
+                nav.clearOverlays()
                 nav.switchPage(.chats)
                 nav.toList()
                 withAnimation(Motion.ui) { nav.searching = true }
             }
             .keyboardShortcut("f", modifiers: .command)
-            Button("New chat") { withAnimation(Motion.move) { nav.newGroup = true } }
+            Button("New chat") { withAnimation(Motion.move) { nav.clearCards(); nav.newGroup = true } }
                 .keyboardShortcut("n", modifiers: .command)
-            Button("Chats") { nav.switchPage(.chats) }.keyboardShortcut("1", modifiers: .command)
-            Button("Moments") { nav.switchPage(.moments) }.keyboardShortcut("2", modifiers: .command)
-            Button("Friends") { nav.switchPage(.friends) }.keyboardShortcut("3", modifiers: .command)
-            Button("You") { nav.switchPage(.me) }.keyboardShortcut("4", modifiers: .command)
+            Button("Chats") { goTo(.chats) }.keyboardShortcut("1", modifiers: .command)
+            Button("Moments") { goTo(.moments) }.keyboardShortcut("2", modifiers: .command)
+            Button("Friends") { goTo(.friends) }.keyboardShortcut("3", modifiers: .command)
+            Button("You") { goTo(.me) }.keyboardShortcut("4", modifiers: .command)
         }
         .opacity(0)
         .frame(width: 0, height: 0)
@@ -659,11 +662,21 @@ private struct KeyCommands: View {
         .accessibilityHidden(true)
     }
 
+    /// A tab from the keyboard: what stands over the pages closes, so it shows.
+    private func goTo(_ p: Page) {
+        nav.clearOverlays()
+        nav.switchPage(p)
+    }
+
+    /// From the top down: the photo (over everything), then a page or card,
+    /// then the search, then the conversation.
     private func back() {
-        if nav.searching {
-            withAnimation(Motion.ui) { nav.searching = false }
+        if nav.viewer != nil {
+            withAnimation(Motion.fade) { nav.viewer = nil }
         } else if nav.sheeted {
             nav.closeTop()
+        } else if nav.searching {
+            withAnimation(Motion.ui) { nav.searching = false }
         } else if nav.room != nil, nav.columns == 1, nav.isVisible(.chat) {
             nav.backFromChat()
         }

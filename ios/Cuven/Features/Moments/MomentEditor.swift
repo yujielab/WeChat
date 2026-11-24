@@ -110,6 +110,10 @@ struct MomentEditor: View {
             .confirmationDialog("Discard this moment?", isPresented: $confirmDiscard, titleVisibility: .visible) {
                 Button("Discard", role: .destructive) { dismiss() }
             }
+            // Esc, or a way in from outside (a notification, a link): as Cancel does.
+            .onChange(of: nav.composeCloseRequest) { _, _ in
+                if dirty { confirmDiscard = true } else { dismiss() }
+            }
             .photosPicker(isPresented: $showPicker, selection: $items, maxSelectionCount: max(1, 9 - picks.count), matching: .any(of: [.images, .videos]))
             .onChange(of: items) { _, list in
                 guard !list.isEmpty else { return }

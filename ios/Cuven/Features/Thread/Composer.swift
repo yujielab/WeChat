@@ -492,6 +492,12 @@ struct Composer: View {
                 guard case .second(true, let drag) = value else { return }
                 if !holding {
                     guard !sentAtLimit else { return }
+                    // Not over a call: recording would take the call's sound.
+                    if model.calls.active {
+                        sentAtLimit = true
+                        model.show(String(localized: "You can't record during a call"), error: true)
+                        return
+                    }
                     holding = true
                     cancelArmed = false
                     HoldToTalkTip().invalidate(reason: .actionPerformed)

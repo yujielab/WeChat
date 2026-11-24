@@ -42,6 +42,12 @@ final class CallManager {
     @ObservationIgnored private var wanted: [String: (String, [String])] = [:]
     @ObservationIgnored private var published = false
     @ObservationIgnored private var peers = Set<String>()
+    /// Who rang this device (a call coming in): in a group, only they
+    /// hanging up puts the ring away.
+    @ObservationIgnored private var callerId: String?
+    /// The screen-off-at-the-ear sensor is on because of the call (a voice
+    /// message held to the ear turns it on too, and that isn't ours to undo).
+    @ObservationIgnored private var ownsProximity = false
     @ObservationIgnored private var pullTries = 0
     @ObservationIgnored private let sounds = CallSounds()
     /// Asking for the microphone before ringing: a second tap meanwhile waits.
@@ -67,6 +73,12 @@ final class CallManager {
             let ended = (n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap { AVAudioSession.InterruptionType(rawValue: $0) } == .ended
             Task { @MainActor in if ended { self?.resumeAudio() } }
         })
+        // A call's Live Activity left from before (the app was quit or
+        // crashed mid-call): nothing here can end that call any more.
+        let leftover = Activity<CallActivityAttributes>.activities
+        if !leftover.isEmpty {
+            Task { for a in leftover { await a.end(nil, dismissalPolicy: .immediate) } }
+        }
     }
 
     var active: Bool { phase != .idle }
@@ -135,6 +147,15 @@ final class CallManager {
         model.socket.send(msg)
     }
 
+    /// Back on the socket mid-call (as the web's resync): the server says
+    /// whether the call is still on ("alive", announced again) or not
+    /// ("gone"). A call only ringing here isn't this side's on the server
+    /// yet; its invitation comes again if it still rings.
+    func resync() {
+        guard active, phase != .ending, isCaller || answered else { return }
+        send(["kind": "check"])
+    }
+
     func handle(_ e: [String: Any]) {
         guard let kind = e["kind"] as? String else { return }
         let from = e["from"] as? String
@@ -143,6 +164,9 @@ final class CallManager {
         switch kind {
         case "accept":
             if let from { peers.insert(from) }
+            // Someone else joining a call already under way, or answering a
+            // group call that still rings here: neither answers it for us.
+            guard isCaller, !answered else { return }
             answered = true
             ringTimer?.cancel()
             sounds.stop()
@@ -165,18 +189,34 @@ final class CallManager {
         case "unreachable":
             if phase == .outgoing { status = String(localized: "Not reachable right now") }
         case "decline":
-            if room?.isGroup == true && !peers.isEmpty { return }
+            // In a group, one person saying no (or being busy) doesn't end it
+            // for the rest; an unanswered one gives up on its own ring timer.
+            // Answered and nobody else left in it: nothing would end it, so it ends.
+            if room?.isGroup == true && (!answered || !peers.isEmpty) { return }
             // The caller's side writes the call's one record, as the web does.
             let busy = (e["busy"] as? Bool) == true
             let missed = (e["missed"] as? Bool) == true
             finish(busy ? String(localized: "Busy") : (missed ? String(localized: "No answer") : String(localized: "Declined")),
-                   notify: isCaller && !answered, result: busy ? "busy" : (missed ? "missed" : "declined"))
+                   notify: true, result: busy ? "busy" : (missed ? "missed" : "declined"))
+        case "answered":
+            // You answered it on another of your devices: the ring here stops.
+            guard phase == .incoming else { return }
+            finish(String(localized: "Answered on another device"), notify: false)
         case "cancel":
             finish(String(localized: "Call ended"), notify: false)
         case "hangup":
             if let from { peers.remove(from) }
-            if room?.isGroup == true && (!peers.isEmpty || (e["ongoing"] as? Bool) == true) { return }
-            finish((e["reason"] as? String) == "lost" ? String(localized: "Connection lost") : String(localized: "Call ended"), notify: false)
+            let group = room?.isGroup == true
+            let ongoing = (e["ongoing"] as? Bool) == true
+            let lost = (e["reason"] as? String) == "lost"
+            // Still ringing here: in a group only the caller hanging up, or
+            // the call really being over, puts the ring away.
+            if !answered && group && ongoing && (from != callerId || lost) { return }
+            // A group call goes on while anyone else is in it or still being rung.
+            if answered && group && (!peers.isEmpty || ongoing) { return }
+            // Answered: this side's hang-up goes out too, so the server ends
+            // the call and writes its record now (as the web's end() does).
+            finish(lost ? String(localized: "Connection lost") : String(localized: "Call ended"), notify: answered)
         case "unstable":
             shaky = true
         case "back":
@@ -207,6 +247,7 @@ final class CallManager {
         video = (e["media"] as? String) == "video"
         isCaller = false
         if let from = e["from"] as? String { peers.insert(from) }
+        callerId = e["from"] as? String
         let caller: User? = model.decode(e["caller"])
         peerUser = caller ?? model.room(room)?.peer
         if var p = peerUser, p.avatar.isEmpty, let known = model.user(p.id) { p.avatar = known.avatar; peerUser = p }
@@ -250,9 +291,7 @@ final class CallManager {
         // Once: a second tap (or the Lock Screen's button) while it's ending does nothing.
         guard active, phase != .ending else { return }
         if answered {
-            let duration = liveAt.map { Int(Date().timeIntervalSince($0)) } ?? 0
-            send(["kind": "hangup", "media": video ? "video" : "audio", "duration": duration])
-            finish(String(localized: "Call ended"), notify: false)
+            finish(String(localized: "Call ended"), notify: true)
         } else if isCaller {
             finish(String(localized: "Cancelled"), notify: true, result: "cancelled")
         } else {
@@ -288,7 +327,12 @@ final class CallManager {
             withAnimation(Motion.ui) { self?.remoteVideo = track }
         }
         e.onConnected = { [weak self] in self?.goLive() }
-        e.onFailed = { [weak self] in self?.finish(String(localized: "Connection lost"), notify: false) }
+        // This call's connection, not one already closed: the others hear it
+        // ended (a hang-up, or an unanswered call's cancel) rather than talk to silence.
+        e.onFailed = { [weak self, weak e] in
+            guard let self, let e, self.engine === e else { return }
+            self.finish(String(localized: "Connection lost"), notify: true, result: "failed")
+        }
         e.onShaky = { [weak self] on in self?.shaky = on }
         e.start(iceServers: ice)
         localVideo = e.localVideo
@@ -441,6 +485,10 @@ final class CallManager {
     /// can't press anything.
     private func updateProximity() {
         let on = active && !video && route == .receiver && phase != .incoming && phase != .ending
+        // Off only if the call turned it on: a voice message held to the ear
+        // keeps it on through its own route changes.
+        guard on || ownsProximity else { return }
+        ownsProximity = on
         if UIDevice.current.isProximityMonitoringEnabled != on { UIDevice.current.isProximityMonitoringEnabled = on }
     }
 
@@ -455,10 +503,16 @@ final class CallManager {
 
     // MARK: - Ending
 
+    /// `notify`: the others hear it from this side too (the web's end()):
+    /// a hang-up once it was answered, else the caller's cancel saying how
+    /// it ended (`result`). Not when the server or the caller ended it already.
     private func finish(_ text: String, notify: Bool, result: String = "missed") {
         // Ended once: whatever else arrives while it closes adds nothing.
         guard active, phase != .ending else { return }
-        if notify {
+        if notify && answered {
+            let duration = liveAt.map { Int(Date().timeIntervalSince($0)) } ?? 0
+            send(["kind": "hangup", "media": video ? "video" : "audio", "duration": duration])
+        } else if notify && isCaller {
             send(["kind": "cancel", "media": video ? "video" : "audio", "missed": true, "result": result])
         }
         let heard = engine != nil
@@ -491,6 +545,7 @@ final class CallManager {
         published = false
         wanted = [:]
         peers = []
+        callerId = nil
         liveAt = nil
         muted = false
         camOff = false
@@ -503,7 +558,10 @@ final class CallManager {
         pullTries = 0
         frontCamera = true
         sounds.stop()
-        if UIDevice.current.isProximityMonitoringEnabled { UIDevice.current.isProximityMonitoringEnabled = false }
+        if ownsProximity {
+            ownsProximity = false
+            UIDevice.current.isProximityMonitoringEnabled = false
+        }
         UIApplication.shared.isIdleTimerDisabled = false
     }
 

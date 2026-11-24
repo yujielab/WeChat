@@ -551,3 +551,160 @@ test('the caller hanging up while another still rings does not end it if someone
   assert.equal(t.broker.get(t.room), null, 'C timed out: B alone with the caller gone, over')
   assert.equal(t.sent.filter(m => m.kind === 'hangup' && m.to === t.ids.b).at(-1).ongoing, false)
 })
+
+/** The stored call as if it had started `ms` ago (calls are timed from the wall clock). */
+function age(t, room, ms) {
+  const call = t.broker.get(room)
+  call.started -= ms
+  t.broker.put(room, call)
+}
+
+test('someone else connecting leaves a call under way alone, however long it has run', () => {
+  const t = setup()
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'tracks', room: t.room, callId: 'c1', sessionId: 'sa', tracks: ['a-audio'] })
+  age(t, t.room, 120000)
+  t.sockets.add(c)
+  t.broker.onConnect(c)
+  assert.deepEqual(t.broker.get(t.room)?.participants, [t.ids.a, t.ids.b], 'not dropped by an unrelated user')
+  t.broker.onConnect(t.ids.b)
+  assert.ok(t.broker.get(t.room), 'nor by one of its own')
+  t.sent.length = 0
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'check', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.b), ['alive', 'tracks'], 'still on, with what is published')
+})
+
+test('a stale call nobody answered still goes on the next connect; one under way rings nobody that late', () => {
+  const t = setup()
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  age(t, t.room, 120000)
+  t.broker.onConnect(t.ids.b)
+  assert.equal(t.broker.get(t.room), null, 'the caller vanished without a word: gone')
+  assert.deepEqual(t.kinds(t.ids.b), ['invite'], 'and not rung again')
+
+  // A group call under way, one member never reached: not rung for it two minutes in.
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  const g = t.store.createGroup({ name: 'G', creator: t.ids.a, members: [t.ids.b, c] })
+  const room = g.id ?? g
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room, callId: 'g1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room, callId: 'g1' })
+  age(t, room, 120000)
+  t.sockets.add(c)
+  t.broker.onConnect(c)
+  assert.deepEqual(t.kinds(c), [])
+  assert.deepEqual(t.broker.get(room)?.participants, [t.ids.a, t.ids.b])
+})
+
+test('answering on one device tells the others it was answered, and their missed-call decline ends nothing', () => {
+  const t = setup()
+  const records = () => t.store.listMessages(t.room, { limit: 50 }).filter(m => m.type === 'call').length
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  t.sent.length = 0
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.b), ['answered'], 'every device of the one who answered hears so')
+  assert.deepEqual(t.kinds(t.ids.a), ['accept'])
+  // The caller's own accept (a no-op) and a second device's accept say nothing more.
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.a), ['accept', 'accept'])
+  assert.deepEqual(t.kinds(t.ids.b), ['answered', 'accept'])
+  t.sent.length = 0
+  // The device that was still ringing times out (or is tapped Decline).
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'decline', room: t.room, callId: 'c1', missed: true })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'decline', room: t.room, callId: 'c1' })
+  assert.deepEqual(t.kinds(t.ids.a), [], 'the caller hears no decline')
+  assert.deepEqual(t.broker.get(t.room)?.participants, [t.ids.a, t.ids.b], 'B is still in it')
+  assert.equal(records(), 0)
+  // Hanging up as usual still ends it, recorded once.
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 8 })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 8 })
+  assert.equal(t.broker.get(t.room), null)
+  assert.equal(records(), 1)
+})
+
+test('in a group, a decline from another device of someone in the call leaves them in it', () => {
+  const { t, c, room } = groupCall(fakeClock())
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'tracks', room, callId: 'g1', sessionId: 'sa', tracks: ['a-audio'] })
+  t.broker.signal(c, { t: 'call', kind: 'tracks', room, callId: 'g1', sessionId: 'sc', tracks: ['c-audio'] })
+  t.sent.length = 0
+  t.broker.signal(c, { t: 'call', kind: 'decline', room, callId: 'g1', missed: true })
+  assert.equal(t.sent.length, 0, 'nobody hears it')
+  const call = t.broker.get(room)
+  assert.deepEqual(call.participants, [t.ids.a, t.ids.b, c])
+  assert.deepEqual(call.published[c], { sessionId: 'sc', tracks: ['c-audio'] }, 'their tracks stay for anyone joining')
+  // Someone only being rung still declines as before.
+  const d = t.store.createUser({ username: 'dave', display: 'D', salt: 's', hash: 'h' }).id
+  t.store.addMember(room, d)
+  call.ringing.push(d)
+  t.broker.put(room, call)
+  t.sockets.add(d)
+  t.broker.signal(d, { t: 'call', kind: 'decline', room, callId: 'g1' })
+  assert.ok(!t.broker.get(room).ringing.includes(d))
+  assert.ok(t.sent.some(m => m.to === t.ids.a && m.kind === 'decline' && m.from === d && m.ongoing === true))
+})
+
+test('long past its ring, someone never reached keeps no one on a group call: down to one, it is over', () => {
+  const clock = fakeClock()
+  const t = setup()
+  t.broker = clock.broker = new CallBroker(t.broker.hub, clock.opts)
+  const records = room => t.store.listMessages(room, { limit: 50 }).filter(m => m.type === 'call').length
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id // offline, never reached
+  const room = (g => g.id ?? g)(t.store.createGroup({ name: 'G', creator: t.ids.a, members: [t.ids.b, c] }))
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room, callId: 'g1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room, callId: 'g1' })
+  age(t, room, 120000)
+  t.sent.length = 0
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room, callId: 'g1', media: 'audio', duration: 110 })
+  assert.equal(t.broker.get(room), null, 'A is not left alone in it')
+  assert.equal(t.sent.find(m => m.to === t.ids.a && m.kind === 'hangup').ongoing, false)
+  assert.equal(records(room), 1)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room, callId: 'g1', media: 'audio', duration: 110 })
+  assert.equal(records(room), 1, 'recorded once')
+
+  // The same when the second-to-last one's grace period runs out.
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room, callId: 'g2', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room, callId: 'g2' })
+  age(t, room, 120000)
+  t.sockets.delete(t.ids.b)
+  t.broker.onDisconnect(t.ids.b)
+  clock.advance(15000)
+  assert.equal(t.broker.get(room), null)
+  assert.equal(records(room), 2)
+})
+
+test('a call long under way left with one person in it goes on the next connect; their hang-up still records it once', () => {
+  const t = setup()
+  const c = t.store.createUser({ username: 'carol', display: 'C', salt: 's', hash: 'h' }).id
+  const records = () => t.store.listMessages(t.room, { limit: 50 }).filter(m => m.type === 'call').length
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c1', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c1' })
+  age(t, t.room, 120000)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 100 })
+  t.broker.onConnect(t.ids.b)
+  assert.ok(t.broker.get(t.room), 'not by the one still in it')
+  t.sockets.add(c)
+  t.broker.onConnect(c)
+  assert.equal(t.broker.get(t.room), null, 'B never hung up (a reloaded page): not kept for ever')
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'hangup', room: t.room, callId: 'c1', media: 'audio', duration: 100 })
+  assert.equal(records(), 1)
+  assert.equal(t.store.lastMessage(t.room).meta.duration, 100)
+
+  // Alone but away: the grace period settles it (with its record), not a connect.
+  const clock = fakeClock()
+  t.broker = clock.broker = new CallBroker(t.broker.hub, clock.opts)
+  t.broker.signal(t.ids.a, { t: 'call', kind: 'invite', room: t.room, callId: 'c2', media: 'audio' })
+  t.broker.signal(t.ids.b, { t: 'call', kind: 'accept', room: t.room, callId: 'c2' })
+  age(t, t.room, 120000)
+  const call = t.broker.get(t.room)
+  call.participants = [t.ids.b]
+  t.broker.put(t.room, call)
+  t.sockets.delete(t.ids.b)
+  t.broker.onDisconnect(t.ids.b)
+  t.broker.onConnect(c)
+  assert.ok(t.broker.get(t.room), 'B may still come back')
+  clock.advance(15000)
+  assert.equal(t.broker.get(t.room), null)
+  assert.equal(records(), 2)
+})

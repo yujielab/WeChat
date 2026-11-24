@@ -48,7 +48,13 @@ export class CallBroker {
   // from its notification finds it even if the Durable Object slept between.
   // { callId, media, caller, started, participants, ringing, alerted, notified,
   //   published: { [uid]: { sessionId, tracks } }, states: { [uid]: { mic, cam } } }
-  get(room) { return this.hub.store.kvGet(`call:${room}`) }
+  get(room) {
+    const call = this.hub.store.kvGet(`call:${room}`)
+    // Long past its ring, a call under way rings for nobody: someone never
+    // reached keeps no one on it (a group down to one is over) and isn't rung.
+    if (call?.answered && call.ringing?.length && ringOver(call)) call.ringing = []
+    return call
+  }
   put(room, call) { this.hub.store.kvSet(`call:${room}`, call) }
   drop(room) { this.hub.store.kvDelete(`call:${room}`) }
   all() { return this.hub.store.kvList('call:').map(([k, call]) => [k.slice(5), call]) }
@@ -85,10 +91,13 @@ export class CallBroker {
       case 'accept': {
         if (current) {
           current.ringing = current.ringing.filter(u => u !== from)
-          if (!current.participants.includes(from)) current.participants.push(from)
+          const joined = !current.participants.includes(from)
+          if (joined) current.participants.push(from)
           // When it got under way: a record the server writes itself is timed from here.
           current.answered ??= this.now()
           this.put(room, current)
+          // Their other devices, still ringing, stop: it was answered on this one.
+          if (joined) this.hub.sendToUser(from, { t: 'call', kind: 'answered', room, callId })
           // Whatever is already published reaches the one joining, whenever
           // its own connection is ready for it, and so does whether each
           // microphone and camera is on.
@@ -148,6 +157,9 @@ export class CallBroker {
       case 'decline':
       case 'cancel':
       case 'hangup': {
+        // Already in the call (answered on another of their devices): a decline
+        // from one of theirs that was still ringing takes nobody out of it.
+        if (kind === 'decline' && current?.participants.includes(from)) return
         const caller = current?.caller
         let finished = false
         if (current) {
@@ -265,7 +277,15 @@ export class CallBroker {
         if (call.away?.[uid]) this.rejoin(room, call, uid)
         continue
       }
-      if (Date.now() - call.started > RING_MS + 15000) { this.drop(room); continue }
+      // Past any ring: a call nobody answered is stale and goes, and so does
+      // one down to a single person not away (their own hang-up still records
+      // it; an away one's grace period settles it); one under way goes on,
+      // whoever connected, but nobody is rung for it this late.
+      if (ringOver(call)) {
+        const lone = call.participants.length < 2 && !call.away?.[call.participants[0]]
+        if (!call.answered || lone) this.drop(room)
+        continue
+      }
       if (!call.ringing.includes(uid)) continue
       this.hub.sendToUser(uid, { t: 'call', kind: 'invite', room, callId: call.callId, from: call.caller, media: call.media, caller: this.callerOf(call.caller) })
     }
@@ -516,6 +536,11 @@ function publication(msg) {
     Array.isArray(msg.tracks) && msg.tracks.length > 0 && msg.tracks.length <= 8 &&
     msg.tracks.every(t => typeof t === 'string' && t.length <= 128)
   return ok ? { sessionId: msg.sessionId, tracks: msg.tracks } : null
+}
+
+/** Long enough since it began that nobody can be rung for it any more (see onConnect). */
+function ringOver(call) {
+  return Date.now() - call.started > RING_MS + 15000
 }
 
 /** Those in the call and not away, but for `uid`. */

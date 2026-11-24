@@ -82,11 +82,15 @@ export function createCalls({ socketSend, connected = () => true, onCover = () =
     else if (kind === 'back') unstable(call, msg, false)
     else if (kind === 'alive') alive(call)
     else if (kind === 'gone') gone(call)
+    // Answered on another of your devices: this one stops ringing.
+    else if (kind === 'answered') { if (call.role !== 'caller' && !call.answered) end(true) }
   }
 
   /** After the socket comes back: the server says whether the call survived. */
   function resync() {
     if (!active || active.ending) return
+    // A callee still ringing has nothing to check: the server would call it gone.
+    if (!active.answered && active.role !== 'caller') return
     socketSend({ t: 'call', kind: 'check', room: active.room, callId: active.callId })
   }
   function alive(call) {

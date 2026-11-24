@@ -120,6 +120,8 @@ final class AppModel {
             self.connected = true
             self.catchUp()
             self.runOutbox()
+            // Back on the socket mid-call: is the call still on over there?
+            self.calls.resync()
             if self.needsBootstrap { Task { await self.retryBootstrap() } }
         }
         socket.onClose = { [weak self] in

@@ -80,6 +80,10 @@ final class Nav {
     var newGroup = false
     var editingProfile = false
     var changingPassword = false
+    /// Asks the moment being written to close as its own Cancel does: at
+    /// once when there's nothing in it, after asking when there is
+    /// (MomentEditor answers it). Nav never closes the editor itself.
+    var composeCloseRequest = 0
 
     var visibleColumns: [Column] {
         (0..<columns).compactMap { Column(rawValue: leading.rawValue + $0) }
@@ -103,12 +107,13 @@ final class Nav {
     /// Anything over the strip: it takes no touches and its rail steps aside.
     var sheeted: Bool { covered || dialogUp }
 
-    /// Closes the topmost page or card.
+    /// Closes the topmost page or card (a moment being written is asked to,
+    /// so it can ask before anything in it is lost).
     func closeTop() {
         withAnimation(Motion.move) {
             if noteEditor { noteEditor = false }
             else if openNote != nil { openNote = nil }
-            else if composeMoment { composeMoment = false }
+            else if composeMoment { composeCloseRequest += 1 }
             else if newGroup { newGroup = false }
             else if changingPassword { changingPassword = false }
             else if editingProfile { editingProfile = false }
@@ -134,8 +139,34 @@ final class Nav {
         withAnimation(Motion.move) { change() }
     }
 
+    /// The photo and the cards, which stand over the pages: closed before
+    /// a page opens from outside, or it would open under them.
+    func clearCards() {
+        viewer = nil
+        noteEditor = false
+        openNote = nil
+    }
+
+    /// A way in from outside (a notification, Spotlight, Siri, Handoff, a
+    /// link) or a shortcut: the photo, the cards and the pushed pages close,
+    /// so what it opens shows. A moment being written isn't thrown away:
+    /// it's asked to close, and asks first if there's something in it.
+    func clearOverlays() {
+        withAnimation(Motion.move) {
+            clearCards()
+            profile = nil
+            settingsOpen = false
+            editingProfile = false
+            changingPassword = false
+            newGroup = false
+            if composeMoment { composeCloseRequest += 1 }
+        }
+    }
+
     func open(room id: String, keepSearch: Bool = false) {
         go {
+            // Whatever stands over the strip closes, so the chat shows (and is read).
+            clearOverlays()
             if room != id { detail = nil }
             room = id
             page = .chats
