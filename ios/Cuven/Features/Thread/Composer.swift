@@ -20,6 +20,7 @@ struct Composer: View {
     @Environment(Nav.self) private var nav
     @Environment(\.column) private var ctx
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var text = ""
     @State private var plusOpen = false
@@ -44,6 +45,9 @@ struct Composer: View {
     @State private var holding = false
     @State private var cancelArmed = false
     @State private var holdEnded = Date.distantPast
+    /// The two-minute limit has sent this hold's recording: the rest of the
+    /// touch starts nothing new.
+    @State private var sentAtLimit = false
     /// Resets by itself when the system cancels the hold (onEnded never comes).
     @GestureState private var pressing = false
 
@@ -80,7 +84,7 @@ struct Composer: View {
                             .popoverTip(HoldToTalkTip(), arrowEdge: .bottom)
                             .overlay {
                                 if recorder.isRecording {
-                                    recordingBar
+                                    RecordingBar(recorder: recorder, cancelArmed: cancelArmed)
                                         .allowsHitTesting(false)
                                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                                 }
@@ -140,20 +144,34 @@ struct Composer: View {
             text = model.drafts[room.id] ?? ""
         }
         .onChange(of: text) { _, v in
-            model.drafts[room.id] = v
-            if editing == nil { model.sendTyping(v, room: room.id) }
+            // While editing, the field holds the message, not the draft
+            // (send and cancel put the draft back, which saves it here).
+            if editing == nil {
+                model.drafts[room.id] = v
+                model.sendTyping(v, room: room.id)
+            }
             if !v.isEmpty && plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
         }
-        .onChange(of: editing?.id) { _, _ in
+        .onChange(of: editing?.id) { old, _ in
             if let e = editing {
-                savedDraft = text
+                // From one edit straight to another: the draft kept is still the one from before.
+                if old == nil { savedDraft = text }
                 text = e.body
                 focused = true
+            } else if old != nil {
+                // Ended from outside (a reply instead): the draft comes back.
+                text = savedDraft
             }
         }
         .onChange(of: replyTo?.id) { _, id in if id != nil { focused = true } }
         .task(id: text) { await fetchSuggestion() }
-        .task(id: lastIncomingID) { await fetchIdeas() }
+        .task(id: ideasKey) {
+            guard onScreen else { return }
+            await fetchIdeas()
+        }
+        // Out of sight nothing is written, but ideas for a message that's no
+        // longer the last don't stay up (behind a card, or in a swipe back).
+        .onChange(of: lastIncomingID) { _, _ in if !onScreen { ideas = [] } }
         .animation(Motion.ui, value: ideas)
         .onReceive(NotificationCenter.default.publisher(for: .automationPlus)) { _ in
             withAnimation(Motion.morph) { plusOpen = true }
@@ -230,6 +248,7 @@ struct Composer: View {
                                     guard !down else { return }
                                     // Let a normal release finish first; whatever is left was cancelled.
                                     DispatchQueue.main.async {
+                                        sentAtLimit = false
                                         guard holding else { return }
                                         recorder.cancel()
                                         holding = false
@@ -388,13 +407,32 @@ struct Composer: View {
         return last.id
     }
 
+    /// This chat is the one on screen, with the app in front: the only time
+    /// the on-device model writes reply ideas for it.
+    private var onScreen: Bool {
+        nav.room == room.id && nav.isVisible(.chat) && !nav.sheeted && scenePhase == .active
+    }
+
+    /// What the reply ideas answer while on screen ("" for nothing to
+    /// answer), nil while not: a chat out of sight never runs the model.
+    private var ideasKey: String? { onScreen ? (lastIncomingID ?? "") : nil }
+
     private func fetchIdeas() async {
         ideas = []
-        guard model.predictions, LocalAI.available, lastIncomingID != nil else { return }
+        guard model.predictions, LocalAI.available, let id = lastIncomingID else { return }
+        // Coming back to the chat: the ideas already written for this message.
+        if let hit = IdeaCache.byMessage[id] {
+            if text.isEmpty { ideas = hit }
+            return
+        }
         try? await Task.sleep(for: .milliseconds(350))
         if Task.isCancelled { return }
         let lines = LocalAI.lines(model.messages(room.id), me: model.me?.id) { model.name(of: $0) }
         let found = await LocalAI.replies(to: lines)
+        if !found.isEmpty {
+            if IdeaCache.byMessage.count > 64 { IdeaCache.byMessage.removeAll() }
+            IdeaCache.byMessage[id] = found
+        }
         if !Task.isCancelled && text.isEmpty { ideas = found }
     }
 
@@ -442,37 +480,6 @@ struct Composer: View {
 
     // MARK: voice
 
-    /// While the field is held: the time, the level, and what letting go
-    /// will do (send, or, slid up or away, cancel).
-    private var recordingBar: some View {
-        HStack(spacing: 12) {
-            if cancelArmed {
-                SymbolView(.trash, size: 20).foregroundStyle(Theme.red)
-                    .frame(width: 24)
-                    .transition(.scale.combined(with: .opacity))
-            } else {
-                Circle().fill(Theme.red).frame(width: 9, height: 9)
-                    .opacity(recorder.blink ? 1 : 0.25)
-                    .frame(width: 24)
-            }
-            Text(Fmt.duration(recorder.elapsed)).font(.subheadMediumC.monospacedDigit()).foregroundStyle(Theme.label)
-            LevelMeter(levels: recorder.levels).frame(height: 26)
-                .opacity(cancelArmed ? 0.35 : 1)
-            Text(cancelArmed ? "Release to cancel" : "Slide up to cancel")
-                .font(.footnoteC)
-                .foregroundStyle(cancelArmed ? Theme.red : Theme.label2)
-                .lineLimit(1)
-                .fixedSize()
-        }
-        .padding(.leading, 16)
-        .padding(.trailing, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Over the field's words and "+", which stay underneath holding the gesture.
-        .background(Theme.bg, in: Capsule())
-        .glass(Capsule(), tint: cancelArmed ? Theme.red.opacity(0.12) : nil, interactive: false)
-        .animation(Motion.quick, value: cancelArmed)
-    }
-
     /// Touch and hold the empty field to record; let go to send it, or slide
     /// up (or back toward the leading edge) first to cancel.
     private var holdGesture: some Gesture {
@@ -484,11 +491,23 @@ struct Composer: View {
             .onChanged { value in
                 guard case .second(true, let drag) = value else { return }
                 if !holding {
+                    guard !sentAtLimit else { return }
                     holding = true
                     cancelArmed = false
                     HoldToTalkTip().invalidate(reason: .actionPerformed)
                     Haptics.press()
                     if plusOpen { withAnimation(Motion.morph) { plusOpen = false } }
+                    // Two minutes is as long as one goes: it's sent as it is,
+                    // and letting go afterwards does nothing more.
+                    recorder.onLimit = { data, duration in
+                        holding = false
+                        cancelArmed = false
+                        sentAtLimit = true
+                        holdEnded = Date()
+                        guard duration >= 0.6 else { return }
+                        model.sendVoice(data, duration: duration, room: room.id)
+                        Haptics.success()
+                    }
                     recorder.start()
                 }
                 let t = drag?.translation ?? .zero
@@ -499,6 +518,7 @@ struct Composer: View {
                 }
             }
             .onEnded { value in
+                sentAtLimit = false
                 guard case .second(true, _) = value, holding else { return }
                 if cancelArmed || !recorder.isRecording {
                     recorder.cancel()
@@ -551,20 +571,19 @@ struct Composer: View {
         var reply = takeReply()
         for item in items {
             let isVideo = item.supportedContentTypes.contains { $0.conforms(to: .movie) }
-            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
             if isVideo {
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
-                try? data.write(to: url)
-                let asset = AVURLAsset(url: url)
-                let dur = (try? await asset.load(.duration).seconds) ?? 0
-                var size = CGSize(width: 720, height: 1280)
-                if let track = try? await asset.loadTracks(withMediaType: .video).first,
-                   let natural = try? await track.load(.naturalSize), let t = try? await track.load(.preferredTransform) {
-                    let r = CGRect(origin: .zero, size: natural).applying(t)
-                    size = CGSize(width: abs(r.width), height: abs(r.height))
-                }
-                model.sendVideo(data, size: size, duration: dur, room: room.id)
-            } else if let img = UIImage(data: data) {
+                // Re-encoding can take a moment: say so rather than look stuck.
+                model.show(String(localized: "Preparing video…"))
+                do {
+                    let v = try await VideoPrep.load(item)
+                    model.sendVideo(v.data, size: v.size, duration: v.duration, room: room.id)
+                } catch VideoPrep.Failure.tooLong {
+                    model.show(String(localized: "Video is too long to send"), error: true)
+                } catch {}
+                continue
+            }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            if let img = UIImage(data: data) {
                 model.sendPicture(img, room: room.id, replyTo: reply)
                 reply = nil
             }
@@ -610,6 +629,50 @@ struct Composer: View {
             s = await model.suggest(room: room.id, draft: text)
         }
         if !Task.isCancelled { suggestion = s.trimmingCharacters(in: .newlines) }
+    }
+}
+
+/// Reply ideas already written, by the message they answer: coming back to
+/// a chat doesn't run the model again for the same message.
+@MainActor
+private enum IdeaCache {
+    static var byMessage: [String: [String]] = [:]
+}
+
+/// While the field is held: the time, the level, and what letting go
+/// will do (send, or, slid up or away, cancel). Its own view, so the
+/// recorder's ticks redraw only this, not the whole composer.
+private struct RecordingBar: View {
+    let recorder: VoiceRecorder
+    let cancelArmed: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if cancelArmed {
+                SymbolView(.trash, size: 20).foregroundStyle(Theme.red)
+                    .frame(width: 24)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Circle().fill(Theme.red).frame(width: 9, height: 9)
+                    .opacity(recorder.blink ? 1 : 0.25)
+                    .frame(width: 24)
+            }
+            Text(Fmt.duration(recorder.elapsed)).font(.subheadMediumC.monospacedDigit()).foregroundStyle(Theme.label)
+            LevelMeter(levels: recorder.levels).frame(height: 26)
+                .opacity(cancelArmed ? 0.35 : 1)
+            Text(cancelArmed ? "Release to cancel" : "Slide up to cancel")
+                .font(.footnoteC)
+                .foregroundStyle(cancelArmed ? Theme.red : Theme.label2)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Over the field's words and "+", which stay underneath holding the gesture.
+        .background(Theme.bg, in: Capsule())
+        .glass(Capsule(), tint: cancelArmed ? Theme.red.opacity(0.12) : nil, interactive: false)
+        .animation(Motion.quick, value: cancelArmed)
     }
 }
 
@@ -728,6 +791,9 @@ final class VoiceRecorder {
     /// Still wanted when the permission answer comes back (the finger may
     /// have lifted, or the system's prompt cancelled the hold).
     @ObservationIgnored private var wanted = false
+    /// Gets the recording when it reaches the two-minute limit and stops by
+    /// itself (the finger still down). Kept only while recording.
+    @ObservationIgnored var onLimit: ((Data, Double) -> Void)?
 
     func start() {
         wanted = true
@@ -772,11 +838,15 @@ final class VoiceRecorder {
         levels.append(level)
         elapsed = r.currentTime
         blink.toggle()
-        if elapsed > 120 { _ = finish() }
+        if elapsed > 120 {
+            let done = onLimit
+            if let res = finish() { done?(res.0, res.1) }
+        }
     }
 
     func finish() -> (Data, Double)? {
         wanted = false
+        onLimit = nil
         guard let r = recorder, let url else { return nil }
         let d = r.currentTime
         r.stop()
@@ -790,6 +860,7 @@ final class VoiceRecorder {
 
     func cancel() {
         wanted = false
+        onLimit = nil
         recorder?.stop()
         recorder?.deleteRecording()
         recorder = nil
@@ -801,6 +872,76 @@ final class VoiceRecorder {
         timer?.invalidate()
         timer = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+
+// MARK: - Picked videos
+
+/// A video from the photo library, copied into a file of our own (never
+/// read whole into memory).
+struct PickedMovie: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { movie in
+            SentTransferredFile(movie.url)
+        } importing: { received in
+            let ext = received.file.pathExtension.isEmpty ? "mov" : received.file.pathExtension
+            let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "." + ext)
+            try FileManager.default.copyItem(at: received.file, to: copy)
+            return PickedMovie(url: copy)
+        }
+    }
+}
+
+/// A picked video made ready to send (a message or a moment): made into a
+/// 720p MP4, or medium quality when that's still too big, so it fits what
+/// the hub takes; its upright size and length read from the result. The
+/// temporary files are gone once it returns.
+enum VideoPrep {
+    /// The most the hub takes (src/media.js).
+    static let maxBytes = 30 * 1024 * 1024
+
+    struct Ready {
+        var data: Data
+        var size: CGSize
+        var duration: Double
+    }
+
+    enum Failure: Error { case tooLong, failed }
+
+    static func load(_ item: PhotosPickerItem) async throws -> Ready {
+        guard let movie = try await item.loadTransferable(type: PickedMovie.self) else { throw Failure.failed }
+        defer { try? FileManager.default.removeItem(at: movie.url) }
+        let source = AVURLAsset(url: movie.url)
+        var tooBig = false
+        for preset in [AVAssetExportPreset1280x720, AVAssetExportPresetMediumQuality] {
+            guard let export = AVAssetExportSession(asset: source, presetName: preset) else { continue }
+            let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+            defer { try? FileManager.default.removeItem(at: out) }
+            export.shouldOptimizeForNetworkUse = true
+            do {
+                try await export.export(to: out, as: .mp4)
+            } catch {
+                continue
+            }
+            let bytes = (try? out.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? Int.max
+            guard bytes <= maxBytes else {
+                tooBig = true
+                continue
+            }
+            let asset = AVURLAsset(url: out)
+            let duration = (try? await asset.load(.duration).seconds) ?? 0
+            var size = CGSize(width: 720, height: 1280)
+            if let track = try? await asset.loadTracks(withMediaType: .video).first,
+               let natural = try? await track.load(.naturalSize), let t = try? await track.load(.preferredTransform) {
+                let r = CGRect(origin: .zero, size: natural).applying(t)
+                size = CGSize(width: abs(r.width), height: abs(r.height))
+            }
+            let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: out) }.value
+            return Ready(data: data, size: size, duration: duration)
+        }
+        throw tooBig ? Failure.tooLong : Failure.failed
     }
 }
 

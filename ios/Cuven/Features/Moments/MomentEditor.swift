@@ -118,7 +118,7 @@ struct MomentEditor: View {
             }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPicker { img in
-                    if let img { picks.append(Pick(image: img, size: img.size)) }
+                    if let img { addCameraPhoto(img) }
                 }
                 .ignoresSafeArea()
             }
@@ -272,22 +272,33 @@ struct MomentEditor: View {
     private func load(_ list: [PhotosPickerItem]) async {
         for item in list {
             let isVideo = item.supportedContentTypes.contains { $0.conforms(to: .movie) }
-            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
             if isVideo {
                 guard picks.isEmpty else { continue }
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
-                try? data.write(to: url)
-                var size = CGSize(width: 1080, height: 1920)
-                if let track = try? await AVURLAsset(url: url).loadTracks(withMediaType: .video).first,
-                   let n = try? await track.load(.naturalSize), let t = try? await track.load(.preferredTransform) {
-                    let r = CGRect(origin: .zero, size: n).applying(t)
-                    size = CGSize(width: abs(r.width), height: abs(r.height))
-                }
-                picks = [Pick(video: data, size: size)]
-                return
-            } else if let img = UIImage(data: data), picks.count < 9 {
+                // From a file, made small enough for the hub (as in a chat).
+                do {
+                    let v = try await VideoPrep.load(item)
+                    guard picks.isEmpty else { continue }
+                    picks = [Pick(video: v.data, size: v.size)]
+                    return
+                } catch VideoPrep.Failure.tooLong {
+                    model.show(String(localized: "Video is too long to send"), error: true)
+                } catch {}
+                continue
+            }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            // Decoded off the main thread at the size it's posted at, never in full.
+            let img = await Task.detached(priority: .userInitiated) { ImageStore.decode(data, maxPixel: 2048) }.value
+            if let img, picks.count < 9 {
                 picks.append(Pick(image: img, size: img.size))
             }
+        }
+    }
+
+    /// A camera photo, scaled to the size it's posted at, off the main thread.
+    private func addCameraPhoto(_ img: UIImage) {
+        Task {
+            let p = await Task.detached(priority: .userInitiated) { Media.prepare(img, maxSide: 2048, png: false) }.value
+            picks.append(Pick(image: p.image, size: p.size))
         }
     }
 

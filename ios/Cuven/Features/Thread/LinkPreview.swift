@@ -1,5 +1,6 @@
 import SwiftUI
 import LinkPresentation
+import UniformTypeIdentifiers
 
 /// What a link shows of itself: its title, its site, a picture or icon.
 struct LinkInfo {
@@ -10,38 +11,71 @@ struct LinkInfo {
 }
 
 /// Link previews (LinkPresentation), fetched once per link on the device and
-/// kept for the session.
+/// kept while there's room (pictures at the size the card shows them).
 @MainActor
 final class LinkPreviews {
     static let shared = LinkPreviews()
-    private var cache: [URL: LinkInfo] = [:]
+
+    private final class Box {
+        let info: LinkInfo
+        init(_ info: LinkInfo) { self.info = info }
+    }
+
+    private let cache: NSCache<NSURL, Box> = {
+        let c = NSCache<NSURL, Box>()
+        c.totalCostLimit = 24 << 20
+        return c
+    }()
     private var missing: Set<URL> = []
     private var inflight: [URL: Task<LinkInfo?, Never>] = [:]
 
     func info(for url: URL) async -> LinkInfo? {
-        if let hit = cache[url] { return hit }
+        if let hit = cache.object(forKey: url as NSURL) { return hit.info }
         if missing.contains(url) { return nil }
         if let running = inflight[url] { return await running.value }
         let task = Task<LinkInfo?, Never> { @MainActor in
             let provider = LPMetadataProvider()
             provider.timeout = 8
             guard let meta = try? await provider.startFetchingMetadata(for: url) else { return nil }
-            let image = await Self.load(meta.imageProvider)
-            let icon = image == nil ? await Self.load(meta.iconProvider) : nil
+            // The card's picture is 260pt wide, its icon 28pt (at 3x).
+            let image = await Self.load(meta.imageProvider, maxPixel: 780)
+            let icon = image == nil ? await Self.load(meta.iconProvider, maxPixel: 84) : nil
             let host = (meta.url ?? meta.originalURL ?? url).host() ?? url.absoluteString
             return LinkInfo(title: meta.title, host: host.replacingOccurrences(of: "www.", with: ""), image: image, icon: icon)
         }
         inflight[url] = task
         let info = await task.value
         inflight[url] = nil
-        if let info { cache[url] = info } else { missing.insert(url) }
+        if let info {
+            cache.setObject(Box(info), forKey: url as NSURL, cost: Self.cost(of: info))
+        } else {
+            if missing.count > 500 { missing.removeAll() }
+            missing.insert(url)
+        }
         return info
     }
 
-    private static func load(_ provider: NSItemProvider?) async -> UIImage? {
-        guard let provider, provider.canLoadObject(ofClass: UIImage.self) else { return nil }
+    /// What the pictures take in memory, decoded.
+    private static func cost(of info: LinkInfo) -> Int {
+        [info.image, info.icon].compactMap { $0?.cgImage }.reduce(1) { $0 + $1.bytesPerRow * $1.height }
+    }
+
+    /// The picture's bytes, decoded off the main thread at the size it's shown.
+    nonisolated private static func load(_ provider: NSItemProvider?, maxPixel: CGFloat) async -> UIImage? {
+        guard let provider else { return nil }
+        if let type = provider.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .image) == true }) {
+            let decoded: UIImage? = await withCheckedContinuation { c in
+                _ = provider.loadDataRepresentation(forTypeIdentifier: type) { data, _ in
+                    c.resume(returning: data.flatMap { ImageStore.decode($0, maxPixel: maxPixel) })
+                }
+            }
+            if let decoded { return decoded }
+        }
+        // No image bytes on offer, or none ImageIO reads: the picture as it
+        // comes (the cache's cost still bounds it).
+        guard provider.canLoadObject(ofClass: UIImage.self) else { return nil }
         return await withCheckedContinuation { c in
-            provider.loadObject(ofClass: UIImage.self) { object, _ in
+            _ = provider.loadObject(ofClass: UIImage.self) { object, _ in
                 c.resume(returning: object as? UIImage)
             }
         }
@@ -49,7 +83,7 @@ final class LinkPreviews {
 
     /// The first web link in a message, if any.
     static func firstURL(in text: String) -> URL? {
-        guard text.contains("http"), let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+        guard text.contains("http"), let detector = LinkDetect.detector else { return nil }
         let ns = text as NSString
         for match in detector.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             if let url = match.url, let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" { return url }

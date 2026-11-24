@@ -449,3 +449,5 @@
 "No results for “%@”" = "没有“%@”的结果";
 "Pick one friend to chat, or several for a group." = "选一位朋友聊天，或选多位发起群聊。";
 "Add friends first, then start a chat with them." = "先添加朋友，再和他们聊天。";
+"Video is too long to send" = "视频太长，无法发送";
+"Preparing video…" = "正在处理视频…";

@@ -104,6 +104,10 @@ struct LocationPicker: View {
                 .onMapCameraChange(frequency: .onEnd) { ctx in
                     withAnimation(Motion.bouncy) { moving = false }
                     center = ctx.region.center
+                    // Unnamed until this spot's own answer comes: a pin moved
+                    // on never goes out with the last place's name.
+                    centerName = ""
+                    centerAddress = ""
                     Task { await describeCenter(ctx.region.center) }
                     Task { await loadNearby(ctx.region.center) }
                 }
@@ -214,7 +218,8 @@ struct LocationPicker: View {
 
     private func describeCenter(_ c: CLLocationCoordinate2D) async {
         let marks = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: c.latitude, longitude: c.longitude))
-        guard let p = marks?.first else { return }
+        // Only for where the pin still is (a slow answer for an earlier spot is dropped).
+        guard let now = center, now.latitude == c.latitude, now.longitude == c.longitude, let p = marks?.first else { return }
         centerName = p.name ?? p.thoroughfare ?? ""
         centerAddress = [p.subLocality, p.locality, p.administrativeArea].compactMap { $0 }.joined(separator: " ")
     }
@@ -222,6 +227,7 @@ struct LocationPicker: View {
     private func loadNearby(_ c: CLLocationCoordinate2D) async {
         let req = MKLocalPointsOfInterestRequest(center: c, radius: 600)
         let found = try? await MKLocalSearch(request: req).start()
+        guard let now = center, now.latitude == c.latitude, now.longitude == c.longitude else { return }
         nearby = Array((found?.mapItems ?? []).prefix(20))
     }
 
